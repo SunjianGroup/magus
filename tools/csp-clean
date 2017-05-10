@@ -1,0 +1,5 @@
+#!/bin/bash
+rm testlog currentStat.json ALL_DONE log.txt core.* allParameters.yaml
+rm -r calcFold
+rm bbo*vasp
+mv results/dataset.yaml results/savedata.yaml
