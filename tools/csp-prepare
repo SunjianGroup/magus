@@ -1,34 +1,7 @@
 #!/bin/bash
 mkdir BuildStruct
 mkdir fpFold
+mkdir inputFod
+cp $CSP_TOOLS/summary.py .
+cp $CSP_TOOLS/fpsetup.yaml fpFold
 
-cat<<EOF >fpFold/fpsetup.yaml 
-# Rs: 0.0
-Rc: 6.5
-
-# setup for symmetry function type 2
-sf2:
-    eta:
-        - 0.003214
-        - 0.035711
-        - 0.071421
-#        - 0.124987
-        - 0.214264
-        - 0.357106
-        - 0.714213
-#        - 1.428426
-
-# setup for symmetry function type4
-sf4:
-    eta:
-        - 0.000357
-        - 0.028569
-#        - 0.089277
-    gamma:
-        - 1.0
-        - -1.0
-    zeta:
-        - 1.0
-#        - 2.0
-#        - 4.0
-EOF

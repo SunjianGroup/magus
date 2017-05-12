@@ -1,5 +1,6 @@
 from __future__ import print_function, division
 import os
+import subprocess
 import ase.io
 # from atomdata import *
 from ase.data import atomic_numbers, covalent_radii
@@ -64,7 +65,8 @@ def spgGen(
             setRadius += "setRadius %s=%s\n"%(sym, radius[i])
 
     write_spgGenIn(composition, setRadius, volume, spacegroups)
-    os.system('./spgGen spgGen.in>log 2>&1')
+    # os.system('randSpg spgGen.in>log 2>&1')
+    subprocess.call('randSpg spgGen.in>log 2>&1', shell=True)
     pop = []
     for num in spacegroups:
         posfile = "spgGenOut/" + composition + '_' + str(num) + '-1'
@@ -76,7 +78,7 @@ def spgGen(
         else:
             logging.info("Cannot build random structrue in spacegroup " + str(num) + ". Convert to P1")
             write_spgGenIn(composition, setRadius, volume, spacegroups=[1])
-            os.system('./spgGen spgGen.in>log 2>&1')
+            os.system('randSpg spgGen.in>log 2>&1')
             posfile = "spgGenOut/" + composition + "_1-1"
             if os.path.exists(posfile):
                 ind = ase.io.read(posfile, format = 'vasp')
