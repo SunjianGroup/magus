@@ -1,6 +1,6 @@
 from __future__ import print_function, division
 import os
-import subprocess
+import subprocess, shutil
 import ase.io
 # from atomdata import *
 from ase.data import atomic_numbers, covalent_radii
@@ -50,6 +50,7 @@ def write_spgGenIn(
     spgin.close()
 
 
+
 def spgGen(
     symbols, #a list like ['Ti', 'O']
     formula, # a list like [1, 2]
@@ -90,6 +91,77 @@ def spgGen(
 
     return pop
 
+def spgGen_per_formula(
+    symbols, #a list like ['Ti', 'O']
+    formula, # a list like [1, 2]
+    radius, # a list like [1.0, 0.5]
+    volume, # list [min volume, max volume]
+    spacegroups, # list
+    ):
+    composition = ""
+    setRadius = ""
+    for i, sym in enumerate(symbols):
+        if formula[i] > 0:
+            composition += "%s%s"% (sym, formula[i])
+            setRadius += "setRadius %s=%s\n"%(sym, radius[i])
+    write_spgGenIn(composition, setRadius, volume, spacegroups)
+    subprocess.call('randSpg spgGen.in>log 2>&1', shell=True)
+    pop = []
+    for num in spacegroups:
+        posfile = "spgGenOut/{}_{}-1".format(composition, num)
+        if os.path.exists(posfile):
+            ind = ase.io.read(posfile, format = 'vasp')
+            os.remove(posfile)
+            pop.append(ind)
+
+    return pop
+
+def build_struct_per_formula2(
+    symbols,
+    formula,
+    spgs, #a list of spacegroups, len(spgs) equals number of structures
+    initRadius=None,
+    meanVolume=None,
+    ):
+
+    if not initRadius:
+            # radius = [atomRadii[atom] for atom in symbols]
+            initRadius = [covalent_radii[atomic_numbers[atom]] for atom in symbols]
+
+    if not meanVolume:
+        meanVolume = 0
+        for i in range(len(symbols)):
+            meanVolume = meanVolume + 4*math.pi/3*(initRadius[i]**3)*formula[i]
+
+    volume=[meanVolume*0.5, meanVolume*1.5]
+
+    radius = [random.uniform(0.6,0.8)*r for r in initRadius]
+    # logging.info("%s %s %s %s %s"%(symbols, formula, radius, volume, spgs))
+    rndPop= spgGen_per_formula(symbols, formula, radius, volume, spgs)
+    return rndPop
+
+def build_struct_per_formula(
+    symbols,
+    formula,
+    radius,
+    meanVolume,
+    spgs, #a list of spacegroups, len(spgs) equals number of structures
+    ):
+    volume=[meanVolume*0.5, meanVolume*1.5]
+
+    radius = [random.uniform(0.6,0.8)*r for r in radius]
+    logging.info("%s %s %s %s %s"%(symbols, formula, radius, volume, spgs))
+    randomPop = spgGen(symbols, formula, radius, volume, spgs)
+    for i, ind in enumerate(randomPop):
+        # sortInd = Atoms(sorted(list(ind), key=lambda atom: atomic_numbers[atom.symbol]), pbc=True)
+        sortInd = Atoms(sorted(list(ind), key=lambda atom: symbols.index(atom.symbol)))
+        sortInd.set_cell(ind.get_cell())
+        # ind = Atoms(sorted(list(ind), key=lambda atom: symbols.index(atom.symbol)))
+        randomPop[i] = sortInd
+    logging.info("Build " + str(len(randomPop)) + ' structures')
+
+    return randomPop
+
 def build_struct(
     popSize,
     symbols,
@@ -129,6 +201,7 @@ def build_struct(
             ind.info['parentE'] = 0
             ind.info['Origin'] = 'random'
         buildPop.extend(randomPop)
+
     if popSize > len(buildPop):
         randomPop = []
         for i in range(popSize - len(buildPop)):
@@ -158,27 +231,6 @@ def build_struct(
 
     return buildPop
 
-def build_struct_per_formula(
-    symbols,
-    formula,
-    radius,
-    meanVolume,
-    spgs, #a list of spacegroups, len(spgs) equals number of structures
-    ):
-    volume=[meanVolume*0.5, meanVolume*1.5]
-
-    radius = [random.uniform(0.6,0.8)*r for r in radius]
-    logging.info("%s %s %s %s %s"%(symbols, formula, radius, volume, spgs))
-    randomPop = spgGen(symbols, formula, radius, volume, spgs)
-    for i, ind in enumerate(randomPop):
-        # sortInd = Atoms(sorted(list(ind), key=lambda atom: atomic_numbers[atom.symbol]), pbc=True)
-        sortInd = Atoms(sorted(list(ind), key=lambda atom: symbols.index(atom.symbol)))
-        sortInd.set_cell(ind.get_cell())
-        # ind = Atoms(sorted(list(ind), key=lambda atom: symbols.index(atom.symbol)))
-        randomPop[i] = sortInd
-    logging.info("Build " + str(len(randomPop)) + ' structures')
-
-    return randomPop
 
 def reduce_formula(inPop, parameters):
 
@@ -221,21 +273,41 @@ def varcomp_2elements(popSize, symbols, minAt, maxAt):
         randomPop.extend(build_struct(1, inputSym, inputFrml))
     return randomPop
 
-def varcomp_build(popSize, symbols, minAt, maxAt):
+def varcomp_build(popSize, symbols, minAt, maxAt, spgs=range(2,231), trySpgNum=3, tryFrmlNum=100):
     """Variable composition"""
+    os.chdir('BuildStruct')
     randomPop = list()
     for i in range(popSize):
-        numAt = random.randrange(minAt, maxAt+1)
-        # print("numAt: %s"%(numAt))
-        nums = np.random.rand(len(symbols))
-        nums /= nums.sum()
-        eles = np.rint(nums * numAt)
-        eles[-1] = numAt - eles[:-1].sum()
-        # num2 = 1 - ele1
-#        inputSym, inputFrml = zip(*filter(lambda x: x[1] > 0, zip(symbols, [ele1, ele2])))
-        inputSym = symbols
-        inputFrml = eles.tolist()
-        randomPop.extend(build_struct(1, inputSym, inputFrml))
+        for j in range(tryFrmlNum):
+            numAt = random.randrange(minAt, maxAt+1)
+            # print("numAt: %s"%(numAt))
+            nums = np.random.rand(len(symbols))
+            nums /= nums.sum()
+            eles = np.rint(nums * numAt)
+            eles[-1] = numAt - eles[:-1].sum()
+            # num2 = 1 - ele1
+    #        inputSym, inputFrml = zip(*filter(lambda x: x[1] > 0, zip(symbols, [ele1, ele2])))
+            inputSym = symbols
+            inputFrml = eles.tolist()
+            inputFrml = [int(i) for i in inputFrml]
+            inputSpgs = random.sample(spgs, trySpgNum)
+            frmlPop = build_struct_per_formula2(inputSym, inputFrml, inputSpgs)
+            # print("trying composition: {}".format(inputFrml))
+            logging.debug("trying composition: {}".format(inputFrml))
+            if len(frmlPop) > 0:
+                rndIndex = random.randrange(0, len(frmlPop))
+                chsInd = frmlPop[rndIndex]
+                chsInd.info['symbols'] = symbols
+                chsInd.info['formula'] = inputFrml
+                chsInd.info['numOfFormula'] = 1
+                chsInd.info['parentE'] = 0
+                chsInd.info['Origin'] = 'random'
+                randomPop.append(chsInd)
+                # print("Build random strucuture in spacegroup {} for {}".format(inputSpgs[rndIndex], chsInd.get_chemical_formula()))
+                logging.debug("Build random strucuture in spacegroup {} for {}".format(inputSpgs[rndIndex], chsInd.get_chemical_formula()))
+                break
+        # randomPop.extend(build_struct(1, inputSym, inputFrml))
+    os.chdir('..')
     return randomPop
 
 def symbols_and_formula(atoms):

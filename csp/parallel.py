@@ -142,7 +142,7 @@ def csp_loop(curStat):
         write_dataset(optPop)
 
 
-#        logging.info("curGen: %s"% (curGen))
+        # logging.info("curGen: %s"% (curGen))
         curGen += 1
         curStat['curGen'] = curGen
         logging.info("===== Generation {} =====".format(curGen))
@@ -155,17 +155,22 @@ def csp_loop(curStat):
                 if not os.path.exists("results{}".format(i)):
                     shutil.move("results", "results{}".format(i))
                     break
-
+        
+        os.mkdir("results")
+        shutil.copy("allParameters.yaml", "results/allParameters.yaml")
 
         logging.info("===== Generation 1 =====")
         if calcType == 'fix':
             initPop = build_struct(popSize, symbols, formula, numFrml)
         elif calcType == 'var':
+            logging.debug('calc var')
             initPop = varcomp_build(popSize - len(symbols), symbols, minAt, maxAt)
+            # logging.debug("initPop length: {}".format(len(initPop)))
             # initPop = varcomp_2elements(popSize - len(symbols), symbols, minAt, maxAt)
             for sybl in symbols:
                 initPop.extend(build_struct(1, [sybl], [1]))
 
+        logging.debug("initPop length: {}".format(len(initPop)))
         initPop.extend(read_seeds(parameters))
 
     else:
@@ -226,7 +231,6 @@ def csp_loop(curStat):
 
     ### Save Initail
     write_results(initPop, curGen, 'init')
-
     if not os.path.exists('calcFold'):
         os.mkdir('calcFold')
     os.chdir('calcFold')
@@ -255,9 +259,11 @@ while True:
     logging.debug("doneOr:%s"%(doneOr))
 
     if doneOr:
+        # All Done
         if curStat['curGen'] > numGen:
             logging.info("All Done")
             break
+        
         curStat = csp_loop(curStat)
         with open('currentStat.json', 'w') as f:
             json.dump(curStat, f)

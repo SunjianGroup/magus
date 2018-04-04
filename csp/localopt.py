@@ -1,6 +1,6 @@
 from __future__ import print_function, division
 from ase import Atoms
-from readvasp import *
+from .readvasp import *
 import sys
 import math
 import os
@@ -54,10 +54,12 @@ def calc_vasp(
     ):
     newStructs = []
     for i, ind in enumerate(structs):
+        initInd = ind.copy()
+        initInd.info = {}
         for j, calc in enumerate(calcs):
             # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
             logging.info("Structure {} Step {}".format(i, j))
-            print("Structure {} Step {}".format(i, j))
+            # print("Structure {} Step {}".format(i, j))
             ind = calc_vasp_once(copy.deepcopy(calc), ind)
             shutil.copy("OUTCAR", "OUTCAR-{}-{}".format(i, j))
             # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
@@ -66,6 +68,7 @@ def calc_vasp(
                 break
 
         else:
+            ind.info['initStruct'] = initInd
             newStructs.append(ind)
 
     return newStructs
@@ -78,7 +81,7 @@ def calc_vasp_parallel(calcNum, calcPop, parameters, prefix='calcVasp'):
     xc = parameters['xc']
     pressure = parameters['pressure']
 
-    incars = ["{}/inputFold/INCAR_{}".format(workDir, i) for i in range(1, calcNum + 1)]    
+    incars = ["{}/inputFold/INCAR_{}".format(workDir, i) for i in range(1, calcNum + 1)]
 
     popLen = len(calcPop)
     eachLen = popLen//numParallel
