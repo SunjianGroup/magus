@@ -11,7 +11,7 @@ from .localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jo
 from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
 from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build
 # from .readvasp import *
-from .setfitness import calc_fitness
+from .setfitness import calc_fitness, calc_fitness_xrd
 from .writeresults import write_dataset, write_results, write_traj
 from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from .bayes import atoms_util
@@ -73,18 +73,16 @@ def csp_loop(curStat, parameters):
         if curGen > 1:
             paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
             goodPop = ase.io.read("{}/results/good.traj".format(p.workDir), format='traj', index=':')
-            keepPop = ase.io.read("{}/results/keep{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
         else:
             paretoPop = list()
             goodPop = list()
-            keepPop = list()
 
         #Convex Hull
         allPop = optPop + paretoPop + goodPop
         if p.calcType == 'var':
             allPop = convex_hull(allPop)
 
-        allPop = calc_fitness(allPop, parameters)
+        allPop = calc_fitness_xrd(allPop, parameters)
         logging.info('calc_fitness finish')
 
         optLen = len(optPop)
@@ -98,9 +96,7 @@ def csp_loop(curStat, parameters):
             logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format( strFrml=ind.get_chemical_formula(), **ind.info))
 
         # Calculate fingerprints
-        logging.debug('calc_all_fingerprints begin')
         optPop = calc_all_fingerprints(optPop, parameters)
-        logging.info('calc_all_fingerprints finish')
         for ind in optPop:
             initFp = np.atleast_2d(ind.info['initFp'])
             curFp = np.atleast_2d(ind.info['fingerprint'])
@@ -109,9 +105,7 @@ def csp_loop(curStat, parameters):
 
         # os.chdir('Compare')
         # logging.info('optPop_duplicate start')
-        logging.info('del_duplicate optPop begin')
         optPop = del_duplicate(optPop)
-        logging.info('del_duplicate optPop finish')
         # logging.info('optPop_duplicate finish')
         # os.chdir('..')
 
@@ -133,15 +127,8 @@ def csp_loop(curStat, parameters):
         logging.info('goodPop')
         goodPop = calc_dominators(allPop)
         goodPop = del_duplicate(goodPop)
-        goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])
-        if p.calcType == 'fix':
-            if len(goodPop) > p.popSize:
-                goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]
-        elif p.calcType == 'var':
-            goodPop = [ind for ind in goodPop if ind.info['ehull']<=0.1]
-
-        # if len(goodPop) > p.popSize:
-        #     goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]
+        if len(goodPop) > p.popSize:
+            goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]
 
         ### keep best
         logging.info('keepPop')
@@ -186,13 +173,13 @@ def csp_loop(curStat, parameters):
             for n, sybl in enumerate(p.symbols):
                 eleFrml = [0 for _ in range(len(p.symbols))]
                 eleFrml[n] = 1
-                initPop.extend(build_struct(p.eleSize, p.symbols, eleFrml, list(range(p.minAt, p.minAt+1)), volRatio=p.volRatio))
+                initPop.extend(build_struct(p.eleSize, p.symbols, eleFrml, list(range(p.minAt, p.maxAt+1)), volRatio=p.volRatio))
 
         logging.info("initPop length: {}".format(len(initPop)))
         initPop.extend(read_seeds(parameters))
 
     else:
-        bboPop = del_duplicate(optPop + keepPop)
+        bboPop = del_duplicate(optPop + goodPop)
 
 
         # renew volRatio
@@ -236,14 +223,8 @@ def csp_loop(curStat, parameters):
         # read seeds
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))
 
-    # fix cell
-    if p.fixCell:
-        for ind in initPop:
-            ind.set_cell(p.setCellPar, scale_atoms=True)
-
-
     ### Initail check
-    initPop = check_dist(initPop, p.dRatio)
+    # initPop = check_dist(initPop, 0.7)
 
     ### Initial fingerprint
     for ind in initPop:

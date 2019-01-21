@@ -7,16 +7,16 @@ from scipy.spatial.distance import cdist
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jobs_stat, read_parallel_results
-from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
-from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build
+from csp.localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jobs_stat, read_parallel_results
+from csp.renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
+from csp.initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build
 # from .readvasp import *
-from .setfitness import calc_fitness
-from .writeresults import write_dataset, write_results, write_traj
-from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
-from .bayes import atoms_util
-from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio
+from csp.setfitness import calc_fitness
+from csp.writeresults import write_dataset, write_results, write_traj
+from csp.fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
+from csp.bayes import atoms_util
+from csp.readparm import read_parameters
+from csp.utils import EmptyClass, calc_volRatio
 
 
 def check_jobs(statFile='currentStat.json'):
@@ -236,14 +236,8 @@ def csp_loop(curStat, parameters):
         # read seeds
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))
 
-    # fix cell
-    if p.fixCell:
-        for ind in initPop:
-            ind.set_cell(p.setCellPar, scale_atoms=True)
-
-
     ### Initail check
-    initPop = check_dist(initPop, p.dRatio)
+    # initPop = check_dist(initPop, 0.7)
 
     ### Initial fingerprint
     for ind in initPop:

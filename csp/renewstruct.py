@@ -1,11 +1,9 @@
 from __future__ import print_function, division
-import random
-import os
-import re
-import math
-import logging
+import random, sys, os, re, math, logging, yaml
+from collections import Counter
 import numpy as np
 import spglib
+import networkx as nx
 from numpy import pi, sin, cos, tan, sqrt
 from numpy import dot
 from scipy.spatial.distance import pdist, cdist
@@ -16,13 +14,22 @@ from ase import Atom, Atoms
 from ase.data import atomic_numbers, covalent_radii
 from ase.phasediagram import PhaseDiagram
 from ase.neighborlist import NeighborList
-from ase.geometry import cell_to_cellpar
+from ase.geometry import cell_to_cellpar, cellpar_to_cell
+from ase.optimize import BFGS, FIRE, BFGSLineSearch, LBFGS, LBFGSLineSearch
+from ase.units import GPa
+from ase.constraints import UnitCellFilter#, ExpCellFilter
+from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from .initstruct import build_struct
 from .fingerprint import calc_all_fingerprints, clustering
 from .bayes import UtilityFunction, GP_fit, atoms_util
 from .writeresults import read_dataset
+from .dataset import PreProcess
+from .atomgp import AtomGP
+from .mlpot import MLPot
+from .utils import *
+from .crystgraph import quotient_graph, cycle_sums, graphDim
 
-class Kriging:
+class PotKriging:
     def __init__(self, curPop, curGen, parameters):
         krigParm = parameters['krigParm']
         # global
@@ -31,10 +38,17 @@ class Kriging:
         self.symbols = parameters['symbols']
         self.formula = parameters['formula']
         self.popSize = parameters['popSize']
+        self.invFrml = parameters['invFrml']
         self.saveGood = parameters['saveGood']
+        self.minAt = parameters['minAt']
+        self.maxAt = parameters['maxAt']
         self.randFrac = krigParm['randFrac']
-        self.permRates = krigParm['permRates']
+        self.permNum = krigParm['permNum']
+        self.latDisps = krigParm['latDisps']
+        self.ripRho = krigParm['ripRho']
+        self.rotNum = krigParm['rotNum']
         self.addSym = parameters['addSym']
+        self.pressure = parameters['pressure']
         self.kind = krigParm['kind']
         self.xi = krigParm['xi']
         self.grids = krigParm['grids']
@@ -42,6 +56,9 @@ class Kriging:
         self.update_kappa(curGen, krigParm['kappa'])
         self.scaled_factor = krigParm['scale']
         self.parent_factor = 0
+        self.fullEles = parameters['fullEles']
+        self.fpSetup = yaml.load(open("{}/fpFold/fpsetup.yaml".format(parameters['workDir'])))
+        self.molDetector = parameters['molDetector']
         # local
         self.curPop = calc_dominators(curPop)
         self.tmpPop = list()
@@ -105,48 +122,51 @@ class Kriging:
                         ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
 
                     elif self.calcType == 'var':
-                        ind1.info['numOfFormula'], ind2.info['numOfFormula'] = 1, 1
+                        npFrml = np.array(self.formula)
+                        frml1 = np.array(get_formula(ind1, symbols))
+                        coef1 = np.ceil(np.dot(np.dot(frml1, npFrml.T), self.invFrml))
+                        tFrml1 = np.dot(coef1, npFrml)
+                        tFrml1 = [int(i) for i in tFrml1]
+                        logging.debug('tFrml1: {}'.format(tFrml1))
+                        if self.minAt <= sum(tFrml1) <= self.maxAt:
+                            ind1 = repair_atoms(ind1, symbols, tFrml1)
+                            ind1.info['numOfFormula'] = 1
+                        else:
+                            ind1 = None
 
-                    hrdPop.extend(del_duplicate([ind1, ind2], compareE=False, report=False))
+                        frml2 = np.array(get_formula(ind2, symbols))
+                        coef2 = np.ceil(np.dot(np.dot(frml2, npFrml.T), self.invFrml))
+                        tFrml2 = np.dot(coef2, npFrml)
+                        tFrml2 = [int(i) for i in tFrml2]
+                        logging.debug('tFrml2: {}'.format(tFrml2))
+                        if self.minAt <= sum(tFrml2) <= self.maxAt:
+                            ind2 = repair_atoms(ind2, symbols, tFrml2)
+                            ind2.info['numOfFormula'] = 1
+                        else:
+                            ind2 = None
 
-            # pairs = [(j, k) for j in range(splitLen) for k in range(splitLen) if j < k]
-            # for j, k in pairs:
-            #     grid = random.choice(grids)
+                        # make new structures contain all species
+                        if self.fullEles:
+                            if 0 in tFrml1:
+                                ind1 = None
+                            if 0 in tFrml2:
+                                ind2 = None
 
-                # try:
-                #     ind1 = cut_cell([splitPop[j], splitPop[k]], grid, symbols, 0.2)
-                #     ind2 = cut_cell([splitPop[k], splitPop[j]], grid, symbols, 0.2)
-                # except:
-                #     continue
 
-                # parentE = 0.5*(sum([splitPop[x].info['enthalpy'] for x in [j, k]]))
-                # ind1.info['parentE'] = parentE
-                # ind2.info['parentE'] = parentE
-                # ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
-
-                # if self.calcType is 'fix':
-                #     nfm = int(round(0.5 * sum([splitPop[x].info['numOfFormula'] for x in [j, k]])))
-                #     ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
-                #     ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
-                #     ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
-                #     ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
-
-                # elif self.calcType is 'var':
-                #     ind1.info['numOfFormula'], ind2.info['numOfFormula'] = 1, 1
-
-            #     hrdPop.extend(del_duplicate([ind1, ind2], compareE=False, report=False))
-                # logging.debug("dupPop len: %s" %(len(dupPop)))
+                    pairPop = [ind for ind in [ind1, ind2] if ind]
+                    hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
 
         return hrdPop
 
 
-    def permutate(self, permRates):
+    def permutate(self, permNum):
         goodPop = self.goodPop
-        curPop = self.curPop
+        # curPop = self.curPop
         permPop = list()
         for parInd in goodPop:
             parentE = parInd.info['enthalpy']
-            for rate in permRates:
+            for i in range(permNum):
+                rate = random.uniform(0.4,0.6)
                 permInd = exchage_atom(parInd, rate)
                 permInd.info['symbols'] = self.symbols
                 permInd.info['formula'] = parInd.info['formula']
@@ -155,14 +175,14 @@ class Kriging:
 
         return permPop
 
-    def latmutate(self, disps=[1, 2, 3, 4], sigma=0.5):
+    def latmutate(self, disps=[1, 2, 3, 4], sigma=0.2):
         goodPop = self.goodPop
         curPop = self.curPop
         latPop = list()
         for parInd in goodPop:
             parentE = parInd.info['enthalpy']
             for disp in disps:
-                latInd = gauss_mut(parInd, sigma=sigma, cellCut=disp, distCut=5)
+                latInd = gauss_mut(parInd, sigma=sigma, cellCut=disp, distCut=0.5)
                 latInd.info['symbols'] = self.symbols
                 latInd.info['formula'] = parInd.info['formula']
                 latInd.info['parentE'] = parentE
@@ -201,6 +221,439 @@ class Kriging:
         return ripPop
 
     def fit_gp(self):
+        images = [read_atDict(ats.info['trajs'][0][0]) for ats in self.goodPop]
+        logging.debug("images: {}".format(len(images)))
+        pre = PreProcess(images, self.fpSetup, self.symbols)
+        trainData = pre.images_data(mod='trainGP', type='list')
+
+        fpDim = len(self.fpSetup['sf2']['eta'])
+        gp = AtomGP(input_dim=fpDim*len(self.symbols), theta=0.6, theta_bound=2,)
+        gp.read_fpsetup(self.fpSetup)
+        gp.train(trainData, noise=[0.003,0.03,0.005], opt=0, fminOptions={'maxiter': 100}, lr=0.05, train_virial=1, noise_bound=[0.05, 0.2, 0.01], sclNoi=0.01, )
+        ff = MLPot(self.fpSetup, self.symbols, gp)
+        varff = MLPot(self.fpSetup, self.symbols, gp, computeVar=1)
+
+
+        self.gp = gp
+        self.ff = ff
+        self.varff = varff
+        # self.y_max = max(-ens)
+        # self.fps = fps
+
+    def set_factor(self, factor):
+        self.scaled_factor = factor
+
+    def generate(self):
+        hrdPop = self.heredity(self.saveGood)
+        # hrdPop = []
+        permPop = self.permutate(self.permNum)
+        latPop = self.latmutate(self.latDisps)
+        slipPop = self.slipmutate()
+        ripPop = self.ripmutate(self.ripRho)
+        logging.debug("hrdPop length: %s"%(len(hrdPop)))
+        logging.debug("permPop length: %s"%(len(permPop)))
+        logging.debug("latPop length: %s"%(len(latPop)))
+        logging.debug("slipPop length: %s"%(len(slipPop)))
+        logging.debug("ripPop length: %s"%(len(ripPop)))
+        tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
+        self.tmpPop.extend(tmpPop)
+
+    def add(self, pop):
+        self.tmpPop.extend(pop)
+
+    def select(self):
+        tmpPop = self.tmpPop
+        symbols = self.symbols
+        ff = self.ff
+        varff = self.varff
+        randFrac = self.randFrac
+        popSize = self.popSize
+        dRatio = self.parameters['dRatio']
+
+        tmpPop = check_dist(tmpPop, dRatio)
+        logging.info("tmpPop length: %s after check_dist"%(len(tmpPop)))
+        self.util = UtilityFunction(self.kind, self.kappa, self.xi)
+        tmpPop = calc_all_fingerprints(tmpPop, self.parameters)
+        for ind in tmpPop:
+            ind.set_calculator(ff)
+            ucf = UnitCellFilter(ind, scalar_pressure=self.pressure*GPa)
+            # temp sigma setup, wait for modification
+            ind.info['sigma'] = 0
+            ###
+            dyn = BFGS(ucf, maxstep=0.1)
+            dyn.run(steps=100)
+            ## compute variance of energy
+            ind.set_calculator(varff)
+            _ = ind.get_potential_energy()
+            ind.info['sigma'] = varff.results['eVar']/len(ind)
+            logging.debug("sigma: {}".format(ind.info['sigma']))
+
+
+            ind.info['predictE'] = (ind.get_potential_energy()+self.pressure*ind.get_volume()/160.2262)/len(ind)
+            ind.info['enthalpy'] = ind.info['predictE']
+            ind.info['utilVal'] = ind.info['predictE'] - self.kappa * ind.info['sigma']
+        tmpPop = list(filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.001, tmpPop))
+        logging.info("tmpPop length: %s after filter"%(len(tmpPop)))
+
+        # nearPop = filter(lambda x: x.info['sigma'] < 1 , tmpPop)
+        # logging.debug("nearPop length: {}".format(len(nearPop)))
+
+        if self.calcType is 'fix':
+            tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['utilVal'] + ind.info['parentE'] * self.parent_factor)
+            # tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['sigma'] + ind.info['parentE'] * self.parent_factor)
+        elif self.calcType is 'var':
+            tmpPop = convex_hull(self.goodPop + tmpPop)
+            tmpPop = sorted(tmpPop[len(self.goodPop):], reverse=False, key=lambda ind: ind.info['ehull'] - self.kappa * ind.info['sigma'] + ind.info['parentE'] * self.parent_factor)
+
+
+
+        krigLen = int((1-randFrac) * popSize)
+        if len(tmpPop) > 5 * popSize:
+            tmpPop = tmpPop[:krigLen*5]
+
+        # for ind in tmpPop:
+        #     ind.info['enthalpy'] = gp.predict(ind.info['fingerprint'])[0]
+
+        # tmpPop = del_duplicate(tmpPop, compareE=True)
+        self.tmpPop = tmpPop
+
+        nextPop = tmpPop[:]
+
+        # krigLen = popSize # debug: save all structures
+
+        if len(nextPop) > krigLen:
+            self.nextPop = nextPop[:krigLen]
+        else:
+            self.nextPop = nextPop[:]
+
+        for ind in nextPop:
+            ind.info['enthalpy'] = None
+
+
+class Kriging:
+    def __init__(self, curPop, curGen, parameters):
+        krigParm = parameters['krigParm']
+        # global
+        self.parameters = parameters
+        self.calcType = parameters['calcType']
+        self.symbols = parameters['symbols']
+        self.formula = parameters['formula']
+        self.invFrml = parameters['invFrml']
+        self.popSize = parameters['popSize']
+        self.saveGood = parameters['saveGood']
+        self.minAt = parameters['minAt']
+        self.maxAt = parameters['maxAt']
+        self.randFrac = krigParm['randFrac']
+        self.permNum = krigParm['permNum']
+        self.latDisps = krigParm['latDisps']
+        self.ripRho = krigParm['ripRho']
+        self.rotNum = krigParm['rotNum']
+        self.cutNum = krigParm['cutNum']
+        self.slipNum = krigParm['slipNum']
+        self.latNum = krigParm['latNum']
+        self.addSym = parameters['addSym']
+        self.kind = krigParm['kind']
+        self.xi = krigParm['xi']
+        self.grids = krigParm['grids']
+        self.kappaLoop = krigParm['kappaLoop']
+        self.update_kappa(curGen, krigParm['kappa'])
+        self.scaled_factor = krigParm['scale']
+        self.parent_factor = 0
+        self.fullEles = parameters['fullEles']
+        self.molDetector = parameters['molDetector']
+        self.dRatio = parameters['dRatio']
+        self.bondRatio = parameters['bondRatio']
+        self.bondMin = parameters['bondMin']
+        self.bondStep = parameters['bondStep']
+        self.bondStepNum = parameters['bondStepNum']
+        self.bondRange = parameters['bondRange']
+        # local
+        self.curPop = calc_dominators(curPop)
+        if self.fullEles:
+            self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
+        if self.molDetector > 0:
+            # bondRange = [self.bondMin + self.bondStep*i for i in range(self.bondStepNum-1)]
+            self.curPop = mol_dict_pop(self.curPop, self.molDetector, self.bondRange)
+
+        self.curLen = len(self.curPop)
+        logging.debug("curLen: {}".format(self.curLen))
+        assert self.curLen >= self.saveGood, "saveGood should be shorter than length of curPop!"
+        # if self.curLen < self.saveGood:
+        #     raise RuntimeError("saveGood should be shorter than length of curPop!")
+
+        self.tmpPop = list()
+        self.nextPop = list()
+        self.gp = None
+        self.util = None
+        self.y_max = None
+        self.labels, self.goodPop = clustering(self.curPop, self.saveGood)
+        logging.debug("labels: {}".format(self.labels))
+        self.clusters = []
+        for i in range(self.saveGood):
+            self.clusters.append([ind for n, ind in enumerate(self.curPop) if self.labels[n] == i])
+
+
+        if self.addSym:
+            self.goodPop = standardize_pop(self.goodPop, 0.1)
+
+
+
+    def get_nextPop(self):
+        return self.nextPop
+
+    def update_kappa(self, curGen, kappa):
+        kappaLoop = self.kappaLoop
+        if kappaLoop == 1:
+            self.kappa = kappa
+        else:
+            remainder = curGen % kappaLoop
+            self.kappa = kappa *(1 - remainder/(kappaLoop - 1))
+
+    def heredity(self, cutNum=5, mode='atom'):
+        #curPop = standardize_pop(self.curPop, 1.)
+        curPop = self.curPop
+        symbols = self.symbols
+        grids = self.grids
+        labels, goodPop = self.labels, self.goodPop
+        hrdPop = list()
+        for i in range(self.saveGood):
+            goodInd = goodPop[i]
+            splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
+            splitLen = len(splitPop)
+            sampleNum = int(splitLen/2)+1
+            logging.debug("splitlen: %s"%(splitLen))
+            if splitLen <= 1:
+                continue
+            for j in range(cutNum):
+                grid = random.choice(grids)
+                spInd = tournament(splitPop, sampleNum)
+                tranPos = spInd.get_scaled_positions() # Displacement
+                tranPos += np.array([[random.random(), random.random(), random.random()]]*len(spInd))
+                spInd.set_scaled_positions(tranPos)
+                spInd.wrap()
+                try:
+                    if mode == 'atom':
+                        ind1 = cut_cell([spInd, goodInd], grid, symbols, 0.2)
+                        ind2 = cut_cell([goodInd, spInd], grid, symbols, 0.2)
+                        ind1 = merge_atoms(ind1, self.dRatio)
+                        ind2 = merge_atoms(ind2, self.dRatio)
+                    elif mode == 'mol':
+                        spMolC = MolCryst(**spInd.info['molDict'])
+                        spMolC.set_cell(spInd.info['molCell'], scale_atoms=False)
+                        goodMolC = MolCryst(**goodInd.info['molDict'])
+                        goodMolC.set_cell(goodInd.info['molCell'], scale_atoms=False)
+                        cutAxis = random.randrange(0,3)
+                        ind1 = mol_cut_cell(spMolC, goodMolC, cutAxis)
+                        ind2 = mol_cut_cell(goodMolC, spMolC, cutAxis)
+                        ind1 = merge_atoms(ind1, self.dRatio)
+                        ind2 = merge_atoms(ind2, self.dRatio)
+                except:
+                    continue
+
+                parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
+                parDom = 0.5*(sum([ind.info['sclDom'] for ind in [spInd, goodInd]]))
+                ind1.info['parentE'], ind2.info['parentE'] = parentE, parentE
+                ind1.info['parDom'], ind2.info['parDom'] = parDom, parDom
+                ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
+
+                if self.calcType == 'fix':
+                    nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
+                    ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
+                    ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
+                    ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
+                    ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
+
+                elif self.calcType == 'var':
+                    npFrml = np.array(self.formula)
+
+                    frml1 = np.array(get_formula(ind1, symbols))
+                    coef1 = np.round(np.dot(np.dot(frml1, npFrml.T), self.invFrml))
+                    tFrml1 = np.dot(coef1, npFrml)
+                    tFrml1 = [int(i) for i in tFrml1]
+                    logging.debug('tFrml1: {}'.format(tFrml1))
+                    if self.minAt <= sum(tFrml1) <= self.maxAt:
+                        ind1 = repair_atoms(ind1, symbols, tFrml1)
+                        ind1.info['numOfFormula'] = 1
+                    else:
+                        ind1 = None
+
+                    frml2 = np.array(get_formula(ind2, symbols))
+                    coef2 = np.round(np.dot(np.dot(frml2, npFrml.T), self.invFrml))
+                    tFrml2 = np.dot(coef2, npFrml)
+                    tFrml2 = [int(i) for i in tFrml2]
+                    logging.debug('tFrml2: {}'.format(tFrml2))
+                    if self.minAt <= sum(tFrml2) <= self.maxAt:
+                        ind2 = repair_atoms(ind2, symbols, tFrml2)
+                        ind2.info['numOfFormula'] = 1
+                    else:
+                        ind2 = None
+
+                    # make new structures contain all species
+                    if self.fullEles:
+                        if 0 in tFrml1:
+                            ind1 = None
+                        if 0 in tFrml2:
+                            ind2 = None
+
+                pairPop = [ind for ind in [ind1, ind2] if ind is not None]
+                hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
+
+        return hrdPop
+
+
+
+    def permutate(self, permNum, mode='atom'):
+        permPop = list()
+        for i in range(self.saveGood):
+            splitPop = self.clusters[i]
+            splitLen = len(splitPop)
+            sampleNum = int(splitLen/2) + 1
+            for j in range(permNum):
+                parInd = tournament(splitPop, sampleNum)
+                parentE = parInd.info['enthalpy']
+                parDom = parInd.info['sclDom']
+                rate = random.uniform(0.4,0.6)
+                if mode == 'atom':
+                    permInd = exchage_atom(parInd, rate)
+                elif mode == 'mol':
+                    parMolC = MolCryst(**parInd.info['molDict'])
+                    parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
+                    permMolC = mol_exchage(parMolC)
+                    permInd = permMolC.to_atoms()
+
+                # permInd = merge_atoms(permInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # permInd = repair_atoms(permInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+
+                permInd.info['symbols'] = self.symbols
+                permInd.info['formula'] = parInd.info['formula']
+                permInd.info['parentE'] = parentE
+                permInd.info['parDom'] = parDom
+                permPop.append(permInd)
+
+        return permPop
+
+    def latmutate(self, latNum, sigma=0.7, mode='atom'):
+        latPop = list()
+        for i in range(self.saveGood):
+            splitPop = self.clusters[i]
+            splitLen = len(splitPop)
+            sampleNum = int(splitLen/2) + 1
+            for j in range(latNum):
+                parInd = tournament(splitPop, sampleNum)
+                parentE = parInd.info['enthalpy']
+                parDom = parInd.info['sclDom']
+                if mode == 'atom':
+                    latInd = gauss_mut(parInd, sigma=sigma, cellCut=1, distCut=0.5)
+                elif mode == 'mol':
+                    parMolC = MolCryst(**parInd.info['molDict'])
+                    parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
+                    latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=1, distCut=0.5)
+                    latInd = latMolC.to_atoms()
+
+                # latInd = merge_atoms(latInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # latInd = repair_atoms(latInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+
+                latInd.info['symbols'] = self.symbols
+                latInd.info['formula'] = parInd.info['formula']
+                latInd.info['parentE'] = parentE
+                latInd.info['parDom'] = parDom
+                latPop.append(latInd)
+
+        return latPop
+
+    def slipmutate(self, slipNum=5, mode='atom'):
+        slipPop = list()
+        for i in range(self.saveGood):
+            splitPop = self.clusters[i]
+            splitLen = len(splitPop)
+            sampleNum = int(splitLen/2) + 1
+            for j in range(slipNum):
+                parInd = tournament(splitPop, sampleNum)
+                parentE = parInd.info['enthalpy']
+                parDom = parInd.info['sclDom']
+                if mode == 'atom':
+                    slipInd = slip(parInd)
+                elif mode == 'mol':
+                    parMolC = MolCryst(**parInd.info['molDict'])
+                    parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
+                    slipMolC = mol_slip(parMolC)
+                    slipInd = slipMolC.to_atoms()
+
+                # slipInd = merge_atoms(slipInd, self.dRatio)
+                # slipInd = repair_atoms(slipInd, self.symbols, parInd.info['formula'], parInd.info['numOfFormula'])
+
+                slipInd.info['symbols'] = self.symbols
+                slipInd.info['formula'] = parInd.info['formula']
+                slipInd.info['parentE'] = parentE
+                slipInd.info['parDom'] = parDom
+                slipPop.append(slipInd)
+
+        return slipPop
+
+    def ripmutate(self, rhos=[0.5, 0.75, 1.], mode='atom'):
+        ripPop = list()
+        for i in range(self.saveGood):
+            splitPop = self.clusters[i]
+            splitLen = len(splitPop)
+            sampleNum = int(splitLen/2) + 1
+            for rho in rhos:
+                parInd = tournament(splitPop, sampleNum)
+                parentE = parInd.info['enthalpy']
+                parDom = parInd.info['sclDom']
+                if mode == 'atom':
+                    ripInd = ripple(parInd, rho=rho)
+
+                # ripInd = merge_atoms(ripInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # ripInd = repair_atoms(ripInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+
+                ripInd.info['symbols'] = self.symbols
+                ripInd.info['formula'] = parInd.info['formula']
+                ripInd.info['parentE'] = parentE
+                ripInd.info['parDom'] = parDom
+                ripPop.append(ripInd)
+
+        return ripPop
+
+    def mol_rotate(self, rotNum):
+        rotPop = list()
+        for i in range(self.saveGood):
+            splitPop = self.clusters[i]
+            splitLen = len(splitPop)
+            sampleNum = int(splitLen/2) + 1
+            for j in range(rotNum):
+                parInd = tournament(splitPop, sampleNum)
+                parentE = parInd.info['enthalpy']
+                parDom = parInd.info['sclDom']
+                # parMolC = atoms2molcryst(parInd)
+                parMolC = MolCryst(**parInd.info['molDict'])
+                parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
+                partition = parMolC.partition
+                partLens = [len(p) for p in partition]
+                if max(partLens) < 3:
+                    break
+                rotMolC = mol_rotation(parMolC)
+                rotInd = rotMolC.to_atoms()
+
+                # rotInd = merge_atoms(rotInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # rotInd = repair_atoms(rotInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+
+                rotInd.info['symbols'] = self.symbols
+                rotInd.info['formula'] = parInd.info['formula']
+                rotInd.info['parentE'] = parentE
+                rotInd.info['parDom'] = parDom
+                rotPop.append(rotInd)
+
+        return rotPop
+
+
+
+
+
+    def fit_gp(self):
         # fps, ens = read_dataset()
         fps = [ind.info['fingerprint'] for ind in self.curPop]
         fps = [fp.flatten().tolist() for fp in fps]
@@ -236,26 +689,42 @@ class Kriging:
         gp = GP_fit(fps, ens, gpParm)
         logging.debug("kernel hyperparameter: {}".format(gp.kernel_.get_params()['length_scale']))
         self.gp = gp
-        self.y_max = max(-ens)
+        self.y_max = max(-1*ens)
         self.fps = fps
 
     def set_factor(self, factor):
         self.scaled_factor = factor
 
     def generate(self):
-        hrdPop = self.heredity(self.saveGood)
-        # hrdPop = []
-        permPop = self.permutate(self.permRates)
-        latPop = self.latmutate()
-        slipPop = self.slipmutate()
-        ripPop = self.ripmutate()
-        logging.debug("hrdPop length: %s"%(len(hrdPop)))
-        logging.debug("permPop length: %s"%(len(permPop)))
-        logging.debug("latPop length: %s"%(len(latPop)))
-        logging.debug("slipPop length: %s"%(len(slipPop)))
-        logging.debug("ripPop length: %s"%(len(ripPop)))
-        tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
-        self.tmpPop.extend(tmpPop)
+        if self.molDetector == 0:
+            hrdPop = self.heredity(self.cutNum)
+            # hrdPop = []
+            permPop = self.permutate(self.permNum)
+            latPop = self.latmutate(self.latNum)
+            slipPop = self.slipmutate(self.slipNum)
+            ripPop = self.ripmutate(self.ripRho)
+            logging.debug("hrdPop length: %s"%(len(hrdPop)))
+            logging.debug("permPop length: %s"%(len(permPop)))
+            logging.debug("latPop length: %s"%(len(latPop)))
+            logging.debug("slipPop length: %s"%(len(slipPop)))
+            logging.debug("ripPop length: %s"%(len(ripPop)))
+            tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
+            self.tmpPop.extend(tmpPop)
+        elif self.molDetector in [1,2]:
+            hrdPop = self.heredity(self.cutNum, mode='mol')
+            rotPop = self.mol_rotate(self.rotNum)
+            permPop = self.permutate(self.permNum, mode='mol')
+            latPop = self.latmutate(self.latNum, mode='mol')
+            slipPop = self.slipmutate(self.slipNum, mode='mol')
+            logging.debug("hrdPop length: %s"%(len(hrdPop)))
+            logging.debug("rotPop length: %s"%(len(rotPop)))
+            logging.debug("permPop length: %s"%(len(permPop)))
+            logging.debug("latPop length: %s"%(len(latPop)))
+            logging.debug("slipPop length: %s"%(len(slipPop)))
+            tmpPop = hrdPop + rotPop + permPop + latPop + slipPop
+            self.tmpPop.extend(tmpPop)
+        else:
+            raise RuntimeError('molDetector should be 0 or 1!')
 
     def add(self, pop):
         self.tmpPop.extend(pop)
@@ -267,9 +736,13 @@ class Kriging:
         y_max = self.y_max
         randFrac = self.randFrac
         popSize = self.popSize
+        dRatio = self.dRatio
 
-        tmpPop = check_dist(tmpPop, 0.6)
-        logging.debug("tmpPop length: %s after check_dist"%(len(tmpPop)))
+        if self.fullEles:
+            tmpPop = list(filter(lambda x: 0 not in x.info['formula'], tmpPop))
+
+        tmpPop = check_dist(tmpPop, dRatio)
+        logging.info("tmpPop length: %s after check_dist"%(len(tmpPop)))
         self.util = UtilityFunction(self.kind, self.kappa, self.xi)
         tmpPop = calc_all_fingerprints(tmpPop, self.parameters)
         for ind in tmpPop:
@@ -278,14 +751,21 @@ class Kriging:
             ind.info['enthalpy'] = ind.info['predictE']
             ind.info['utilVal'] = atoms_util(ind.info['fingerprint'] ,self.util, gp, symbols, y_max)[0]
             ind.info['minDist'] = cdist(ind.info['fingerprint'].reshape(1, -1), self.fps).min()
-        tmpPop = filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.01, tmpPop)
-        logging.debug("tmpPop length: %s after filter"%(len(tmpPop)))
+        tmpPop = list(filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.01, tmpPop))
+        logging.info("tmpPop length: %s after filter"%(len(tmpPop)))
+        # tmpPop = del_duplicate(tmpPop, compareE=False)
+        # logging.info("tmpPop length: %s after del_duplicate"%(len(tmpPop)))
 
         # nearPop = filter(lambda x: x.info['sigma'] < 1 , tmpPop)
         # logging.debug("nearPop length: {}".format(len(nearPop)))
 
-        tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['utilVal'] + ind.info['parentE'] * self.parent_factor)
-        # tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['sigma'] + ind.info['parentE'] * self.parent_factor)
+        if self.calcType is 'fix':
+            tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['utilVal'] + ind.info['parDom'] * self.parent_factor)
+            # tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['utilVal'] + ind.info['parentE'] * self.parent_factor)
+        elif self.calcType is 'var':
+            tmpPop = convex_hull(self.curPop + tmpPop)
+            tmpPop = sorted(tmpPop[self.curLen:], reverse=False, key=lambda ind: ind.info['ehull'] - self.kappa * ind.info['sigma'] + ind.info['parDom'] * self.parent_factor)
+            # tmpPop = sorted(tmpPop[self.curLen:], reverse=False, key=lambda ind: ind.info['ehull'] - self.kappa * ind.info['sigma'] + ind.info['parentE'] * self.parent_factor)
 
         krigLen = int((1-randFrac) * popSize)
         if len(tmpPop) > 5 * popSize:
@@ -309,6 +789,7 @@ class Kriging:
         for ind in nextPop:
         #    ind.info['predictE'] = gp.predict(ind.info['fingerprint'])[0]
             ind.info['enthalpy'] = None
+            ind.info['ehull'] = None
         #    ind.info['utilVal'] = atoms_util(ind ,self.util, gp, symbols, y_max)[0]
 
 #        ucb = [atoms_util(at ,self.util, gp, symbols, y_max) for at in nextPop]
@@ -354,6 +835,7 @@ class BBO:
         popSize = self.parameters['popSize']
         calcType = self.parameters['calcType']
         saveGood = self.parameters['saveGood']
+        dRatio = self.parameters['dRatio']
         migrateFrac = self.migrateFrac
         mutateFrac = self.mutateFrac
         randFrac = self.randFrac
@@ -400,7 +882,7 @@ class BBO:
         ### goodPop ###
         curPop = standardize_pop(curPop, 1.)
         labels, goodPop = clustering(curPop, saveGood)
-        curPop = filter(lambda ind: ind not in goodPop, curPop)
+        curPop = list(filter(lambda ind: ind not in goodPop, curPop))
         curPop = goodPop + curPop
         for index, ind in enumerate(curPop):
             # logging.debug("index: %s, enthalpy: %s"%(index, ind.info['enthalpy']))
@@ -462,14 +944,14 @@ class BBO:
 
             # emRates[index] = 0
             # logging.debug("neighs: %s"%neighs)
-            neighs = filter(lambda x: x != index, neighs)
+            neighs = list(filter(lambda x: x != index, neighs))
             selectPop = [curPop[i] for i in neighs]
 
             testNum = 50
             for test in range(testNum):
                 try:
                     bboInd = self.cutCell(ind, selectPop, numIn)
-                    if check_dist_individual(bboInd, 0.5):
+                    if check_dist_individual(bboInd, dRatio) and bboInd:
                         # logging.debug("parents: %s"%(bboInd.info['parents']))
                         bboPop.append(bboInd)
                         break
@@ -516,6 +998,9 @@ class BBO:
         formula = self.parameters['formula']
         symbols = self.parameters['symbols']
         calcType = self.parameters['calcType']
+        invFrml = self.parameters['invFrml']
+        minAt = self.parameters['minAt']
+        maxAt = self.parameters['maxAt']
 
         selectRates = [tmpInd.info['l'] for tmpInd in selectPop]
         imIndex = rou_select(selectRates, numIn)
@@ -588,16 +1073,25 @@ class BBO:
             bboInd.info['parentE'] = parentE
 
         elif calcType == 'var':
-            bboInd.info['symbols'] = symbols
-            bboInd.info['formula'] = [len(syblDict[sybl]) for sybl in symbols]
-            bboInd.info['numOfFormula'] = 1
-            parentE = sum([ats.info['enthalpy'] for ats in imPop])/numSiv
-            bboInd.info['parentE'] = parentE
-
+            npFrml = np.array(formula)
+            frml = np.array(get_formula(bboInd, symbols))
+            coef = np.ceil(np.dot(np.dot(frml, npFrml.T), invFrml))
+            tFrml = np.dot(coef, npFrml)
+            tFrml = [int(i) for i in tFrml]
+            logging.debug('tFrml: {}'.format(tFrml))
+            if minAt <= sum(tFrml) <= maxAt:
+                bboInd = repair_atoms(bboInd, symbols, tFrml)
+                bboInd.info['numOfFormula'] = 1
+                bboInd.info['symbols'] = symbols
+                bboInd.info['formula'] = tFrml
+                parentE = sum([ats.info['enthalpy'] for ats in imPop])/numSiv
+                bboInd.info['parentE'] = parentE
+            else:
+                bboInd = None
 
         return bboInd
 
-    def check_cut(atom):
+    def check_cut(self, atom):
         """
         check whether the atom in the subcell with the indices
         """
@@ -610,6 +1104,7 @@ class BBO:
         popSize = self.parameters['popSize']
         calcType = self.parameters['calcType']
         saveGood = self.parameters['saveGood']
+        dRatio = self.parameters['dRatio']
         migrateFrac = self.migrateFrac
         mutateFrac = self.mutateFrac
         randFrac = self.randFrac
@@ -657,7 +1152,7 @@ class BBO:
             emRates[index] = 0
           #  emRates = emRates[:saveGood]
             imIndex = rou_select(emRates, numIn)
-            logging.info("imIndex:",imIndex)
+            logging.info("imIndex: {}".format(imIndex))
             imPop = [curPop[i] for i in imIndex] # immigration pop
             logging.info('index: %s,numSiv: %s, numIn: %s, u: %s, l: %s'
                 %(index, numSiv, numIn, ind.info['u'], ind.info['l']))
@@ -708,7 +1203,7 @@ class BBO:
 
             ase.io.write('bbo%s.vasp'% (index), bboInd, direct=True, vasp5=True)
 
-            if not check_dist_individual(bboInd, 0.3):
+            if not check_dist_individual(bboInd, dRatio):
                 bboInd = gauss_mut(bboInd)
                 logging.info("Migrate fail, convert to Mutate")
 
@@ -740,6 +1235,8 @@ class BBO:
         #         logging.info('index:%s Exchange' % mutIndex)
         #     mutInd.info['parentE'] = curPop[mutIndex].info['enthalpy']
         #     bboPop.append(mutInd)
+
+
 
 
 
@@ -785,7 +1282,7 @@ def pareto_front_old(Pop):
 
     return paretoPop
 
-def gauss_mut(parInd, sigma=0.6, cellCut=1, distCut=1):
+def gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=1):
     """
     sigma: Gauss distribution standard deviation
     distCut: coefficient of gauss distribution in atom mutation
@@ -816,39 +1313,7 @@ def gauss_mut(parInd, sigma=0.6, cellCut=1, distCut=1):
 
     return chdInd
 
-def exchage_atom_old(parInd, maxStep=100):
-    """
-    exchage atom in parent individual, using random.shuffle()
-    """
-    chdInd = parInd.copy()
-    matToset = lambda mat: set(tuple(line) for line in mat.tolist())
-    numbers = chdInd.get_atomic_numbers()
-    elements = np.unique(numbers)
-    counts = np.array([(numbers == e).sum() for e in elements])
-    # elDict = dict(zip(elements, counts))
 
-
-    if len(parInd.get_atomic_numbers()) == 1:
-        logging.info("Only one kind of atoms, don't exchage atom")
-    else:
-        parPos = parInd.get_scaled_positions()
-        chdPos = parPos.copy()
-
-        for i in range(maxStep):
-            np.random.shuffle(chdPos)
-
-            exchage = False
-            for index, el in enumerate(elements):
-                start = sum(counts[:index])
-                end = start + counts[index]
-                issame = (matToset(parPos[start:end]) == matToset(chdPos[start:end]))
-                exchage = exchage and issame
-
-            if exchage:
-                chdInd.set_scaled_positions(chdPos)
-                break
-    chdInd.info['Origin'] = "Exchange"
-    return chdInd
 
 def exchage_atom(parInd, fracSwaps=None):
     if not fracSwaps:
@@ -901,13 +1366,13 @@ def crossover(parInd, bestInd, gamma = 0.2):
 
     return chdInd
 
-def slip(parInd, cut=0.5, randRange=[0.1, 0.5]):
+def slip(parInd, cut=0.5, randRange=[0.5, 2]):
     '''
     from MUSE
     '''
     chdInd = parInd.copy()
     pos = parInd.get_scaled_positions()
-    axis = range(3)
+    axis = list(range(3))
     random.shuffle(axis)
     rand1 = random.uniform(*randRange)
     rand2 = random.uniform(*randRange)
@@ -926,7 +1391,7 @@ def ripple(parInd, rho=0.3, mu=2, eta=1):
     '''
     chdInd = parInd.copy()
     pos = parInd.get_scaled_positions()
-    axis = range(3)
+    axis = list(range(3))
     random.shuffle(axis)
 
     for i in range(len(pos)):
@@ -936,49 +1401,78 @@ def ripple(parInd, rho=0.3, mu=2, eta=1):
     chdInd.set_scaled_positions(pos)
     return chdInd
 
-def find_spg(Pop, tol): #tol:tolerance
-
-    spgPop = []
-    for ind in Pop:
-        spg = spglib.get_spacegroup(ind, tol)
-        pattern = re.compile(r'\(.*\)')
-        # ase.io.write("%s/Compare/spg.vasp" %(workDir), ind, direct = True, vasp5 = True)
-        # spg = os.popen("%s/Compare/findSpg %s/Compare/spg.vasp %s | grep 'spg'" %(workDir, workDir, tol)).readline()
-        try:
-            spg = pattern.search(spg).group()
-            spg = int(spg[1:-1])
-        except:
-            spg = 1
-        ind.info['spg'] = spg
-        spgPop.append(ind)
-
-    return spgPop
 
 
-
-def compare_volume_energy(Pop, diffE, diffV, compareE=True): #differnce in enthalpy(eV/atom) and volume(%)
+def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, compareE=True, mode='naive'): #differnce in enthalpy(eV/atom) and volume(%)
+    vol_tol = diffV**(1./3)
+    priList = []
     for ind in Pop:
         ind.info['vPerAtom'] = ind.get_volume()/len(ind)
+        priInfo = ind.info['priInfo']
+        if priInfo:
+            lattice, scaled_positions, numbers = priInfo
+            priAts = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=1)
+        else:
+            priAts = ind.copy()
+        priList.append(priAts)
+
 
     cmpPop = Pop[:]
 
     toCompare = [(x,y) for x in range(len(Pop)) for y in range(len(Pop)) if x < y]
     # toCompare = [(x,y) for x in Pop for y in Pop if Pop.index(x) < Pop.index(y)]
 
+    comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
+
     for pair in toCompare:
+        s0 = Pop[pair[0]]
+        s1 = Pop[pair[1]]
+        pri0 = priList[pair[0]]
+        pri1 = priList[pair[1]]
+
+
+        symCt0 = Counter(pri0.numbers)
+        symCt1 = Counter(pri1.numbers)
+        if symCt0 != symCt1 and mode=='naive':
+            continue
+
         duplicate = True
 
-        pairV = [Pop[n].info['vPerAtom'] for n in pair]
+        # pairV = [Pop[n].info['vPerAtom'] for n in pair]
+        pairV = [pri0.get_volume(), pri1.get_volume()]
         deltaV = abs(pairV[0] - pairV[1])/min(pairV)
 
         pairSpg = [Pop[n].info['spg'] for n in pair]
 
+
         if compareE:
             pairE = [Pop[n].info['enthalpy'] for n in pair]
             deltaE = abs(pairE[0] - pairE[1])
-            duplicate = duplicate and deltaE <= diffE and deltaV <= diffV and pairSpg[0] == pairSpg[1]
+            if mode == 'ase':
+                try:
+                    duplicate = comp.compare(pri0, pri1) and deltaE <= diffE
+                except:
+                    s = sys.exc_info()
+                    logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                    logging.info("ASE check fails. Use native check")
+                    # ase.io.write('failcomp0.vasp', pri0, vasp5=1, direct=1)
+                    # ase.io.write('failcomp1.vasp', pri1, vasp5=1, direct=1)
+                    duplicate = duplicate and deltaE <= diffE and pairSpg[0] == pairSpg[1]
+            elif mode == 'naive':
+                duplicate = duplicate and deltaV <= diffV and deltaE <= diffE and pairSpg[0] == pairSpg[1]
         else:
-            duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
+            if mode == 'ase':
+                try:
+                    duplicate = comp.compare(pri0, pri1)
+                except:
+                    s = sys.exc_info()
+                    logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                    logging.info("ASE check fails. Use native check")
+                    # ase.io.write('failcomp0.vasp', pri0, vasp5=1, direct=1)
+                    # ase.io.write('failcomp1.vasp', pri1, vasp5=1, direct=1)
+                    duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
+            elif mode == 'naive':
+                duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
         # logging.debug('pairindex: %s %s, duplicate: %s' % (Pop.index(pair[0]), Pop.index(pair[1]), duplicate))
         # logging.debug('pairindex: %s, duplicate: %s' % (pair, duplicate))
 
@@ -1012,7 +1506,7 @@ def compare_fingerprint(fpPop, diffD):
 
     return cmpPop
 
-def del_duplicate(Pop, compareE=True, tol = 0.5, diffE = 0.01, diffV = 0.01, diffD = 0.01, report=True):
+def del_duplicate(Pop, compareE=True, tol = 0.2, diffE = 0.005, diffV = 0.05, diffD = 0.01, report=True, mode='naive'):
     dupPop = find_spg(Pop, tol)
     #for ind in Pop:
      #   logging.info("spg: %s" %ind.info['spg'])
@@ -1020,7 +1514,7 @@ def del_duplicate(Pop, compareE=True, tol = 0.5, diffE = 0.01, diffV = 0.01, dif
     # dupPop = compare_fingerprint(Pop, diffD)
     # logging.info("fingerprint survival: %s" %(len(dupPop)))
 
-    dupPop = compare_volume_energy(dupPop, diffE, diffV, compareE)
+    dupPop = compare_volume_energy(dupPop, diffE, diffV, compareE=compareE, mode=mode)
     if report:
         logging.info("volume_energy survival: %s" %(len(dupPop)))
     # logging.info("survival: %s Individual" %len(dupPop))
@@ -1030,27 +1524,22 @@ def calc_dominators(Pop):
 
     # domPop = Pop[:]
     domPop = [ind.copy() for ind in Pop]
+    domLen = len(domPop)
     for ind in domPop:
         ftn1 = ind.info['fitness1']
         ftn2 = ind.info['fitness2']
         dominators = 0 #number of individuals that dominate the current ind
         # toDominate = 0 #number of individuals that are dominated by the current ind
         for otherInd in domPop[:]:
-            if ((otherInd.info['fitness1'] <= ftn1 and otherInd.info['fitness2'] <= ftn2)
-                 and (otherInd.info['fitness1'] < ftn1 or otherInd.info['fitness2'] < ftn2)):
+            if ((otherInd.info['fitness1'] < ftn1 and otherInd.info['fitness2'] < ftn2)
+                or (otherInd.info['fitness1'] <= ftn1 and otherInd.info['fitness2'] < ftn2)
+                or (otherInd.info['fitness1'] < ftn1 and otherInd.info['fitness2'] <= ftn2)):
+
                 dominators += 1
 
-
-        # for otherInd in domPop[:]:
-        #     if ((otherInd.info['fitness1'] >= ftn1 and otherInd.info['fitness2'] >= ftn2)
-        #         and (otherInd.info['fitness1'] > ftn1 or otherInd.info['fitness2'] > ftn2)):
-        #         toDominate += 1
-
-
-        # dominators = float(dominators)
         ind.info['dominators'] = dominators
-        # ind.info['toDominate'] = toDominate
         ind.info['MOGArank'] = dominators + 1
+        ind.info['sclDom'] = (dominators)/domLen
 
     return domPop
 
@@ -1065,7 +1554,7 @@ def convex_hull(Pop):
     for ind in hullPop:
         refE = pd.decompose(ind.get_chemical_formula())[0]
         ehull = ind.info['enthalpy'] - refE/len(ind)
-        ind.info['ehull'] = ehull if ehull > 1e-3 else 0
+        ind.info['ehull'] = ehull #if ehull > 1e-6 else 0
 
     return hullPop
 
@@ -1117,18 +1606,6 @@ def check_dist_individual(ind, threshold):
     else:
         return False
 
-    # toCompare = [(x,y)
-    # for x in range(len(ind))
-    # for y in range(len(ind))
-    # if x < y]
-    # save = True
-    # for pair in toCompare:
-    #     dist = ind.get_distance(pair[0], pair[1], mic=True)
-    #     radii = [covalent_radii[atomic_numbers[ind[i].symbol]]
-    #     for i in pair]
-    #     sumR = sum(radii)
-    #     save = save and (dist > threshold*sumR)
-    # return save
 
 def check_dist(pop, threshold=0.7):
     checkPop = []
@@ -1248,7 +1725,7 @@ def cut_cell(cutPop, grid, symbols, cutDisp=0):
     siv = [(x, y, z) for x in range(k1) for y in range(k2) for z in range(k3)]
     sivCut = list()
     for i in range(3):
-        cutPos = [(x + cutDisp*random.uniform(-1, 1))/grid[i] for x in range(grid[i])]
+        cutPos = [(x + cutDisp*random.uniform(-0.5, 0.5))/grid[i] for x in range(grid[i])]
         cutPos.append(1)
         cutPos[0] = 0
         sivCut.append(cutPos)
@@ -1292,8 +1769,174 @@ def cut_cell(cutPop, grid, symbols, cutDisp=0):
         pbc = True,)
     cutInd.set_scaled_positions(cutPos)
 
-    formula = [len(syblDict[sybl]) for sybl in symbols]
-    cutInd.info['formula'] = formula
+    # formula = [len(syblDict[sybl]) for sybl in symbols]
+    # cutInd.info['formula'] = formula
 
     return cutInd
 
+def mol_dict_pop(pop, molDetector=1, coefRange=[1.1,]):
+    logging.debug("mol_dict_pop():")
+    logging.debug("coef range: {}".format(coefRange))
+    molPop = [ind.copy() for ind in pop]
+    for ind in molPop:
+        maxMolNum = len(ind)
+        molC = None
+        for coef in coefRange:
+            if molDetector == 1:
+                tryMolc = atoms2molcryst(ind, coef)
+            elif molDetector == 2:
+                tryMolc = atoms2communities(ind, coef)
+            if tryMolc.numMols <= maxMolNum:
+                logging.debug("coef: {}".format(coef))
+                logging.debug("numMols: {}".format(tryMolc.numMols))
+                molC = tryMolc
+                maxMolNum = tryMolc.numMols
+        oriVol = ind.get_volume()
+        oriCell = ind.get_cell()
+        radius = np.array(molC.get_radius())
+        # eleRad = covalent_radii[max(ind.get_atomic_numbers())]
+        # radius += eleRad
+        molVol = 4/3 * pi * np.power(radius, 3).sum()
+        logging.debug("oriVol: {}\tmolVol: {}".format(oriVol, molVol))
+        if molVol > oriVol:
+            tmpVol = 0.5*(molVol + oriVol)
+            ratio = float((tmpVol/oriVol)**(1./3))
+            molCell = oriCell*ratio
+        else:
+            molCell = oriCell
+        ind.info['molDict'] = molC.to_dict()
+        ind.info['molCell'] = molCell
+
+    return molPop
+
+
+def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=1):
+    """
+    Gaussian mutation for molecule crystal.
+    parInd should be a MolCryst object.
+    """
+    chdInd = parInd.copy()
+    parVol = parInd.get_volume()
+
+    chdCell = chdInd.get_cell()
+    latGauss = [random.gauss(0, sigma)*cellCut for i in range(6)]
+    strain = np.array([
+        [1+latGauss[0], latGauss[1]/2, latGauss[2]/2],
+        [latGauss[1]/2, 1+latGauss[3], latGauss[4]/2],
+        [latGauss[2]/2, latGauss[4]/2, 1+latGauss[5]]
+        ])
+    chdCell = chdCell*strain
+    cellPar = cell_to_cellpar(chdCell)
+    ratio = parVol/abs(np.linalg.det(chdCell))
+    cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
+    chdCell = cellpar_to_cell(cellPar)
+    chdInd.set_cell(chdCell, scale_atoms=True)
+
+
+    atGauss = np.array([random.gauss(0, sigma)*distCut for i in range(3)])
+    chdCenters = parInd.centers + atGauss
+    chdInd.update_centers_and_rltPos(centers=chdCenters)
+        # at.position += atGauss*covalent_radii[atomic_numbers[at.symbol]]
+
+    chdInd.info = parInd.info.copy()
+    # chdInd.info['Origin'] = 'Mutate'
+
+    return chdInd
+
+def mol_rotation(parInd):
+
+
+    chdInd = parInd.copy()
+
+    chdRltPos = []
+
+    for pos in chdInd.rltPos:
+        newPos = np.dot(pos, rand_rotMat())
+        chdRltPos.append(newPos)
+
+    chdInd.update_centers_and_rltPos(rltPos=chdRltPos)
+    return chdInd
+
+def mol_exchage(parInd):
+
+
+    chdInd = parInd.copy()
+    chdCenters = chdInd.get_sclCenters().tolist()
+    random.shuffle(chdCenters)
+    chdInd.update_sclCenters_and_rltSclPos(sclCenters=chdCenters)
+
+    return chdInd
+
+
+# def rand_rotMat():
+#     phi, theta, psi = [2*math.pi*random.uniform(-1,1) for _ in range(3)]
+#     rot1 = np.array([[cos(phi),-1*sin(phi),0],[sin(phi),cos(phi),0],[0,0,1]])
+#     rot2 = np.array([[cos(theta), 0, -1*sin(theta)],[0,1,0],[sin(theta), 0, cos(theta)]])
+#     rot3 = np.array([[1,0,0],[0,cos(psi),-1*sin(psi)],[0,sin(psi),cos(psi)]])
+#     rotMat = np.dot(np.dot(rot1, rot2), rot3)
+#     # print("det of rotMat: {}".format(np.linalg.det(rotMat)))
+#     return rotMat
+
+def mol_slip(parInd, cut=0.5, randRange=[0.2, 0.8]):
+
+    chdInd = parInd.copy()
+    sclCenters = parInd.get_sclCenters()
+    axis = list(range(3))
+    random.shuffle(axis)
+    rand1 = random.uniform(*randRange)
+    rand2 = random.uniform(*randRange)
+
+    for i in range(len(sclCenters)):
+        if sclCenters[i, axis[0]] > cut:
+            sclCenters[i, axis[1]] += rand1
+            sclCenters[i, axis[2]] += rand2
+
+    chdInd.update_sclCenters_and_rltSclPos(sclCenters=sclCenters)
+    return chdInd
+
+def mol_cut_cell(parInd1, parInd2, axis=0):
+    """
+    Cut two MolCryst to create a new one.
+    Return an Atoms object.
+    """
+
+    # cell
+    cutCell = 0.5*(parInd1.get_cell() + parInd2.get_cell())
+    cutVol = 0.5*(parInd1.get_volume() + parInd2.get_volume())
+    cutCellPar = cell_to_cellpar(cutCell)
+    ratio = cutVol/abs(np.linalg.det(cutCell))
+    if ratio > 1:
+        cutCellPar[:3] = [length*ratio**(1/3) for length in cutCellPar[:3]]
+    cutCell = cellpar_to_cell(cutCellPar)
+
+    # atomic numbers
+    numList = []
+    # atom's positions
+    posList = []
+
+
+
+    for n, ind in enumerate([parInd1, parInd2]):
+        sclCenters = ind.get_sclCenters()
+        centers = ind.get_centers()
+        rltPos = ind.get_rltPos()
+        numbers = ind.get_numbers()
+        for i in range(ind.numMols):
+            if 0.5*n < sclCenters[i, axis] < 0.5*(n+1):
+                indices = ind.partition[i]
+                molNums = numbers[indices].tolist()
+                numList.extend(molNums)
+                newCenter = np.dot(sclCenters[i], cutCell)
+                molPos =(newCenter + rltPos[i]).tolist()
+                posList.extend(molPos)
+                # print(rltPos[i])
+                # print(molNums)
+
+    cutInd = Atoms(numbers=numList, positions=posList, cell=cutCell, pbc=True)
+
+    return cutInd
+
+def tournament(pop, num):
+    smpPop = random.sample(pop, num)
+    ind = sorted(smpPop, key=lambda x:x.info['dominators'])[0]
+    return ind

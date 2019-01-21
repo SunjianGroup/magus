@@ -7,16 +7,16 @@ from scipy.spatial.distance import cdist
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jobs_stat, read_parallel_results
-from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
-from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build
+from csp.localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jobs_stat, read_parallel_results
+from csp.renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
+from csp.initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build, build_mol_struct
 # from .readvasp import *
-from .setfitness import calc_fitness
-from .writeresults import write_dataset, write_results, write_traj
-from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
-from .bayes import atoms_util
-from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio
+from csp.setfitness import calc_fitness
+from csp.writeresults import write_dataset, write_results, write_traj
+from csp.fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
+from csp.bayes import atoms_util
+from csp.readparm import read_parameters
+from csp.utils import EmptyClass, calc_volRatio, check_mol_pop
 
 
 def check_jobs(statFile='currentStat.json'):
@@ -47,6 +47,9 @@ def csp_loop(curStat, parameters):
     for key, val in parameters.items():
         setattr(p, key, val)
 
+    if p.molMode:
+        p.inputMols = [Atoms(**molInfo) for molInfo in p.molList]
+
     if 'runJobs' not in curStat.keys():
         initial = True
     else:
@@ -68,6 +71,11 @@ def csp_loop(curStat, parameters):
         logging.info("check distance")
         optPop = check_dist(optPop, p.dRatio)
         logging.info("check survival: {}".format(len(optPop)))
+
+        if p.chkMol:
+            logging.info("check mols")
+            optPop = check_mol_pop(optPop, p.inputMols, p.bondRatio)
+            logging.info("check survival: {}".format(len(optPop)))
 
         # Initialize paretoPop, goodPop
         if curGen > 1:
@@ -176,17 +184,24 @@ def csp_loop(curStat, parameters):
         shutil.copy("allParameters.yaml", "results/allParameters.yaml")
 
         logging.info("===== Generation 1 =====")
-        if p.calcType == 'fix':
-            initPop = build_struct(p.initSize, p.symbols, p.formula, p.numFrml, volRatio=p.volRatio)
-        elif p.calcType == 'var':
-            logging.info('calc var')
-            initPop = varcomp_build(p.initSize, p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio)
-            # logging.debug("initPop length: {}".format(len(initPop)))
-            # initPop = varcomp_2elements(popSize - len(symbols), symbols, minAt, maxAt)
-            for n, sybl in enumerate(p.symbols):
-                eleFrml = [0 for _ in range(len(p.symbols))]
-                eleFrml[n] = 1
-                initPop.extend(build_struct(p.eleSize, p.symbols, eleFrml, list(range(p.minAt, p.minAt+1)), volRatio=p.volRatio))
+        assert p.molMode, 'molMode should be True'
+
+        if p.molType == 'fix':
+            # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
+            initPop = build_mol_struct(p.initSize, p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup)
+
+
+        # if p.calcType == 'fix':
+        #     initPop = build_struct(p.initSize, p.symbols, p.formula, p.numFrml, volRatio=p.volRatio)
+        # elif p.calcType == 'var':
+        #     logging.info('calc var')
+        #     initPop = varcomp_build(p.initSize, p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio)
+        #     # logging.debug("initPop length: {}".format(len(initPop)))
+        #     # initPop = varcomp_2elements(popSize - len(symbols), symbols, minAt, maxAt)
+        #     for n, sybl in enumerate(p.symbols):
+        #         eleFrml = [0 for _ in range(len(p.symbols))]
+        #         eleFrml[n] = 1
+        #         initPop.extend(build_struct(p.eleSize, p.symbols, eleFrml, list(range(p.minAt, p.minAt+1)), volRatio=p.volRatio))
 
         logging.info("initPop length: {}".format(len(initPop)))
         initPop.extend(read_seeds(parameters))
@@ -224,26 +239,29 @@ def csp_loop(curStat, parameters):
             initPop = mainAlgo.get_bboPop()
 
 
+        # check mol crystal
+        if p.chkMol:
+            logging.info("check mols")
+            initPop = check_mol_pop(initPop, p.inputMols, p.bondRatio)
+            logging.info("check survival: {}".format(len(initPop)))
 
         if len(initPop) < p.popSize:
             logging.info("random structures out of Kriging")
-            if p.calcType == 'fix':
-                initPop.extend(build_struct(p.popSize - len(initPop), p.symbols, p.formula, p.numFrml, volRatio=p.volRatio))
-            if p.calcType == 'var':
-                initPop.extend(varcomp_build(p.popSize - len(initPop), p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio))
+            if p.molType == 'fix':
+                # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
+                initPop.extend(build_mol_struct(p.popSize - len(initPop), p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup))
+
+            # if p.calcType == 'fix':
+            #     initPop.extend(build_struct(p.popSize - len(initPop), p.symbols, p.formula, p.numFrml, volRatio=p.volRatio))
+            # if p.calcType == 'var':
+            #     initPop.extend(varcomp_build(p.popSize - len(initPop), p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio))
                 # initPop.extend(varcomp_2elements(popSize - len(initPop), symbols, minAt, maxAt))
 
         # read seeds
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))
 
-    # fix cell
-    if p.fixCell:
-        for ind in initPop:
-            ind.set_cell(p.setCellPar, scale_atoms=True)
-
-
     ### Initail check
-    initPop = check_dist(initPop, p.dRatio)
+    # initPop = check_dist(initPop, 0.7)
 
     ### Initial fingerprint
     for ind in initPop:

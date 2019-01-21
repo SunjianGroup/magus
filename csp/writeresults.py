@@ -21,7 +21,8 @@ def write_results(Pop, gen, prefix, resultsDir = "results"):
     # os.chdir(resultsDir)
 
     # write_py("%s/%s%s.py" %(resultsDir, prefix, gen), Pop)
-    write_yaml("{}/{}{}.yaml".format(resultsDir, prefix, gen), Pop)
+    # write_yaml("{}/{}{}.yaml".format(resultsDir, prefix, gen), Pop)
+    write_traj("{}/{}{}.traj".format(resultsDir, prefix, gen), Pop)
 
     # formulas = set([ind.get_chemical_formula() for ind in Pop])
     # for frml in formulas:
@@ -60,19 +61,6 @@ def write_py(fileobj, images, **kwargs):
 
     fileobj.write(']')
 
-def read_py(filename):
-    # modulename = filename[:-3]
-    # exec("from %s import images" %(modulename))
-    # logging.info(filename)
-    os.system("cp %s read_temp.py"% (filename))
-#    if 'read_temp' in sys.modules:
-#        logging.info("read_temp in sys.modules")
-    import read_temp
-    reload(read_temp)
-    images = read_temp.images
-    os.system("rm read_temp.py*")
-    return images
-
 def write_xsf(filename, image):
     """Write to xsf file for fingerprint calculation"""
     cell = image.get_cell()
@@ -91,28 +79,29 @@ def write_xsf(filename, image):
             pos = atom.position
             fileobj.write("%s %f %f %f 0 0 0\n" %(atom.symbol, pos[0], pos[1], pos[2]))
 
-def write_dataset(dataPop, filename="dataset.yaml", resultsDir = "results"):
+def write_dataset(dataPop, filename="dataset.traj", resultsDir = "results"):
 
-    if os.path.exists("%s/%s"%(resultsDir, filename)):
-        dataDic = yaml.load(open("%s/%s"%(resultsDir, filename)))
-        saveFps = dataDic['data']
-        saveEns = dataDic['value']
-    else:
-        dataDic = dict()
-        saveFps = list()
-        saveEns = list()
+    # if os.path.exists("%s/%s"%(resultsDir, filename)):
+    #     dataDic = yaml.load(open("%s/%s"%(resultsDir, filename)))
+    #     saveFps = dataDic['data']
+    #     saveEns = dataDic['value']
+    # else:
+    #     dataDic = dict()
+    #     saveFps = list()
+    #     saveEns = list()
 
-    inFps = [ind.info['fingerprint'] for ind in dataPop]
-    inFps = [fp.flatten().tolist() for fp in inFps]
-    inEns = [ind.info['enthalpy'] for ind in dataPop]
+    # inFps = [ind.info['fingerprint'] for ind in dataPop]
+    # inFps = [fp.flatten().tolist() for fp in inFps]
+    # inEns = [ind.info['enthalpy'] for ind in dataPop]
 
-    saveFps.extend(inFps)
-    saveEns.extend(inEns)
-    dataDic['data'] = saveFps
-    dataDic['value'] = saveEns
+    # saveFps.extend(inFps)
+    # saveEns.extend(inEns)
+    # dataDic['data'] = saveFps
+    # dataDic['value'] = saveEns
 
-    with open("%s/%s"%(resultsDir, filename), 'w') as f:
-        f.write(yaml.dump(dataDic))
+    # with open("%s/%s"%(resultsDir, filename), 'w') as f:
+    #     f.write(yaml.dump(dataDic))
+    ase.io.write("%s/%s"%(resultsDir, filename), dataPop, format='traj')
 
 def read_dataset(filename="dataset.yaml", resultsDir = "results"):
 
@@ -122,7 +111,7 @@ def read_dataset(filename="dataset.yaml", resultsDir = "results"):
 
     return data, value
 
-def write_yaml(filename, images):
+def write_yaml(filename, images, delTraj=True):
 
     if not isinstance(images, (list, tuple)):
         images = [images]
@@ -137,16 +126,30 @@ def write_yaml(filename, images):
 
         for key, val in struct.items():
             struct[key] = val.tolist()
-        
+
         info = atoms.info
+        # delete the trajectories in info to reduce size
+        if delTraj and 'trajs' in info.keys():
+            info['trajs'] = []
         # for key, val in info.items():
         #     if isinstance(val, np.ndarray):
         #         info[key] = val.astype(float)
-        
+
         writeList.append((struct, info))
-    
+
     with open(filename, 'w') as fileObj:
         fileObj.write(yaml.dump(writeList))
+
+def write_traj(filename, images, delTraj=True):
+    writeImages = []
+    for atoms in images:
+        writeAtoms = atoms.copy()
+        info = writeAtoms.info
+        # delete the trajectories in info to reduce size
+        if delTraj and 'trajs' in info.keys():
+            info['trajs'] = []
+        writeImages.append(writeAtoms)
+    ase.io.write(filename, images, format='traj')
 
 def read_yaml(filename):
 
@@ -157,10 +160,10 @@ def read_yaml(filename):
         image = Atoms(**struct)
         image.info = info
         images.append(image)
-    
+
     return images
 
 
 
 
-        
+

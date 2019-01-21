@@ -2,6 +2,7 @@
 mkdir BuildStruct
 mkdir fpFold
 mkdir inputFold
+mkdir Seeds
 cp $CSP_TOOLS/summary.py .
 cp $CSP_TOOLS/fpsetup.yaml fpFold
 

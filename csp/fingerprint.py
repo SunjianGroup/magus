@@ -58,7 +58,7 @@ def read_fp_setup(fpDir, symbols,):
     """
     fpSetup = yaml.load(open("%s/fpsetup.yaml"%(fpDir)))
     sf2 = fpSetup['sf2']
-    sf4 = fpSetup['sf4']
+    # sf4 = fpSetup['sf4']
     cutoff = fpSetup['Rc']
 
     stpList = list()
@@ -78,16 +78,16 @@ def read_fp_setup(fpDir, symbols,):
     for j in range(len(symbols))
     if i <= j]
 
-    sf4Stp = [('G4', [symbols[i], symbols[j]], eta, lam, zeta)
-    for i, j in pairs
-    for eta in sf4['eta']
-    for lam in sf4['gamma']
-    for zeta in sf4['zeta']
-    ]
+    # sf4Stp = [('G4', [symbols[i], symbols[j]], eta, lam, zeta)
+    # for i, j in pairs
+    # for eta in sf4['eta']
+    # for lam in sf4['gamma']
+    # for zeta in sf4['zeta']
+    # ]
 
-    for stp in sf4Stp:
-        stpDict = dict(zip(['type', 'elements', 'eta', 'gamma', 'zeta'], stp))
-        stpList.append(stpDict)
+    # for stp in sf4Stp:
+    #     stpDict = dict(zip(['type', 'elements', 'eta', 'gamma', 'zeta'], stp))
+    #     stpList.append(stpDict)
 
     # GsDict = dict()
     # for el in symbols:
@@ -244,7 +244,7 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
         if len(Rs) == 0:
             ridge = 0.
         else:
-            ridge = fmodules.calculate_g2(numbers=numbers, rs=Rs,
+            ridge = fmodules.simple_calculate_g2(numbers=numbers, rs=Rs,
                                           g_number=G_number, g_eta=eta,
                                           cutoff=cutoff, home=home)
         return ridge
@@ -256,7 +256,7 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
                 Rij = np.linalg.norm(R - home)
                 ridge += (np.exp(-eta * (Rij ** 2.) / (cutoff ** 2.)) *
                           cutoff_fxn(Rij, cutoff))
-    end = time.clock()
+    # end = time.clock()
     #    print("calculate_G2() time: %s"%(end - start))
     return ridge
 

@@ -1,11 +1,14 @@
 from __future__ import print_function, division
 import os
 import logging
-from .renewstruct import find_spg
+import numpy as np
+# from .renewstruct import find_spg
+from .utils import find_spg
+from .xrd import compare_xrd
 
 def calc_fitness(Pop, parameters):
     fitPop = Pop[:]
-    fitPop = find_spg(fitPop, 1)
+    # fitPop = find_spg(fitPop, 1)
     calcType = parameters['calcType']
 
     for ind in fitPop:
@@ -22,6 +25,33 @@ def calc_fitness(Pop, parameters):
 #        ftn2 = abs(gap -1.)
 #        ftn2 = enthalpy
         ftn2 = ftn1
+
+        ind.info['fitness1'] = ftn1
+        ind.info['fitness2'] = ftn2
+
+    return fitPop
+
+def calc_fitness_xrd(Pop, parameters):
+    fitPop = Pop[:]
+    calcType = parameters['calcType']
+    xrdFile = parameters['xrdFile']
+    workDir = parameters['workDir']
+    lamb = parameters['xrdLamb']
+    expData = np.loadtxt("{}/{}".format(workDir, xrdFile))
+
+    for ind in fitPop:
+
+        if calcType == 'fix':
+            enthalpy = ind.info['enthalpy']
+            ftn1 = enthalpy   # define fitness1
+        elif calcType == 'var':
+            ehull = ind.info['ehull']
+            ftn1 = ehull
+
+        xrdScore = compare_xrd(ind, expData, lamb)
+        ind.info['xrdScore'] = xrdScore
+        ftn2 = xrdScore
+
 
         ind.info['fitness1'] = ftn1
         ind.info['fitness2'] = ftn2

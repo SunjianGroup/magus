@@ -9,62 +9,84 @@ import pandas as pd
 import ase.io
 from ase import Atoms
 
-def read_yaml(filename):
- 
-    readList = yaml.load(open(filename))
- 
-    images = list()
-    for struct, info in readList:
-        image = Atoms(**struct)
-        image.info = info
-        images.append(image)
- 
-    return images
+
+savePri = 1
+saveStd = 0
+
+pd.options.display.max_rows = 200
 
 filename = sys.argv[1]
-symprec = 0.5
-images = read_yaml(filename)
+symprec = 0.9
+# images = read_yaml(filename)
+images = ase.io.read(filename, format='traj', index=':')
 
 names = locals()
 showList = [
-'symmetry', 
-'enthalpy', 
-'predictE', 
-'parentE', 
-#'symbols', 
-#'formula', 
-#'gap', 
+'symmetry',
+'enthalpy',
+'ehull',
+#'predictE',
+'parentE',
+#'symbols',
+'formula',
+#'gap',
 #'volume',
 #'Origin',
-'utilVal',
-'sigma',
-'relaxD',
+#'utilVal',
+#'sigma',
+#'relaxD',
+'fullSym',
 ]
 allRes = []
 
 for i, at in enumerate(images):
-    posname = "POSCAR_%s" %(i)
+    posname = "POSCAR_%s.vasp" %(i)
     ase.io.write(posname, at, direct = True, vasp5 = True)
     symmetry = spg.get_spacegroup(at, symprec)
-    # symmetry = os.popen(
-    #     "phonopy --symmetry --tolerance %s -c POSCAR_%s | grep space_group_type"
-    #     % (symprec, i)).readlines()[0].split()[1]
+
+    if savePri:
+        priInfo = spg.find_primitive(at, symprec)
+        if priInfo:
+            lattice, scaled_positions, numbers = priInfo
+            priAt = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
+            ase.io.write("pri_{}.vasp".format(i), priAt, direct=1, vasp5=1)
+        else:
+            ase.io.write("pri_{}.vasp".format(i), at, direct=1, vasp5=1)
+
+    if saveStd:
+        stdInfo = spg.standardize_cell(at, symprec=symprec)
+        if stdInfo:
+            lattice, scaled_positions, numbers = stdInfo
+            stdInfo = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
+            ase.io.write("std_{}.vasp".format(i), stdInfo, direct=1, vasp5=1)
+        else:
+            ase.io.write("std_{}.vasp".format(i), at, direct=1, vasp5=1)
+
+
+
     volume = at.get_volume()
     volume = round(volume, 3)
 
+    fullSym = at.get_chemical_formula()
+
     oneRes = list()
+
+    outFeatures = ['volume', 'symmetry', 'angles', 'lengths', 'fullSym']
 
     for feature in showList:
         if feature in at.info.keys():
             oneRes.append(at.info[feature])
-        elif feature is 'volume' or feature is 'symmetry':
+        elif feature in outFeatures:
             oneRes.append(names[feature])
         else:
-            oneRes.append(None)     
+            oneRes.append(None)
+
+
 
     allRes.append(oneRes)
 
 table = pd.DataFrame(allRes, columns=showList)
+#print(table.sort_values('ehull', axis=0))
 print(table.sort_values('enthalpy', axis=0))
 
     # outD = dict()
