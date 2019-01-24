@@ -76,18 +76,22 @@ def generate_one_mol_crystal(molFormula, spg, radius, rltPosList, molNumList, mi
     else:
         return None
 
-def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, minVol=None, maxVol=None):
+def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, minVol=None, maxVol=None, smallRadius=False, tryNum=10):
     assert len(molList) == len(molFormula)
     radius = []
     molNumList = []
     rltPosList = []
     minVol = 0
+    if smallRadius:
+        rCoef = random.uniform(0.5, 1)
+    else:
+        rCoef = 1
     for i, mol in enumerate(molList):
         numbers = mol.get_atomic_numbers()
         rmol, rltPos = mol_radius_and_rltPos(mol)
         rAt = covalent_radii[numbers].max()
         rmol += rAt
-        radius.append(rmol)
+        radius.append(rCoef*rmol)
         molNumList.append(numbers)
         rltPosList.append(rltPos)
         vol = 8*rmol**3
@@ -114,7 +118,8 @@ def build_mol_struct(
     molFormula,
     numFrml = [1],
     spgs = range(1,231),
-    tryNum = 10
+    tryNum = 5,
+    bondRatio = 1.1,
 ):
     buildPop = []
     for nfm in numFrml:
@@ -123,7 +128,7 @@ def build_mol_struct(
             break
         inputFrml = [nfm*frml for frml in formula]
         inputMolFrml = [nfm*frml for frml in molFormula]
-        randomPop = generate_mol_crystal_list(inputMols, inputMolFrml, spgs, numStruct)
+        randomPop = generate_mol_crystal_list(inputMols, inputMolFrml, spgs, numStruct, smallRadius=True)
         for ind in randomPop:
             ind.info['symbols'] = symbols
             ind.info['formula'] = formula
@@ -132,6 +137,8 @@ def build_mol_struct(
             ind.info['parentE'] = 0
             ind.info['Origin'] = 'random'
         buildPop.extend(randomPop)
+
+    buildPop = check_mol_pop(buildPop, inputMols, bondRatio)
 
      # Build structure to fill buildPop
     for i in range(tryNum):
@@ -142,7 +149,29 @@ def build_mol_struct(
             nfm = random.choice(numFrml)
             inputFrml = [nfm*frml for frml in formula]
             inputMolFrml = [nfm*frml for frml in molFormula]
-            randomPop.extend(generate_mol_crystal_list(inputMols, inputMolFrml, spgs, 1))
+            randomPop.extend(generate_mol_crystal_list(inputMols, inputMolFrml, spgs, 1, smallRadius=True))
+            if len(randomPop) > 0:
+                randomPop[-1].info['numOfFormula'] = nfm
+                randomPop[-1].info['symbols'] = symbols
+                randomPop[-1].info['formula'] = formula
+                randomPop[-1].info['molFormula'] = molFormula
+                randomPop[-1].info['parentE'] = 0
+                randomPop[-1].info['Origin'] = 'random'
+        randomPop = check_mol_pop(randomPop, inputMols, bondRatio)
+        buildPop.extend(randomPop)
+
+    logging.debug("Build {} molecular crystals with small radius.".format(len(buildPop)))
+
+    # Build P1 structure to fill buildPop
+    for i in range(tryNum):
+        if popSize <= len(buildPop):
+            break
+        randomPop = []
+        for i in range(popSize - len(buildPop)):
+            nfm = random.choice(numFrml)
+            inputFrml = [nfm*frml for frml in formula]
+            inputMolFrml = [nfm*frml for frml in molFormula]
+            randomPop.extend(generate_mol_crystal_list(inputMols, inputMolFrml, [1], 1))
             if len(randomPop) > 0:
                 randomPop[-1].info['numOfFormula'] = nfm
                 randomPop[-1].info['symbols'] = symbols

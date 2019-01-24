@@ -290,6 +290,13 @@ def calc_volRatio(atoms):
     volRatio = atoms.get_volume()/ballVol
     return volRatio
 
+def calc_ball_volume(atoms):
+    ballVol = 0
+    for num in atoms.get_atomic_numbers():
+        ballVol += 4*math.pi/3*(covalent_radii[num])**3
+
+    return ballVol
+
 def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
     seedPop = []
 

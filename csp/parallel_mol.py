@@ -191,18 +191,6 @@ def csp_loop(curStat, parameters):
             initPop = build_mol_struct(p.initSize, p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup)
 
 
-        # if p.calcType == 'fix':
-        #     initPop = build_struct(p.initSize, p.symbols, p.formula, p.numFrml, volRatio=p.volRatio)
-        # elif p.calcType == 'var':
-        #     logging.info('calc var')
-        #     initPop = varcomp_build(p.initSize, p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio)
-        #     # logging.debug("initPop length: {}".format(len(initPop)))
-        #     # initPop = varcomp_2elements(popSize - len(symbols), symbols, minAt, maxAt)
-        #     for n, sybl in enumerate(p.symbols):
-        #         eleFrml = [0 for _ in range(len(p.symbols))]
-        #         eleFrml[n] = 1
-        #         initPop.extend(build_struct(p.eleSize, p.symbols, eleFrml, list(range(p.minAt, p.minAt+1)), volRatio=p.volRatio))
-
         logging.info("initPop length: {}".format(len(initPop)))
         initPop.extend(read_seeds(parameters))
 
@@ -238,12 +226,14 @@ def csp_loop(curStat, parameters):
             mainAlgo.bbo_cutcell()
             initPop = mainAlgo.get_bboPop()
 
+        logging.debug("initLen: {}".format(len(initPop)))
+        write_results(initPop, curGen, 'test_init')
 
-        # check mol crystal
-        if p.chkMol:
-            logging.info("check mols")
-            initPop = check_mol_pop(initPop, p.inputMols, p.bondRatio)
-            logging.info("check survival: {}".format(len(initPop)))
+        # # check mol crystal
+        # if p.chkMol:
+        #     logging.info("check mols")
+        #     initPop = check_mol_pop(initPop, p.inputMols, p.bondRatio)
+        #     logging.info("check survival: {}".format(len(initPop)))
 
         if len(initPop) < p.popSize:
             logging.info("random structures out of Kriging")
@@ -251,11 +241,6 @@ def csp_loop(curStat, parameters):
                 # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
                 initPop.extend(build_mol_struct(p.popSize - len(initPop), p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup))
 
-            # if p.calcType == 'fix':
-            #     initPop.extend(build_struct(p.popSize - len(initPop), p.symbols, p.formula, p.numFrml, volRatio=p.volRatio))
-            # if p.calcType == 'var':
-            #     initPop.extend(varcomp_build(p.popSize - len(initPop), p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio))
-                # initPop.extend(varcomp_2elements(popSize - len(initPop), symbols, minAt, maxAt))
 
         # read seeds
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))

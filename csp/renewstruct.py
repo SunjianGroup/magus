@@ -367,13 +367,18 @@ class Kriging:
         self.bondStep = parameters['bondStep']
         self.bondStepNum = parameters['bondStepNum']
         self.bondRange = parameters['bondRange']
+        self.molScaleCell = parameters['molScaleCell']
+        self.chkMol = parameters['chkMol']
+        self.molMode = parameters['molMode']
+        if self.molMode:
+            self.inputMols = [Atoms(**molInfo) for molInfo in parameters['molList']]
         # local
         self.curPop = calc_dominators(curPop)
         if self.fullEles:
             self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
         if self.molDetector > 0:
             # bondRange = [self.bondMin + self.bondStep*i for i in range(self.bondStepNum-1)]
-            self.curPop = mol_dict_pop(self.curPop, self.molDetector, self.bondRange)
+            self.curPop = mol_dict_pop(self.curPop, self.molDetector, self.bondRange, self.molScaleCell)
 
         self.curLen = len(self.curPop)
         logging.debug("curLen: {}".format(self.curLen))
@@ -729,7 +734,7 @@ class Kriging:
     def add(self, pop):
         self.tmpPop.extend(pop)
 
-    def select(self):
+    def select(self, enFilter=True):
         tmpPop = self.tmpPop
         symbols = self.symbols
         gp = self.gp
@@ -743,6 +748,10 @@ class Kriging:
 
         tmpPop = check_dist(tmpPop, dRatio)
         logging.info("tmpPop length: %s after check_dist"%(len(tmpPop)))
+        if self.molDetector == 1 and self.chkMol:
+            tmpPop = check_mol_pop(tmpPop, self.inputMols, self.bondRatio)
+            logging.info("tmpPop length: %s after check_mol"%(len(tmpPop)))
+
         self.util = UtilityFunction(self.kind, self.kappa, self.xi)
         tmpPop = calc_all_fingerprints(tmpPop, self.parameters)
         for ind in tmpPop:
@@ -751,8 +760,9 @@ class Kriging:
             ind.info['enthalpy'] = ind.info['predictE']
             ind.info['utilVal'] = atoms_util(ind.info['fingerprint'] ,self.util, gp, symbols, y_max)[0]
             ind.info['minDist'] = cdist(ind.info['fingerprint'].reshape(1, -1), self.fps).min()
-        tmpPop = list(filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.01, tmpPop))
-        logging.info("tmpPop length: %s after filter"%(len(tmpPop)))
+        if enFilter:
+            tmpPop = list(filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.01, tmpPop))
+            logging.info("tmpPop length: %s after filter"%(len(tmpPop)))
         # tmpPop = del_duplicate(tmpPop, compareE=False)
         # logging.info("tmpPop length: %s after del_duplicate"%(len(tmpPop)))
 
@@ -1774,7 +1784,7 @@ def cut_cell(cutPop, grid, symbols, cutDisp=0):
 
     return cutInd
 
-def mol_dict_pop(pop, molDetector=1, coefRange=[1.1,]):
+def mol_dict_pop(pop, molDetector=1, coefRange=[1.1,], scale_cell=False):
     logging.debug("mol_dict_pop():")
     logging.debug("coef range: {}".format(coefRange))
     molPop = [ind.copy() for ind in pop]
@@ -1797,8 +1807,9 @@ def mol_dict_pop(pop, molDetector=1, coefRange=[1.1,]):
         # eleRad = covalent_radii[max(ind.get_atomic_numbers())]
         # radius += eleRad
         molVol = 4/3 * pi * np.power(radius, 3).sum()
+        logging.debug("partition {}".format(molC.partition))
         logging.debug("oriVol: {}\tmolVol: {}".format(oriVol, molVol))
-        if molVol > oriVol:
+        if scale_cell and molVol > oriVol:
             tmpVol = 0.5*(molVol + oriVol)
             ratio = float((tmpVol/oriVol)**(1./3))
             molCell = oriCell*ratio
@@ -1830,7 +1841,7 @@ def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=1):
     ratio = parVol/abs(np.linalg.det(chdCell))
     cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
     chdCell = cellpar_to_cell(cellPar)
-    chdInd.set_cell(chdCell, scale_atoms=True)
+    chdInd.set_cell(chdCell, scale_atoms=False, scale_centers=True)
 
 
     atGauss = np.array([random.gauss(0, sigma)*distCut for i in range(3)])
@@ -1867,15 +1878,6 @@ def mol_exchage(parInd):
 
     return chdInd
 
-
-# def rand_rotMat():
-#     phi, theta, psi = [2*math.pi*random.uniform(-1,1) for _ in range(3)]
-#     rot1 = np.array([[cos(phi),-1*sin(phi),0],[sin(phi),cos(phi),0],[0,0,1]])
-#     rot2 = np.array([[cos(theta), 0, -1*sin(theta)],[0,1,0],[sin(theta), 0, cos(theta)]])
-#     rot3 = np.array([[1,0,0],[0,cos(psi),-1*sin(psi)],[0,sin(psi),cos(psi)]])
-#     rotMat = np.dot(np.dot(rot1, rot2), rot3)
-#     # print("det of rotMat: {}".format(np.linalg.det(rotMat)))
-#     return rotMat
 
 def mol_slip(parInd, cut=0.5, randRange=[0.2, 0.8]):
 

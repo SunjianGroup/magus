@@ -51,7 +51,7 @@ def read_parameters(inputFile):
         'bondMin': 0.9,
         'bondStep': 0.05,
         'bondStepNum': 3,
-        'bondRange': [0.9, 0.95, 1., 1.05],
+        'bondRange': [0.9, 0.95, 1., 1.05, 1.1, 1.15],
         'maxRelaxTime': 20,
         'xrdFile': None,
         'xrdLamb': 0.6,
@@ -60,6 +60,7 @@ def read_parameters(inputFile):
         'molMode': False,
         'molType': 'fix',
         'chkMol': False,
+        'molScaleCell': False,
     }
 
     for key, val in dParms.items():
@@ -174,7 +175,6 @@ def read_parameters(inputFile):
                 'saveGood',
                 'queueName',
                 'numCore',
-                'ppLabel',
                 'randFrac',
                 'mutateFrac',
                 'migrateFrac',

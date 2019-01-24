@@ -16,6 +16,8 @@ from ase.spacegroup import crystal
 # from parameters import parameters
 from .writeresults import write_yaml, read_yaml, write_traj
 from .utils import *
+from .mopac import MOPAC
+from ase.units import GPa
 
 def calc_vasp_once(
     calc,    # ASE calculator
@@ -115,80 +117,6 @@ def generate_calcs(calcNum, parameters):
     return calcs
 
 
-# def calc_vasp_parallel_old(calcNum, calcPop, parameters, prefix='calcVasp'):
-#     workDir = parameters['workDir']
-#     queueName = parameters['queueName']
-#     numParallel = parameters['numParallel']
-#     numCore = parameters['numCore']
-#     xc = parameters['xc']
-#     pressure = parameters['pressure']
-#     symbols = parameters['symbols']
-#     ppLabel = parameters['ppLabel']
-
-#     vaspSetup = dict(zip(symbols, ppLabel))
-
-#     incars = ["{}/inputFold/INCAR_{}".format(workDir, i) for i in range(1, calcNum + 1)]
-
-#     popLen = len(calcPop)
-#     eachLen = popLen//numParallel
-#     remainder = popLen%numParallel
-
-#     runArray = []
-#     for i in range(numParallel):
-#         tmpList = [ i + numParallel*j for j in range(eachLen)]
-#         if i < remainder:
-#             tmpList.append(numParallel*eachLen + i)
-#         runArray.append(tmpList)
-
-#     runVasp = open('run_vasp.py', 'w')
-#     runVasp.write("from __future__ import print_function\n")
-#     runVasp.write("from ase.calculators.vasp import Vasp\n")
-#     runVasp.write("import ase.io\n")
-#     # runVasp.write("import sys\nsys.path.append('%s')\n" %(workDir))
-#     runVasp.write("from csp.localopt import calc_vasp\n")
-#     runVasp.write("from csp.writeresults import write_traj, write_yaml, read_yaml\n")
-#     # runVasp.write("from csp.setincar import calcs\n")
-#     runVasp.write("calcs = []\n")
-#     runVasp.write("incars = {}\n".format(incars))
-#     runVasp.write("for incar in incars:\n")
-#     runVasp.write("    calc = Vasp()\n")
-#     runVasp.write("    calc.read_incar(incar)\n")
-#     runVasp.write("    calc.set(xc={})\n".format(repr(xc)))
-#     runVasp.write("    calc.set(setups={})\n".format(repr(vaspSetup)))
-#     runVasp.write("    calc.set(pstress={})\n".format(repr(pressure * 10)))
-#     runVasp.write("    calcs.append(calc)\n")
-#     runVasp.write("initPop = ase.io.read('initPop.traj', format='traj', index=':',)\n")
-#     runVasp.write("optPop = calc_vasp(calcs, initPop, )\n")
-#     runVasp.write("write_traj('optPop.traj', optPop)")
-#     runVasp.close()
-
-#     runJobs = []
-#     for i in range(numParallel):
-#         if not os.path.exists("{}{}".format(prefix, i)):
-#             os.mkdir("{}{}".format(prefix, i))
-#         os.chdir("{}{}".format(prefix, i))
-
-#         tmpPop = [calcPop[j] for j in runArray[i]]
-#         write_traj('initPop.traj', tmpPop)
-#         shutil.copy("../run_vasp.py", "run_vasp.py")
-
-#         f = open('parallel.sh', 'w')
-#         f.write("#BSUB -q %s\n"
-#                 "#BSUB -n %s\n"
-#                 "#BSUB -o out\n"
-#                 "#BSUB -e err\n"
-#                 "#BSUB -J Vasp_%s\n"% (queueName, numCore, i))
-#         f.write("python run_vasp.py > vasplog")
-#         f.close()
-
-#         jobID = subprocess.check_output("bsub < parallel.sh", shell=True).split()[1]
-#         jobID = jobID[1: -1]
-#         runJobs.append(jobID)
-
-#         os.chdir("%s/calcFold" %(workDir))
-
-#     return runJobs
-
 def calc_vasp_parallel(calcNum, calcPop, parameters, prefix='calcVasp'):
     workDir = parameters['workDir']
     queueName = parameters['queueName']
@@ -256,7 +184,6 @@ def read_parallel_results(jobStat, parameters, prefix):
         if stat == 'DONE':
             # logging.info(os.getcwd())
             try:
-                # optPop.extend(read_yaml("{}/calcFold/{}{}/optPop.yaml".format(parameters['workDir'], prefix, i)))
                 optPop.extend(ase.io.read("{}/calcFold/{}{}/optPop.traj".format(parameters['workDir'], prefix, i), format='traj', index=':'))
             except:
                 logging.info("ERROR in read results")
@@ -445,15 +372,96 @@ def jobs_stat(runJobs):
 
     return jobStat
 
-# def read_gulp_results(jobStat):
 
-#     optPop = []
-#     for i, stat in enumerate(jobStat):
-#         if stat == 'DONE':
-#             # logging.info(os.getcwd())
-#             try:
-#                 optPop.extend(read_yaml("%s/calcFold/calcGulp%s/optPop.yaml"% (parameters['workDir'], i)))
-#             except:
-#                 logging.info("GULP ERROR!")
 
-#     return optPop
+
+def calc_mopac_once(
+    calc,    # mopac calculator
+    struct,
+    index,
+    pressure, # GPa unit
+    ):
+    struct.set_calculator(calc)
+
+    try:
+        energy = struct.get_potential_energy()
+        forces = struct.get_forces()
+    except:
+        s = sys.exc_info()
+        logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        logging.info("MOPAC fail")
+        print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+
+        return None
+
+    # if calc.float_params['pstress']:
+    #     pstress = calc.float_params['pstress']
+    # else:
+    #     pstress = 0
+
+    # struct.info['pstress'] = pstress
+
+    volume = struct.get_volume()
+    enthalpy = energy + pressure * volume * GPa
+    enthalpy = enthalpy/len(struct)
+
+    struct.info['enthalpy'] = round(enthalpy, 5)
+
+    # save energy, forces, stress for trainning potential
+    struct.info['energy'] = energy
+    struct.info['forces'] = forces
+
+    # save relax trajectory
+    # traj = ase.io.read('OUTCAR', index=':', format='vasp-out')
+    # trajDict = [extract_atoms(ats) for ats in traj]
+    # if index == 0:
+    #     struct.info['trajs'] = []
+    # struct.info['trajs'].append(trajDict)
+
+    logging.info("MOPAC finish")
+    return struct[:]
+
+
+def calc_mopac(
+    calcs,    #a list of ASE calculator
+    structs,    #a list of structures
+    pressure,
+    ):
+    newStructs = []
+    for i, ind in enumerate(structs):
+        initInd = ind.copy()
+        initInd.info = {}
+        for j, calc in enumerate(calcs):
+            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
+            logging.info("Structure {} Step {}".format(i, j))
+            # print("Structure {} Step {}".format(i, j))
+            ind = calc_mopac_once(copy.deepcopy(calc), ind, j, pressure)
+            shutil.copy("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
+            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
+
+            if ind is None:
+                break
+
+        else:
+            # ind.info['initStruct'] = extract_atoms(initInd)
+            newStructs.append(ind)
+
+    return newStructs
+
+def generate_mopac_calcs(calcNum, parameters):
+    workDir = parameters['workDir']
+    pressure = parameters['pressure']
+    mopacCmd = os.environ.get('ASE_MOPAC_COMMAND')
+    if not mopacCmd:
+        mopacCmd = parameters['exeCmd']
+
+
+    mopac_inputs = [yaml.load(open("{}/inputFold/mopac_{}.yaml".format(workDir, i))) for i in range(1, calcNum + 1)]
+
+    calcs = []
+    for inDic in mopac_inputs:
+        task = inDic['task'] + " P={}GPa".format(pressure)
+        calc = MOPAC(label='mopac', command=mopacCmd, task=task, method=inDic['method'])
+        calcs.append(calc)
+
+    return calcs
