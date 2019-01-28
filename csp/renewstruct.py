@@ -553,7 +553,7 @@ class Kriging:
                 elif mode == 'mol':
                     parMolC = MolCryst(**parInd.info['molDict'])
                     parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
-                    latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=1, distCut=0.5)
+                    latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=1, distCut=1)
                     latInd = latMolC.to_atoms()
 
                 # latInd = merge_atoms(latInd, self.dRatio)
