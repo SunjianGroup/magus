@@ -54,7 +54,7 @@ for curGen in range(1, p.numGen+1):
 
         if p.molType == 'fix':
             # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
-            initPop = build_mol_struct(p.initSize, p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, bondRatio=p.bondRatio)
+            initPop = build_mol_struct(p.initSize, p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, fixCell=p.fixCell, setCellPar=p.setCellPar)
 
 
 
@@ -111,14 +111,14 @@ for curGen in range(1, p.numGen+1):
             logging.info("random structures out of Kriging")
             if p.molType == 'fix':
                 # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
-                initPop.extend(build_mol_struct(p.popSize - len(initPop), p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, bondRatio=p.bondRatio))
+                initPop.extend(build_mol_struct(p.popSize - len(initPop), p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, fixCell=p.fixCell, setCellPar=p.setCellPar))
 
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))
 
     # fix cell
-    if p.fixCell:
-        for ind in initPop:
-            ind.set_cell(p.setCellPar, scale_atoms=True)
+    # if p.fixCell:
+    #     for ind in initPop:
+    #         ind.set_cell(p.setCellPar, scale_atoms=True)
 
     ### Initail check
     initPop = check_dist(initPop, p.dRatio)

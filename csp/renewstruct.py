@@ -363,9 +363,6 @@ class Kriging:
         self.molDetector = parameters['molDetector']
         self.dRatio = parameters['dRatio']
         self.bondRatio = parameters['bondRatio']
-        self.bondMin = parameters['bondMin']
-        self.bondStep = parameters['bondStep']
-        self.bondStepNum = parameters['bondStepNum']
         self.bondRange = parameters['bondRange']
         self.molScaleCell = parameters['molScaleCell']
         self.chkMol = parameters['chkMol']
@@ -538,7 +535,7 @@ class Kriging:
 
         return permPop
 
-    def latmutate(self, latNum, sigma=0.7, mode='atom'):
+    def latmutate(self, latNum, sigma=2, mode='atom'):
         latPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
@@ -553,7 +550,7 @@ class Kriging:
                 elif mode == 'mol':
                     parMolC = MolCryst(**parInd.info['molDict'])
                     parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
-                    latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=1, distCut=1)
+                    latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=1, distCut=3)
                     latInd = latMolC.to_atoms()
 
                 # latInd = merge_atoms(latInd, self.dRatio)
@@ -761,7 +758,7 @@ class Kriging:
             ind.info['utilVal'] = atoms_util(ind.info['fingerprint'] ,self.util, gp, symbols, y_max)[0]
             ind.info['minDist'] = cdist(ind.info['fingerprint'].reshape(1, -1), self.fps).min()
         if enFilter:
-            tmpPop = list(filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.01, tmpPop))
+            tmpPop = list(filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.005, tmpPop))
             logging.info("tmpPop length: %s after filter"%(len(tmpPop)))
         # tmpPop = del_duplicate(tmpPop, compareE=False)
         # logging.info("tmpPop length: %s after del_duplicate"%(len(tmpPop)))
@@ -1821,7 +1818,7 @@ def mol_dict_pop(pop, molDetector=1, coefRange=[1.1,], scale_cell=False):
     return molPop
 
 
-def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=1):
+def mol_gauss_mut(parInd, sigma=1, cellCut=1, distCut=1):
     """
     Gaussian mutation for molecule crystal.
     parInd should be a MolCryst object.
@@ -1844,7 +1841,8 @@ def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=1):
     chdInd.set_cell(chdCell, scale_atoms=False, scale_centers=True)
 
 
-    atGauss = np.array([random.gauss(0, sigma)*distCut for i in range(3)])
+    #atGauss = np.array([random.gauss(0, sigma)*distCut for i in range(3)])
+    atGauss = np.array([random.uniform(-1*sigma, sigma)*distCut for i in range(3)])
     chdCenters = parInd.centers + atGauss
     chdInd.update_centers_and_rltPos(centers=chdCenters)
         # at.position += atGauss*covalent_radii[atomic_numbers[at.symbol]]
@@ -1861,11 +1859,16 @@ def mol_rotation(parInd):
 
     chdRltPos = []
 
+    sclCenters = chdInd.get_sclCenters()
+    sclCenters += 0.3 * np.random.rand(*sclCenters.shape)
+
+
     for pos in chdInd.rltPos:
         newPos = np.dot(pos, rand_rotMat())
         chdRltPos.append(newPos)
 
     chdInd.update_centers_and_rltPos(rltPos=chdRltPos)
+    chdInd.update_sclCenters_and_rltSclPos(sclCenters=sclCenters)
     return chdInd
 
 def mol_exchage(parInd):
@@ -1879,7 +1882,7 @@ def mol_exchage(parInd):
     return chdInd
 
 
-def mol_slip(parInd, cut=0.5, randRange=[0.2, 0.8]):
+def mol_slip(parInd, cut=0.5, randRange=[0.3, 0.7]):
 
     chdInd = parInd.copy()
     sclCenters = parInd.get_sclCenters()

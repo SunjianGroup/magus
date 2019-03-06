@@ -127,6 +127,7 @@ def calc_vasp_parallel(calcNum, calcPop, parameters, prefix='calcVasp'):
     symbols = parameters['symbols']
     ppLabel = parameters['ppLabel']
     maxRelaxTime = parameters['maxRelaxTime']
+    jobPrefix = parameters['jobPrefix']
 
     vaspSetup = dict(zip(symbols, ppLabel))
 
@@ -166,7 +167,8 @@ def calc_vasp_parallel(calcNum, calcPop, parameters, prefix='calcVasp'):
                 "#BSUB -e err\n"
                 "#BSUB -W %s\n"
                 "#BSUB -J Vasp_%s\n"% (queueName, numCore, maxRelaxTime*len(tmpPop), i))
-        f.write("python -m csp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj".format(calcNum, xc, pressure))
+        f.write("{}\n".format(jobPrefix))
+        f.write("python -m csp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(calcNum, xc, pressure))
         f.close()
 
         jobID = subprocess.check_output("bsub < parallel.sh", shell=True).split()[1]
@@ -297,6 +299,7 @@ def calc_gulp_parallel(calcNum, calcPop, parameters,):
     pressure = parameters['pressure']
     exeCmd = parameters['exeCmd']
     inputDir = "{}/inputFold".format(parameters['workDir'])
+    jobPrefix = parameters['jobPrefix']
 
     popLen = len(calcPop)
     eachLen = popLen//numParallel
@@ -338,6 +341,7 @@ def calc_gulp_parallel(calcNum, calcPop, parameters,):
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
                 "#BSUB -J Gulp_%s\n"% (queueName, numCore ,i))
+        f.write("{}\n".format(jobPrefix))
         f.write("python run_gulp.py > gulplog")
         f.close()
 
@@ -400,6 +404,9 @@ def calc_mopac_once(
     #     pstress = 0
 
     # struct.info['pstress'] = pstress
+    info = struct.info
+    struct = struct.calc.atoms
+    struct.info = info.copy() 
 
     volume = struct.get_volume()
     enthalpy = energy + pressure * volume * GPa

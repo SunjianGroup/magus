@@ -188,11 +188,10 @@ def csp_loop(curStat, parameters):
 
         if p.molType == 'fix':
             # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
-            initPop = build_mol_struct(p.initSize, p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup)
+            initPop = build_mol_struct(p.initSize, p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, fixCell=p.fixCell, setCellPar=p.setCellPar)
 
 
         logging.info("initPop length: {}".format(len(initPop)))
-        initPop.extend(read_seeds(parameters))
 
     else:
         bboPop = del_duplicate(optPop + keepPop)
@@ -207,7 +206,7 @@ def csp_loop(curStat, parameters):
             mainAlgo = Kriging(bboPop, curGen, parameters)
             mainAlgo.generate()
             mainAlgo.fit_gp()
-            mainAlgo.select()
+            mainAlgo.select(enFilter=True)
             initPop = mainAlgo.get_nextPop()
 
         elif p.setAlgo == 'mlpot':
@@ -229,24 +228,33 @@ def csp_loop(curStat, parameters):
         logging.debug("initLen: {}".format(len(initPop)))
         write_results(initPop, curGen, 'test_init')
 
-        # # check mol crystal
-        # if p.chkMol:
-        #     logging.info("check mols")
-        #     initPop = check_mol_pop(initPop, p.inputMols, p.bondRatio)
-        #     logging.info("check survival: {}".format(len(initPop)))
+        # check mol crystal
+        if p.chkMol:
+            logging.info("check mols")
+            initPop = check_mol_pop(initPop, p.inputMols, p.bondRatio)
+            logging.info("check survival: {}".format(len(initPop)))
 
         if len(initPop) < p.popSize:
             logging.info("random structures out of Kriging")
             if p.molType == 'fix':
                 # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
-                initPop.extend(build_mol_struct(p.popSize - len(initPop), p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup))
+                initPop.extend(build_mol_struct(p.popSize - len(initPop), p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, fixCell=p.fixCell, setCellPar=p.setCellPar))
 
 
-        # read seeds
+
+    # # fix cell
+    # if p.fixCell:
+    #     for ind in initPop:
+    #         ind.set_cell(p.setCellPar, scale_atoms=True)
+
+    # read seeds
+    if initial:
+        initPop.extend(read_seeds(parameters))
+    else:
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))
 
     ### Initail check
-    # initPop = check_dist(initPop, 0.7)
+    initPop = check_dist(initPop, p.dRatio)
 
     ### Initial fingerprint
     for ind in initPop:
