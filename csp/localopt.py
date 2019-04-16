@@ -183,10 +183,12 @@ def read_parallel_results(jobStat, parameters, prefix):
 
     optPop = []
     for i, stat in enumerate(jobStat):
-        if stat == 'DONE':
+        jobDir = "{}/calcFold/{}{}".format(parameters['workDir'], prefix, i)
+        if stat == 'DONE' and os.path.exists("{}/DONE".format(jobDir)):
             # logging.info(os.getcwd())
             try:
-                optPop.extend(ase.io.read("{}/calcFold/{}{}/optPop.traj".format(parameters['workDir'], prefix, i), format='traj', index=':'))
+                # optPop.extend(ase.io.read("{}/calcFold/{}{}/optPop.traj".format(parameters['workDir'], prefix, i), format='traj', index=':'))
+                optPop.extend(ase.io.read("{}/optPop.traj".format(jobDir), format='traj', index=':'))
             except:
                 logging.info("ERROR in read results")
 
@@ -365,12 +367,15 @@ def jobs_stat(runJobs):
         except:
             s = sys.exc_info()
             logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-            stat = 'DONE'
+            stat = ''
         # logging.debug(jobID, stat)
         if stat == 'DONE':
             jobStat.append('DONE')
         elif stat == 'PEND' or stat == 'RUN':
             jobStat.append('RUN')
+        elif stat == '':
+            # Time is too long to find the status of the job. Suppose it is done and check it in following process.
+            jobStat.append('DONE')
         else:
             jobStat.append('ERROR')
 
@@ -406,7 +411,7 @@ def calc_mopac_once(
     # struct.info['pstress'] = pstress
     info = struct.info
     struct = struct.calc.atoms
-    struct.info = info.copy() 
+    struct.info = info.copy()
 
     volume = struct.get_volume()
     enthalpy = energy + pressure * volume * GPa

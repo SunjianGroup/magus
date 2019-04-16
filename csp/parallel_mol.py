@@ -243,9 +243,9 @@ def csp_loop(curStat, parameters):
 
 
     # # fix cell
-    # if p.fixCell:
-    #     for ind in initPop:
-    #         ind.set_cell(p.setCellPar, scale_atoms=True)
+    if p.fixCell:
+        for ind in initPop:
+            ind.set_cell(p.setCellPar, scale_atoms=True)
 
     # read seeds
     if initial:

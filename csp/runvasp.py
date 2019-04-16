@@ -1,5 +1,5 @@
 from __future__ import print_function
-import sys
+import sys, os
 import yaml
 from ase.calculators.vasp import Vasp
 import ase.io
@@ -11,6 +11,10 @@ if  __name__ == "__main__":
     calcNum = int(calcNum)
     pressure = float(pressure)
     vaspSetup = yaml.load(open(vaspStpFile))
+
+    # remove previous label
+    if os.path.exists('DONE'):
+        os.remove('DONE')
 
     calcs = []
     incars = ['INCAR_{}'.format(i) for i in range(1, calcNum+1)]
@@ -24,3 +28,5 @@ if  __name__ == "__main__":
     initPop = ase.io.read(inputTraj, format='traj', index=':',)
     optPop = calc_vasp(calcs, initPop, )
     write_traj(outTraj, optPop)
+    with open('DONE', 'w') as f:
+        f.write('DONE')
