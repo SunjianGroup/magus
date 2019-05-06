@@ -78,6 +78,11 @@ def read_parameters(inputFile):
             expandSpg.extend(list(range(s1, s2+1)))
     p.spacegroup = expandSpg
 
+    if p.calculator == 'vasp':
+        if not hasattr(p, 'ppLabel'):
+            p.ppLabel = ['' for _ in p.symbols]
+
+
     if p.setAlgo == 'bbo':
         sumFrac = sum([p.migrateFrac, p.mutateFrac, p.randFrac])
         p.migrateFrac = p.migrateFrac/sumFrac
@@ -88,7 +93,8 @@ def read_parameters(inputFile):
     if p.molMode:
         assert 'molFile' in parameters.keys(), 'Please define molFile'
         assert 'molFormula' in parameters.keys(), 'Please define molFormula'
-        assert p.molDetector == 1, 'molDetecotr should be 1'
+        if p.chkMol:
+            assert p.molDetector == 1, 'molDetecotr should be 1 if chkMol is True'
         assert p.calcType == 'fix', 'Variable composition molecule crystal search in not available'
         assert p.molType == 'fix', 'Variable composition molecule crystal search in not available'
         mols = [ase.io.read("{}/{}".format(p.workDir, f), format='xyz') for f in p.molFile]
@@ -158,6 +164,7 @@ def read_parameters(inputFile):
                 'numGen',
                 'symbols',
                 'formula',
+                'ppLabel',
                 'numFrml',
                 'invFrml',
                 'minAt',
