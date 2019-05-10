@@ -164,7 +164,7 @@ def read_parameters(inputFile):
                 'numGen',
                 'symbols',
                 'formula',
-                'ppLabel',
+                #'ppLabel',
                 'numFrml',
                 'invFrml',
                 'minAt',
@@ -185,6 +185,9 @@ def read_parameters(inputFile):
                 ]
     if p.molMode:
         parmList.extend(['molList', 'molNum'])
+
+    if p.calculator == 'vasp':
+        parmList.extend(['ppLabel',])
 
     for parm in parmList:
         parameters[parm] = getattr(p, parm)

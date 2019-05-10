@@ -174,7 +174,7 @@ class MOPAC(FileIOCalculator):
             dim = len(vecs)
             cell[:dim] = np.array(vecs)
 
-        return Atoms(symbols=symbols, positions=positions, cell=cell)
+        return Atoms(symbols=symbols, positions=positions, cell=cell, pbc=True)
 
     def read_parameters_from_file(self, lines):
         """Find and return the line that defines a Mopac calculation

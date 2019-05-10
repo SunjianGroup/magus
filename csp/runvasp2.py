@@ -7,7 +7,7 @@ from csp.localopt import calc_vasp
 from csp.writeresults import write_traj
 
 if  __name__ == "__main__":
-    vaspDict = yaml.load(sys.argv[1])
+    vaspDict = yaml.load(open(sys.argv[1]))
     calcNum = vaspDict['calcNum']
     xc = vaspDict['xc']
     vaspSetup = vaspDict['vaspSetup']
@@ -24,8 +24,10 @@ if  __name__ == "__main__":
         os.remove('DONE')
 
     calcs = []
+    optPop_old = []
+    readPop = ase.io.read(inputTraj, format='traj', index=':',)
     incars = ['INCAR_{}'.format(i) for i in range(1, calcNum+1)]
-    for pressure in pressArr:
+    for n, pressure in enumerate(pressArr):
         for incar in incars:
             calc = Vasp()
             calc.read_incar(incar)
@@ -33,8 +35,12 @@ if  __name__ == "__main__":
             calc.set(setups=vaspSetup)
             calc.set(pstress=pressure*10)
             calcs.append(calc)
-        initPop = ase.io.read(inputTraj, format='traj', index=':',)
-        optPop = calc_vasp(calcs, initPop, )
+        if len(optPop_old) < len(readPop):
+            initPop = readPop
+        else:
+            initPop = optPop_old
+        optPop = calc_vasp(calcs, initPop,)
         write_traj("{}_{}".format(outTraj, pressure), optPop)
+        optPop_old = optPop[:]
     with open('DONE', 'w') as f:
         f.write('DONE')

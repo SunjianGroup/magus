@@ -27,15 +27,22 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
     numType = len(formula)
     generator = GenerateNew.Info()
     generator.spg = spg
-    generator.spgnumber = 1
+    generator.spgnumber = 10
     if minVol:
         generator.minVolume = minVol
     if maxVol:
         generator.maxVolume = maxVol
-    generator.maxAttempts = 10
+        maxLen = maxVol**(1./3)
+        generator.SetLatticeMaxes(maxLen, maxLen, maxLen, 120, 120 ,120)
+    generator.maxAttempts = 50
+    generator.threshold=1
+    generator.method=2
+    # generator.forceMostGeneralWyckPos=True
+    minLen = 2*max(radius)
+    generator.SetLatticeMins(minLen, minLen, minLen, 60, 60, 60)
     numbers = []
     for i in range(numType):
-        generator.AppendAtoms(formula[i], i, radius[i])
+        generator.AppendAtoms(formula[i], str(i), radius[i], False)
         numbers.extend([i]*formula[i])
 
     label = generator.PreGenerate()

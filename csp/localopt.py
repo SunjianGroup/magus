@@ -409,8 +409,9 @@ def calc_mopac_once(
     #     pstress = 0
 
     # struct.info['pstress'] = pstress
+    calc.read(label=calc.label)
     info = struct.info
-    struct = struct.calc.atoms
+    struct = calc.atoms
     struct.info = info.copy()
 
     volume = struct.get_volume()
@@ -472,7 +473,7 @@ def generate_mopac_calcs(calcNum, parameters):
 
     calcs = []
     for inDic in mopac_inputs:
-        task = inDic['task'] + " P={}GPa".format(pressure)
+        task = inDic['task'] + " P={}GPa ".format(pressure)
         calc = MOPAC(label='mopac', command=mopacCmd, task=task, method=inDic['method'])
         calcs.append(calc)
 
