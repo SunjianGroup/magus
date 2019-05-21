@@ -7,7 +7,7 @@ from scipy.spatial.distance import cdist
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import generate_calcs, calc_gulp, calc_vasp
+from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac
 from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
 from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build
 # from .readvasp import *
@@ -78,7 +78,10 @@ for curGen in range(1, p.numGen+1):
 
             mainAlgo.generate()
             mainAlgo.fit_gp()
-            mainAlgo.select()
+            if p.calculator in ['vasp']:
+                mainAlgo.select()
+            elif p.calculator in ['gulp', 'mopac']:
+                mainAlgo.select(enFilter=False)
             initPop = mainAlgo.get_nextPop()
 
         elif p.setAlgo == 'mlpot':
@@ -96,6 +99,9 @@ for curGen in range(1, p.numGen+1):
             mainAlgo = BBO(bboPop, parameters)
             mainAlgo.bbo_cutcell()
             initPop = mainAlgo.get_bboPop()
+
+        logging.debug("initLen: {}".format(len(initPop)))
+        write_results(initPop, curGen, 'test_init')
 
 
 
@@ -137,6 +143,9 @@ for curGen in range(1, p.numGen+1):
     elif p.calculator == 'vasp':
         calcs = generate_calcs(p.calcNum, parameters)
         optPop = calc_vasp(calcs, initPop)
+    elif p.calculator == 'mopac':
+        calcs = generate_mopac_calcs(p.calcNum, parameters)
+        optPop = calc_mopac(calcs, initPop, p.pressure)
 
     os.chdir(p.workDir)
 

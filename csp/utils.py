@@ -301,7 +301,7 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
     seedPop = []
 
     if calcType == 'fix':
-        setGcd = reduce(fractions.gcd, setFrml)
+        setGcd = reduce(math.gcd, setFrml)
         setRd = [x/setGcd for x in setFrml]
 
 
@@ -332,7 +332,7 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
             if len(selfSym) == len(setSym):
                 formula = [symDic[sym] for sym in setSym]
                 logging.info('formula: {!r}'.format(formula))
-                selfGcd = reduce(fractions.gcd, formula)
+                selfGcd = reduce(math.gcd, formula)
                 selfRd = [x/selfGcd for x in formula]
                 if selfRd == setRd:
                     ind.info['formula'] = setFrml

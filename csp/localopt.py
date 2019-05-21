@@ -82,7 +82,8 @@ def calc_vasp(
             logging.info("Structure {} Step {}".format(i, j))
             # print("Structure {} Step {}".format(i, j))
             ind = calc_vasp_once(copy.deepcopy(calc), ind, j)
-            shutil.copy("OUTCAR", "OUTCAR-{}-{}".format(i, j))
+            press = calc.float_params['pstress']/10
+            shutil.copy("OUTCAR", "OUTCAR-{}-{}-{}".format(i, j, press))
             # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
 
             if ind is None:

@@ -107,7 +107,7 @@ def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, minVol=No
         numbers = mol.get_atomic_numbers()
         rmol, rltPos = mol_radius_and_rltPos(mol)
         rAt = covalent_radii[numbers].max()
-        rmol += 0.6*rAt
+        rmol += rAt
         radius.append(rCoef*rmol)
         molNumList.append(numbers)
         rltPosList.append(rltPos)
@@ -450,6 +450,8 @@ def build_struct(
         for ind in buildPop:
             ind.info['toCalc'] = True
 
+    for ind in buildPop:
+        ind.set_pbc(True)
 
     os.chdir('..')
 

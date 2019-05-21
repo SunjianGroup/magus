@@ -762,7 +762,7 @@ class Kriging:
             ind.info['utilVal'] = atoms_util(ind.info['fingerprint'] ,self.util, gp, symbols, y_max)[0]
             ind.info['minDist'] = cdist(ind.info['fingerprint'].reshape(1, -1), self.fps).min()
         if enFilter:
-            tmpPop = list(filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.005, tmpPop))
+            tmpPop = list(filter(lambda x: abs(x.info['predictE'] - x.info['parentE']) > 0.002, tmpPop))
             logging.info("tmpPop length: %s after filter"%(len(tmpPop)))
         # tmpPop = del_duplicate(tmpPop, compareE=False)
         # logging.info("tmpPop length: %s after del_duplicate"%(len(tmpPop)))

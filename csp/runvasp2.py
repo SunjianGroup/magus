@@ -23,11 +23,12 @@ if  __name__ == "__main__":
     if os.path.exists('DONE'):
         os.remove('DONE')
 
-    calcs = []
+
     optPop_old = []
     readPop = ase.io.read(inputTraj, format='traj', index=':',)
     incars = ['INCAR_{}'.format(i) for i in range(1, calcNum+1)]
     for n, pressure in enumerate(pressArr):
+        calcs = []
         for incar in incars:
             calc = Vasp()
             calc.read_incar(incar)
