@@ -16,11 +16,20 @@ import logging
 import numpy as np
 import fractions
 from .utils import *
+import copy
 try:
     from functools import reduce
 except ImportError:
     pass
 
+
+def addVacuumlayer(ind_,d):
+    ind=copy.deepcopy(ind_)
+    c=ind.get_cell()[2]
+    c_=ind.get_reciprocal_cell()[2]
+    k=d*np.linalg.norm(c_)/np.dot(c,c_)+1
+    ind.cell[2]*=k
+    return ind
 
 def generate_centers_cell(formula, spg, radius, minVol, maxVol):
     assert len(formula) == len(radius)
@@ -245,7 +254,45 @@ def write_spgGenIn(
 
     spgin.close()
 
+def write_spgGenIn_2d(
+    composition, #a string like "Ti1O2"
+    setRadius, #string
+    volume, # list
+    cmin,cmax,
+    spacegroups = [1],# list
+    ):
+    spgin = open("spgGen.in", 'w')
+    spgin.write("""First line is a comment line
+    outputDir = spgGenOut
+    verbosity = r
+    scalingFactor = 1.0
+    forceMostGeneralWyckPos = false
+    numOfEachSpgToGenerate = 1
+    maxAttempts = 100
+    """
+    )
 
+    spgin.write("composition = %s\n"%(composition))
+    spgin.write(setRadius)
+
+    spgin.write("minVolume = %s\n"%(volume[0]))
+    spgin.write("maxVolume = %s\n"%(volume[1]))
+    #maxLen = 1.414*volume[1]/9.0
+    maxLen = (1.414*volume[1])**(1./3)
+    if maxLen > 3.0:
+        pass
+    else:
+        maxLen = 4.0
+    maxLen = round(maxLen, 3)
+    spgin.write("latticeMins = 3.0, 3.0, {}, 60.0, 60.0, 60.0\n".format(cmin))
+    spgin.write("latticeMaxes = {}, {}, {}, 120.0, 120.0, 120.0\n".format(maxLen,maxLen,cmax))
+
+    spgs = ""
+    for num in spacegroups:
+        spgs += "%s,"%(num)
+    spgin.write("spacegroups = %s"%(spgs))
+
+    spgin.close()
 
 def spgGen(
     symbols, #a list like ['Ti', 'O']
@@ -281,6 +328,55 @@ def spgGen(
             posfile = "spgGenOut/" + composition + "_1-1"
             if os.path.exists(posfile):
                 ind = ase.io.read(posfile, format = 'vasp')
+                logging.info("Build random structrue in spacegroup 1")
+           #     os.system("rm -f " + posfile)
+                os.remove(posfile)
+                pop.append(ind)
+            else:
+                logging.info("Cannot build random structrue in spacegroup 1")
+        else:
+            # never create P1 structure
+            logging.info("Cannot build random structrue in spacegroup {}.".format(num))
+
+    return pop
+
+def spgGen_2d(
+    symbols, #a list like ['Ti', 'O']
+    formula, # a list like [1, 2]
+    radius, # a list like [1.0, 0.5]
+    volume, # list
+    cmin,cmax,d,
+    spacegroups = [1],# list
+    toP1=0,
+    ):
+    composition = ""
+    setRadius = ""
+    for i, sym in enumerate(symbols):
+        if formula[i] > 0:
+            composition += "%s%s"% (sym, formula[i])
+            setRadius += "setRadius %s=%s\n"%(sym, radius[i])
+
+    write_spgGenIn_2d(composition, setRadius, volume,cmin,cmax,spacegroups)
+    # os.system('randSpg spgGen.in>log 2>&1')
+    subprocess.call('randSpg spgGen.in>log 2>err', shell=True)
+    pop = []
+    for num in spacegroups:
+        posfile = "spgGenOut/" + composition + '_' + str(num) + '-1'
+        if os.path.exists(posfile):
+            ind = ase.io.read(posfile, format = 'vasp')
+            ind = addVacuumlayer(ind,d)
+            logging.info('Build random structrue in spacegroup {}'.format(num))
+           # os.system("rm -f " + posfile)
+            os.remove(posfile)
+            pop.append(ind)
+        elif toP1:
+            logging.info("Cannot build random structrue in spacegroup {}. Convert to P1".format(num))
+            write_spgGenIn_2d(composition, setRadius, volume, cmin,cmax,spacegroups=[1])
+            subprocess.call('randSpg spgGen.in>log 2>err', shell=True)
+            posfile = "spgGenOut/" + composition + "_1-1"
+            if os.path.exists(posfile):
+                ind = ase.io.read(posfile, format = 'vasp')
+                ind = addVacuumlayer(ind,d)
                 logging.info("Build random structrue in spacegroup 1")
            #     os.system("rm -f " + posfile)
                 os.remove(posfile)
@@ -365,6 +461,27 @@ def build_struct_per_formula(
         randomPop[i] = sortInd
     logging.info("Build " + str(len(randomPop)) + ' structures')
 
+    return randomPop
+
+def build_struct_per_formula_2d(
+    symbols,
+    formula,
+    radius,
+    meanVolume,
+    cmin,cmax,d,
+    spgs, #a list of spacegroups, len(spgs) equals number of structures
+    toP1=0,
+    ):
+    volume=[meanVolume*0.5, meanVolume*1.5]
+
+    radius = [random.uniform(0.6,0.8)*r for r in radius]
+    logging.info("%s %s %s %s %s"%(symbols, formula, radius, volume, spgs))
+    randomPop = spgGen_2d(symbols, formula, radius, volume,cmin,cmax,d, spgs, toP1)
+    for i, ind in enumerate(randomPop):
+        sortInd = Atoms(sorted(list(ind), key=lambda atom: symbols.index(atom.symbol)))
+        sortInd.set_cell(ind.get_cell())
+        randomPop[i] = sortInd
+    logging.info("Build " + str(len(randomPop)) + ' structures')
     return randomPop
 
 def build_struct(
@@ -457,6 +574,92 @@ def build_struct(
 
     return buildPop
 
+def build_struct_2d(
+    popSize,
+    symbols,
+    formula,
+    cmin,cmax,d,
+    numFrml = [1],
+    meanVolume = None, #Assume meanVolume is a float, volume of one formula
+    radius = None, #Assume radium is a list
+    spgs = range(1,231),
+    volRatio = 1.5,
+    tryNum = 10
+    ):
+
+    buildPop = []
+    os.chdir('BuildStruct')
+    if not radius:
+        radius = [covalent_radii[atomic_numbers[atom]] for atom in symbols]
+
+    if not meanVolume:
+        meanVolume = 0
+        for i in range(len(symbols)):
+            meanVolume = meanVolume + 4*math.pi/3*(radius[i]**3)*formula[i]
+
+    meanVolume = volRatio * meanVolume
+
+    for nfm in numFrml:
+        if popSize//len(numFrml) == 0:
+            break
+        inputVolume = nfm * meanVolume
+        inputFrml = [nfm*frml for frml in formula]
+        chooseSpg = random.sample(spgs, int(popSize/len(numFrml)))
+
+        randomPop = build_struct_per_formula_2d(symbols, inputFrml, radius, inputVolume, cmin,cmax,d,chooseSpg)
+        for ind in randomPop:
+            ind.info['symbols'] = symbols
+            ind.info['formula'] = formula
+            ind.info['numOfFormula'] = nfm
+            ind.info['parentE'] = 0
+            ind.info['Origin'] = 'random'
+        buildPop.extend(randomPop)
+
+
+    # Build structure with high symm
+    for i in range(tryNum):
+        if popSize <= len(buildPop):
+            break
+        randomPop = []
+        for i in range(popSize - len(buildPop)):
+            nfm = random.choice(numFrml)
+            inputVolume = nfm * meanVolume
+            inputFrml = [nfm*frml for frml in formula]
+            chooseSpg = random.sample(spgs, 1)
+            randomPop.extend(build_struct_per_formula_2d(symbols, inputFrml, radius, inputVolume, cmin,cmax,d,chooseSpg))
+            if len(randomPop) > 0:
+                randomPop[-1].info['numOfFormula'] = nfm
+                randomPop[-1].info['symbols'] = symbols
+                randomPop[-1].info['formula'] = formula
+                randomPop[-1].info['parentE'] = 0
+        buildPop.extend(randomPop)
+
+
+    # Allow P1 structure
+    if popSize > len(buildPop):
+        randomPop = []
+        for i in range(popSize - len(buildPop)):
+            nfm = random.choice(numFrml)
+            inputVolume = nfm * meanVolume
+            inputFrml = [nfm*frml for frml in formula]
+            chooseSpg = random.sample(spgs, 1)
+            randomPop.extend(build_struct_per_formula_2d(symbols, inputFrml, radius, inputVolume, cmin,cmax,d,chooseSpg, toP1=1))
+            if len(randomPop) > 0:
+                randomPop[-1].info['numOfFormula'] = nfm
+                randomPop[-1].info['symbols'] = symbols
+                randomPop[-1].info['formula'] = formula
+                randomPop[-1].info['parentE'] = 0
+        buildPop.extend(randomPop)
+
+        for ind in buildPop:
+            ind.info['toCalc'] = True
+
+    for ind in buildPop:
+        ind.set_pbc(True)
+
+    os.chdir('..')
+
+    return buildPop
 
 def reduce_formula(inPop, parameters):
 
