@@ -18,41 +18,6 @@
 
 在集群上加载`anaconda/3-5.0.1` 模块，所有依赖库都已安装
 
-### 目录结构
-```
-/your/path/csp-test
-├── csp
-│   ├── atomgp.py
-│   ├── bayes.py
-│   ├── crystgraph.py
-│   ├── dataset.py
-│   ├── descriptor.py
-│   ├── fingerprint.py
-│   ├── fmodules.cpython-36m-x86_64-linux-gnu.so
-│   ├── fmodules.f90
-│   ├── fmodules.so
-│   ├── __init__.py
-│   ├── initstruct.py
-│   ├── localopt.py
-│   ├── mlpot.py
-│   ├── parallel.py
-│   ├── readparm.py
-│   ├── readvasp.py
-│   ├── renewstruct.py
-│   ├── serial.py
-│   ├── setfitness.py
-│   ├── utils.py
-│   └── writeresults.py
-├── docs
-│   └── readme.md
-│   └── readme.pdf
-└── tools
-    ├── csp-clean
-    ├── csp-prepare
-    ├── fpsetup.yaml
-    ├── randSpg
-    └── summary.py
-```
 
 
 
