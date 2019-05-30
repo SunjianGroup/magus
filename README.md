@@ -6,7 +6,7 @@
 
 ### 依赖
 
-- Python 2/3
+- Python 3
 - Numpy
 - Scipy
 - scikit-learn
@@ -16,7 +16,7 @@
 - networkx
 
 
-在集群上加载`anaconda/3-5.0.1` 模块，所有依赖库都已安装
+在集群上加载`anaconda/3` 模块，所有依赖库都已安装
 
 
 
@@ -26,7 +26,7 @@
 - 加载`Anaconda`:
 
   ```shell
-  module add anaconda/3-5.1.0
+  module add anaconda/3
   ```
 
 - 在`~/.bashrc`中设置路径：
@@ -69,15 +69,23 @@
   export VASP_PP_PATH=/your/path/mypps
   ```
 
-  更多信息见https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html#module-ase.calculators.vasp
+  更多信息见 https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html#module-ase.calculators.vasp
 
 **注意：`run_vasp.py`和`mypps`最好不要放在`csp-test`目录下**
+
+- 编译库文件
+
+  以前的云盘压缩包提供了库文件`fmodules.so`和`GenerateNew.so`，可以继续使用。如果没有库文件或者由于某些原因出现问题（例如Python版本变化），需要重新编译：
+  - `fmodules.so`
+      在`csp/`下运行`f2py -c -m fmodules fmodules.f90`
+  - `GenerateNew.so`
+      
 
 
 
 ## 输入文件
 
-- `inputFold/`: 结构优化输入文件的目录，使用VASP时，把INCAR文件保存维`inputFold/INCAR_*`
+- `inputFold/`: 结构优化输入文件的目录，使用VASP时，把INCAR文件保存为`inputFold/INCAR_*`
 - `fpFold/fpsetup.yaml`: 计算结构指纹的设置，一般不用改动
 - `input.yaml`
 
@@ -212,12 +220,12 @@ mutateFrac: 0.4
 
 ## 输出文件
 输出文件保存在`results`目录下，分为四种：
-- `gen*.yaml`: 每代所有结构
-- `pareto*.yaml`: 每代最优结构
-- `keep*.yaml`: 每代保留到下一代的结构
-- `good.yaml`: 当前最好的`popSize`个结构
+- `gen*.traj`: 每代所有结构
+- `pareto*.traj`: 每代最优结构
+- `keep*.traj`: 每代保留到下一代的结构
+- `good.traj`: 当前最好的`popSize`个结构
 
-提取结构信息需要`summary.py`, 运行方式：`summary.py good.yaml`
+提取结构信息需要`summary.py`, 运行方式：`summary.py good.traj`
 
 
 
@@ -240,7 +248,7 @@ mutateFrac: 0.4
 
   python -m csp.parallel ```
   
-- 若不想在`~/.bashrc`中加载anaconda模块，则需要在任务脚本中加入anaconda，如“module add anaconda/3-5.0.1”，并将`jobPrefix`也设为“module add anaconda/3-5.0.1”
+- 若不想在`~/.bashrc`中加载anaconda模块，则需要在任务脚本中加入anaconda，如`module add anaconda/3`，并将`jobPrefix`也设为`module add anaconda/3`
 
 - 运行过程中的输出信息保存在`log.txt`中，所有结构信息都保存在`results`目录下
 
@@ -249,4 +257,3 @@ mutateFrac: 0.4
 ## 注意事项
 - 在.bashrc中配置路径时，不要复制pdf文档中的字符，可能会有无法识别的空白字符，最好直接复制markdown文件的内容
 - 用vasp优化时，需要在INCAR文件中设置KSPACING，与USPEX不同
-- 若出现 fmodules 相关的错误，可以重新编译 fortran 共享库：`f2py -c -m fmodules fmodules.f90`
