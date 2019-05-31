@@ -546,11 +546,11 @@ class Kriging:
                 parentE = parInd.info['enthalpy']
                 parDom = parInd.info['sclDom']
                 if mode == 'atom':
-                    latInd = gauss_mut(parInd, sigma=sigma, cellCut=0.5)
+                    latInd = gauss_mut(parInd, sigma=sigma, cellCut=1)
                 elif mode == 'mol':
                     parMolC = MolCryst(**parInd.info['molDict'])
                     parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
-                    latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=0, distCut=1.5)
+                    latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=1, distCut=1)
                     latInd = latMolC.to_atoms()
 
                 # latInd = merge_atoms(latInd, self.dRatio)
@@ -669,7 +669,7 @@ class Kriging:
             maxDist = 0
         else:
             maxDist = pdist(fps).max()
-    
+
         logging.debug("maxDist: {}".format(maxDist))
         # minFps = fps.min(0)
         # maxFps = fps.max(0)
@@ -1293,7 +1293,7 @@ def pareto_front_old(Pop):
 
     return paretoPop
 
-def gauss_mut(parInd, sigma=0.5, cellCut=1):
+def gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=0):
     """
     sigma: Gauss distribution standard deviation
     cellCut: coefficient of gauss distribution in cell mutation
@@ -1316,8 +1316,8 @@ def gauss_mut(parInd, sigma=0.5, cellCut=1):
     chdInd.set_cell(cellPar, scale_atoms=True)
 
     for at in chdInd:
-        atGauss = np.array([random.gauss(0, sigma)/sigma for i in range(3)])
-        # atGauss = np.array([random.gauss(0, sigma)*distCut for i in range(3)])
+        # atGauss = np.array([random.gauss(0, sigma)/sigma for i in range(3)])
+        atGauss = np.array([random.gauss(0, sigma)*distCut for i in range(3)])
         at.position += atGauss*covalent_radii[atomic_numbers[at.symbol]]
 
     chdInd.wrap()
@@ -1848,7 +1848,7 @@ def mol_gauss_mut(parInd, sigma=1, cellCut=1, distCut=1):
     chdInd.set_cell(chdCell, scale_atoms=False, scale_centers=True)
 
     chdCenters = parInd.get_centers()
-    atGauss = np.random.normal(0, sigma, chdCenters.shape)/sigma*distCut
+    atGauss = np.random.normal(0, sigma, chdCenters.shape)*distCut
     # atGauss = np.array([random.uniform(-1*sigma, sigma)*distCut for i in range(3)])
     chdCenters += atGauss*rmax
     chdInd.update_centers_and_rltPos(centers=chdCenters)
@@ -1860,7 +1860,7 @@ def mol_gauss_mut(parInd, sigma=1, cellCut=1, distCut=1):
 
     return chdInd
 
-def mol_rotation(parInd, sigma=0.3):
+def mol_rotation(parInd, sigma=0.1):
 
     rmax = covalent_radii[parInd.get_numbers()].max()
     chdInd = parInd.copy()
@@ -1873,8 +1873,8 @@ def mol_rotation(parInd, sigma=0.3):
 
     # mutation
     chdCenters = parInd.get_centers()
-    atGauss = np.random.normal(0, sigma, chdCenters.shape)/sigma
-    chdCenters += atGauss*rmax
+    # atGauss = np.random.normal(0, sigma, chdCenters.shape)/sigma
+    #chdCenters += atGauss*rmax
 
     chdInd.update_centers_and_rltPos(rltPos=chdRltPos, centers=chdCenters)
     # chdInd.update_sclCenters_and_rltSclPos(sclCenters=sclCenters)
