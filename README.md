@@ -75,7 +75,7 @@
 
 - 编译库文件
 
-  以前的云盘压缩包提供了库文件`fmodules.so`和`GenerateNew.so`，可以继续使用。如果没有库文件或者由于某些原因出现问题（例如Python版本变化），需要重新编译：
+  以前的云盘压缩包提供了库文件`fmodules.so`和`GenerateNew.so`，可以继续使用。现在的git库中只有源代码，如果没有库文件或者由于某些原因出现问题（例如Python版本变化），需要重新编译：
   - `fmodules.so`
       在`csp/`下运行`f2py -c -m fmodules fmodules.f90`
   - `GenerateNew.so`
@@ -246,7 +246,8 @@ mutateFrac: 0.4
   #BSUB -n 1
   #BSUB -J test-tio2
 
-  python -m csp.parallel ```
+  python -m csp.parallel 
+  ```
   
 - 若不想在`~/.bashrc`中加载anaconda模块，则需要在任务脚本中加入anaconda，如`module add anaconda/3`，并将`jobPrefix`也设为`module add anaconda/3`
 
