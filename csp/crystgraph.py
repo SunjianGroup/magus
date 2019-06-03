@@ -6,7 +6,7 @@ from ase.data import covalent_radii
 import ase.io
 import networkx as nx
 import numpy as np
-import sys
+import sys, itertools
 
 
 def quotient_graph(atoms, coefficient=1.1, ):
@@ -86,6 +86,32 @@ def cycle_sums(G):
 
 def graphDim(G):
     return np.linalg.matrix_rank(cycle_sums(G))
+
+def getMut_3D(cycSums):
+    assert np.linalg.matrix_rank(cycSums) == 3
+    csArr = cycSums.tolist()
+
+    # Basic cycle sums
+    noZeroSum = []
+    for cs in csArr:
+        cst = tuple(cs)
+        if cst != (0,0,0):
+            if cst[0] < 0:
+                cst = tuple([-1*i for i in cst])
+            noZeroSum.append(cst)
+    noZeroSum = list(set(noZeroSum))
+    basicLen = len(noZeroSum)
+    noZeroMat = np.array(noZeroSum)
+
+    # determinants
+    allDets = []
+    for comb in itertools.combinations(range(basicLen), 3):
+        mat = noZeroMat[list(comb)]
+        det = abs(np.linalg.det(mat))
+        if abs(det) > 1e-3:
+            allDets.append(det)
+    minDet = min(allDets)
+    return minDet
 
 def find_communities(QG):
     tmpG = remove_selfloops(QG)
