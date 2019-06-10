@@ -33,8 +33,8 @@
 
   ```shell
   export PYTHONPATH=$PYTHONPATH:/your/path/magus
-  export PATH=$PATH:/your/path/magus/tools
   export CSP_TOOLS=/your/path/magus/tools
+  export PATH=$PATH:$CSP_TOOLS
   ```
 
 - 设置`ASE`的VASP calculator:
