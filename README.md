@@ -1,4 +1,4 @@
-# Crystal Structure Prediction Module
+# Magus
 
 
 
@@ -32,9 +32,9 @@
 - 在`~/.bashrc`中设置路径：
 
   ```shell
-  export PYTHONPATH=$PYTHONPATH:/your/path/csp-test
-  export PATH=$PATH:/your/path/csp-test/tools
-  export CSP_TOOLS=/your/path/csp-test/tools
+  export PYTHONPATH=$PYTHONPATH:/your/path/magus
+  export PATH=$PATH:/your/path/magus/tools
+  export CSP_TOOLS=/your/path/magus/tools
   ```
 
 - 设置`ASE`的VASP calculator:
@@ -71,7 +71,7 @@
 
   更多信息见 https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html#module-ase.calculators.vasp
 
-**注意：`run_vasp.py`和`mypps`最好不要放在`csp-test`目录下**
+**注意：`run_vasp.py`和`mypps`最好不要放在`magus`目录下**
 
 - 编译库文件
 
