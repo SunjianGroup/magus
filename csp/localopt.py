@@ -497,8 +497,8 @@ def calc_cp2k_once(
     atoms.set_calculator(calc)
 
     ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    # gopt = SciPyFminCG(ucf, logfile='-',)
-    gopt = sBFGS(ucf, logfile='-', maxstep=0.5)
+    gopt = SciPyFminCG(ucf, logfile='-',)
+    # gopt = BFGS(ucf, logfile='-', maxstep=0.5)
     gopt.run(fmax=eps, steps=steps)
 
     atoms.info = struct.info.copy()
