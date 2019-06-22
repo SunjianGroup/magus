@@ -15,6 +15,7 @@ from ase.calculators.vasp import Vasp
 from ase.calculators.cp2k import CP2K
 from ase.constraints import UnitCellFilter, ExpCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
+from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG
 from ase.units import GPa
 from ase.spacegroup import crystal
 # from parameters import parameters
@@ -496,7 +497,8 @@ def calc_cp2k_once(
     atoms.set_calculator(calc)
 
     ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    gopt = BFGS(ucf, logfile=None)
+    # gopt = SciPyFminCG(ucf, logfile='-',)
+    gopt = sBFGS(ucf, logfile='-', maxstep=0.5)
     gopt.run(fmax=eps, steps=steps)
 
     atoms.info = struct.info.copy()
@@ -533,7 +535,7 @@ def calc_cp2k(
             logging.info("Structure {} Step {}".format(i, j))
             # print("Structure {} Step {}".format(i, j))
             ind = calc_cp2k_once(calc, ind, pressure, epsArr[j], stepArr[j])
-            shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
+            # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
             # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
 
             if ind is None:
@@ -547,10 +549,9 @@ def calc_cp2k(
 
 def generate_cp2k_calcs(calcNum, parameters):
     workDir = parameters['workDir']
-    pressure = parameters['pressure']
     exeCmd = parameters['exeCmd']
 
-    unuseKeys = ['basis_set', 'basis_set_file', 'charge', 'cutoff', 'force_eval_method', 'max_scf', 'potential_file', 'pseudo_potential', 'uks', 'poisson_solver', 'xc', 'print_level']
+    unuseKeys = ['basis_set', 'basis_set_file', 'charge', 'cutoff', 'force_eval_method', 'max_scf', 'potential_file', 'pseudo_potential', 'uks', 'poisson_solver', 'xc']
     unuseDict = {}
     for key in unuseKeys:
         unuseDict[key] = None
