@@ -12,12 +12,16 @@ import copy
 import yaml
 from ase.calculators.lj import LennardJones
 from ase.calculators.vasp import Vasp
+from ase.calculators.cp2k import CP2K
+from ase.constraints import UnitCellFilter, ExpCellFilter
+from ase.optimize import BFGS, LBFGS, FIRE
+from ase.units import GPa
 from ase.spacegroup import crystal
 # from parameters import parameters
 from .writeresults import write_yaml, read_yaml, write_traj
 from .utils import *
 from .mopac import MOPAC
-from ase.units import GPa
+
 
 def calc_vasp_once(
     calc,    # ASE calculator
@@ -479,3 +483,85 @@ def generate_mopac_calcs(calcNum, parameters):
         calcs.append(calc)
 
     return calcs
+
+
+def calc_cp2k_once(
+    calc,    # cp2k calculator
+    struct,
+    pressure, # GPa unit
+    eps,
+    steps,
+    ):
+    atoms = struct[:]
+    atoms.set_calculator(calc)
+
+    ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
+    gopt = BFGS(ucf, logfile=None)
+    gopt.run(fmax=eps, steps=steps)
+
+    atoms.info = struct.info.copy()
+    volume = atoms.get_volume()
+    energy = atoms.get_potential_energy()
+    forces = atoms.get_forces()
+    stress = atoms.get_stress()
+    enthalpy = energy + pressure * volume * GPa
+    enthalpy = enthalpy/len(atoms)
+    atoms.info['enthalpy'] = round(enthalpy, 3)
+
+    # save energy, forces, stress for trainning potential
+    atoms.info['energy'] = energy
+    atoms.info['forces'] = forces
+    atoms.info['stress'] = stress
+
+    logging.info("CP2K finish")
+    return atoms
+
+def calc_cp2k(
+    calcs,    #a list of ASE calculator
+    structs,    #a list of structures
+    pressure,
+    epsArr,
+    stepArr,
+    ):
+
+    newStructs = []
+    for i, ind in enumerate(structs):
+        initInd = ind.copy()
+        initInd.info = {}
+        for j, calc in enumerate(calcs):
+            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
+            logging.info("Structure {} Step {}".format(i, j))
+            # print("Structure {} Step {}".format(i, j))
+            ind = calc_cp2k_once(calc, ind, pressure, epsArr[j], stepArr[j])
+            shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
+            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
+
+            if ind is None:
+                break
+
+        else:
+            # ind.info['initStruct'] = extract_atoms(initInd)
+            newStructs.append(ind)
+
+    return newStructs
+
+def generate_cp2k_calcs(calcNum, parameters):
+    workDir = parameters['workDir']
+    pressure = parameters['pressure']
+    exeCmd = parameters['exeCmd']
+
+    unuseKeys = ['basis_set', 'basis_set_file', 'charge', 'cutoff', 'force_eval_method', 'max_scf', 'potential_file', 'pseudo_potential', 'uks', 'poisson_solver', 'xc', 'print_level']
+    unuseDict = {}
+    for key in unuseKeys:
+        unuseDict[key] = None
+
+    calcs = []
+    for i in range(1, calcNum + 1):
+        with open("{}/inputFold/cp2k_{}.inp".format(workDir, i)) as f:
+            inp = f.read()
+        calc = CP2K(command=exeCmd, inp=inp, debug=False, **unuseDict)
+        calcs.append(calc)
+
+
+    return calcs
+

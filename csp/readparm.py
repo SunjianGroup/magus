@@ -128,6 +128,13 @@ def read_parameters(inputFile):
     p.invFrml = np.linalg.inv(np.dot(tmpFrml, tmpFrml.T))
     p.invFrml = p.invFrml.tolist()
 
+    # check epsArr, stepArr for ASE optimization, e.g. CP2K
+    if 'epsArr' in parameters.keys():
+        assert len(p.epsArr) == p.calcNum
+    if 'stepArr' in parameters.keys():
+        assert len(p.stepArr) == p.calcNum
+
+
 
 
     ############ BBO Parameters#############
