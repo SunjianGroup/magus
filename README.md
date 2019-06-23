@@ -189,7 +189,8 @@ mutateFrac: 0.4
 - numCore: 结构优化使用的核数
 - queueName: 结构优化任务的队列
 - jobPrefix: 并行模式下任务脚本的前缀
-- waitTime: 检查结构优化任务的时间间隔
+- waitTime: 检查结构优化任务的时间间隔(s)
+- maxRelaxTime: 一次结构优化最大运行时间(s)
 
 ##### Bayesian Optimization 参数
 
