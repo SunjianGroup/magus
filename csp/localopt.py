@@ -3,25 +3,28 @@ from ase import Atoms
 import ase.io
 from .readvasp import *
 import sys
-import math
-import os
-import shutil
-import subprocess
-import logging
-import copy
-import yaml
+import math, os, shutil, subprocess, logging, copy, yaml
+from concurrent.futures import ProcessPoolExecutor
 from ase.calculators.lj import LennardJones
 from ase.calculators.vasp import Vasp
 from ase.calculators.cp2k import CP2K
 from ase.constraints import UnitCellFilter, ExpCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
-from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG
+from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.units import GPa
 from ase.spacegroup import crystal
 # from parameters import parameters
 from .writeresults import write_yaml, read_yaml, write_traj
 from .utils import *
 from .mopac import MOPAC
+
+def timeout_n(fnc, n, *args, **kwargs):
+    """
+    Raise a TimeError if fnc's runtime is longer than n seconds.
+    """
+    with ProcessPoolExecutor() as p:
+        f = p.submit(fnc, *args, **kwargs)
+        return f.result(timeout=n)
 
 
 def calc_vasp_once(
@@ -172,7 +175,7 @@ def calc_vasp_parallel(calcNum, calcPop, parameters, prefix='calcVasp'):
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
                 "#BSUB -W %s\n"
-                "#BSUB -J Vasp_%s\n"% (queueName, numCore, maxRelaxTime*len(tmpPop), i))
+                "#BSUB -J Vasp_%s\n"% (queueName, numCore, maxRelaxTime*len(tmpPop)*calcNum/60, i))
         f.write("{}\n".format(jobPrefix))
         f.write("python -m csp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(calcNum, xc, pressure))
         f.close()
@@ -492,14 +495,23 @@ def calc_cp2k_once(
     pressure, # GPa unit
     eps,
     steps,
+    maxRelaxTime
     ):
     atoms = struct[:]
     atoms.set_calculator(calc)
 
     ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    gopt = SciPyFminCG(ucf, logfile='-',)
+    gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+    # gopt = SciPyFminCG(ucf, logfile='-',)
     # gopt = BFGS(ucf, logfile='-', maxstep=0.5)
-    gopt.run(fmax=eps, steps=steps)
+    try:
+        # gopt.run(fmax=eps, steps=steps)
+        timeout_n(fnc=gopt.run, n=maxRelaxTime,fmax=eps, steps=steps)
+    except Converged:
+        pass
+    except TimeoutError:
+        logging.info("Timeout")
+        return None
 
     atoms.info = struct.info.copy()
     volume = atoms.get_volume()
@@ -524,6 +536,7 @@ def calc_cp2k(
     pressure,
     epsArr,
     stepArr,
+    maxRelaxTime,
     ):
 
     newStructs = []
@@ -534,7 +547,7 @@ def calc_cp2k(
             # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
             logging.info("Structure {} Step {}".format(i, j))
             # print("Structure {} Step {}".format(i, j))
-            ind = calc_cp2k_once(calc, ind, pressure, epsArr[j], stepArr[j])
+            ind = calc_cp2k_once(calc, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime)
             # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
             # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
 
@@ -551,7 +564,7 @@ def generate_cp2k_calcs(calcNum, parameters):
     workDir = parameters['workDir']
     exeCmd = parameters['exeCmd']
 
-    unuseKeys = ['basis_set', 'basis_set_file', 'charge', 'cutoff', 'force_eval_method', 'max_scf', 'potential_file', 'pseudo_potential', 'uks', 'poisson_solver', 'xc']
+    unuseKeys = ['basis_set', 'basis_set_file', 'charge', 'cutoff', 'force_eval_method', 'potential_file', 'max_scf', 'pseudo_potential', 'uks', 'poisson_solver', 'xc']
     unuseDict = {}
     for key in unuseKeys:
         unuseDict[key] = None
@@ -561,6 +574,7 @@ def generate_cp2k_calcs(calcNum, parameters):
         with open("{}/inputFold/cp2k_{}.inp".format(workDir, i)) as f:
             inp = f.read()
         calc = CP2K(command=exeCmd, inp=inp, debug=False, **unuseDict)
+        # calc = CP2K(command=exeCmd, inp=inp, debug=True, **unuseDict)
         calcs.append(calc)
 
 

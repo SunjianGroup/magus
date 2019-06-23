@@ -149,7 +149,7 @@ for curGen in range(1, p.numGen+1):
         optPop = calc_mopac(calcs, initPop, p.pressure)
     elif p.calculator == 'cp2k':
         calcs = generate_cp2k_calcs(p.calcNum, parameters)
-        optPop = calc_cp2k(calcs, initPop, p.pressure, p.epsArr, p.stepArr)
+        optPop = calc_cp2k(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime)
 
     os.chdir(p.workDir)
 
