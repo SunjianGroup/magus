@@ -74,7 +74,7 @@ for curGen in range(1, p.numGen+1):
 
             mainAlgo.generate()
             mainAlgo.fit_gp()
-            if p.calculator in ['vasp']:
+            if p.calculator in ['vasp', 'cp2k']:
                 mainAlgo.select()
             elif p.calculator in ['gulp', 'mopac']:
                 mainAlgo.select(enFilter=False)

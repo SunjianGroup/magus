@@ -4,7 +4,7 @@ import ase.io
 from .readvasp import *
 import sys
 import math, os, shutil, subprocess, logging, copy, yaml
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ase.calculators.lj import LennardJones
 from ase.calculators.vasp import Vasp
 from ase.calculators.cp2k import CP2K
@@ -22,8 +22,9 @@ def timeout_n(fnc, n, *args, **kwargs):
     """
     Raise a TimeError if fnc's runtime is longer than n seconds.
     """
-    with ProcessPoolExecutor() as p:
-        f = p.submit(fnc, *args, **kwargs)
+    # with ProcessPoolExecutor() as ex:
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        f = ex.submit(fnc, *args, **kwargs)
         return f.result(timeout=n)
 
 
@@ -506,7 +507,7 @@ def calc_cp2k_once(
     # gopt = BFGS(ucf, logfile='-', maxstep=0.5)
     try:
         # gopt.run(fmax=eps, steps=steps)
-        timeout_n(fnc=gopt.run, n=maxRelaxTime,fmax=eps, steps=steps)
+        timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
     except Converged:
         pass
     except TimeoutError:

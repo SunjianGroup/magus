@@ -56,7 +56,7 @@ def read_fp_setup(fpDir, symbols,):
     """
     read symmetry functions setup
     """
-    fpSetup = yaml.load(open("%s/fpsetup.yaml"%(fpDir)))
+    fpSetup = yaml.load(open("%s/fpsetup.yaml"%(fpDir)), Loader=yaml.FullLoader)
     sf2 = fpSetup['sf2']
     # sf4 = fpSetup['sf4']
     cutoff = fpSetup['Rc']
