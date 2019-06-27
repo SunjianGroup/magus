@@ -2,12 +2,11 @@ from __future__ import print_function, division
 from ase import Atoms
 import ase.io
 from .readvasp import *
-import sys
-import math, os, shutil, subprocess, logging, copy, yaml
+import math, os, shutil, subprocess, logging, copy, yaml, sys, traceback
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ase.calculators.lj import LennardJones
 from ase.calculators.vasp import Vasp
-from ase.calculators.cp2k import CP2K
+from ase.calculators.cp2k import CP2K, Cp2kShell
 from ase.constraints import UnitCellFilter, ExpCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
@@ -41,10 +40,11 @@ def calc_vasp_once(
         stress = struct.get_stress()
         gap = read_eigen()
     except:
-        s = sys.exc_info()
-        logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        # s = sys.exc_info()
+        # logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
         logging.info("VASP fail")
-        print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        # print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
 
         return None
 
@@ -295,9 +295,10 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         return optInd
 
     except:
-        s = sys.exc_info()
-        print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-        logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        # s = sys.exc_info()
+        # print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        # logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
         logging.info("GULP fail")
         return None
 
@@ -406,10 +407,11 @@ def calc_mopac_once(
         energy = struct.get_potential_energy()
         forces = struct.get_forces()
     except:
-        s = sys.exc_info()
-        logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        # s = sys.exc_info()
+        # logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
         logging.info("MOPAC fail")
-        print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        # print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
 
         return None
 
@@ -499,19 +501,29 @@ def calc_cp2k_once(
     maxRelaxTime
     ):
     atoms = struct[:]
+    # if calc._shell:
+    #     calc._release_force_env()
+
     atoms.set_calculator(calc)
 
     ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-    # gopt = SciPyFminCG(ucf, logfile='-',)
-    # gopt = BFGS(ucf, logfile='-', maxstep=0.5)
+    # ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
+    # gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+    gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=0.1)
     try:
-        # gopt.run(fmax=eps, steps=steps)
-        timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
+        gopt.run(fmax=eps, steps=steps)
+        # timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
     except Converged:
         pass
     except TimeoutError:
         logging.info("Timeout")
+        return None
+    except:
+        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        logging.info("CP2K fail")
+        calc._release_force_env()
+        del(calc._shell)
+        calc._shell = Cp2kShell(calc.command, calc._debug)
         return None
 
     atoms.info = struct.info.copy()
@@ -548,6 +560,8 @@ def calc_cp2k(
             # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
             logging.info("Structure {} Step {}".format(i, j))
             # print("Structure {} Step {}".format(i, j))
+            # calc.set(label='cp2k-{}-{}'.format(i,j))
+            logging.debug(ind)
             ind = calc_cp2k_once(calc, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime)
             # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
             # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
@@ -580,4 +594,111 @@ def generate_cp2k_calcs(calcNum, parameters):
 
 
     return calcs
+
+def calc_cp2k_once_params(
+    param,    # cp2k calculator parameters
+    struct,
+    pressure, # GPa unit
+    eps,
+    steps,
+    maxRelaxTime
+    ):
+    atoms = struct[:]
+    # if calc._shell:
+    #     calc._release_force_env()
+    calc = CP2K(**param)
+    atoms.set_calculator(calc)
+
+    ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
+    # ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
+    # gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+    gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=0.1)
+    try:
+        gopt.run(fmax=eps, steps=steps)
+        # timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
+    except Converged:
+        pass
+    except TimeoutError:
+        logging.info("Timeout")
+        return None
+    except:
+        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        logging.info("CP2K fail")
+        # calc._release_force_env()
+        # del(calc._shell)
+        # calc._shell = Cp2kShell(calc.command, calc._debug)
+        return None
+
+    atoms.info = struct.info.copy()
+    volume = atoms.get_volume()
+    energy = atoms.get_potential_energy()
+    forces = atoms.get_forces()
+    stress = atoms.get_stress()
+    enthalpy = energy + pressure * volume * GPa
+    enthalpy = enthalpy/len(atoms)
+    atoms.info['enthalpy'] = round(enthalpy, 3)
+
+    # save energy, forces, stress for trainning potential
+    atoms.info['energy'] = energy
+    atoms.info['forces'] = forces
+    atoms.info['stress'] = stress
+
+    logging.info("CP2K finish")
+    return atoms
+
+def calc_cp2k_params(
+    paramArr,    #a list of cp2k calculator parameters
+    structs,    #a list of structures
+    pressure,
+    epsArr,
+    stepArr,
+    maxRelaxTime,
+    ):
+
+    newStructs = []
+    for i, ind in enumerate(structs):
+        initInd = ind.copy()
+        initInd.info = {}
+        for j, param in enumerate(paramArr):
+            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
+            logging.info("Structure {} Step {}".format(i, j))
+            # print("Structure {} Step {}".format(i, j))
+            # calc.set(label='cp2k-{}-{}'.format(i,j))
+            logging.debug(ind)
+            ind = calc_cp2k_once_params(param, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime)
+            # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
+            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
+
+            if ind is None:
+                break
+
+        else:
+            # ind.info['initStruct'] = extract_atoms(initInd)
+            newStructs.append(ind)
+
+    return newStructs
+
+def generate_cp2k_params(calcNum, parameters):
+    workDir = parameters['workDir']
+    exeCmd = parameters['exeCmd']
+
+    unuseKeys = ['basis_set', 'basis_set_file', 'charge', 'cutoff', 'force_eval_method', 'potential_file', 'max_scf', 'pseudo_potential', 'uks', 'poisson_solver', 'xc']
+    unuseDict = {}
+    for key in unuseKeys:
+        unuseDict[key] = None
+
+    paramArr = []
+    for i in range(1, calcNum + 1):
+        with open("{}/inputFold/cp2k_{}.inp".format(workDir, i)) as f:
+            inp = f.read()
+        param = unuseDict.copy()
+        param['command'] = exeCmd
+        param['inp'] = inp
+        param['debug'] = False
+        # calc = CP2K(command=exeCmd, inp=inp, debug=False, **unuseDict)
+        # calc = CP2K(command=exeCmd, inp=inp, debug=True, **unuseDict)
+        paramArr.append(param)
+
+
+    return paramArr
 

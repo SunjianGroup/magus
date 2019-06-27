@@ -7,7 +7,7 @@ from scipy.spatial.distance import cdist
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k
+from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k, generate_cp2k_params, calc_cp2k_params
 from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
 from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build, build_mol_struct
 # from .readvasp import *
@@ -148,8 +148,10 @@ for curGen in range(1, p.numGen+1):
         calcs = generate_mopac_calcs(p.calcNum, parameters)
         optPop = calc_mopac(calcs, initPop, p.pressure)
     elif p.calculator == 'cp2k':
-        calcs = generate_cp2k_calcs(p.calcNum, parameters)
-        optPop = calc_cp2k(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime)
+        # calcs = generate_cp2k_calcs(p.calcNum, parameters)
+        # optPop = calc_cp2k(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime)
+        calcParam = generate_cp2k_params(p.calcNum, parameters)
+        optPop = calc_cp2k_params(calcParam, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime)
 
     os.chdir(p.workDir)
 
