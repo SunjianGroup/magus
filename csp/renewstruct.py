@@ -1530,7 +1530,7 @@ def del_duplicate(Pop, compareE=True, tol = 0.2, diffE = 0.005, diffV = 0.05, di
     dupPop = compare_volume_energy(dupPop, diffE, diffV, compareE=compareE, mode=mode)
     if report:
         logging.info("volume_energy survival: %s" %(len(dupPop)))
-    # logging.info("survival: %s Individual" %len(dupPop))
+    logging.debug("dupPop: {}".format(len(dupPop)))
     return dupPop
 
 def calc_dominators(Pop):

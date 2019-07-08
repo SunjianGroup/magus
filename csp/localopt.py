@@ -498,7 +498,9 @@ def calc_cp2k_once(
     pressure, # GPa unit
     eps,
     steps,
-    maxRelaxTime
+    maxRelaxTime,
+    maxRelaxStep,
+    optimizer,
     ):
     atoms = struct[:]
     # if calc._shell:
@@ -507,9 +509,13 @@ def calc_cp2k_once(
     atoms.set_calculator(calc)
 
     ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    # ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
-    # gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-    gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=0.1)
+    if optimizer == 'cg':
+        gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+    elif optimizer == 'bfgs':
+        gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
+    elif optimizer == 'fire':
+        gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
+
     try:
         gopt.run(fmax=eps, steps=steps)
         # timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
@@ -550,6 +556,8 @@ def calc_cp2k(
     epsArr,
     stepArr,
     maxRelaxTime,
+    maxRelaxStep=0.1,
+    optimizer='bfgs'
     ):
 
     newStructs = []
@@ -562,7 +570,7 @@ def calc_cp2k(
             # print("Structure {} Step {}".format(i, j))
             # calc.set(label='cp2k-{}-{}'.format(i,j))
             logging.debug(ind)
-            ind = calc_cp2k_once(calc, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime)
+            ind = calc_cp2k_once(calc, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime, maxRelaxStep, optimizer)
             # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
             # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
 
@@ -601,7 +609,9 @@ def calc_cp2k_once_params(
     pressure, # GPa unit
     eps,
     steps,
-    maxRelaxTime
+    maxRelaxTime,
+    maxRelaxStep,
+    optimizer,
     ):
     atoms = struct[:]
     # if calc._shell:
@@ -610,9 +620,14 @@ def calc_cp2k_once_params(
     atoms.set_calculator(calc)
 
     ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    # ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
-    # gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-    gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=0.1)
+    #ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
+    if optimizer == 'cg':
+        gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+    elif optimizer == 'bfgs':
+        gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
+    elif optimizer == 'fire':
+        gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
+
     try:
         gopt.run(fmax=eps, steps=steps)
         # timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
@@ -653,8 +668,11 @@ def calc_cp2k_params(
     epsArr,
     stepArr,
     maxRelaxTime,
+    maxRelaxStep=0.1,
+    optimizer='bfgs'
     ):
 
+    logging.debug('optimizer: {}'.format(optimizer))
     newStructs = []
     for i, ind in enumerate(structs):
         initInd = ind.copy()
@@ -665,7 +683,7 @@ def calc_cp2k_params(
             # print("Structure {} Step {}".format(i, j))
             # calc.set(label='cp2k-{}-{}'.format(i,j))
             logging.debug(ind)
-            ind = calc_cp2k_once_params(param, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime)
+            ind = calc_cp2k_once_params(param, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime,maxRelaxStep, optimizer)
             # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
             # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
 
@@ -695,6 +713,7 @@ def generate_cp2k_params(calcNum, parameters):
         param['command'] = exeCmd
         param['inp'] = inp
         param['debug'] = False
+        # param['maxRelaxStep'] = parameters['maxRelaxStep']
         # calc = CP2K(command=exeCmd, inp=inp, debug=False, **unuseDict)
         # calc = CP2K(command=exeCmd, inp=inp, debug=True, **unuseDict)
         paramArr.append(param)

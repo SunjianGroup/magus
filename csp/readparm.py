@@ -58,6 +58,9 @@ def read_parameters(inputFile):
         'molType': 'fix',
         'chkMol': False,
         'molScaleCell': False,
+        'fastcp2k': False,
+        'maxRelaxStep': 0.1,
+        'optimizer': 'bfgs',
     }
 
     for key, val in dParms.items():
