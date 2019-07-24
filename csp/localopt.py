@@ -176,7 +176,7 @@ def calc_vasp_parallel(calcNum, calcPop, parameters, prefix='calcVasp'):
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
                 "#BSUB -W %s\n"
-                "#BSUB -J Vasp_%s\n"% (queueName, numCore, maxRelaxTime*len(tmpPop)*calcNum/60, i))
+                "#BSUB -J Vasp_%s\n"% (queueName, numCore, int(maxRelaxTime*len(tmpPop)*calcNum/60), i))
         f.write("{}\n".format(jobPrefix))
         f.write("python -m csp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(calcNum, xc, pressure))
         f.close()
