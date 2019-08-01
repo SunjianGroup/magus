@@ -7,7 +7,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ase.calculators.lj import LennardJones
 from ase.calculators.vasp import Vasp
 from ase.calculators.cp2k import CP2K, Cp2kShell
-from ase.constraints import UnitCellFilter, ExpCellFilter
+from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.units import GPa

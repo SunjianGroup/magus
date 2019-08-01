@@ -16,7 +16,8 @@ from .utils import EmptyClass, get_formula
 def read_parameters(inputFile):
     #Initialize
 
-    parameters = yaml.load(open(inputFile), Loader=yaml.FullLoader)
+    parameters = yaml.load(open(inputFile))
+    # parameters = yaml.load(open(inputFile), Loader=yaml.FullLoader)
     p = EmptyClass()
     p.workDir = os.getcwd()
 
