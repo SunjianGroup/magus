@@ -16,6 +16,10 @@ from ase.spacegroup import crystal
 from .writeresults import write_yaml, read_yaml, write_traj
 from .utils import *
 from .mopac import MOPAC
+try:
+    from xtb import GFN0_PBC
+except:
+    pass
 
 def timeout_n(fnc, n, *args, **kwargs):
     """
@@ -721,3 +725,103 @@ def generate_cp2k_params(calcNum, parameters):
 
     return paramArr
 
+
+def calc_xtb_once(
+    calc,    # xtb calculator
+    struct,
+    pressure, # GPa unit
+    eps,
+    steps,
+    maxRelaxTime,
+    maxRelaxStep,
+    optimizer,
+    ):
+    atoms = struct[:]
+    # if calc._shell:
+    #     calc._release_force_env()
+
+    atoms.set_calculator(calc)
+
+    ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
+    if optimizer == 'cg':
+        gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+    elif optimizer == 'bfgs':
+        gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
+    elif optimizer == 'fire':
+        gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
+
+    try:
+        gopt.run(fmax=eps, steps=steps)
+        # timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
+    except Converged:
+        pass
+    except TimeoutError:
+        logging.info("Timeout")
+        return None
+    except:
+        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        logging.info("XTB fail")
+        return None
+
+    atoms.info = struct.info.copy()
+    volume = atoms.get_volume()
+    energy = atoms.get_potential_energy()
+    forces = atoms.get_forces()
+    stress = atoms.get_stress()
+    enthalpy = energy + pressure * volume * GPa
+    enthalpy = enthalpy/len(atoms)
+    atoms.info['enthalpy'] = round(enthalpy, 3)
+
+    # save energy, forces, stress for trainning potential
+    atoms.info['energy'] = energy
+    atoms.info['forces'] = forces
+    atoms.info['stress'] = stress
+
+    logging.info("XTB finish")
+    return atoms
+
+def calc_xtb(
+    calcs,    #a list of ASE calculator
+    structs,    #a list of structures
+    pressure,
+    epsArr,
+    stepArr,
+    maxRelaxTime,
+    maxRelaxStep=0.1,
+    optimizer='bfgs'
+    ):
+
+    newStructs = []
+    for i, ind in enumerate(structs):
+        initInd = ind.copy()
+        initInd.info = {}
+        for j, calc in enumerate(calcs):
+            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
+            logging.info("Structure {} Step {}".format(i, j))
+            # print("Structure {} Step {}".format(i, j))
+            # calc.set(label='cp2k-{}-{}'.format(i,j))
+            logging.debug(ind)
+            ind = calc_xtb_once(calc, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime, maxRelaxStep, optimizer)
+            # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
+            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
+
+            if ind is None:
+                break
+
+        else:
+            # ind.info['initStruct'] = extract_atoms(initInd)
+            newStructs.append(ind)
+
+    return newStructs
+
+def generate_xtb_calcs(calcNum, parameters):
+    workDir = parameters['workDir']
+
+    calcs = []
+    for i in range(1, calcNum + 1):
+        params = yaml.load(open("{}/inputFold/xtb_{}.yaml".format(workDir, i)))
+        calc = GFN0_PBC(**params)
+        calcs.append(calc)
+
+
+    return calcs
