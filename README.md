@@ -14,6 +14,7 @@
 - spglib
 - pandas
 - networkx
+- boost
 
 
 在集群上加载`anaconda/3` 模块，所有依赖库都已安装
