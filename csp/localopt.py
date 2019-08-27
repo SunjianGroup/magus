@@ -743,8 +743,8 @@ def calc_xtb_once(
 
     atoms.set_calculator(calc)
 
-    # ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
+    ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
+    # ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
     if optimizer == 'cg':
         gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
     elif optimizer == 'bfgs':
