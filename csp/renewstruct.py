@@ -18,7 +18,6 @@ from ase.geometry import cell_to_cellpar, cellpar_to_cell
 from ase.optimize import BFGS, FIRE, BFGSLineSearch, LBFGS, LBFGSLineSearch
 from ase.units import GPa
 from ase.constraints import UnitCellFilter#, ExpCellFilter
-from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from .initstruct import build_struct
 from .fingerprint import calc_all_fingerprints, clustering
 from .bayes import UtilityFunction, GP_fit, atoms_util
@@ -28,6 +27,10 @@ from .atomgp import AtomGP
 from .mlpot import MLPot
 from .utils import *
 from .crystgraph import quotient_graph, cycle_sums, graphDim
+try:
+    from ase.utils.structure_comparator import SymmetryEquivalenceCheck
+except:
+    pass
 
 class PotKriging:
     def __init__(self, curPop, curGen, parameters):
@@ -1434,8 +1437,8 @@ def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, co
 
     toCompare = [(x,y) for x in range(len(Pop)) for y in range(len(Pop)) if x < y]
     # toCompare = [(x,y) for x in Pop for y in Pop if Pop.index(x) < Pop.index(y)]
-
-    comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
+    if mode == 'ase':
+        comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
 
     for pair in toCompare:
         s0 = Pop[pair[0]]
@@ -1530,7 +1533,7 @@ def del_duplicate(Pop, compareE=True, tol = 0.2, diffE = 0.005, diffV = 0.05, di
     dupPop = compare_volume_energy(dupPop, diffE, diffV, compareE=compareE, mode=mode)
     if report:
         logging.info("volume_energy survival: %s" %(len(dupPop)))
-    # logging.info("survival: %s Individual" %len(dupPop))
+    # logging.debug("dupPop: {}".format(len(dupPop)))
     return dupPop
 
 def calc_dominators(Pop):

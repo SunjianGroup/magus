@@ -17,6 +17,7 @@ def read_parameters(inputFile):
     #Initialize
 
     parameters = yaml.load(open(inputFile))
+    # parameters = yaml.load(open(inputFile), Loader=yaml.FullLoader)
     p = EmptyClass()
     p.workDir = os.getcwd()
 
@@ -49,7 +50,7 @@ def read_parameters(inputFile):
         'grids': [[2, 1, 1], [1, 2, 1], [1, 1, 2]],
         'bondRatio': 1.1,
         'bondRange': [0.9, 0.95, 1., 1.05, 1.1, 1.15],
-        'maxRelaxTime': 120,
+        'maxRelaxTime': 1200,
         'xrdFile': None,
         'xrdLamb': 0.6,
         'fixCell': False,
@@ -58,6 +59,9 @@ def read_parameters(inputFile):
         'molType': 'fix',
         'chkMol': False,
         'molScaleCell': False,
+        'fastcp2k': False,
+        'maxRelaxStep': 0.1,
+        'optimizer': 'bfgs',
     }
 
     for key, val in dParms.items():
@@ -127,6 +131,13 @@ def read_parameters(inputFile):
     assert np.linalg.matrix_rank(tmpFrml) <= tmpFrml.shape[1], "Please check input formula"
     p.invFrml = np.linalg.inv(np.dot(tmpFrml, tmpFrml.T))
     p.invFrml = p.invFrml.tolist()
+
+    # check epsArr, stepArr for ASE optimization, e.g. CP2K
+    if 'epsArr' in parameters.keys():
+        assert len(p.epsArr) == p.calcNum
+    if 'stepArr' in parameters.keys():
+        assert len(p.stepArr) == p.calcNum
+
 
 
 

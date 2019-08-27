@@ -7,7 +7,7 @@ from scipy.spatial.distance import cdist
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac
+from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k, generate_cp2k_params, calc_cp2k_params, generate_xtb_calcs, calc_xtb
 from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
 from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build, build_mol_struct
 # from .readvasp import *
@@ -17,7 +17,7 @@ from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from .bayes import atoms_util
 from .readparm import read_parameters
 from .utils import EmptyClass, calc_volRatio, check_mol_pop, calc_ball_volume
-
+import pdb
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
@@ -63,8 +63,10 @@ for curGen in range(1, p.numGen+1):
 
     else:
         bboPop = del_duplicate(optPop + keepPop)
+        logging.debug('bboPop: {}'.format(len(bboPop)))
 
         # renew volRatio
+        logging.debug("Renew volRatio")
         volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
         p.volRatio = 0.5*(volRatio + p.volRatio)
         logging.debug("p.volRatio: {}".format(p.volRatio))
@@ -74,7 +76,7 @@ for curGen in range(1, p.numGen+1):
 
             mainAlgo.generate()
             mainAlgo.fit_gp()
-            if p.calculator in ['vasp']:
+            if p.calculator in ['vasp', 'cp2k', 'xtb']:
                 mainAlgo.select()
             elif p.calculator in ['gulp', 'mopac']:
                 mainAlgo.select(enFilter=False)
@@ -137,7 +139,8 @@ for curGen in range(1, p.numGen+1):
 
     ### Calculation
     if not os.path.exists('calcFold'):
-        os.mkdir('calcFold')
+        # os.mkdir('calcFold')
+        shutil.copytree('inputFold', 'calcFold')
     os.chdir('calcFold')
     if p.calculator == 'gulp':
         optPop = calc_gulp(p.calcNum, initPop, p.pressure, p.exeCmd, p.inputDir)
@@ -147,6 +150,16 @@ for curGen in range(1, p.numGen+1):
     elif p.calculator == 'mopac':
         calcs = generate_mopac_calcs(p.calcNum, parameters)
         optPop = calc_mopac(calcs, initPop, p.pressure)
+    elif p.calculator == 'xtb':
+        calcs = generate_xtb_calcs(p.calcNum, parameters)
+        optPop = calc_xtb(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
+    elif p.calculator == 'cp2k':
+        if p.fastcp2k:
+            calcs = generate_cp2k_calcs(p.calcNum, parameters)
+            optPop = calc_cp2k(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
+        else:
+            calcParam = generate_cp2k_params(p.calcNum, parameters)
+            optPop = calc_cp2k_params(calcParam, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
 
     os.chdir(p.workDir)
 
@@ -167,17 +180,25 @@ for curGen in range(1, p.numGen+1):
 
     # Initialize paretoPop, goodPop
     if curGen > 1:
+        logging.info("reading paretoPop and goodPop")
         paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
         goodPop = ase.io.read("{}/results/good.traj".format(p.workDir), format='traj', index=':')
     else:
+        logging.info("creating empty paretoPop and goodPop")
         paretoPop = list()
         goodPop = list()
 
     #Convex Hull
+    logging.debug("allPop")
+    # if curGen == 2:
+    #     del allPop
+    #     pdb.set_trace()
     allPop = optPop + paretoPop + goodPop
+    logging.debug("p.calcType: {}".format(p.calcType))
     if p.calcType == 'var':
         allPop = convex_hull(allPop)
 
+    logging.info("calc_fitness")
     allPop = calc_fitness(allPop, parameters)
     logging.info('calc_fitness finish')
 
