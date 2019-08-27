@@ -144,7 +144,7 @@ mutateFrac: 0.4
   可用值:  `fix`（定组分）,`var`（变组分）
 
 - calculator: 结构优化程序
-  可用值: `vasp`, `gulp`
+  可用值: `vasp`, `gulp`, `cp2k`, `mopac`, `xtb`
 
 - setAlgo: 结构搜索算法
   可用值: `bayes`(Bayesian Optimization), `bbo`(Biogeography-Based Optimization)
