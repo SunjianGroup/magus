@@ -13,13 +13,11 @@ class BaseGenerator:
         self.checkParameters(Requirement,Default)
         self.radius = p.raidus if hasattr(p,'radius') else [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
         self.formula=np.array(self.formula)
-        """
         self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*np.array(self.formula))*self.volRatio
         self.minVolume = p.minVolume if hasattr(p,'minVolume') else self.meanVolume*0.5
         self.maxVolume = p.maxVolume if hasattr(p,'maxVolume') else self.meanVolume*1.5
         self.minLen=p.minLen if hasattr(p,'minLen') else [2*np.max(self.radius)]*3
         self.maxLen=p.maxLen if hasattr(p,'maxLen') else [(self.maxVolume*np.max(self.numFrml))**(1./3)]*3
-        """
 
     def checkParameters(self,Requirement=[],Default={}):
         for key in Requirement:
@@ -33,7 +31,7 @@ class BaseGenerator:
             else:
                 setattr(self,key,getattr(self.p,key))
 
-    def Generate_ind(self,spg,numlist):
+    def Generate_ind(self,spg,numlist,nfm=1):
         spg=int(spg)
         numType = len(self.formula)
         generator = GenerateNew.Info()
@@ -43,14 +41,12 @@ class BaseGenerator:
         generator.threshold=self.threshold
         generator.method=self.method
         generator.UselocalCellTrans = 'y'
-        # generator.forceMostGeneralWyckPos=True
+        generator.forceMostGeneralWyckPos=False
 
-        """
         generator.minVolume = self.minVolume*nfm
         generator.maxVolume = self.maxVolume*nfm
         generator.SetLatticeMins(self.minLen[0], self.minLen[1], self.minLen[2], 60, 60, 60)
         generator.SetLatticeMaxes(self.maxLen[0], self.maxLen[1], self.maxLen[2], 120, 120 ,120)
-        """
         numbers=[]
         for i in range(numType):
             generator.AppendAtoms(int(numlist[i]), str(i), self.radius[i], False)
@@ -85,7 +81,7 @@ class BaseGenerator:
             nfm = np.random.choice(self.numFrml)
             spg = np.random.choice(self.spgs)
             numlist=np.array(self.formula)*nfm
-            label,ind = self.Generate_ind(spg,numlist)
+            label,ind = self.Generate_ind(spg,numlist,nfm)
             if label:
                 self.afterprocessing(ind,nfm)
                 buildPop.append(ind)
@@ -98,12 +94,12 @@ class BaseGenerator:
                 nfm = np.random.choice(self.numFrml)
                 spg = np.random.choice(self.spgs)
                 numlist=self.formula[i]*nfm
-                label,ind = self.Generate_ind(spg,numlist)
+                label,ind = self.Generate_ind(spg,numlist,nfm)
                 if label:
                     self.afterprocessing(ind,nfm)
                     buildPop.append(ind)
                 else:
-                    label,ind = self.Generate_ind(1,numlist)
+                    label,ind = self.Generate_ind(1,numlist,nfm)
                     if label:
                         self.afterprocessing(ind,nfm)
                         buildPop.append(ind)
