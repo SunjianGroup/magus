@@ -18,7 +18,6 @@ from ase.geometry import cell_to_cellpar, cellpar_to_cell
 from ase.optimize import BFGS, FIRE, BFGSLineSearch, LBFGS, LBFGSLineSearch
 from ase.units import GPa
 from ase.constraints import UnitCellFilter#, ExpCellFilter
-from .initstruct import build_struct
 from .fingerprint import calc_all_fingerprints, clustering
 from .bayes import UtilityFunction, GP_fit, atoms_util
 from .writeresults import read_dataset

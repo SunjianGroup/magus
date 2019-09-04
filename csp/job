@@ -1,0 +1,7 @@
+#BSUB -J csp-2d
+#BSUB -n 1
+#BSUB -e err
+#BSUB -q e52692v2ib!
+
+python initstruct.py
+
