@@ -85,7 +85,7 @@
   - `GenerateNew.so`
       源文件在在`csp/GenerateNew`中。编译时需要用python库的头文件。如果使用集群上的`anaconda/3` 模块，编译命令为：
       ```shell
-      g++ -std=c++11 -I/fs00/software/anaconda/3/include -I/fs00/software/anaconda/3/include/python3.6m -L/fs00/software/anaconda/3/lib -lboost_python -lboost_numpy -lpython3.6m GenerateNew.cpp -o GenerateNew.so -shared -fPIC
+      g++ -std=c++11 -I/fs00/software/anaconda/3/include -I/fs00/software/anaconda/3/include/python3.6m -L/fs00/software/anaconda/3/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
       ```
       编译生成的`GenerateNew.so`需要放在`csp/`目录下。
       

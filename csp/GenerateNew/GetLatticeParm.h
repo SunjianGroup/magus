@@ -126,12 +126,5 @@ void GetLatticeParm(double* M, int spg, double* latticeMins, double* latticeMaxe
 }
 
 
-
-
-
-
-
-
-
-
-
+//notes here:
+//alpha=b^c, beta=a^c, gamma=a^b

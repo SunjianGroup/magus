@@ -42,6 +42,7 @@ class BaseGenerator:
         generator.maxAttempts = self.maxAttempts
         generator.threshold=self.threshold
         generator.method=self.method
+        generator.UselocalCellTrans = 'y'
         # generator.forceMostGeneralWyckPos=True
 
         """
