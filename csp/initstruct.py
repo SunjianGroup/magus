@@ -46,7 +46,7 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
     generator.maxAttempts = 50
     generator.threshold=1
     generator.method=2
-    # generator.forceMostGeneralWyckPos=True
+    generator.forceMostGeneralWyckPos=False
     minLen = 2*max(radius)
     generator.SetLatticeMins(minLen, minLen, minLen, 60, 60, 60)
     numbers = []
