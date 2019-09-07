@@ -43,23 +43,25 @@ class BaseGenerator:
         generator.UselocalCellTrans = 'y'
         generator.forceMostGeneralWyckPos=False
 
-        generator.minVolume = self.minVolume*nfm
-        generator.maxVolume = self.maxVolume*nfm
-        generator.SetLatticeMins(self.minLen[0], self.minLen[1], self.minLen[2], 60, 60, 60)
-        generator.SetLatticeMaxes(self.maxLen[0], self.maxLen[1], self.maxLen[2], 120, 120 ,120)
+        # generator.minVolume = self.minVolume*nfm
+        # generator.maxVolume = self.maxVolume*nfm
+        # generator.SetLatticeMins(self.minLen[0], self.minLen[1], self.minLen[2], 60, 60, 60)
+        # generator.SetLatticeMaxes(self.maxLen[0], self.maxLen[1], self.maxLen[2], 120, 120 ,120)
         numbers=[]
         for i in range(numType):
             generator.AppendAtoms(int(numlist[i]), str(i), self.radius[i], False)
             numbers.extend([atomic_numbers[self.symbols[i]]]*numlist[i])
 
         label = generator.PreGenerate()
-        logging.debug('generator label: {}'.format(label))
+        # logging.debug('generator label: {}'.format(label))
         if label > 0:
             cell = generator.GetLattice(0)
             cell = np.reshape(cell, (3,3))
-            logging.debug(cell)
+            # logging.debug(cell)
             positions = generator.GetPosition(0)
-            logging.debug(positions)
+            # logging.debug(positions)
+            if len(positions) == 0:
+                return 0, None
             positions = np.reshape(positions, (-1, 3))
             # positions = np.dot(positions,cell)
             # atoms = ase.Atoms(cell=cell, positions=positions, numbers=numbers, pbc=1)
