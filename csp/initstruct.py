@@ -53,13 +53,17 @@ class BaseGenerator:
             numbers.extend([atomic_numbers[self.symbols[i]]]*numlist[i])
 
         label = generator.PreGenerate()
-        if label:
+        logging.debug('generator label: {}'.format(label))
+        if label > 0:
             cell = generator.GetLattice(0)
             cell = np.reshape(cell, (3,3))
+            logging.debug(cell)
             positions = generator.GetPosition(0)
+            logging.debug(positions)
             positions = np.reshape(positions, (-1, 3))
-            positions = np.dot(positions,cell)
-            atoms = ase.Atoms(cell=cell, positions=positions, numbers=numbers, pbc=1)
+            # positions = np.dot(positions,cell)
+            # atoms = ase.Atoms(cell=cell, positions=positions, numbers=numbers, pbc=1)
+            atoms = ase.Atoms(cell=cell, scaled_positions=positions, numbers=numbers, pbc=1)
 
             return label, atoms
         else:
@@ -95,12 +99,12 @@ class BaseGenerator:
                 spg = np.random.choice(self.spgs)
                 numlist=self.formula[i]*nfm
                 label,ind = self.Generate_ind(spg,numlist,nfm)
-                if label:
+                if label > 0:
                     self.afterprocessing(ind,nfm)
                     buildPop.append(ind)
                 else:
                     label,ind = self.Generate_ind(1,numlist,nfm)
-                    if label:
+                    if label > 0:
                         self.afterprocessing(ind,nfm)
                         buildPop.append(ind)
         return buildPop
@@ -122,7 +126,7 @@ class LayerGenerator(BaseGenerator):
         k=self.d*np.linalg.norm(c_)/np.dot(c,c_)+1
         ind.cell[2]*=k
 
-    def afterprocessing(self,ind,nfm): 
+    def afterprocessing(self,ind,nfm):
         super().afterprocessing(ind,nfm)
         #self.addVacuumlayer(ind)
 
@@ -135,7 +139,7 @@ class VarGenerator(BaseGenerator):
         super().__init__(p)
         super().checkParameters(Requirement=['minAt','maxAt'],Default={'fullEles':True})
         self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
-     
+
 
     def afterprocessing(self,ind,numlist):
         ind.info['symbols'] = self.symbols
@@ -159,7 +163,7 @@ class VarGenerator(BaseGenerator):
                 spg = np.random.choice(self.spgs)
 
                 label,ind = self.Generate_ind(spg,numlist)
-                if label:
+                if label > 0:
                     self.afterprocessing(ind,numlist)
                     buildPop.append(ind)
                     break

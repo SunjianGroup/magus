@@ -269,6 +269,7 @@ public:
 
 		int attemps = 0;
 		int ans_size = 0;
+		int maxfailures = Min( 5, spgnumber );
 		while (ans_size < spgnumber)
 		{
 			for (int j = 0; j < maxAttempts; j++)
@@ -306,7 +307,7 @@ public:
 				out.close();*/
 				//And here it ends.
 			}
-			if (attemps > 5) 
+			if (attemps >= maxfailures) 
 			{
 				GetWycksDeleted(wycks); 
 				if (ans.size() > 0)
@@ -327,7 +328,7 @@ public:
 		return;
 	}
 
-	bool PreGenerate(void)
+	int PreGenerate(void)
 	{
 		srand((unsigned)time(NULL));
 		bool legel = Generate(ans);
@@ -366,7 +367,8 @@ public:
 			}*/
 		}
 		else cout << "error: Generate error" << endl;
-		return legel;
+
+		return (int)primitiveans.size();
 	}
 
 	p::list GetLattice(int n)
