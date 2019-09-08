@@ -1,4 +1,4 @@
-﻿#include"generatenew.cpp"
+#include"generatenew.cpp"
 
 #include"vectorData.h"
 
@@ -246,10 +246,8 @@ public:
 				for (int k = 0; k < combinations[i].atoms[j].wyckGroups.size(); k++)
 				{
 					cout << combinations[i].atoms[j].wyckGroups[k].count << "(";
-
 					for (int l = 0; l < (combinations[i].atoms[j].wyckGroups[k].SimilarWyck)->size(); l++)
 						cout << (*combinations[i].atoms[j].wyckGroups[k].SimilarWyck)[l].multiplicity << (*combinations[i].atoms[j].wyckGroups[k].SimilarWyck)[l].label << ',';
-
 					cout << ") , ";
 				}
 				cout << endl;
@@ -332,23 +330,23 @@ public:
 	{
 		srand((unsigned)time(NULL));
 		bool legel = Generate(ans);
-		switch(UselocalCellTrans)
-		{
-		case 'y':
-			CellTrans(&ans,&primitiveans);
-			break;
-		case 'n':
-		{
-			for(int i=0;i<ans.size();i++)
-				primitiveans.push_back(ans[i]);
-		}
-			break;
-		}
 		
 		if (legel)
 		{
+			switch(UselocalCellTrans)
+			{
+			case 'y':
+				CellTrans(&ans,&primitiveans);
+				break;
+			case 'n':
+			{
+				for(int i=0;i<ans.size();i++)
+					primitiveans.push_back(ans[i]);
+			}
+				break;
+			}
 			cout << "Generate success: total time= " << 1.0*clock() / CLOCKS_PER_SEC << "s" << endl;
-			
+			return (int)primitiveans.size();
 			/*string output(outputdir);
 			for (int i = 0; i < primitiveans[0].atoms.size(); i++)
 			{
@@ -367,8 +365,7 @@ public:
 			}*/
 		}
 		else cout << "error: Generate error" << endl;
-
-		return (int)primitiveans.size();
+		return 0;
 	}
 
 	p::list GetLattice(int n)
@@ -431,12 +428,10 @@ public:
 		Info info;
 		info.spg=i;
 		cout << "spg=" <<info.spg<< ": start at "<<1.0*clock()/CLOCKS_PER_SEC<<"s"<<endl;
-
 		info.AppendAtoms(12, "Ti", 1.6,false);
 		info.AppendAtoms(48, "O", 0.66,false);
 		//info.AppendAtoms(15, "Mg", 1.41,false);
 		//info.AppendAtoms(15, "Si", 1.11,false);
-
 		info.minVolume = 590;
 		info.maxVolume = 610;
 		info.maxAttempts = 1000;

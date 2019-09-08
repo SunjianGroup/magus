@@ -60,8 +60,8 @@ class BaseGenerator:
             # logging.debug(cell)
             positions = generator.GetPosition(0)
             # logging.debug(positions)
-            if len(positions) == 0:
-                return 0, None
+            # if len(positions) == 0:
+            #     return 0, None
             positions = np.reshape(positions, (-1, 3))
             # positions = np.dot(positions,cell)
             # atoms = ase.Atoms(cell=cell, positions=positions, numbers=numbers, pbc=1)
