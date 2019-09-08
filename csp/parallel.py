@@ -138,7 +138,7 @@ def csp_loop(curStat, parameters):
             if len(goodPop) > p.popSize:
                 goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]
         elif p.calcType == 'var':
-            goodPop = [ind for ind in goodPop if ind.info['ehull']<=0.1]
+            goodPop = [ind for ind in goodPop if ind.info['ehull']<=p.goodehull]
 
         # if len(goodPop) > p.popSize:
         #     goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]

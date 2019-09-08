@@ -62,6 +62,7 @@ def read_parameters(inputFile):
         'fastcp2k': False,
         'maxRelaxStep': 0.1,
         'optimizer': 'bfgs',
+        'goodehull': 0.1,
     }
 
     for key, val in dParms.items():
