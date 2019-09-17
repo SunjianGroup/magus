@@ -9,7 +9,7 @@ from ase import Atoms, Atom
 import ase.io
 from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k, generate_cp2k_params, calc_cp2k_params, generate_xtb_calcs, calc_xtb
 from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
-from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build, build_mol_struct
+from .initstruct import read_seeds, build_mol_struct
 # from .readvasp import *
 from .setfitness import calc_fitness
 from .writeresults import write_dataset, write_results
