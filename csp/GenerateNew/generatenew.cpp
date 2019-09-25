@@ -199,6 +199,7 @@ public:
 	vector<WyckGroup> wyckGroups;
 	vector<int> chosenWycks;
 	vector<position> positions;
+	vector<position> positions_wyck;
 	bool UsedMostGeneral; //UsedMostGeneral is for the second method.
 	Atoms(int n, const char* name, double r, bool m) :atom (name, r, m)
 	{
@@ -214,6 +215,7 @@ public:
 		for (int i = 0; i < a.wyckGroups.size(); i++) wyckGroups.push_back(a.wyckGroups[i]);
 		for (int i = 0; i < a.chosenWycks.size(); i++) chosenWycks.push_back(a.chosenWycks[i]);
 		for (int i = 0; i < a.positions.size(); i++) positions.push_back(a.positions[i]);
+		for (int i=0;i<a.positions_wyck.size();i++) positions_wyck.push_back(a.positions_wyck[i]);
 		UsedMostGeneral = a.UsedMostGeneral;
 	}
 	void operator =(const Atoms& a)
@@ -225,6 +227,7 @@ public:
 		for (int i = 0; i < a.wyckGroups.size(); i++) wyckGroups.push_back(a.wyckGroups[i]);
 		for (int i = 0; i < a.chosenWycks.size(); i++) chosenWycks.push_back(a.chosenWycks[i]);
 		for (int i = 0; i < a.positions.size(); i++) positions.push_back(a.positions[i]);
+		for (int i=0;i<a.positions_wyck.size();i++) positions_wyck.push_back(a.positions_wyck[i]);
 		UsedMostGeneral = a.UsedMostGeneral;
 	}
 
@@ -366,7 +369,8 @@ public:
 				{
 					shouldadd = true;
 					vector<position> p;
-					wyckpositions[atoms[i].chosenWycks[j]].GetAllPosition(p, wyckpositions[atoms[i].chosenWycks[j]].GetOnePosition());
+					position pos_wyck=wyckpositions[atoms[i].chosenWycks[j]].GetOnePosition();
+					wyckpositions[atoms[i].chosenWycks[j]].GetAllPosition(p, pos_wyck);
 					if (p.size() != wyckpositions[atoms[i].chosenWycks[j]].multiplicity) { shouldadd = false; attempt++; continue; }
 					if (CheckDistance(&p, &(atoms[i].positions), atoms[i].atom.radius, latticeparm, threshold) == false)
 					{
@@ -385,6 +389,7 @@ public:
 					if (shouldadd)
 					{
 						for (int ii = 0; ii < p.size(); ii++) atoms[i].positions.push_back(p[ii]);
+						atoms[i].positions_wyck.push_back(pos_wyck);
 						break;
 					}
 					attempt++;
@@ -480,7 +485,7 @@ public:
 		case 't':
 			if(legal)
 			{
-			/*	out<<"import spglib\nlattice=[";
+				/*out<<"import spglib\nlattice=[";
 				for (int i = 0; i < 3; i++)
 					out << '['<<latticeparm[i] << ',' << latticeparm[i + 3] << ',' << latticeparm[i + 6] << "],\n";
 				out<<"]\n";

@@ -39,6 +39,8 @@ public:
 	int primitiveCellnum;
 	char UselocalCellTrans;
 
+	bool GetConventional;
+
 	int maxAttempts;
 	int maxattempts;
 	int attemptstoGetCombs;
@@ -64,6 +66,7 @@ public:
 		method = 2;
 		fileformat = 'v';
 		UselocalCellTrans='y';
+		GetConventional=false;
 	}
 
 
@@ -76,10 +79,14 @@ public:
 	void CompleteParm(Structure* s)
 	{
 		int temps=spg-1;
-		for(int i=0;i<9;i++) primitivector[i]=primitive_vector_type[vector_type_choice[temps]-1][i];
-		for(int i=0;i<9;i++) inversePrimitivector[i]=inverse_primitive_vector[vector_type_choice[temps]-1][i];
-		primitiveCellnum=GetCellNum(inversePrimitivector);
-		
+		if(!GetConventional)
+		{
+			for(int i=0;i<9;i++) primitivector[i]=primitive_vector_type[vector_type_choice[temps]-1][i];
+			for(int i=0;i<9;i++) inversePrimitivector[i]=inverse_primitive_vector[vector_type_choice[temps]-1][i];
+			primitiveCellnum=GetCellNum(inversePrimitivector);
+		}
+		else UselocalCellTrans='n';
+
 		double maxr;
 		if (minVolume == 0)
 			minVolume = s->atomvolume * 1;
@@ -107,21 +114,22 @@ public:
 			if (maxlen > 3) for (int i = 0; i < 3; i++) { latticeMaxes[i] = maxlen; latticeMaxes[i + 3] = 120.0; }
 			else for (int i = 0; i < 3; i++) { latticeMaxes[i] = 4.0; latticeMaxes[i + 3] = 120.0; }
 		}
-
-		//Here begins Get primitive cell transformed to conventional cell.
-		maxVolume*=primitiveCellnum;
-		minVolume*=primitiveCellnum;
-		s->atomvolume*=primitiveCellnum;
-		for(int i=0;i<3;i++)  {double tn=pow(primitiveCellnum,1.0/3);latticeMins[i]*=tn;latticeMaxes[i]*=tn;}
-		for(int i=0;i<s->atoms.size();i++)
+		if(!GetConventional)
 		{
-			s->atoms[i].number*=primitiveCellnum;
-			s->atoms[i].left*=primitiveCellnum;
-			atomlist[i].number*=primitiveCellnum;
-		}
-			
-		//Here ends Get primitive cell transformed to conventional cell.
+			//Here begins Get primitive cell transformed to conventional cell.
+			maxVolume*=primitiveCellnum;
+			minVolume*=primitiveCellnum;
+			s->atomvolume*=primitiveCellnum;
+			for(int i=0;i<3;i++)  {double tn=pow(primitiveCellnum,1.0/3);latticeMins[i]*=tn;latticeMaxes[i]*=tn;}
+			for(int i=0;i<s->atoms.size();i++)
+			{
+				s->atoms[i].number*=primitiveCellnum;
+				s->atoms[i].left*=primitiveCellnum;
+				atomlist[i].number*=primitiveCellnum;
+			}
 
+			//Here ends Get primitive cell transformed to conventional cell.
+		}
 		if (attemptstoGetCombs == 0)
 		{
 			if (method == 1) attemptstoGetCombs = sqrt(spgnumber) * 40;
@@ -147,12 +155,14 @@ public:
 				s.latticeparm[j+3]=primitivector[j+3]*lp[4]+primitivector[j+6]*lp[5];
 				s.latticeparm[j+6]=primitivector[j+6]*lp[8];
 			}
-			
+
 			for(int j=0;j<temps->atoms.size();j++)
 			{
 				s.atoms.push_back(Atoms(temps->atoms[j].number/primitiveCellnum,temps->atoms[j].atom.name,temps->atoms[j].atom.radius,temps->atoms[j].atom.module));
+				for(int k=0;k<temps->atoms[j].positions_wyck.size();k++) s.atoms[j].positions_wyck.push_back(temps->atoms[j].positions_wyck[k]);
+
 				vector<position>* positions=&(s.atoms[j].positions);
-				
+
 				for (int k=0;k<temps->atoms[j].positions.size();k++)
 				{
 					position p=temps->atoms[j].positions[k];
@@ -168,14 +178,14 @@ public:
 						for(int a=0;a<positions->size();a++)
 						{
 							if(tp==(*positions)[a]) break;
-							if(a==(positions->size()-1)) 
+							if(a==(positions->size()-1))
 							{
 								positions->push_back(tp);
 								break;
 							}
 						}
 					if(positions->size()==s.atoms[j].number) break;
-					
+
 				}
 			}
 
@@ -212,7 +222,7 @@ public:
 		cout << "Initialize success: total time= " << 1.0*clock() / CLOCKS_PER_SEC << "s" << endl;
 
 		vector<Structure> combinations;
-		
+
 		switch(method)
 		{
 		case 1:
@@ -222,7 +232,7 @@ public:
 			{
 				biasedwycks.push_back(pow((*wycks[i].SimilarWyck)[0].multiplicity,biasedrand));
 				wsum+=biasedwycks[i];
-			} 
+			}
 
 			for (int attempt = 0; attempt < attemptstoGetCombs; attempt++)
 			{
@@ -231,11 +241,11 @@ public:
 			}
 		}
 		break;
-		case 2: 
+		case 2:
 			GetAllCombinations(structure, wycks, combinations, forceMostGeneralWyckPos, attemptstoGetCombs);
 		break;
 		}
-		
+
 		//Here begins the logfile for combinations!
 		/*for (int i = 0; i < combinations.size(); i++)
 		{
@@ -263,7 +273,7 @@ public:
 			return false;
 		}
 		else cout << "GetAllCombination success: got " << combinations.size() << " combination(s); total time= " << 1.0*clock() / CLOCKS_PER_SEC << "s" << endl;
-	
+
 
 		int attemps = 0;
 		int ans_size = 0;
@@ -279,9 +289,9 @@ public:
 				structure.MakeCrystal(threshold, maxattempts);
 				//cout << "makecrystal end at " << 1.0*clock() / CLOCKS_PER_SEC << endl;
 				if (structure.legal == true)  break;
-				if (j == maxAttempts - 1) 
-				{ 
-					attemps++; 
+				if (j == maxAttempts - 1)
+				{
+					attemps++;
 					ans_size++;
 					cout << "error: failed MakeCrystal(), already made "<<ans.size()<<" crystal(s), total time= " << 1.0*clock() / CLOCKS_PER_SEC << "s" << endl;
 				}
@@ -305,9 +315,9 @@ public:
 				out.close();*/
 				//And here it ends.
 			}
-			if (attemps >= maxfailures) 
+			if (attemps >= maxfailures)
 			{
-				GetWycksDeleted(wycks); 
+				GetWycksDeleted(wycks);
 				if (ans.size() > 0)
 				{
 					cout<<"Notice: exit for too many MakeCrystal() failures; " << ans.size() << " crystal(s) were generated in total." << endl;
@@ -330,7 +340,7 @@ public:
 	{
 		srand((unsigned)time(NULL));
 		bool legel = Generate(ans);
-		
+
 		if (legel)
 		{
 			switch(UselocalCellTrans)
@@ -406,6 +416,42 @@ public:
 
 		return l;
 	}
+	p::list GetWyckPos(int n)
+	{
+		Py_Initialize();
+		np::initialize();
+		p::list l;
+		if (n >= primitiveans.size()) { cout << "Please input a smaller number than " << primitiveans.size() << endl; return l; }
+		for (int i = 0; i < primitiveans[n].atoms.size(); i++)
+		{
+			for (int j = 0; j < primitiveans[n].atoms[i].positions_wyck.size(); j++)
+			{
+				// l.append(primitiveans[n].atoms[i].atom.name);
+				l.append(primitiveans[n].atoms[i].positions_wyck[j].x);
+				l.append(primitiveans[n].atoms[i].positions_wyck[j].y);
+				l.append(primitiveans[n].atoms[i].positions_wyck[j].z);
+			}
+		}
+		return l;
+	}
+	p::list GetWyckLabel(int n)
+	{
+		Py_Initialize();
+		np::initialize();
+		p::list l;
+		if (n >= primitiveans.size()) { cout << "Please input a smaller number than " << primitiveans.size() << endl; return l; }
+		for (int i = 0; i < primitiveans[n].atoms.size(); i++)
+		{
+			for (int j = 0; j < primitiveans[n].atoms[i].positions_wyck.size(); j++)
+			{
+				l.append(primitiveans[n].atoms[i].atom.name);
+				// l.append(primitiveans[n].atoms[i].positions_wyck[j].x);
+				// l.append(primitiveans[n].atoms[i].positions_wyck[j].y);
+				// l.append(primitiveans[n].atoms[i].positions_wyck[j].z);
+			}
+		}
+		return l;
+	}
 
 	void SetLatticeMins(double a, double b, double c, double d, double e, double f)
 	{
@@ -423,7 +469,7 @@ public:
 
 /*int main()
 {
-	for (int i =1; i <= 230; i++)
+	for (int i =213; i <= 214; i++)
 	{
 		Info info;
 		info.spg=i;
@@ -435,11 +481,11 @@ public:
 		info.minVolume = 590;
 		info.maxVolume = 610;
 		info.maxAttempts = 1000;
-		info.spgnumber = 10;
+		info.spgnumber = 1;
 		info.threshold = 0.5;
 		info.forceMostGeneralWyckPos = true;
 		info.method =2;
-		info.outputdir = "outputtest/";
+		info.outputdir = "check";
 		info.fileformat='t';
 		//info.biasedrand=3;
 		double mins[6] = { 3,3,3,60,60,60 };
@@ -447,6 +493,7 @@ public:
 		double maxs[6] = { 10,10,10,120,120,120 };
 		for (int j = 0; j < 6; j++) info.latticeMaxes[j] = maxs[j];
 		info.PreGenerate();
+		info.GetWyckPos(0);
 	}
 	return 0;
 }*/
@@ -463,7 +510,7 @@ BOOST_PYTHON_MODULE(GenerateNew)
 		.def_readwrite("threshold",&Info::threshold)
         .def_readwrite("outputdir",&Info::outputdir)
 
-		.def_readwrite("spg", &Info::spg)		
+		.def_readwrite("spg", &Info::spg)
 		.def_readwrite("spgnumber", &Info::spgnumber)
         .def_readwrite("maxAttempts", &Info::maxAttempts)
 
@@ -473,12 +520,14 @@ BOOST_PYTHON_MODULE(GenerateNew)
 		.def_readwrite("method",&Info::method)
         .def_readwrite("fileformat",&Info::fileformat)
 		.def_readwrite("UselocalCellTrans",&Info::UselocalCellTrans)
-
+		.def_readwrite("GetConventional",&Info::GetConventional)
 		.def("AppendAtoms", &Info::AppendAtoms)
 		.def("PreGenerate", &Info::PreGenerate)
 		.def("GetLattice", &Info::GetLattice)
 		.def("GetAtom", &Info::GetAtom)
 		.def("GetPosition", &Info::GetPosition)
+		.def("GetWyckPos", &Info:: GetWyckPos)
+		.def("GetWyckLabel", &Info:: GetWyckLabel)
 		.def("SetLatticeMins", &Info::SetLatticeMins)
 		.def("SetLatticeMaxes", &Info::SetLatticeMaxes)
 		;

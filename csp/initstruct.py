@@ -177,28 +177,89 @@ class VarGenerator(BaseGenerator):
                     continue
         return buildPop
 
+def equivalent_sites_rots(spg, scaled_positions, symprec=1e-3):
+    """Returns equivalent sites and the relative rotations.
+
+        Parameters:
+
+        spg: init | ASE's Spacegroup
+            spacegroup
+
+        scaled_positions: list | array
+            One non-equivalent site given in unit cell coordinates.
+
+        symprec: float
+            Minimum "distance" betweed two sites in scaled coordinates
+            before they are counted as the same site.
+
+        Returns:
+
+        sites: array
+            A NumPy array of equivalent sites.
+        rots: list
+            A list containing possible rotations for all equilvalent sites.
+    """
+
+    if isinstance(spg, int):
+        spgObj = Spacegroup(spg)
+    else:
+        spgObj = spg
+
+    assert isinstance(spgObj, Spacegroup)
+
+    pos = np.array(scaled_positions)
+
+    sites = []
+    rotsArr = []
+
+    for rot, trans in spgObj.get_symop():
+        site = np.mod(np.dot(rot, pos) + trans, 1.)
+        if not sites:
+            sites.append(site)
+            rots = [rot]
+            rotsArr.append(rots)
+            continue
+        t = site - sites
+        mask = np.all((abs(t) < symprec) | (abs(abs(t) - 1.0) < symprec), axis=1)
+        if np.any(mask):
+            inds = np.argwhere(mask).flatten()
+            for ind in inds:
+                rotsArr[ind].append(rot)
+        else:
+            sites.append(site)
+            rots = [rot]
+            rotsArr.append(rots)
+
+    return np.array(sites), rotsArr
+
+
+
 
 def generate_centers_cell(formula, spg, radius, minVol, maxVol):
     assert len(formula) == len(radius)
+    print(formula, spg, radius, minVol, maxVol)
     numType = len(formula)
     generator = GenerateNew.Info()
     generator.spg = spg
-    generator.spgnumber = 10
+    generator.spgnumber = 1
     if minVol:
         generator.minVolume = minVol
     if maxVol:
         generator.maxVolume = maxVol
         maxLen = maxVol**(1./3)
         generator.SetLatticeMaxes(maxLen, maxLen, maxLen, 120, 120 ,120)
-    generator.maxAttempts = 50
+    generator.maxAttempts = 500
     generator.threshold=1
     generator.method=2
     generator.forceMostGeneralWyckPos=False
     minLen = 2*max(radius)
     generator.SetLatticeMins(minLen, minLen, minLen, 60, 60, 60)
+    generator.GetConventional = True
     numbers = []
     for i in range(numType):
-        generator.AppendAtoms(formula[i], str(i), radius[i], False)
+        # logging.debug(str(i))
+        # generator.AppendAtoms(formula[i], str(i), radius[i], False)
+        generator.AppendAtoms(formula[i], "{}".format(i), radius[i], False)
         numbers.extend([i]*formula[i])
 
     label = generator.PreGenerate()
@@ -207,9 +268,16 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
         cell = np.reshape(cell, (3,3))
         positions = generator.GetPosition(0)
         positions = np.reshape(positions, (-1, 3))
-        return label, cell, numbers, positions
+        wyckPos = generator.GetWyckPos(0)
+        wyckPos = np.reshape(wyckPos, (-1,3))
+        # logging.debug(wycks)
+        wyckName = generator.GetWyckLabel(0)
+        # logging.debug(wyckName)
+        wyckNum = [int(n) for n in wyckName]
+        # wyckPos = [i for i in wycks if isinstance(i, float)]
+        return label, cell, numbers, positions, wyckNum, wyckPos
     else:
-        return label, None, None, None
+        return label, None, None, None, None, None
 
 def mol_radius_and_rltPos(atoms):
     pos = atoms.get_positions()
@@ -222,12 +290,12 @@ def mol_radius_and_rltPos(atoms):
 def generate_one_mol_crystal(molFormula, spg, radius, rltPosList, molNumList, minVol=None, maxVol=None, fixCell = False, setCellPar = None,):
     assert len(radius) == len(molFormula) == len(rltPosList) == len(molNumList)
     # numType = len(molFormula)
-    label, cell, molIndices, centers = generate_centers_cell(molFormula, spg, radius, minVol, maxVol)
+    label, cell, molIndices, centers, wyckNum, wyckPos = generate_centers_cell(molFormula, spg, radius, minVol, maxVol)
     if fixCell:
         cell = cellpar_to_cell(setCellPar)
-    spgOb = Spacegroup(spg)
-    rotations = spgOb.get_rotations()
-    rotations = [r for r in rotations if (np.dot(r, r.T)==np.eye(3)).all()]
+    # spgOb = Spacegroup(spg)
+    # rotations = spgOb.get_rotations()
+    # rotations = [r for r in rotations if (np.dot(r, r.T)==np.eye(3)).all()]
     #logging.debug(radius)
     #logging.debug("{}\t{}\t{}".format(spg, minVol, maxVol))
     # print(pdist(np.dot(centers, cell)))
@@ -236,25 +304,36 @@ def generate_one_mol_crystal(molFormula, spg, radius, rltPosList, molNumList, mi
         # print(tmpAts.get_all_distances(mic=True))
         numList = []
         posList = []
-        randMat = rand_rotMat()
-        for i, molInd in enumerate(molIndices):
-            numList.append(molNumList[molInd])
-            molPos = np.dot(centers[i], cell) + np.dot(rltPosList[molInd], np.dot(randMat, random.choice(rotations)))
-            # molPos = np.dot(centers[i], cell) + np.dot(rltPosList[molInd], randMat)
-            posList.append(molPos)
+        for i, molInd in enumerate(wyckNum):
+            randMat = rand_rotMat()
+            wyckSite = wyckPos[i]
+            sites, rotsArr = equivalent_sites_rots(spg, wyckSite)
+            for pos, rots in zip(sites, rotsArr):
+                numList.append(molNumList[molInd])
+                molPos = np.dot(pos, cell) + np.dot(rltPosList[molInd], np.dot(randMat, random.choice(rots)))
+                posList.append(molPos)
+
+        # for i, molInd in enumerate(molIndices):
+        #     numList.append(molNumList[molInd])
+        #     molPos = np.dot(centers[i], cell) + np.dot(rltPosList[molInd], np.dot(randMat, random.choice(rotations)))
+        #     # molPos = np.dot(centers[i], cell) + np.dot(rltPosList[molInd], randMat)
+        #     posList.append(molPos)
         pos = np.concatenate(posList, axis=0)
         numbers = np.concatenate(numList, axis=0)
+        argsort = np.argsort(numbers)
+        numbers = numbers[argsort]
+        pos = pos[argsort]
         atoms = Atoms(cell=cell, positions=pos, numbers=numbers, pbc=1)
         return atoms
     else:
         return None
 
-def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, minVol=None, maxVol=None, smallRadius=False, fixCell = False, setCellPar = None,):
+def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, smallRadius=False, fixCell = False, setCellPar = None,):
     assert len(molList) == len(molFormula)
     radius = []
     molNumList = []
     rltPosList = []
-    minVol = 0
+    meanVol = 0
     if smallRadius:
         rCoef = random.uniform(0.5, 1)
     else:
@@ -267,11 +346,11 @@ def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, minVol=No
         radius.append(rCoef*rmol)
         molNumList.append(numbers)
         rltPosList.append(rltPos)
-        vol = 4*rmol**3
-        minVol += vol * molFormula[i]
+        vol = 4*np.pi / 3 * rmol**3
+        meanVol += vol * molFormula[i]
 
-    # minVol = 2*minVol
-    maxVol = 4*minVol
+    minVol = 0.5*meanVol
+    maxVol = 1.5*meanVol
 
     molPop = []
     for _ in range(numStruct):
