@@ -63,6 +63,7 @@ def read_parameters(inputFile):
         'maxRelaxStep': 0.1,
         'optimizer': 'bfgs',
         'goodehull': 0.1,
+        'gp_factor': 1,
     }
 
     for key, val in dParms.items():
@@ -166,6 +167,7 @@ def read_parameters(inputFile):
     p.krigParm['xi'] = 0
     p.krigParm['scale'] = p.scale
     p.krigParm['parent_factor'] = p.parent_factor
+    p.krigParm['gp_factor'] = p.gp_factor
 
     ##############################
     parmList = [

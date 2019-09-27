@@ -143,7 +143,7 @@ for curGen in range(1, p.numGen+1):
         shutil.copytree('inputFold', 'calcFold')
     os.chdir('calcFold')
     if p.calculator == 'gulp':
-        optPop = calc_gulp(p.calcNum, initPop, p.pressure, p.exeCmd, p.inputDir)
+        optPop = calc_gulp(p.calcNum, initPop, p.pressure, p.exeCmd, "{}/inputFold".format(p.workDir))
     elif p.calculator == 'vasp':
         calcs = generate_calcs(p.calcNum, parameters)
         optPop = calc_vasp(calcs, initPop)

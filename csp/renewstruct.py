@@ -360,7 +360,8 @@ class Kriging:
         self.kappaLoop = krigParm['kappaLoop']
         self.update_kappa(curGen, krigParm['kappa'])
         self.scaled_factor = krigParm['scale']
-        self.parent_factor = 0
+        self.parent_factor = krigParm['parent_factor']
+        self.gp_factor = krigParm['gp_factor']
         self.fullEles = parameters['fullEles']
         self.molDetector = parameters['molDetector']
         self.dRatio = parameters['dRatio']
@@ -773,11 +774,11 @@ class Kriging:
         # logging.debug("nearPop length: {}".format(len(nearPop)))
 
         if self.calcType is 'fix':
-            tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['utilVal'] + ind.info['parDom'] * self.parent_factor)
+            tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['utilVal'] * self.gp_factor + ind.info['parDom'] * self.parent_factor)
             # tmpPop = sorted(tmpPop, reverse=False, key=lambda ind: ind.info['utilVal'] + ind.info['parentE'] * self.parent_factor)
         elif self.calcType is 'var':
             tmpPop = convex_hull(self.curPop + tmpPop)
-            tmpPop = sorted(tmpPop[self.curLen:], reverse=False, key=lambda ind: ind.info['ehull'] - self.kappa * ind.info['sigma'] + ind.info['parDom'] * self.parent_factor)
+            tmpPop = sorted(tmpPop[self.curLen:], reverse=False, key=lambda ind: (ind.info['ehull'] - self.kappa * ind.info['sigma'])*self.gp_factor + ind.info['parDom'] * self.parent_factor)
             # tmpPop = sorted(tmpPop[self.curLen:], reverse=False, key=lambda ind: ind.info['ehull'] - self.kappa * ind.info['sigma'] + ind.info['parentE'] * self.parent_factor)
 
         krigLen = int((1-randFrac) * popSize)
