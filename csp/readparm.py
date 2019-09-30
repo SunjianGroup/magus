@@ -39,14 +39,14 @@ def read_parameters(inputFile):
         'exeCmd': "",
         'initSize': parameters['popSize'],
         'jobPrefix':"",
-        'permNum': 4,
         'latDisps': list(range(1,5)),
         'ripRho': [0.5, 1, 1.5, 2],
         'molDetector': 0,
-        'rotNum': 5,
-        'cutNum': 5,
-        'slipNum': 5,
-        'latNum': 5,
+        'permNum': int(parameters['popSize']/5)+1,
+        'rotNum': int(parameters['popSize']/5)+1,
+        'cutNum': int(parameters['popSize']/5)+1,
+        'slipNum': int(parameters['popSize']/5)+1,
+        'latNum': int(parameters['popSize']/5)+1,
         'grids': [[2, 1, 1], [1, 2, 1], [1, 1, 2]],
         'bondRatio': 1.1,
         'bondRange': [0.9, 0.95, 1., 1.05, 1.1, 1.15],
@@ -62,6 +62,8 @@ def read_parameters(inputFile):
         'fastcp2k': False,
         'maxRelaxStep': 0.1,
         'optimizer': 'bfgs',
+        'goodehull': 0.1,
+        'gp_factor': 1,
     }
 
     for key, val in dParms.items():
@@ -155,8 +157,8 @@ def read_parameters(inputFile):
     p.krigParm['rotNum'] = p.rotNum
     p.krigParm['cutNum'] = p.cutNum
     p.krigParm['slipNum'] = p.slipNum
-    p.krigParm['latDisps'] = p.latDisps
     p.krigParm['latNum'] = p.latNum
+    p.krigParm['latDisps'] = p.latDisps
     p.krigParm['ripRho'] = p.ripRho
     p.krigParm['grids'] = p.grids
     p.krigParm['kind'] = 'lcb'
@@ -165,6 +167,7 @@ def read_parameters(inputFile):
     p.krigParm['xi'] = 0
     p.krigParm['scale'] = p.scale
     p.krigParm['parent_factor'] = p.parent_factor
+    p.krigParm['gp_factor'] = p.gp_factor
 
     ##############################
     parmList = [

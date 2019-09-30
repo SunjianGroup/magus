@@ -62,12 +62,19 @@ void Padd(double a, double b, position* p1, position* p2, position* p)//p=a*p1+b
 position Standford(position* p)
 {
 	position temp = *p;
+
 	temp.x = temp.x - ((int)temp.x);
 	if (temp.x < 0) temp.x += 1;
+	if(fabs(temp.x)<1e-4 || fabs(temp.x-1)<1e-4) temp.x=0;
+
 	temp.y = temp.y - ((int)temp.y);
 	if (temp.y < 0) temp.y += 1;
+	if(fabs(temp.y)<1e-4 || fabs(temp.y-1)<1e-4) temp.y=0;
+
 	temp.z = temp.z - ((int)temp.z);
 	if (temp.z < 0) temp.z += 1;
+	if(fabs(temp.z)<1e-4 || fabs(temp.z-1)<1e-4) temp.z=0;
+
 	return temp;
 };
 

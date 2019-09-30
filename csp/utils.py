@@ -321,12 +321,12 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
             continue
 
         if calcType == 'var':
-            if minAt <= len(ind) <= maxAt or len(selfSym) < len(setSym):
-                formula = [symDic[sym] for sym in setSym]
-                ind.info['formula'] = formula
-                seedPop.append(ind)
-            else:
-                logging.debug("ERROR in checking number of atoms")
+            # if minAt <= len(ind) <= maxAt or len(selfSym) < len(setSym):
+            formula = [symDic[sym] for sym in setSym]
+            ind.info['formula'] = formula
+            seedPop.append(ind)
+            # else:
+            #     logging.debug("ERROR in checking symbols")
 
         elif calcType == 'fix':
             if len(selfSym) == len(setSym):
