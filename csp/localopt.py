@@ -624,8 +624,10 @@ def calc_cp2k_once_params(
     calc = CP2K(**param)
     atoms.set_calculator(calc)
 
-    ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    #ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
+    try:
+        ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
+    except:
+        ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
     if optimizer == 'cg':
         gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
     elif optimizer == 'bfgs':
@@ -743,8 +745,10 @@ def calc_xtb_once(
 
     atoms.set_calculator(calc)
 
-    ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    # ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
+    try:
+        ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
+    except:
+        ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
     if optimizer == 'cg':
         gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
     elif optimizer == 'bfgs':
