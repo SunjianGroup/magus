@@ -70,7 +70,7 @@ class PotKriging:
         self.y_max = None
         self.labels, self.goodPop = clustering(self.curPop, self.saveGood)
         if self.addSym:
-            self.goodPop = standardize_pop(self.goodPop, 1.)
+            self.goodPop = standardize_pop(self.goodPop, 0.1)
 
 
     def get_nextPop(self):
@@ -346,9 +346,9 @@ class Kriging:
         self.minAt = parameters['minAt']
         self.maxAt = parameters['maxAt']
         self.randFrac = krigParm['randFrac']
-        self.permNum = krigParm['permNum']
         self.latDisps = krigParm['latDisps']
         self.ripRho = krigParm['ripRho']
+        self.permNum = krigParm['permNum']
         self.rotNum = krigParm['rotNum']
         self.cutNum = krigParm['cutNum']
         self.slipNum = krigParm['slipNum']
@@ -374,6 +374,10 @@ class Kriging:
             self.inputMols = [Atoms(**molInfo) for molInfo in parameters['molList']]
         # local
         self.curPop = calc_dominators(curPop)
+        if self.addSym:
+            logging.debug("Add symmetry")
+            self.curPop = standardize_pop(self.curPop, 0.1)
+        self.y_max = None
         if self.fullEles:
             self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
         if self.molDetector > 0:
@@ -390,7 +394,6 @@ class Kriging:
         self.nextPop = list()
         self.gp = None
         self.util = None
-        self.y_max = None
         self.labels, self.goodPop = clustering(self.curPop, self.saveGood)
         logging.debug("labels: {}".format(self.labels))
         self.clusters = []
@@ -398,8 +401,8 @@ class Kriging:
             self.clusters.append([ind for n, ind in enumerate(self.curPop) if self.labels[n] == i])
 
 
-        if self.addSym:
-            self.goodPop = standardize_pop(self.goodPop, 0.1)
+        # if self.addSym:
+        #     self.goodPop = standardize_pop(self.goodPop, 0.1)
 
 
 
@@ -415,8 +418,7 @@ class Kriging:
             self.kappa = kappa *(1 - remainder/(kappaLoop - 1))
 
     def heredity(self, cutNum=5, mode='atom'):
-        #curPop = standardize_pop(self.curPop, 1.)
-        curPop = self.curPop
+        # curPop = self.curPop
         symbols = self.symbols
         grids = self.grids
         labels, goodPop = self.labels, self.goodPop
@@ -1711,7 +1713,7 @@ def standardize_atoms(atoms, symprec=1e-5):
     spgCell = spglib.standardize_cell(atoms, symprec=symprec)
     if spgCell:
         lattice, pos, numbers = spgCell
-        stdAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers)
+        stdAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
         stdAts.info = atoms.info.copy()
     else:
         stdAts = Atoms(atoms)
