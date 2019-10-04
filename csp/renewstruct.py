@@ -528,9 +528,9 @@ class Kriging:
                     permMolC = mol_exchage(parMolC)
                     permInd = permMolC.to_atoms()
 
-                # permInd = merge_atoms(permInd, self.dRatio)
-                # toFrml = [int(i) for i in parInd.info['formula']]
-                # permInd = repair_atoms(permInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                permInd = merge_atoms(permInd, self.dRatio)
+                toFrml = [int(i) for i in parInd.info['formula']]
+                permInd = repair_atoms(permInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 permInd.info['symbols'] = self.symbols
                 permInd.info['formula'] = parInd.info['formula']
@@ -588,8 +588,9 @@ class Kriging:
                     slipMolC = mol_slip(parMolC)
                     slipInd = slipMolC.to_atoms()
 
-                # slipInd = merge_atoms(slipInd, self.dRatio)
-                # slipInd = repair_atoms(slipInd, self.symbols, parInd.info['formula'], parInd.info['numOfFormula'])
+                slipInd = merge_atoms(slipInd, self.dRatio)
+                toFrml = [int(i) for i in parInd.info['formula']]
+                slipInd = repair_atoms(slipInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 slipInd.info['symbols'] = self.symbols
                 slipInd.info['formula'] = parInd.info['formula']
@@ -612,9 +613,9 @@ class Kriging:
                 if mode == 'atom':
                     ripInd = ripple(parInd, rho=rho)
 
-                # ripInd = merge_atoms(ripInd, self.dRatio)
-                # toFrml = [int(i) for i in parInd.info['formula']]
-                # ripInd = repair_atoms(ripInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                ripInd = merge_atoms(ripInd, self.dRatio)
+                toFrml = [int(i) for i in parInd.info['formula']]
+                ripInd = repair_atoms(ripInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 ripInd.info['symbols'] = self.symbols
                 ripInd.info['formula'] = parInd.info['formula']
@@ -644,9 +645,9 @@ class Kriging:
                 rotMolC = mol_rotation(parMolC)
                 rotInd = rotMolC.to_atoms()
 
-                # rotInd = merge_atoms(rotInd, self.dRatio)
-                # toFrml = [int(i) for i in parInd.info['formula']]
-                # rotInd = repair_atoms(rotInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                rotInd = merge_atoms(rotInd, self.dRatio)
+                toFrml = [int(i) for i in parInd.info['formula']]
+                rotInd = repair_atoms(rotInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 rotInd.info['symbols'] = self.symbols
                 rotInd.info['formula'] = parInd.info['formula']
