@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import time
 
 class JobManager:
     def __init__(self):
@@ -35,3 +36,7 @@ class JobManager:
                 job['state'] = 'ERROR'
                 return False
         return True
+
+    def WaitJobsDone(self,waitTime):
+        while not self.checkjobs():
+            time.sleep(waitTime)

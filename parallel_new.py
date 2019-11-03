@@ -20,9 +20,7 @@ from .utils import EmptyClass, calc_volRatio
 import copy
 from queue import JobManager
 
-def WaitJobsDone(bjobs,waitTime):
-    while not bjobs.checkjobs():
-        time.sleep(waitTime)
+
 
 class Magus:
     def __init__(self,parameters):
@@ -41,7 +39,7 @@ class Magus:
         shutil.copy("allParameters.yaml", "results/allParameters.yaml")
 
         logging.info("===== Initializition =====")
-        initPop = self.Generator.Generate_pop(p.initSize)
+        initPop = self.Generator.Generate_pop(self.parameters.initSize)
         logging.info("initPop length: {}".format(len(initPop)))
 
         #initPop.extend(read_seeds(parameters))
@@ -51,11 +49,24 @@ class Magus:
             os.mkdir('calcFold')
         os.chdir('calcFold')
 
-        self.MainCalculator(p.calcNum, initPop, parameters, self.bjobs)
-        WaitJobsDone(self.bjobs,waitTime)
+        self.MainCalculator(self.parameters.calcNum, initPop, parameters, self.bjobs)
+        self.bjobs.WaitJobsDone(self.parameters.waitTime)
         os.chdir(p.workDir)
+        self.ML.updatedatabase(initPop)
+        self.ML.train()
 
     def Onestep(self):
+        self.GetNewPopulation()
+        for _ in range(10):
+            self.ML.Relax()
+            self.MainCalculator(p.calcNum, initPop, parameters, self.bjobs)
+            if self.ML.getloss(initPop)>0.2:
+                self.ML.updatedatabase(initPop)
+                self.ML.retrain()
+            else:
+                break
+        
+
         
 
 parameters=getparameters
