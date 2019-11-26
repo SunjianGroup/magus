@@ -100,10 +100,10 @@ class BaseGenerator:
 
         # Allow P1 structure
         if popSize > len(buildPop):
-            for i in range(popSize - len(buildPop)):
+            for _ in range(popSize - len(buildPop)):
                 nfm = np.random.choice(self.numFrml)
                 spg = np.random.choice(self.spgs)
-                numlist=self.formula[i]*nfm
+                numlist=self.formula*nfm
                 label,ind = self.Generate_ind(spg,numlist,nfm)
                 if label > 0:
                     self.afterprocessing(ind,nfm)
