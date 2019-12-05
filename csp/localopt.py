@@ -435,7 +435,7 @@ def calc_mopac_once(
     enthalpy = energy + pressure * volume * GPa
     enthalpy = enthalpy/len(struct)
 
-    struct.info['enthalpy'] = round(enthalpy, 5)
+    struct.info['enthalpy'] = round(enthalpy, 3)
 
     # save energy, forces, stress for trainning potential
     struct.info['energy'] = energy
