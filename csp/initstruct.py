@@ -47,10 +47,10 @@ class BaseGenerator:
         generator.UselocalCellTrans = 'y'
         generator.forceMostGeneralWyckPos=False
 
-        # generator.minVolume = self.minVolume*nfm
-        # generator.maxVolume = self.maxVolume*nfm
-        # generator.SetLatticeMins(self.minLen[0], self.minLen[1], self.minLen[2], 60, 60, 60)
-        # generator.SetLatticeMaxes(self.maxLen[0], self.maxLen[1], self.maxLen[2], 120, 120 ,120)
+        generator.minVolume = self.minVolume*nfm
+        generator.maxVolume = self.maxVolume*nfm
+        generator.SetLatticeMins(self.minLen[0], self.minLen[1], self.minLen[2], 60, 60, 60)
+        generator.SetLatticeMaxes(self.maxLen[0], self.maxLen[1], self.maxLen[2], 120, 120 ,120)
         numbers=[]
         for i in range(numType):
             generator.AppendAtoms(int(numlist[i]), str(i), self.radius[i], False)
