@@ -250,7 +250,7 @@ mutateFrac: 0.4
 
 以 **TiO**$_2$结构搜索为例：
 
-- 运行`csp-prepare`, 产生`BuildStruct`, `fpFold`, `inputFold`三个目录以及`summary.py`
+- 运行`csp-prepare`, 产生 `fpFold`, `inputFold`目录以及`summary.py`
 
 - 准备输入文件`input.yaml`（如上所示）和`INCAR_*`(1-5), 把`INCAR_*`放入`inputFold`/
 
