@@ -528,9 +528,9 @@ class Kriging:
                     permMolC = mol_exchage(parMolC)
                     permInd = permMolC.to_atoms()
 
-                permInd = merge_atoms(permInd, self.dRatio)
-                toFrml = [int(i) for i in parInd.info['formula']]
-                permInd = repair_atoms(permInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                # permInd = merge_atoms(permInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # permInd = repair_atoms(permInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 permInd.info['symbols'] = self.symbols
                 permInd.info['formula'] = parInd.info['formula']
@@ -588,9 +588,9 @@ class Kriging:
                     slipMolC = mol_slip(parMolC)
                     slipInd = slipMolC.to_atoms()
 
-                slipInd = merge_atoms(slipInd, self.dRatio)
-                toFrml = [int(i) for i in parInd.info['formula']]
-                slipInd = repair_atoms(slipInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                # slipInd = merge_atoms(slipInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # slipInd = repair_atoms(slipInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 slipInd.info['symbols'] = self.symbols
                 slipInd.info['formula'] = parInd.info['formula']
@@ -613,9 +613,9 @@ class Kriging:
                 if mode == 'atom':
                     ripInd = ripple(parInd, rho=rho)
 
-                ripInd = merge_atoms(ripInd, self.dRatio)
-                toFrml = [int(i) for i in parInd.info['formula']]
-                ripInd = repair_atoms(ripInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                # ripInd = merge_atoms(ripInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # ripInd = repair_atoms(ripInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 ripInd.info['symbols'] = self.symbols
                 ripInd.info['formula'] = parInd.info['formula']
@@ -736,7 +736,7 @@ class Kriging:
             tmpPop = hrdPop + rotPop + permPop + latPop + slipPop
             self.tmpPop.extend(tmpPop)
         else:
-            raise RuntimeError('molDetector should be 0 or 1!')
+            raise RuntimeError('molDetector should be 0 or 1 or 2!')
 
     def add(self, pop):
         self.tmpPop.extend(pop)
@@ -1443,6 +1443,7 @@ def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, co
     if mode == 'ase':
         comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
 
+    rmIndices = []
     for pair in toCompare:
         s0 = Pop[pair[0]]
         s1 = Pop[pair[1]]
@@ -1497,12 +1498,14 @@ def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, co
 
         if duplicate:
             if compareE:
-                cmpInd = Pop[pair[0]] if pairE[0] > pairE[1] else Pop[pair[1]]
+                rmInd = pair[0] if pairE[0] > pairE[1] else pair[1]
             else:
-                cmpInd = Pop[pair[0]]
-            if cmpInd in cmpPop:
-                cmpPop.remove(cmpInd)
+                rmInd = pair[0]
+            rmIndices.append(rmInd)
+            # if cmpInd in cmpPop:
+            #     cmpPop.remove(cmpInd)
                 # logging.info("remove duplicate")
+    cmpPop = [ind for i, ind in enumerate(cmpPop) if i not in rmIndices]
 
     return cmpPop
 

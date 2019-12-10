@@ -88,7 +88,7 @@ def csp_loop(curStat, parameters):
         logging.info('calc_fitness finish')
 
         optLen = len(optPop)
-        optPop = allPop[:optLen]
+        # optPop = allPop[:optLen]
 
         for ind in optPop:
             # logging.info("formula: {}".format(ind.get_chemical_formula()))

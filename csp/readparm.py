@@ -64,6 +64,7 @@ def read_parameters(inputFile):
         'optimizer': 'bfgs',
         'goodehull': 0.1,
         'gp_factor': 1,
+        'updateVol': True,
     }
 
     for key, val in dParms.items():

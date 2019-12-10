@@ -52,6 +52,7 @@ for curGen in range(1, p.numGen+1):
 
         if p.calcType == 'fix':
             g=BaseGenerator(p)
+            # logging.debug("generator: {}".format(g.meanVolume))
             initPop=g.Generate_pop(p.initSize)
         elif p.calcType == 'var':
             logging.info('calc var')
@@ -71,8 +72,9 @@ for curGen in range(1, p.numGen+1):
         bboPop = del_duplicate(optPop + keepPop)
 
         # renew volRatio
-        volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
-        p.volRatio = 0.5*(volRatio + p.volRatio)
+        if p.updateVol:
+            volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
+            p.volRatio = 0.5*(volRatio + p.volRatio)
         logging.debug("p.volRatio: {}".format(p.volRatio))
 
         if p.setAlgo == 'bayes':
@@ -193,6 +195,7 @@ for curGen in range(1, p.numGen+1):
 
     allPop = calc_fitness(allPop, parameters)
     logging.info('calc_fitness finish')
+    #write_results(allPop, curGen, 'all')
 
     optLen = len(optPop)
     # paretoLen = len(paretoPop)
