@@ -50,6 +50,7 @@ def read_parameters(inputFile):
         'grids': [[2, 1, 1], [1, 2, 1], [1, 1, 2]],
         'bondRatio': 1.1,
         'bondRange': [0.9, 0.95, 1., 1.05, 1.1, 1.15],
+        'waitTime': 60,
         'maxRelaxTime': 1200,
         'xrdFile': None,
         'xrdLamb': 0.6,
