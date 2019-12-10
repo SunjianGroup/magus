@@ -71,16 +71,16 @@ def csp_loop(curStat, parameters):
 
         # Initialize paretoPop, goodPop
         if curGen > 1:
-            paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
+            # paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
             goodPop = ase.io.read("{}/results/good.traj".format(p.workDir), format='traj', index=':')
             keepPop = ase.io.read("{}/results/keep{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
         else:
-            paretoPop = list()
+            # paretoPop = list()
             goodPop = list()
             keepPop = list()
 
         #Convex Hull
-        allPop = optPop + paretoPop + goodPop
+        allPop = optPop + goodPop + keepPop
         if p.calcType == 'var':
             allPop = convex_hull(allPop)
 
@@ -88,10 +88,7 @@ def csp_loop(curStat, parameters):
         logging.info('calc_fitness finish')
 
         optLen = len(optPop)
-        paretoLen = len(paretoPop)
-        optPop = allPop[:optLen]
-        paretoPop = allPop[optLen:optLen+paretoLen]
-        goodPop = allPop[optLen+paretoLen:]
+        # optPop = allPop[:optLen]
 
         for ind in optPop:
             # logging.info("formula: {}".format(ind.get_chemical_formula()))

@@ -52,6 +52,7 @@ for curGen in range(1, p.numGen+1):
 
         if p.calcType == 'fix':
             g=BaseGenerator(p)
+            # logging.debug("generator: {}".format(g.meanVolume))
             initPop=g.Generate_pop(p.initSize)
         elif p.calcType == 'var':
             logging.info('calc var')
@@ -71,8 +72,9 @@ for curGen in range(1, p.numGen+1):
         bboPop = del_duplicate(optPop + keepPop)
 
         # renew volRatio
-        volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
-        p.volRatio = 0.5*(volRatio + p.volRatio)
+        if p.updateVol:
+            volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
+            p.volRatio = 0.5*(volRatio + p.volRatio)
         logging.debug("p.volRatio: {}".format(p.volRatio))
 
         if p.setAlgo == 'bayes':
@@ -80,10 +82,11 @@ for curGen in range(1, p.numGen+1):
 
             mainAlgo.generate()
             mainAlgo.fit_gp()
-            if p.calculator in ['vasp', 'cp2k', 'xtb']:
-                mainAlgo.select()
-            elif p.calculator in ['gulp', 'mopac']:
-                mainAlgo.select(enFilter=False)
+            mainAlgo.select()
+           # if p.calculator in ['vasp', 'cp2k', 'xtb']:
+           #     mainAlgo.select()
+           # elif p.calculator in ['gulp', 'mopac']:
+           #     mainAlgo.select(enFilter=False)
             initPop = mainAlgo.get_nextPop()
 
         elif p.setAlgo == 'mlpot':
@@ -176,25 +179,29 @@ for curGen in range(1, p.numGen+1):
 
     # Initialize paretoPop, goodPop
     if curGen > 1:
-        paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
+        # paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
         goodPop = ase.io.read("{}/results/good.traj".format(p.workDir), format='traj', index=':')
+        keepPop = ase.io.read("{}/results/keep{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
     else:
-        paretoPop = list()
+        # paretoPop = list()
         goodPop = list()
+        keepPop = list()
 
     #Convex Hull
-    allPop = optPop + paretoPop + goodPop
+    allPop = optPop + goodPop + keepPop
+    # allPop = optPop + paretoPop + goodPop
     if p.calcType == 'var':
         allPop = convex_hull(allPop)
 
     allPop = calc_fitness(allPop, parameters)
     logging.info('calc_fitness finish')
+    #write_results(allPop, curGen, 'all')
 
     optLen = len(optPop)
-    paretoLen = len(paretoPop)
+    # paretoLen = len(paretoPop)
     optPop = allPop[:optLen]
-    paretoPop = allPop[optLen:optLen+paretoLen]
-    goodPop = allPop[optLen+paretoLen:]
+    # paretoPop = allPop[optLen:optLen+paretoLen]
+    # goodPop = allPop[optLen:]
     for ind in optPop:
         # logging.debug("formula: {}".format(ind.get_chemical_formula()))
         logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format( strFrml=ind.get_chemical_formula(), **ind.info))

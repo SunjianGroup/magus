@@ -25,7 +25,7 @@ if  __name__ == "__main__":
         calc.set(setups=vaspSetup)
         calc.set(pstress=pressure*10)
         calcs.append(calc)
-    initPop = ase.io.read(inputTraj, format='traj', index=':',)
+    initPop = ase.io.read(inputTraj, format='traj', index=':')
     optPop = calc_vasp(calcs, initPop, )
     write_traj(outTraj, optPop)
     with open('DONE', 'w') as f:

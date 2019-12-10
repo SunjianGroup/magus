@@ -100,7 +100,7 @@ class BaseGenerator:
 
         # Allow P1 structure
         if popSize > len(buildPop):
-            for _ in range(popSize - len(buildPop)):
+            for i in range(popSize - len(buildPop)):
                 nfm = np.random.choice(self.numFrml)
                 spg = np.random.choice(self.spgs)
                 numlist=self.formula*nfm

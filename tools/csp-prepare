@@ -1,5 +1,4 @@
 #!/bin/bash
-mkdir BuildStruct
 mkdir fpFold
 mkdir inputFold
 mkdir Seeds

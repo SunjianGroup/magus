@@ -589,7 +589,8 @@ class Kriging:
                     slipInd = slipMolC.to_atoms()
 
                 # slipInd = merge_atoms(slipInd, self.dRatio)
-                # slipInd = repair_atoms(slipInd, self.symbols, parInd.info['formula'], parInd.info['numOfFormula'])
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # slipInd = repair_atoms(slipInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 slipInd.info['symbols'] = self.symbols
                 slipInd.info['formula'] = parInd.info['formula']
@@ -644,9 +645,9 @@ class Kriging:
                 rotMolC = mol_rotation(parMolC)
                 rotInd = rotMolC.to_atoms()
 
-                # rotInd = merge_atoms(rotInd, self.dRatio)
-                # toFrml = [int(i) for i in parInd.info['formula']]
-                # rotInd = repair_atoms(rotInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                rotInd = merge_atoms(rotInd, self.dRatio)
+                toFrml = [int(i) for i in parInd.info['formula']]
+                rotInd = repair_atoms(rotInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 rotInd.info['symbols'] = self.symbols
                 rotInd.info['formula'] = parInd.info['formula']
@@ -735,7 +736,7 @@ class Kriging:
             tmpPop = hrdPop + rotPop + permPop + latPop + slipPop
             self.tmpPop.extend(tmpPop)
         else:
-            raise RuntimeError('molDetector should be 0 or 1!')
+            raise RuntimeError('molDetector should be 0 or 1 or 2!')
 
     def add(self, pop):
         self.tmpPop.extend(pop)
@@ -1442,6 +1443,7 @@ def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, co
     if mode == 'ase':
         comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
 
+    rmIndices = []
     for pair in toCompare:
         s0 = Pop[pair[0]]
         s1 = Pop[pair[1]]
@@ -1496,12 +1498,14 @@ def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, co
 
         if duplicate:
             if compareE:
-                cmpInd = Pop[pair[0]] if pairE[0] > pairE[1] else Pop[pair[1]]
+                rmInd = pair[0] if pairE[0] > pairE[1] else pair[1]
             else:
-                cmpInd = Pop[pair[0]]
-            if cmpInd in cmpPop:
-                cmpPop.remove(cmpInd)
+                rmInd = pair[0]
+            rmIndices.append(rmInd)
+            # if cmpInd in cmpPop:
+            #     cmpPop.remove(cmpInd)
                 # logging.info("remove duplicate")
+    cmpPop = [ind for i, ind in enumerate(cmpPop) if i not in rmIndices]
 
     return cmpPop
 

@@ -169,8 +169,12 @@ def calc_vasp_parallel(calcNum, calcPop, parameters, prefix='calcVasp'):
 
         tmpPop = [calcPop[j] for j in runArray[i]]
         write_traj('initPop.traj', tmpPop)
-        for j in range(1, calcNum + 1):
-            shutil.copy("{}/inputFold/INCAR_{}".format(workDir, j), 'INCAR_{}'.format(j))
+        for f in os.listdir("{}/inputFold".format(workDir)):
+            filepath = "{}/inputFold/{}".format(workDir, f)
+            if os.path.isfile(filepath):
+                shutil.copy(filepath, f)
+        # for j in range(1, calcNum + 1):
+        #     shutil.copy("{}/inputFold/INCAR_{}".format(workDir, j), 'INCAR_{}'.format(j))
         # shutil.copy("../run_vasp.py", "run_vasp.py")
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(vaspSetup))
@@ -248,8 +252,13 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         os.remove('output')
 
     try:
-        subprocess.call("cp {}/* .".format(inputDir), shell=True)
-        subprocess.call("cat goptions_{} > input".format(calcStep), shell=True)
+        # subprocess.call("cp {}/* .".format(inputDir), shell=True)
+        # subprocess.call("cat goptions_{} > input".format(calcStep), shell=True)
+        for f in os.listdir("{}".format(inputDir)):
+            filepath = "{}/{}".format(inputDir, f)
+            if os.path.isfile(filepath):
+                shutil.copy(filepath, f)
+        shutil.copy("goptions_{}".format(calcStep), "input")
 
 
         with open('input', 'a') as gulpIn:
@@ -318,6 +327,14 @@ def calc_gulp_parallel(calcNum, calcPop, parameters,):
     exeCmd = parameters['exeCmd']
     inputDir = "{}/inputFold".format(parameters['workDir'])
     jobPrefix = parameters['jobPrefix']
+    maxRelaxTime = parameters['maxRelaxTime']
+
+    calcDic = {
+        'calcNum': calcNum,
+        'pressure': pressure,
+        'exeCmd': exeCmd,
+        'inputDir': inputDir,
+    }
 
     popLen = len(calcPop)
     eachLen = popLen//numParallel
@@ -330,16 +347,16 @@ def calc_gulp_parallel(calcNum, calcPop, parameters,):
             tmpList.append(numParallel*eachLen + i)
         runArray.append(tmpList)
 
-    runGulp = open('run_gulp.py', 'w')
-    runGulp.write("from __future__ import print_function\n")
-    runGulp.write("import sys\nsys.path.append('%s')\n" %(workDir))
-    runGulp.write("import ase.io" %(workDir))
-    runGulp.write("from csp.localopt import calc_gulp\n")
-    runGulp.write("from csp.writeresults import write_traj, write_yaml, read_yaml\n")
-    runGulp.write("initPop = ase.io.read('initPop.traj', format='traj', index=':',)\n")
-    runGulp.write("optPop = calc_gulp({}, initPop, {}, {!r}, {!r})\n".format(calcNum, pressure, exeCmd, inputDir))
-    runGulp.write("write_traj('optPop.traj', optPop)")
-    runGulp.close()
+    # runGulp = open('run_gulp.py', 'w')
+    # runGulp.write("from __future__ import print_function\n")
+    # runGulp.write("import sys\nsys.path.append('%s')\n" %(workDir))
+    # runGulp.write("import ase.io")
+    # runGulp.write("from csp.localopt import calc_gulp\n")
+    # runGulp.write("from csp.writeresults import write_traj, write_yaml, read_yaml\n")
+    # runGulp.write("initPop = ase.io.read('initPop.traj', format='traj', index=':',)\n")
+    # runGulp.write("optPop = calc_gulp({}, initPop, {}, {!r}, {!r})\n".format(calcNum, pressure, exeCmd, inputDir))
+    # runGulp.write("write_traj('optPop.traj', optPop)")
+    # runGulp.close()
 
 
     runJobs = []
@@ -351,7 +368,10 @@ def calc_gulp_parallel(calcNum, calcPop, parameters,):
         tmpPop = [calcPop[j] for j in runArray[i]]
 #        logging.info("runArray[i]: %s"% (runArray[i]))
         write_traj('initPop.traj', tmpPop)
-        shutil.copy("../run_gulp.py", "run_gulp.py")
+        # shutil.copy("../run_gulp.py", "run_gulp.py")
+        with open('gulpSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+
 
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
@@ -360,7 +380,7 @@ def calc_gulp_parallel(calcNum, calcPop, parameters,):
                 "#BSUB -e err\n"
                 "#BSUB -J Gulp_%s\n"% (queueName, numCore ,i))
         f.write("{}\n".format(jobPrefix))
-        f.write("python run_gulp.py > gulplog")
+        f.write("python -m csp.rungulp gulpSetup.yaml")
         f.close()
 
         jobID = subprocess.check_output("bsub < parallel.sh", shell=True).split()[1]

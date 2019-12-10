@@ -180,33 +180,30 @@ for curGen in range(1, p.numGen+1):
 
     # Initialize paretoPop, goodPop
     if curGen > 1:
-        logging.info("reading paretoPop and goodPop")
-        paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
+        # paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
         goodPop = ase.io.read("{}/results/good.traj".format(p.workDir), format='traj', index=':')
+        keepPop = ase.io.read("{}/results/keep{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
     else:
-        logging.info("creating empty paretoPop and goodPop")
-        paretoPop = list()
+        # paretoPop = list()
         goodPop = list()
+        keepPop = list()
+
 
     #Convex Hull
-    logging.debug("allPop")
-    # if curGen == 2:
-    #     del allPop
-    #     pdb.set_trace()
-    allPop = optPop + paretoPop + goodPop
-    logging.debug("p.calcType: {}".format(p.calcType))
+    allPop = optPop + goodPop + keepPop
+    # allPop = optPop + paretoPop + goodPop
     if p.calcType == 'var':
         allPop = convex_hull(allPop)
 
-    logging.info("calc_fitness")
     allPop = calc_fitness(allPop, parameters)
     logging.info('calc_fitness finish')
 
     optLen = len(optPop)
-    paretoLen = len(paretoPop)
+    # paretoLen = len(paretoPop)
     optPop = allPop[:optLen]
-    paretoPop = allPop[optLen:optLen+paretoLen]
-    goodPop = allPop[optLen+paretoLen:]
+    # paretoPop = allPop[optLen:optLen+paretoLen]
+    # goodPop = allPop[optLen:]
+
     for ind in optPop:
         # logging.debug("formula: {}".format(ind.get_chemical_formula()))
         logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format( strFrml=ind.get_chemical_formula(), **ind.info))
