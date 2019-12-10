@@ -17,7 +17,7 @@ saveStd = 0
 pd.options.display.max_rows = 200
 
 filename = sys.argv[1]
-symprec = 0.9
+symprec = 0.5
 # images = read_yaml(filename)
 images = ase.io.read(filename, format='traj', index=':')
 
@@ -37,8 +37,8 @@ showList = [
 #'sigma',
 #'relaxD',
 'fullSym',
-'lengths',
-'angles',
+#'lengths',
+#'angles',
 ]
 allRes = []
 
