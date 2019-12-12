@@ -13,7 +13,7 @@ import ase.io
 from ase import Atom, Atoms
 from ase.data import atomic_numbers, covalent_radii
 from ase.phasediagram import PhaseDiagram
-from ase.neighborlist import NeighborList
+from ase.neighborlist import NeighborList, neighbor_list
 from ase.geometry import cell_to_cellpar, cellpar_to_cell
 from ase.optimize import BFGS, FIRE, BFGSLineSearch, LBFGS, LBFGSLineSearch
 from ase.units import GPa
@@ -26,10 +26,7 @@ from .atomgp import AtomGP
 from .mlpot import MLPot
 from .utils import *
 from .crystgraph import quotient_graph, cycle_sums, graphDim
-try:
-    from ase.utils.structure_comparator import SymmetryEquivalenceCheck
-except:
-    pass
+
 
 class Kriging:
     def __init__(self, curPop, curGen, parameters):
@@ -155,6 +152,7 @@ class Kriging:
                     ind2 = merge_atoms(ind2, self.dRatio)
                 # except:
                 #     continue
+                logging.debug('merge_atoms ends')
 
                 parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
                 parDom = 0.5*(sum([ind.info['sclDom'] for ind in [spInd, goodInd]]))
@@ -200,6 +198,8 @@ class Kriging:
                             ind1 = None
                         if 0 in tFrml2:
                             ind2 = None
+
+                logging.debug('repair_atoms ends')
 
                 pairPop = [ind for ind in [ind1, ind2] if ind is not None]
                 hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
@@ -1121,126 +1121,6 @@ def ripple(parInd, rho=0.3, mu=2, eta=1):
 
 
 
-def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, compareE=True, mode='naive'): #differnce in enthalpy(eV/atom) and volume(%)
-    vol_tol = diffV**(1./3)
-    priList = []
-    for ind in Pop:
-        ind.info['vPerAtom'] = ind.get_volume()/len(ind)
-        priInfo = ind.info['priInfo']
-        if priInfo:
-            lattice, scaled_positions, numbers = priInfo
-            priAts = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=1)
-        else:
-            priAts = ind.copy()
-        priList.append(priAts)
-
-
-    cmpPop = Pop[:]
-
-    toCompare = [(x,y) for x in range(len(Pop)) for y in range(len(Pop)) if x < y]
-    # toCompare = [(x,y) for x in Pop for y in Pop if Pop.index(x) < Pop.index(y)]
-    if mode == 'ase':
-        comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
-
-    rmIndices = []
-    for pair in toCompare:
-        s0 = Pop[pair[0]]
-        s1 = Pop[pair[1]]
-        pri0 = priList[pair[0]]
-        pri1 = priList[pair[1]]
-
-
-        symCt0 = Counter(pri0.numbers)
-        symCt1 = Counter(pri1.numbers)
-        if symCt0 != symCt1 and mode=='naive':
-            continue
-
-        duplicate = True
-
-        # pairV = [Pop[n].info['vPerAtom'] for n in pair]
-        pairV = [pri0.get_volume(), pri1.get_volume()]
-        deltaV = abs(pairV[0] - pairV[1])/min(pairV)
-
-        pairSpg = [Pop[n].info['spg'] for n in pair]
-
-
-        if compareE:
-            pairE = [Pop[n].info['enthalpy'] for n in pair]
-            deltaE = abs(pairE[0] - pairE[1])
-            if mode == 'ase':
-                try:
-                    duplicate = comp.compare(pri0, pri1) and deltaE <= diffE
-                except:
-                    s = sys.exc_info()
-                    logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-                    logging.info("ASE check fails. Use native check")
-                    # ase.io.write('failcomp0.vasp', pri0, vasp5=1, direct=1)
-                    # ase.io.write('failcomp1.vasp', pri1, vasp5=1, direct=1)
-                    duplicate = duplicate and deltaE <= diffE and pairSpg[0] == pairSpg[1]
-            elif mode == 'naive':
-                duplicate = duplicate and deltaV <= diffV and deltaE <= diffE and pairSpg[0] == pairSpg[1]
-        else:
-            if mode == 'ase':
-                try:
-                    duplicate = comp.compare(pri0, pri1)
-                except:
-                    s = sys.exc_info()
-                    logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-                    logging.info("ASE check fails. Use native check")
-                    # ase.io.write('failcomp0.vasp', pri0, vasp5=1, direct=1)
-                    # ase.io.write('failcomp1.vasp', pri1, vasp5=1, direct=1)
-                    duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
-            elif mode == 'naive':
-                duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
-        # logging.debug('pairindex: %s %s, duplicate: %s' % (Pop.index(pair[0]), Pop.index(pair[1]), duplicate))
-        # logging.debug('pairindex: %s, duplicate: %s' % (pair, duplicate))
-
-        if duplicate:
-            if compareE:
-                rmInd = pair[0] if pairE[0] > pairE[1] else pair[1]
-            else:
-                rmInd = pair[0]
-            rmIndices.append(rmInd)
-            # if cmpInd in cmpPop:
-            #     cmpPop.remove(cmpInd)
-                # logging.info("remove duplicate")
-    cmpPop = [ind for i, ind in enumerate(cmpPop) if i not in rmIndices]
-
-    return cmpPop
-
-def compare_fingerprint(fpPop, diffD):
-    """
-    Compare indviduals in inPop based on their fingerprints.
-    """
-    cmpPop = fpPop[:]
-    fpList = [ind.info['fingerprint'] for ind in fpPop]
-    toCompare = [(x,y) for x in range(len(fpPop)) for y in range(len(fpPop)) if x < y]
-
-    for i, j in toCompare:
-        distance = np.linalg.norm(fpList[i] - fpList[j])
-        # logging.debug("Index: %s %s, dist: %s" %(i, j, distance))
-        if distance < diffD:
-            cmpInd = fpPop[i] if fpPop[i].info['enthalpy'] > fpPop[j].info['enthalpy'] else fpPop[j]
-            if cmpInd in cmpPop:
-                cmpPop.remove(cmpInd)
-                logging.debug("remove duplicate")
-
-    return cmpPop
-
-def del_duplicate(Pop, compareE=True, tol = 0.2, diffE = 0.005, diffV = 0.05, diffD = 0.01, report=True, mode='naive'):
-    dupPop = find_spg(Pop, tol)
-    #for ind in Pop:
-     #   logging.info("spg: %s" %ind.info['spg'])
-    # sort the pop by composion, wait for adding
-    # dupPop = compare_fingerprint(Pop, diffD)
-    # logging.info("fingerprint survival: %s" %(len(dupPop)))
-
-    dupPop = compare_volume_energy(dupPop, diffE, diffV, compareE=compareE, mode=mode)
-    if report:
-        logging.info("volume_energy survival: %s" %(len(dupPop)))
-    # logging.debug("dupPop: {}".format(len(dupPop)))
-    return dupPop
-
 def calc_dominators(Pop):
 
     # domPop = Pop[:]
@@ -1295,47 +1175,6 @@ def rou_select(rateList, selectNum=1):
     # return None
     return indices
 
-def check_dist_individual(ind, threshold):
-    """
-    The distance between the atoms should be larger than
-    threshold * sumR(the sum of the covalent radii of the two
-    corresponding atoms).
-    """
-    radius = [covalent_radii[number] for number in ind.get_atomic_numbers()]
-    cellPar = ind.get_cell_lengths_and_angles()
-    vector = cellPar[:3]
-    angles = cellPar[-3:]
-
-    minAng = np.array([45]*3)
-    maxAng = np.array([135]*3)
-
-    maxBond = 2*max(radius)
-    allBonds = 2*sum(radius)
-    minVec = np.array([maxBond]*3)
-    maxVec = np.array([allBonds]*3)
-
-    checkAng = (minAng < angles).all() and (angles < maxAng).all()
-    checkVec = (0.5 * minVec < vector).all()
-
-
-    if checkAng and checkVec:
-        cutoffs = [rad*threshold for rad in radius]
-        nl = NeighborList(cutoffs, skin=0, self_interaction=False, bothways=True)
-        nl.update(ind)
-        nlSum = sum([len(nl.get_neighbors(i)[0]) for i in range(len(ind))])
-        return nlSum == 0
-    else:
-        return False
-
-
-def check_dist(pop, threshold=0.7):
-    checkPop = []
-    for ind in pop:
-    #    ase.io.write('checking.vasp', ind, format='vasp', direct=True, vasp5=True)
-        if check_dist_individual(ind, threshold):
-            checkPop.append(ind)
-
-    return checkPop
 
 def repair_atoms(ind, sybls, toFrml, numFrml=1):
     """

@@ -8,15 +8,15 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from csp.localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jobs_stat, read_parallel_results
-from csp.renewstruct import del_duplicate, Kriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
-from csp.initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build, build_mol_struct
+from csp.renewstruct import  Kriging, BBO, pareto_front, convex_hull,  calc_dominators
+from csp.initstruct import read_seeds, build_mol_struct
 # from .readvasp import *
 from csp.setfitness import calc_fitness
 from csp.writeresults import write_dataset, write_results, write_traj
 from csp.fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from csp.bayes import atoms_util
 from csp.readparm import read_parameters
-from csp.utils import EmptyClass, calc_volRatio, check_mol_pop
+from csp.utils import *
 
 
 def check_jobs(statFile='currentStat.json'):

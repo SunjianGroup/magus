@@ -8,7 +8,7 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k, generate_cp2k_params, calc_cp2k_params, generate_xtb_calcs, calc_xtb
-from .renewstruct import del_duplicate, Kriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
+from .renewstruct import Kriging, BBO, pareto_front, convex_hull, calc_dominators
 from .initstruct import BaseGenerator, read_seeds, VarGenerator
 # from .readvasp import *
 from .setfitness import calc_fitness
@@ -16,7 +16,7 @@ from .writeresults import write_dataset, write_results
 from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from .bayes import atoms_util
 from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio
+from .utils import *
 import copy
 
 parser = argparse.ArgumentParser()
