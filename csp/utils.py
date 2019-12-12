@@ -336,7 +336,7 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
                 selfRd = [x/selfGcd for x in formula]
                 if selfRd == setRd:
                     ind.info['formula'] = setFrml
-                    ind.info['numOfFormula'] = len(ind)/sum(setFrml)
+                    ind.info['numOfFormula'] = int(len(ind)/sum(setFrml))
                     seedPop.append(ind)
                 else:
                     logging.debug("ERROR in checking formula")
