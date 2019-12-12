@@ -8,7 +8,7 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k, generate_cp2k_params, calc_cp2k_params, generate_xtb_calcs, calc_xtb
-from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
+from .renewstruct import del_duplicate, Kriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
 from .initstruct import read_seeds, build_mol_struct
 # from .readvasp import *
 from .setfitness import calc_fitness
@@ -82,13 +82,13 @@ for curGen in range(1, p.numGen+1):
                 mainAlgo.select(enFilter=False)
             initPop = mainAlgo.get_nextPop()
 
-        elif p.setAlgo == 'mlpot':
-            mainAlgo = PotKriging(bboPop, curGen, parameters)
+        # elif p.setAlgo == 'mlpot':
+        #     mainAlgo = PotKriging(bboPop, curGen, parameters)
 
-            mainAlgo.generate()
-            mainAlgo.fit_gp()
-            mainAlgo.select()
-            initPop = mainAlgo.get_nextPop()
+        #     mainAlgo.generate()
+        #     mainAlgo.fit_gp()
+        #     mainAlgo.select()
+        #     initPop = mainAlgo.get_nextPop()
 
 
         elif p.setAlgo == 'bbo':

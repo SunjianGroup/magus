@@ -8,7 +8,7 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from .localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jobs_stat, read_parallel_results
-from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
+from .renewstruct import del_duplicate, Kriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
 from .initstruct import BaseGenerator,read_seeds,VarGenerator
 # from .readvasp import *
 from .setfitness import calc_fitness
@@ -207,12 +207,12 @@ def csp_loop(curStat, parameters):
             mainAlgo.select()
             initPop = mainAlgo.get_nextPop()
 
-        elif p.setAlgo == 'mlpot':
-            mainAlgo = PotKriging(bboPop, curGen, parameters)
+        # elif p.setAlgo == 'mlpot':
+        #     mainAlgo = PotKriging(bboPop, curGen, parameters)
 
-            mainAlgo.generate()
-            mainAlgo.fit_gp()
-            mainAlgo.select()
+        #     mainAlgo.generate()
+        #     mainAlgo.fit_gp()
+        #     mainAlgo.select()
             initPop = mainAlgo.get_nextPop()
 
 
