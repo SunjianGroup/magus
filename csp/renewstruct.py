@@ -49,7 +49,7 @@ class Kriging:
         self.cutNum = krigParm['cutNum']
         self.slipNum = krigParm['slipNum']
         self.latNum = krigParm['latNum']
-        self.addSym = parameters['addSym']
+        # self.addSym = parameters['addSym']
         self.kind = krigParm['kind']
         self.xi = krigParm['xi']
         self.grids = krigParm['grids']
@@ -70,14 +70,13 @@ class Kriging:
             self.inputMols = [Atoms(**molInfo) for molInfo in parameters['molList']]
         # local
         self.curPop = calc_dominators(curPop)
-        if self.addSym:
+        if parameters['addSym']:
             logging.debug("Add symmetry")
-            self.curPop = standardize_pop(self.curPop, 0.1)
+            self.curPop = symmetrize_pop(self.curPop, parameters['symprec'])
         self.y_max = None
         if self.fullEles:
             self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
         if self.molDetector > 0:
-            # bondRange = [self.bondMin + self.bondStep*i for i in range(self.bondStepNum-1)]
             self.curPop = mol_dict_pop(self.curPop, self.molDetector, self.bondRange, self.molScaleCell)
 
         self.curLen = len(self.curPop)
@@ -98,7 +97,7 @@ class Kriging:
 
 
         # if self.addSym:
-        #     self.goodPop = standardize_pop(self.goodPop, 0.1)
+        #     self.goodPop = symmetrize_pop(self.goodPop, 0.1)
 
 
 
@@ -124,7 +123,7 @@ class Kriging:
             splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
             splitLen = len(splitPop)
             sampleNum = int(splitLen/2)+1
-            logging.debug("splitlen: %s"%(splitLen))
+            # logging.debug("splitlen: %s"%(splitLen))
             if splitLen <= 1:
                 continue
             for j in range(cutNum):
@@ -134,7 +133,6 @@ class Kriging:
                 tranPos += np.array([[random.random(), random.random(), random.random()]]*len(spInd))
                 spInd.set_scaled_positions(tranPos)
                 spInd.wrap()
-                # try:
                 if mode == 'atom':
                     ind1 = cut_cell([spInd, goodInd], grid, symbols, 0.2)
                     ind2 = cut_cell([goodInd, spInd], grid, symbols, 0.2)
@@ -150,9 +148,7 @@ class Kriging:
                     ind2 = mol_cut_cell(goodMolC, spMolC, cutAxis)
                     ind1 = merge_atoms(ind1, self.dRatio)
                     ind2 = merge_atoms(ind2, self.dRatio)
-                # except:
-                #     continue
-                logging.debug('merge_atoms ends')
+                # logging.debug('merge_atoms ends')
 
                 parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
                 parDom = 0.5*(sum([ind.info['sclDom'] for ind in [spInd, goodInd]]))
@@ -199,7 +195,7 @@ class Kriging:
                         if 0 in tFrml2:
                             ind2 = None
 
-                logging.debug('repair_atoms ends')
+                # logging.debug('repair_atoms ends')
 
                 pairPop = [ind for ind in [ind1, ind2] if ind is not None]
                 hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
@@ -596,7 +592,7 @@ class BBO:
         self.numSiv = numSiv
 
         ### goodPop ###
-        curPop = standardize_pop(curPop, 1.)
+        curPop = symmetrize_pop(curPop, 1.)
         labels, goodPop = clustering(curPop, saveGood)
         curPop = list(filter(lambda ind: ind not in goodPop, curPop))
         curPop = goodPop + curPop
@@ -1216,63 +1212,6 @@ def repair_atoms(ind, sybls, toFrml, numFrml=1):
 
     return repInd
 
-
-def lower_triangullar_cell(oriInd):
-    """
-    Convert the cell of origin structure to a triangular matrix.
-    """
-    cellPar = oriInd.get_cell_lengths_and_angles()
-    oriCell = oriInd.get_cell()
-    # oriPos =oriInd.get_scaled_positions()
-    triInd = oriInd.copy()
-
-    a, b, c, alpha, beta, gamma = cellPar
-    alpha *= pi/180.0
-    beta *= pi/180.0
-    gamma *= pi/180.0
-    va = a * np.array([1, 0, 0])
-    vb = b * np.array([cos(gamma), sin(gamma), 0])
-    cx = cos(beta)
-    cy = (cos(alpha) - cos(beta)*cos(gamma))/sin(gamma)
-    cz = sqrt(1. - cx*cx - cy*cy)
-    vc = c * np.array([cx, cy, cz])
-    triCell = np.vstack((va, vb, vc))
-
-#    T = np.linalg.solve(oriCell, triCell)
-#    triPos = dot(oriPos, T)
-
-    triInd.set_cell(triCell, scale_atoms=True)
-    # triInd.set_scaled_positions(oriPos)
-    triInd.info = oriInd.info.copy()
-
-    return triInd
-
-def standardize_atoms(atoms, symprec=1e-5):
-    """
-    Use spglib to get standardize cell of atoms
-    """
-
-    spgCell = spglib.standardize_cell(atoms, symprec=symprec)
-    if spgCell:
-        lattice, pos, numbers = spgCell
-        stdAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
-        stdAts.info = atoms.info.copy()
-    else:
-        stdAts = Atoms(atoms)
-
-    return stdAts
-
-def standardize_pop(pop, symprec=1e-5):
-
-    stdPop = list()
-    for ind in pop:
-        stdInd = standardize_atoms(ind, symprec)
-        if len(stdInd) == len(ind):
-            stdPop.append(stdInd)
-        else:
-            stdPop.append(Atoms(ind))
-
-    return stdPop
 
 def cut_cell(cutPop, grid, symbols, cutDisp=0):
     """

@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-import os, subprocess, shutil, math, random, re, logging, fractions
+import os, subprocess, shutil, math, random, re, logging, fractions, sys
 from collections import Counter
 import numpy as np
 import spglib
@@ -526,13 +526,11 @@ def check_dist_individual(ind, threshold):
     vector = cellPar[:3]
     angles = cellPar[-3:]
 
-    minAng = np.array([45]*3)
-    maxAng = np.array([135]*3)
+    minAng = np.array([30]*3)
+    maxAng = np.array([150]*3)
 
     maxBond = 2*max(radius)
-    allBonds = 2*sum(radius)
     minVec = np.array([maxBond]*3)
-    maxVec = np.array([allBonds]*3)
 
     checkAng = (minAng < angles).all() and (angles < maxAng).all()
     checkVec = (0.5 * minVec < vector).all()
@@ -540,10 +538,6 @@ def check_dist_individual(ind, threshold):
     if checkAng and checkVec:
         cutoffs = [rad*threshold for rad in radius]
         nl = neighbor_list('i', ind, cutoffs)
-        # nl = NeighborList(cutoffs, skin=0, self_interaction=False, bothways=True)
-        # nl.update(ind)
-        # nlSum = sum([len(nl.get_neighbors(i)[0]) for i in range(len(ind))])
-        # return nlSum == 0
         return len(nl) == 0
     else:
         return False
@@ -557,5 +551,68 @@ def check_dist(pop, threshold=0.7):
             checkPop.append(ind)
 
     return checkPop
+
+def symmetrize_atoms(atoms, symprec=1e-5):
+    """
+    Use spglib to get standardize cell of atoms
+    """
+
+    stdCell = spglib.standardize_cell(atoms, symprec=symprec)
+    priCell = spglib.find_primitive(atoms, symprec=symprec)
+    if stdCell and len(stdCell[0])==len(atoms):
+        lattice, pos, numbers = stdCell
+        symAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
+        symAts.info = atoms.info.copy()
+    elif priCell and len(priCell[0])==len(atoms):
+        lattice, pos, numbers = priCell
+        symAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
+        symAts.info = atoms.info.copy()
+    else:
+        symAts = atoms
+
+    return symAts
+
+def symmetrize_pop(pop, symprec=1e-5):
+
+    # stdPop = list()
+    # for ind in pop:
+    #     stdInd = symmetrize_atoms(ind, symprec)
+    #     if len(stdInd) == len(ind):
+    #         stdPop.append(stdInd)
+    #     else:
+    #         stdPop.append(ind)
+
+    return [symmetrize_atoms(ats, symprec) for ats in pop]
+
+
+def lower_triangullar_cell(oriInd):
+    """
+    Convert the cell of origin structure to a triangular matrix.
+    """
+    cellPar = oriInd.get_cell_lengths_and_angles()
+    oriCell = oriInd.get_cell()
+    # oriPos =oriInd.get_scaled_positions()
+    triInd = oriInd.copy()
+
+    a, b, c, alpha, beta, gamma = cellPar
+    alpha *= pi/180.0
+    beta *= pi/180.0
+    gamma *= pi/180.0
+    va = a * np.array([1, 0, 0])
+    vb = b * np.array([cos(gamma), sin(gamma), 0])
+    cx = cos(beta)
+    cy = (cos(alpha) - cos(beta)*cos(gamma))/sin(gamma)
+    cz = sqrt(1. - cx*cx - cy*cy)
+    vc = c * np.array([cx, cy, cz])
+    triCell = np.vstack((va, vb, vc))
+
+#    T = np.linalg.solve(oriCell, triCell)
+#    triPos = dot(oriPos, T)
+
+    triInd.set_cell(triCell, scale_atoms=True)
+    # triInd.set_scaled_positions(oriPos)
+    triInd.info = oriInd.info.copy()
+
+    return triInd
 
 
