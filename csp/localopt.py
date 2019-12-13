@@ -13,7 +13,7 @@ from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.units import GPa
 from ase.spacegroup import crystal
 # from parameters import parameters
-from .writeresults import write_yaml, read_yaml, write_traj
+from .writeresults import write_traj
 from .utils import *
 from .mopac import MOPAC
 try:
@@ -75,9 +75,10 @@ def calc_vasp_once(
     # save relax trajectory
     traj = ase.io.read('OUTCAR', index=':', format='vasp-out')
     trajDict = [extract_atoms(ats) for ats in traj]
-    if index == 0:
-        struct.info['trajs'] = []
-    struct.info['trajs'].append(trajDict)
+    # if index == 0:
+    #     struct.info['trajs'] = []
+    # struct.info['trajs'].append(trajDict)
+    struct.info['traj'] = trajDict
 
     logging.info("VASP finish")
     return struct[:]
@@ -347,16 +348,7 @@ def calc_gulp_parallel(calcNum, calcPop, parameters,):
             tmpList.append(numParallel*eachLen + i)
         runArray.append(tmpList)
 
-    # runGulp = open('run_gulp.py', 'w')
-    # runGulp.write("from __future__ import print_function\n")
-    # runGulp.write("import sys\nsys.path.append('%s')\n" %(workDir))
-    # runGulp.write("import ase.io")
-    # runGulp.write("from csp.localopt import calc_gulp\n")
-    # runGulp.write("from csp.writeresults import write_traj, write_yaml, read_yaml\n")
-    # runGulp.write("initPop = ase.io.read('initPop.traj', format='traj', index=':',)\n")
-    # runGulp.write("optPop = calc_gulp({}, initPop, {}, {!r}, {!r})\n".format(calcNum, pressure, exeCmd, inputDir))
-    # runGulp.write("write_traj('optPop.traj', optPop)")
-    # runGulp.close()
+
 
 
     runJobs = []
@@ -461,12 +453,6 @@ def calc_mopac_once(
     struct.info['energy'] = energy
     struct.info['forces'] = forces
 
-    # save relax trajectory
-    # traj = ase.io.read('OUTCAR', index=':', format='vasp-out')
-    # trajDict = [extract_atoms(ats) for ats in traj]
-    # if index == 0:
-    #     struct.info['trajs'] = []
-    # struct.info['trajs'].append(trajDict)
 
     logging.info("MOPAC finish")
     return struct[:]

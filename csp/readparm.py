@@ -66,6 +66,7 @@ def read_parameters(inputFile):
         'goodehull': 0.1,
         'gp_factor': 1,
         'updateVol': True,
+        'symprec': 0.1,
     }
 
     for key, val in dParms.items():

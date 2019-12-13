@@ -8,7 +8,7 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from .localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jobs_stat, read_parallel_results
-from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
+from .renewstruct import Kriging, BBO, pareto_front, convex_hull, calc_dominators
 from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build
 # from .readvasp import *
 from .setfitness import calc_fitness, calc_fitness_xrd
@@ -16,7 +16,7 @@ from .writeresults import write_dataset, write_results, write_traj
 from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from .bayes import atoms_util
 from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio
+from .utils import *
 
 
 def check_jobs(statFile='currentStat.json'):
@@ -194,13 +194,13 @@ def csp_loop(curStat, parameters):
             mainAlgo.select()
             initPop = mainAlgo.get_nextPop()
 
-        elif p.setAlgo == 'mlpot':
-            mainAlgo = PotKriging(bboPop, curGen, parameters)
+        # elif p.setAlgo == 'mlpot':
+        #     mainAlgo = PotKriging(bboPop, curGen, parameters)
 
-            mainAlgo.generate()
-            mainAlgo.fit_gp()
-            mainAlgo.select()
-            initPop = mainAlgo.get_nextPop()
+        #     mainAlgo.generate()
+        #     mainAlgo.fit_gp()
+        #     mainAlgo.select()
+        #     initPop = mainAlgo.get_nextPop()
 
 
         elif p.setAlgo == 'bbo':

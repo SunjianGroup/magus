@@ -8,7 +8,7 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k, generate_cp2k_params, calc_cp2k_params, generate_xtb_calcs, calc_xtb
-from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
+from .renewstruct import Kriging, BBO, pareto_front, convex_hull, calc_dominators
 from .initstruct import read_seeds, build_mol_struct
 # from .readvasp import *
 from .setfitness import calc_fitness
@@ -16,7 +16,7 @@ from .writeresults import write_dataset, write_results
 from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from .bayes import atoms_util
 from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio, check_mol_pop, calc_ball_volume
+from .utils import *
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -82,13 +82,13 @@ for curGen in range(1, p.numGen+1):
                 mainAlgo.select(enFilter=False)
             initPop = mainAlgo.get_nextPop()
 
-        elif p.setAlgo == 'mlpot':
-            mainAlgo = PotKriging(bboPop, curGen, parameters)
+        # elif p.setAlgo == 'mlpot':
+        #     mainAlgo = PotKriging(bboPop, curGen, parameters)
 
-            mainAlgo.generate()
-            mainAlgo.fit_gp()
-            mainAlgo.select()
-            initPop = mainAlgo.get_nextPop()
+        #     mainAlgo.generate()
+        #     mainAlgo.fit_gp()
+        #     mainAlgo.select()
+        #     initPop = mainAlgo.get_nextPop()
 
 
         elif p.setAlgo == 'bbo':

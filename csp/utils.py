@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-import os, subprocess, shutil, math, random, re, logging, fractions
+import os, subprocess, shutil, math, random, re, logging, fractions, sys
 from collections import Counter
 import numpy as np
 import spglib
@@ -8,11 +8,13 @@ import networkx as nx
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_numbers, covalent_radii
+from ase.neighborlist import neighbor_list
+from .crystgraph import quotient_graph, cycle_sums, graphDim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
 try:
     from functools import reduce
+    from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 except ImportError:
     pass
-from .crystgraph import quotient_graph, cycle_sums, graphDim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
 
 
 class EmptyClass:
@@ -255,17 +257,14 @@ def find_spg(Pop, tol): #tol:tolerance
     return spgPop
 
 def extract_atoms(atoms):
-    properties = ['numbers', 'positions', 'cell', 'energy', 'forces', 'stress']
-    numbers = atoms.get_atomic_numbers()
-    positions = atoms.get_positions()
-    cell = atoms.get_cell()
-    energy = atoms.get_potential_energy()
-    forces = atoms.get_forces()
-    stress = atoms.get_stress()
-
-    atDict = {}
-    for p in properties:
-        atDict[p] = locals()[p]
+    atDict = {
+        'numbers': atoms.get_atomic_numbers(),
+        'positions': atoms.get_positions(),
+        'cell': np.array(atoms.get_cell()),
+        'energy': atoms.get_potential_energy(),
+        'forces': atoms.get_forces(),
+        'stress': atoms.get_stress()
+    }
 
     return atDict
 
@@ -346,28 +345,20 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
     # logging.info("Read Seeds: %s"%(len(seedPop)))
     return seedPop
 
-def merge_atoms(atoms, tolerance=0.3, tryNum=5):
+def merge_atoms(atoms, tolerance=0.3,):
     """
     if a pair of atoms are too close, merge them.
     """
 
-    allDist = atoms.get_all_distances(mic=True)
-    numbers = atoms.get_atomic_numbers()
-    radius = [covalent_radii[num] for num in numbers]
+    cutoffs = [tolerance * covalent_radii[num] for num in atoms.get_atomic_numbers()]
+    nl = neighbor_list("ij", atoms, cutoffs)
     indices = list(range(len(atoms)))
     exclude = []
 
-    for _ in range(tryNum):
-        save = [index for index in indices if index not in exclude]
-        short = 0
-        for n, i in enumerate(save):
-            for j in save[n+1:]:
-                if allDist[i,j] < tolerance*(radius[i] + radius[j]):
-                    if i not in exclude and j not in exclude:
-                        exclude.append(random.choice([i,j]))
-                    short += 1
-        if short == 0:
-            break
+    for i, j in zip(*nl):
+        if i in exclude or j in exclude:
+            continue
+        exclude.append(random.choice([i,j]))
 
     save = [index for index in indices if index not in exclude]
     mAts = atoms[save]
@@ -401,5 +392,227 @@ def check_mol_pop(molPop, inputMols, bondRatio):
             chkPop.append(ind)
     return chkPop
 
+
+
+def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, compareE=True, mode='naive'): #differnce in enthalpy(eV/atom) and volume(%)
+    vol_tol = diffV**(1./3)
+    priList = []
+    for ind in Pop:
+        ind.info['vPerAtom'] = ind.get_volume()/len(ind)
+        priInfo = ind.info['priInfo']
+        if priInfo:
+            lattice, scaled_positions, numbers = priInfo
+            priAts = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=1)
+        else:
+            priAts = ind.copy()
+        priList.append(priAts)
+
+
+    cmpPop = Pop[:]
+
+    toCompare = [(x,y) for x in range(len(Pop)) for y in range(len(Pop)) if x < y]
+    # toCompare = [(x,y) for x in Pop for y in Pop if Pop.index(x) < Pop.index(y)]
+    if mode == 'ase':
+        comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
+
+    rmIndices = []
+    for pair in toCompare:
+        s0 = Pop[pair[0]]
+        s1 = Pop[pair[1]]
+        pri0 = priList[pair[0]]
+        pri1 = priList[pair[1]]
+
+
+        symCt0 = Counter(pri0.numbers)
+        symCt1 = Counter(pri1.numbers)
+        if symCt0 != symCt1 and mode=='naive':
+            continue
+
+        duplicate = True
+
+        # pairV = [Pop[n].info['vPerAtom'] for n in pair]
+        pairV = [pri0.get_volume(), pri1.get_volume()]
+        deltaV = abs(pairV[0] - pairV[1])/min(pairV)
+
+        pairSpg = [Pop[n].info['spg'] for n in pair]
+
+
+        if compareE:
+            pairE = [Pop[n].info['enthalpy'] for n in pair]
+            deltaE = abs(pairE[0] - pairE[1])
+            if mode == 'ase':
+                try:
+                    duplicate = comp.compare(pri0, pri1) and deltaE <= diffE
+                except:
+                    s = sys.exc_info()
+                    logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                    logging.info("ASE check fails. Use native check")
+                    # ase.io.write('failcomp0.vasp', pri0, vasp5=1, direct=1)
+                    # ase.io.write('failcomp1.vasp', pri1, vasp5=1, direct=1)
+                    duplicate = duplicate and deltaE <= diffE and pairSpg[0] == pairSpg[1]
+            elif mode == 'naive':
+                duplicate = duplicate and deltaV <= diffV and deltaE <= diffE and pairSpg[0] == pairSpg[1]
+        else:
+            if mode == 'ase':
+                try:
+                    duplicate = comp.compare(pri0, pri1)
+                except:
+                    s = sys.exc_info()
+                    logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                    logging.info("ASE check fails. Use native check")
+                    # ase.io.write('failcomp0.vasp', pri0, vasp5=1, direct=1)
+                    # ase.io.write('failcomp1.vasp', pri1, vasp5=1, direct=1)
+                    duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
+            elif mode == 'naive':
+                duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
+        # logging.debug('pairindex: %s %s, duplicate: %s' % (Pop.index(pair[0]), Pop.index(pair[1]), duplicate))
+        # logging.debug('pairindex: %s, duplicate: %s' % (pair, duplicate))
+
+        if duplicate:
+            if compareE:
+                rmInd = pair[0] if pairE[0] > pairE[1] else pair[1]
+            else:
+                rmInd = pair[0]
+            rmIndices.append(rmInd)
+            # if cmpInd in cmpPop:
+            #     cmpPop.remove(cmpInd)
+                # logging.info("remove duplicate")
+    cmpPop = [ind for i, ind in enumerate(cmpPop) if i not in rmIndices]
+
+    return cmpPop
+
+def compare_fingerprint(fpPop, diffD):
+    """
+    Compare indviduals in inPop based on their fingerprints.
+    """
+    cmpPop = fpPop[:]
+    fpList = [ind.info['fingerprint'] for ind in fpPop]
+    toCompare = [(x,y) for x in range(len(fpPop)) for y in range(len(fpPop)) if x < y]
+
+    for i, j in toCompare:
+        distance = np.linalg.norm(fpList[i] - fpList[j])
+        # logging.debug("Index: %s %s, dist: %s" %(i, j, distance))
+        if distance < diffD:
+            cmpInd = fpPop[i] if fpPop[i].info['enthalpy'] > fpPop[j].info['enthalpy'] else fpPop[j]
+            if cmpInd in cmpPop:
+                cmpPop.remove(cmpInd)
+                logging.debug("remove duplicate")
+
+    return cmpPop
+
+def del_duplicate(Pop, compareE=True, tol = 0.2, diffE = 0.005, diffV = 0.05, diffD = 0.01, report=True, mode='naive'):
+    dupPop = find_spg(Pop, tol)
+    #for ind in Pop:
+     #   logging.info("spg: %s" %ind.info['spg'])
+    # sort the pop by composion, wait for adding
+    # dupPop = compare_fingerprint(Pop, diffD)
+    # logging.info("fingerprint survival: %s" %(len(dupPop)))
+
+    dupPop = compare_volume_energy(dupPop, diffE, diffV, compareE=compareE, mode=mode)
+    if report:
+        logging.info("volume_energy survival: %s" %(len(dupPop)))
+    # logging.debug("dupPop: {}".format(len(dupPop)))
+    return dupPop
+
+
+def check_dist_individual(ind, threshold):
+    """
+    The distance between the atoms should be larger than
+    threshold * sumR(the sum of the covalent radii of the two
+    corresponding atoms).
+    """
+    radius = [covalent_radii[number] for number in ind.get_atomic_numbers()]
+    cellPar = ind.get_cell_lengths_and_angles()
+    vector = cellPar[:3]
+    angles = cellPar[-3:]
+
+    minAng = np.array([30]*3)
+    maxAng = np.array([150]*3)
+
+    maxBond = 2*max(radius)
+    minVec = np.array([maxBond]*3)
+
+    checkAng = (minAng < angles).all() and (angles < maxAng).all()
+    checkVec = (0.5 * minVec < vector).all()
+
+    if checkAng and checkVec:
+        cutoffs = [rad*threshold for rad in radius]
+        nl = neighbor_list('i', ind, cutoffs)
+        return len(nl) == 0
+    else:
+        return False
+
+
+def check_dist(pop, threshold=0.7):
+    checkPop = []
+    for ind in pop:
+    #    ase.io.write('checking.vasp', ind, format='vasp', direct=True, vasp5=True)
+        if check_dist_individual(ind, threshold):
+            checkPop.append(ind)
+
+    return checkPop
+
+def symmetrize_atoms(atoms, symprec=1e-5):
+    """
+    Use spglib to get standardize cell of atoms
+    """
+
+    stdCell = spglib.standardize_cell(atoms, symprec=symprec)
+    priCell = spglib.find_primitive(atoms, symprec=symprec)
+    if stdCell and len(stdCell[0])==len(atoms):
+        lattice, pos, numbers = stdCell
+        symAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
+        symAts.info = atoms.info.copy()
+    elif priCell and len(priCell[0])==len(atoms):
+        lattice, pos, numbers = priCell
+        symAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
+        symAts.info = atoms.info.copy()
+    else:
+        symAts = atoms
+
+    return symAts
+
+def symmetrize_pop(pop, symprec=1e-5):
+
+    # stdPop = list()
+    # for ind in pop:
+    #     stdInd = symmetrize_atoms(ind, symprec)
+    #     if len(stdInd) == len(ind):
+    #         stdPop.append(stdInd)
+    #     else:
+    #         stdPop.append(ind)
+
+    return [symmetrize_atoms(ats, symprec) for ats in pop]
+
+
+def lower_triangullar_cell(oriInd):
+    """
+    Convert the cell of origin structure to a triangular matrix.
+    """
+    cellPar = oriInd.get_cell_lengths_and_angles()
+    oriCell = oriInd.get_cell()
+    # oriPos =oriInd.get_scaled_positions()
+    triInd = oriInd.copy()
+
+    a, b, c, alpha, beta, gamma = cellPar
+    alpha *= pi/180.0
+    beta *= pi/180.0
+    gamma *= pi/180.0
+    va = a * np.array([1, 0, 0])
+    vb = b * np.array([cos(gamma), sin(gamma), 0])
+    cx = cos(beta)
+    cy = (cos(alpha) - cos(beta)*cos(gamma))/sin(gamma)
+    cz = sqrt(1. - cx*cx - cy*cy)
+    vc = c * np.array([cx, cy, cz])
+    triCell = np.vstack((va, vb, vc))
+
+#    T = np.linalg.solve(oriCell, triCell)
+#    triPos = dot(oriPos, T)
+
+    triInd.set_cell(triCell, scale_atoms=True)
+    # triInd.set_scaled_positions(oriPos)
+    triInd.info = oriInd.info.copy()
+
+    return triInd
 
 
