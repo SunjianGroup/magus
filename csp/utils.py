@@ -220,6 +220,8 @@ def atoms2communities(atoms, coef=1.1):
                 for i, offSet in zip(nodes, offs):
                     offSets[i] = offSet
 
+    logging.debug("atoms2communities partition: {}".format(partition))
+
     molC = MolCryst(numbers=atoms.get_atomic_numbers(), cell=atoms.get_cell(),
     sclPos=atoms.get_scaled_positions(), partition=partition, offSets=offSets, info=atoms.info.copy())
 
@@ -367,13 +369,13 @@ def merge_atoms(atoms, tolerance=0.3,):
             continue
         exclude.append(random.choice([i,j]))
 
-    # if len(exclude) > 0:
-    save = [index for index in indices if index not in exclude]
-    logging.debug("exculde: {}\tsave: {}".format(exclude, save))
-    mAts = atoms[save]
-    mAts.info = atoms.info.copy()
-    # else:
-    #     mAts = atoms
+    if len(exclude) > 0:
+        save = [index for index in indices if index not in exclude]
+        logging.debug("exculde: {}\tsave: {}".format(exclude, save))
+        mAts = atoms[save]
+        mAts.info = atoms.info.copy()
+    else:
+        mAts = atoms
 
     return mAts
 
