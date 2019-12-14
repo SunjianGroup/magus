@@ -48,8 +48,8 @@ def read_parameters(inputFile):
         'slipNum': int(parameters['popSize']/5)+1,
         'latNum': int(parameters['popSize']/5)+1,
         'grids': [[2, 1, 1], [1, 2, 1], [1, 1, 2]],
-        'bondRatio': 1.1,
-        'bondRange': [0.9, 0.95, 1., 1.05, 1.1, 1.15],
+        'bondRatio': 1.15,
+        'bondRange': [0.95, 1., 1.05, 1.1, 1.15],
         'waitTime': 60,
         'maxRelaxTime': 1200,
         'xrdFile': None,
@@ -68,6 +68,8 @@ def read_parameters(inputFile):
         'updateVol': True,
         'addSym': True,
         'symprec': 0.1,
+        'compress': True,
+        'cRatio': 0.8,
     }
 
     for key, val in dParms.items():

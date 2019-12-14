@@ -9,6 +9,7 @@ from ase.calculators.vasp import Vasp
 from ase.calculators.cp2k import CP2K, Cp2kShell
 from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
+from ase.optimize.precon import Exp, PreconLBFGS, PreconFIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.units import GPa
 from ase.spacegroup import crystal
@@ -761,6 +762,10 @@ def calc_xtb_once(
         gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
     elif optimizer == 'fire':
         gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
+    elif optimizer == 'preconfire':
+        gopt = PreconFIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
+    elif optimizer == 'preconlbfgs':
+        gopt = PreconLBFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
 
     try:
         gopt.run(fmax=eps, steps=steps)

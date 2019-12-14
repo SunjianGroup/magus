@@ -149,7 +149,7 @@ class Kriging:
                     ind2 = mol_cut_cell(goodMolC, spMolC, cutAxis)
                     ind1 = merge_atoms(ind1, self.dRatio)
                     ind2 = merge_atoms(ind2, self.dRatio)
-                # logging.debug('merge_atoms ends')
+                logging.debug('merge_atoms ends')
 
                 parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
                 parDom = 0.5*(sum([ind.info['sclDom'] for ind in [spInd, goodInd]]))
@@ -196,7 +196,7 @@ class Kriging:
                         if 0 in tFrml2:
                             ind2 = None
 
-                # logging.debug('repair_atoms ends')
+                logging.debug('repair_atoms ends')
 
                 pairPop = [ind for ind in [ind1, ind2] if ind is not None]
                 hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
@@ -1297,14 +1297,13 @@ def mol_dict_pop(pop, molDetector=1, coefRange=[1.1,], scale_cell=False):
         oriVol = ind.get_volume()
         oriCell = ind.get_cell()
         radius = np.array(molC.get_radius())
-        # eleRad = covalent_radii[max(ind.get_atomic_numbers())]
-        # radius += eleRad
+        eleRad = covalent_radii[max(ind.get_atomic_numbers())]
+        radius += eleRad
         molVol = 4/3 * pi * np.power(radius, 3).sum()
         logging.debug("partition {}".format(molC.partition))
         logging.debug("oriVol: {}\tmolVol: {}".format(oriVol, molVol))
         if scale_cell and molVol > oriVol:
-            tmpVol = 0.5*(molVol + oriVol)
-            ratio = float((tmpVol/oriVol)**(1./3))
+            ratio = float((molVol/oriVol)**(1./3))
             molCell = oriCell*ratio
         else:
             molCell = oriCell

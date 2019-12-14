@@ -220,7 +220,7 @@ def atoms2communities(atoms, coef=1.1):
                 for i, offSet in zip(nodes, offs):
                     offSets[i] = offSet
 
-    logging.debug("atoms2communities partition: {}".format(partition))
+    # logging.debug("atoms2communities partition: {}".format(partition))
 
     molC = MolCryst(numbers=atoms.get_atomic_numbers(), cell=atoms.get_cell(),
     sclPos=atoms.get_scaled_positions(), partition=partition, offSets=offSets, info=atoms.info.copy())
@@ -359,10 +359,10 @@ def merge_atoms(atoms, tolerance=0.3,):
     indices = list(range(len(atoms)))
     exclude = []
 
-    logging.debug("merge_atoms()")
-    logging.debug("number of atoms: {}".format(len(atoms)))
-    logging.debug("{}".format(nl[0]))
-    logging.debug("{}".format(nl[1]))
+    # logging.debug("merge_atoms()")
+    # logging.debug("number of atoms: {}".format(len(atoms)))
+    # logging.debug("{}".format(nl[0]))
+    # logging.debug("{}".format(nl[1]))
 
     for i, j in zip(*nl):
         if i in exclude or j in exclude:
@@ -371,7 +371,7 @@ def merge_atoms(atoms, tolerance=0.3,):
 
     if len(exclude) > 0:
         save = [index for index in indices if index not in exclude]
-        logging.debug("exculde: {}\tsave: {}".format(exclude, save))
+        # logging.debug("exculde: {}\tsave: {}".format(exclude, save))
         mAts = atoms[save]
         mAts.info = atoms.info.copy()
     else:
@@ -693,7 +693,7 @@ def lda_mol(centers, rltPos, cell, ratio, coefEps=1e-3, ratioEps=1e-3):
     else:
         return None
 
-def compress_mol_crystal(molC, minRatio, bondRatio=1.1, nsteps=5):
+def compress_mol_crystal(molC, minRatio, bondRatio, nsteps=5):
     partition = [set(p) for p in molC.partition]
     ratioArr = np.linspace(1, minRatio, nsteps+1)
     ratioArr = ratioArr[1:]/ratioArr[:-1]
@@ -718,6 +718,21 @@ def compress_mol_crystal(molC, minRatio, bondRatio=1.1, nsteps=5):
                 inMolC = outMolC
 
     return outMolC
+
+def compress_mol_pop(molPop, volRatio, bondRatio):
+    outPop = []
+    for ind in molPop:
+        minRatio = volRatio/calc_volRatio(ind)
+        if minRatio < 1:
+            molC = atoms2molcryst(ind, bondRatio)
+            outMolC = compress_mol_crystal(molC, minRatio, bondRatio)
+            outInd = outMolC.to_atoms()
+            outInd.info = ind.info.copy()
+            outPop.append(outInd)
+        else:
+            outPop.append(ind)
+
+    return outPop
 
 
 
