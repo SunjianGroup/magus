@@ -17,7 +17,7 @@ from .writeresults import write_traj
 from .utils import *
 from .mopac import MOPAC
 try:
-    from xtb import GFN0_PBC
+    from xtb import GFN0
     from ase.constraints import ExpCellFilter
 except:
     pass
@@ -832,7 +832,7 @@ def generate_xtb_calcs(calcNum, parameters):
     calcs = []
     for i in range(1, calcNum + 1):
         params = yaml.load(open("{}/inputFold/xtb_{}.yaml".format(workDir, i)))
-        calc = GFN0_PBC(**params)
+        calc = GFN0(**params)
         calcs.append(calc)
 
 

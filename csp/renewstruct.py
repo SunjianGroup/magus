@@ -49,7 +49,8 @@ class Kriging:
         self.cutNum = krigParm['cutNum']
         self.slipNum = krigParm['slipNum']
         self.latNum = krigParm['latNum']
-        # self.addSym = parameters['addSym']
+        self.addSym = parameters['addSym']
+        self.symprec = parameters['symprec']
         self.kind = krigParm['kind']
         self.xi = krigParm['xi']
         self.grids = krigParm['grids']
@@ -70,9 +71,9 @@ class Kriging:
             self.inputMols = [Atoms(**molInfo) for molInfo in parameters['molList']]
         # local
         self.curPop = calc_dominators(curPop)
-        if parameters['addSym']:
-            logging.debug("Add symmetry")
-            self.curPop = symmetrize_pop(self.curPop, parameters['symprec'])
+        if self.addSym:
+            logging.info("Add symmetry")
+            self.curPop = symmetrize_pop(self.curPop, self.symprec)
         self.y_max = None
         if self.fullEles:
             self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
@@ -416,6 +417,8 @@ class Kriging:
             logging.debug("slipPop length: %s"%(len(slipPop)))
             logging.debug("ripPop length: %s"%(len(ripPop)))
             tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
+            if self.addSym:
+                tmpPop = symmetrize_pop(tmpPop, self.symprec)
             self.tmpPop.extend(tmpPop)
         elif self.molDetector in [1,2]:
             hrdPop = self.heredity(self.cutNum, mode='mol')
@@ -429,6 +432,8 @@ class Kriging:
             logging.debug("latPop length: %s"%(len(latPop)))
             logging.debug("slipPop length: %s"%(len(slipPop)))
             tmpPop = hrdPop + rotPop + permPop + latPop + slipPop
+            if self.addSym:
+                tmpPop = symmetrize_pop(tmpPop, self.symprec)
             self.tmpPop.extend(tmpPop)
         else:
             raise RuntimeError('molDetector should be 0 or 1 or 2!')
@@ -1286,8 +1291,7 @@ def mol_dict_pop(pop, molDetector=1, coefRange=[1.1,], scale_cell=False):
             elif molDetector == 2:
                 tryMolc = atoms2communities(ind, coef)
             if tryMolc.numMols <= maxMolNum:
-                logging.debug("coef: {}".format(coef))
-                logging.debug("numMols: {}".format(tryMolc.numMols))
+                logging.debug("coef: {}\tnumMols: {}".format(coef, tryMolc.numMols))
                 molC = tryMolc
                 maxMolNum = tryMolc.numMols
         oriVol = ind.get_volume()

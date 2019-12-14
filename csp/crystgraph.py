@@ -1,40 +1,51 @@
 ## Crystal Quotient Graph
 from __future__ import print_function, division
 from functools import reduce
-from ase.neighborlist import NeighborList
+from ase.neighborlist import neighbor_list
 from ase.data import covalent_radii
 import ase.io
 import networkx as nx
 import numpy as np
 import sys, itertools
 
-
-def quotient_graph(atoms, coefficient=1.1, ):
+def quotient_graph(atoms, coefficient=1.1):
     """Return crystal quotient graph of the atoms."""
     cutoffs =  [covalent_radii[number]*coefficient for number in atoms.get_atomic_numbers()]
     # print("cutoffs: %s" %(cutoffs))
-
-    nl = NeighborList(cutoffs, skin=0, self_interaction=True, bothways=True)
-    nl.update(atoms)
-
     G = nx.MultiGraph()
 
-    for i, atom in enumerate(atoms):
-        G.add_node(i,)
-        # G[i]['symbol'] = atom.symbol
-        indices, offsets = nl.get_neighbors(i)
-        newIndices = []
-        newOffsets = []
-        for index, vector in zip(list(indices), list(offsets)):
-            if index != i or (vector != np.zeros([1, 3])).any():
-                newIndices.append(index)
-                newOffsets.append(vector)
-
-        for index, vector in zip(newIndices, newOffsets):
-            if i <= index:
-                G.add_edge(i, index, vector=vector, direction=(i, index))
+    for i, j, S in zip(*neighbor_list('ijS', atoms, cutoffs)):
+        if i <= j:
+            G.add_edge(i,j, vector=S, direction=(i,j))
 
     return G
+
+# def quotient_graph(atoms, coefficient=1.1, ):
+#     """Return crystal quotient graph of the atoms."""
+#     cutoffs =  [covalent_radii[number]*coefficient for number in atoms.get_atomic_numbers()]
+#     # print("cutoffs: %s" %(cutoffs))
+
+#     nl = NeighborList(cutoffs, skin=0, self_interaction=True, bothways=True)
+#     nl.update(atoms)
+
+#     G = nx.MultiGraph()
+
+#     for i, atom in enumerate(atoms):
+#         G.add_node(i,)
+#         # G[i]['symbol'] = atom.symbol
+#         indices, offsets = nl.get_neighbors(i)
+#         newIndices = []
+#         newOffsets = []
+#         for index, vector in zip(list(indices), list(offsets)):
+#             if index != i or (vector != np.zeros([1, 3])).any():
+#                 newIndices.append(index)
+#                 newOffsets.append(vector)
+
+#         for index, vector in zip(newIndices, newOffsets):
+#             if i <= index:
+#                 G.add_edge(i, index, vector=vector, direction=(i, index))
+
+#     return G
 
 def cycle_sums(G):
     """Return the cycle sums of the crystal quotient graph G."""
