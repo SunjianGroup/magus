@@ -81,12 +81,12 @@
 
   以前的云盘压缩包提供了库文件`fmodules.so`和`GenerateNew.so`，现在的git库中只有源代码，需要重新编译：
   - `fmodules.so`
-      在`csp/`下运行
+      在`magus/`下运行
       ```shell
       f2py -c -m fmodules fmodules.f90
       ```
   - `GenerateNew.so`
-      源文件在在`csp/GenerateNew`中。编译时需要用python库的头文件。如果使用集群上的`anaconda/3` 模块，编译命令为：
+      源文件在在`magus/GenerateNew`中。编译时需要用python库的头文件。如果使用集群上的`anaconda/3` 模块，编译命令为：
       ```shell
       g++ -std=c++11 -I/fs00/software/anaconda/3/include -I/fs00/software/anaconda/3/include/python3.6m -L/fs00/software/anaconda/3/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
       ```
@@ -94,7 +94,7 @@
       ```shell
       g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include -I/fs00/software/anaconda/3-5.0.1/include/python3.6m -L/fs00/software/anaconda/3-5.0.1/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
       ```
-      编译生成的`GenerateNew.so`需要放在`csp/`目录下。
+      编译生成的`GenerateNew.so`需要放在`magus/`目录下。
       
 
 
@@ -263,7 +263,7 @@ mutateFrac: 0.4
   #BSUB -n 1
   #BSUB -J test-tio2
 
-  python -m csp.parallel 
+  python -m magus.parallel 
   ```
   
 - 若不想在`~/.bashrc`中加载anaconda模块，则需要在任务脚本中加入anaconda，如`module add anaconda/3`，并将`jobPrefix`也设为`module add anaconda/3`
