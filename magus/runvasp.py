@@ -1,7 +1,7 @@
 import sys, os, shutil, yaml, copy
 from ase.calculators.vasp import Vasp
 import ase.io
-from newcsp.writeresults import write_traj
+from magus.writeresults import write_traj
 import logging
 
 from .readvasp import *

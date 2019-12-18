@@ -15,9 +15,6 @@ from .setfitness import calc_fitness
 from .renew import Kriging, calc_dominators, del_duplicate, clustering, check_dist
 #ML module
 from .machinelearning import LRmodel
-from amp.descriptor.gaussian import Gaussian
-from amp.model.neuralnetwork import NeuralNetwork
-from amp.model import LossFunction
 
 class Magus:
     def __init__(self,parameters):
@@ -55,7 +52,7 @@ class Magus:
 
         relaxPop=self.MainCalculator.relax(initPop)
         write_results(relaxPop, 'debug0',self.parameters.resultsDir)
-        
+
         logging.info("check distance")
         relaxPop = check_dist(relaxPop, self.parameters.dRatio)
         logging.info("check survival: {}".format(len(relaxPop)))
@@ -70,7 +67,7 @@ class Magus:
         self.ML.train()
         logging.info("loss:{}".format(self.ML.get_loss(relaxPop)))
         self.pop=copy.deepcopy(relaxPop)
-        
+
 
     def Onestep(self):
         self.curgen+=1
@@ -161,7 +158,7 @@ class Magus:
 
 
 
-        
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
 args = parser.parse_args()

@@ -12,7 +12,7 @@ from .writeresults import write_yaml, read_yaml, write_traj
 from .utils import *
 from ase.units import GPa
 try:
-    from xtb import GFN0_PBC
+    from xtb import GFN0
     from ase.constraints import ExpCellFilter
 except:
     pass
@@ -27,10 +27,10 @@ from .queue import JobManager
 class Calculator:
     def __init__(self):
         pass
-    
+
     def relax(self,calcPop):
         pass
-    
+
     def scf(self,calcPop):
         pass
 
@@ -108,7 +108,7 @@ class LJCalculator(ASECalculator):
     def __init__(self,parameters):
         calc = LennardJones()
         return super(LJCalculator, self).__init__(parameters,calc)
-    
+
     def relax(self, calcPop):
         return super(LJCalculator, self).relax(calcPop)
 
@@ -171,15 +171,15 @@ class xtbCalculator:
         calcs = []
         for i in range(1, self.parameters.calcNum + 1):
             params = yaml.load(open("{}/inputFold/xtb_{}.yaml".format(self.parameters.workDir, i)))
-            calc = GFN0_PBC(**params)
+            calc = GFN0(**params)
             calcs.append(calc)
         relaxPop = self.calc_xtb(calcs, calcPop)
         os.chdir(self.parameters.workDir)
         return relaxPop
 
-    def scf(self,calcPop):   
+    def scf(self,calcPop):
         params = yaml.load(open("{}/inputFold/xtb_scf.yaml".format(self.parameters.workDir)))
-        calc = GFN0_PBC(**params)
+        calc = GFN0(**params)
         scfPop=[]
         for ind in calcPop:
             atoms=copy.deepcopy(ind)
@@ -241,7 +241,7 @@ class VaspCalculator:
                     "#BSUB -W %s\n"
                     "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
             f.write("{}\n".format(self.parameters.jobPrefix))
-            f.write("python -m newcsp.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
+            f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
             f.close()
 
             self.J.bsub('bsub < parallel.sh')
@@ -292,7 +292,7 @@ class VaspCalculator:
                     "#BSUB -W %s\n"
                     "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
             f.write("{}\n".format(self.parameters.jobPrefix))
-            f.write("python -m newcsp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.calcNum, self.parameters.xc, self.parameters.pressure))
+            f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.calcNum, self.parameters.xc, self.parameters.pressure))
             f.close()
 
             self.J.bsub('bsub < parallel.sh')
@@ -303,7 +303,7 @@ class VaspCalculator:
         relaxPop=self.read_parallel_results()
         self.J.clear()
         return relaxPop
-    
+
     def read_parallel_results(self):
         optPop = []
         for job in self.J.jobs:
@@ -313,4 +313,3 @@ class VaspCalculator:
                 logging.info("ERROR in read results {}".format(job['workDir']))
         #bjobs.clear()
         return optPop
-    
