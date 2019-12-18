@@ -24,6 +24,96 @@ from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from .queue import JobManager
 
+class Calculator:
+    def __init__(self):
+        pass
+    
+    def relax(self,calcPop):
+        pass
+    
+    def scf(self,calcPop):
+        pass
+
+class ASECalculator(Calculator):
+    def __init__(self,parameters,calc):
+        self.parameters=parameters
+        self.calc=calc
+
+    def relax(self, calcPop):
+        os.chdir(self.parameters.workDir)
+        if not os.path.exists('calcFold'):
+            os.mkdir('calcFold')
+        os.chdir('calcFold')
+
+        relaxPop = []
+        errorPop = []
+        for i, ind in enumerate(calcPop):
+            ind.set_calculator(self.calc)
+            try:
+                ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+            except:
+                ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+            if self.parameters.mainoptimizer == 'cg':
+                gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+            elif self.parameters.mainoptimizer == 'BFGS':
+                gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
+            elif self.parameters.mainoptimizer == 'fire':
+                gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=self.parameters.maxRelaxStep)
+
+            try:
+                label=gopt.run(fmax=self.parameters.epsArr, steps=self.parameters.stepArr)
+            except Converged:
+                pass
+            except TimeoutError:
+                errorPop.append(ind)
+                logging.info("Timeout")
+                continue
+            except:
+                errorPop.append(ind)
+                logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                logging.info("ASE relax fail")
+                continue
+
+            if label:
+                # save energy, forces, stress for trainning potential
+                ind.info['energy'] = ind.get_potential_energy()
+                ind.info['forces'] = ind.get_forces()
+                ind.info['stress'] = ind.get_stress()
+                enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
+                ind.info['enthalpy'] = round(enthalpy, 3)
+
+                ind.set_calculator(None)
+                relaxPop.append(ind)
+        os.chdir(self.parameters.workDir)
+        return relaxPop
+
+    def scf(self, calcPop):
+        scfPop = []
+        for ind in calcPop:
+            atoms=copy.deepcopy(ind)
+            atoms.set_calculator(self.calc)
+            try:
+                atoms.info['energy'] = atoms.get_potential_energy()
+                atoms.info['forces'] = atoms.get_forces()
+                atoms.info['stress'] = atoms.get_stress()
+                enthalpy = (atoms.info['energy'] + self.parameters.pressure * atoms.get_volume() * GPa)/len(atoms)
+                atoms.info['enthalpy'] = round(enthalpy, 3)
+                atoms.set_calculator(None)
+                scfPop.append(atoms)
+            except:
+                pass
+        return scfPop
+
+class LJCalculator(ASECalculator):
+    def __init__(self,parameters):
+        calc = LennardJones()
+        return super(LJCalculator, self).__init__(parameters,calc)
+    
+    def relax(self, calcPop):
+        return super(LJCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(LJCalculator, self).scf(calcPop)
 
 class xtbCalculator:
     def __init__(self,parameters):

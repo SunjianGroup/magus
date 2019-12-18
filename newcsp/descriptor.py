@@ -236,7 +236,7 @@ def cutoff_fxn(Rij, Rc):
         return 0.5 * (np.cos(np.pi * Rij / Rc) + 1.)
 
 class ZernikeFp(CalculateFingerprints):
-    def __init__(self, cutoff, nmax, lmax, ncut, elems, diag=False, norm=True,eleParm=None):
+    def __init__(self, cutoff, nmax, lmax, ncut, elems, diag=False, norm=False ,eleParm=None):
         if not lmax:
             lmax = nmax
         assert lmax <= nmax
@@ -255,11 +255,12 @@ class ZernikeFp(CalculateFingerprints):
         self.numEles = len(elems)
 
         self.part=lrpot.CalculateFingerprints_part(cutoff, nmax, lmax, ncut, diag)
-        
+
         self.Nd=self.part.Nd
         self.totNd = self.Nd * self.numEles
 
         self.part.SeteleParm(1.0*np.array(eleParm)) #All numbers must be double here
+
 
     def get_all_fingerprints(self,atoms):
 
@@ -278,27 +279,27 @@ class ZernikeFp(CalculateFingerprints):
 
         eFps = np.zeros((Nat, totNd))
         fFps = np.zeros((Nat, Nat, 3 ,totNd))
+        sFps = np.zeros((Nat, Nat, Nat ,3 ,totNd))
 
         for i in range(Nat):
             cenEleInd = self.eleDic[atoms.numbers[i]]
             self.part.SetNeighbors(np.array(sortNl[i]))
             self.part.get_fingerprints(i, cenEleInd)
             eFps[i] = self.part.GeteFp()                           #returns list of length totNd
-            fFps[i] = self.part.GetfFps()                           #returns array of Nat*3*totNd
-
+            sFps[i] = self.part.GetfFps()
+            fFps[i] = np.sum(sFps[i], axis=1)                           #returns array of Nat*3*totNd
+        """
         #normalization
         if self.norm:
             Enorm_coff = np.linalg.norm(eFps,axis=1)
             Fnorm_coff = np.sum(fFps*eFps[:,np.newaxis,np.newaxis,:],axis=3)/np.reshape(Enorm_coff**2,(-1,1,1))
             eFps = eFps/np.reshape(Enorm_coff,(-1,1))
             fFps = fFps/np.reshape(Enorm_coff,(-1,1,1,1))-Fnorm_coff[:,:,:,np.newaxis]*eFps[:,np.newaxis,np.newaxis,:]
+        """
         #stress fp
-        """
-        sFps = []
-        for alpha in range(3):
-            for beta in range(3):
-                sFps.append(np.sum(fFps[:,:,alpha,:]*rij[:,:,beta,np.newaxis],axis=(0,1)))
-        sFps = np.array(sFps)
-        """
-        sFps = np.sum(fFps*rij[:,:,np.newaxis,:],axis=(0,1)
-        return eFps, fFps , sFps
+
+        sFps = np.sum(sFps[:,:,:,:,np.newaxis,:]*rij[np.newaxis,:,:,np.newaxis,:,np.newaxis],axis=(1,2))
+        sFps = sFps[:,[0,1,2,1,0,0],[0,1,2,2,2,1],:]  
+        sFps = np.zeros_like(sFps)      #test    
+        return eFps, fFps , sFps 
+        

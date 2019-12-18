@@ -4,7 +4,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import VaspCalculator,xtbCalculator
+from .localopt import VaspCalculator,xtbCalculator,LJCalculator
 from .initstruct import BaseGenerator,read_seeds,VarGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .readparm import read_parameters
@@ -12,7 +12,7 @@ from .utils import EmptyClass, calc_volRatio
 import copy
 from .queue import JobManager
 from .setfitness import calc_fitness
-from .renew import Kriging
+from .renew import Kriging, calc_dominators, del_duplicate, clustering, check_dist
 #ML module
 from .machinelearning import LRmodel
 from amp.descriptor.gaussian import Gaussian
@@ -25,44 +25,47 @@ class Magus:
         self.Generator=BaseGenerator(parameters)
         self.Algo=Kriging(parameters)
         #self.MainCalculator=xtbCalculator(parameters)
-        self.MainCalculator=VaspCalculator(parameters)
+        #self.MainCalculator=VaspCalculator(parameters)
+        self.MainCalculator = LJCalculator(parameters)
         self.ML=LRmodel(parameters)
         self.get_fitness=calc_fitness
         self.pop=[]
+        self.curgen=0
+
+    def run(self):
+        self.Initialize()
+        for _ in range(self.parameters.numGen):
+            self.Onestep()
 
     def Initialize(self):
-        # if os.path.exists("results"):
-        #     i=0
-        #     while os.path.exists("results{}".format(i)):
-        #         i+=1
-        #     shutil.move("results", "results{}".format(i))
-        # os.mkdir("results")
-        # self.parameters.resultsDir=os.path.join(self.parameters.workDir,'results')
-        # shutil.copy("allParameters.yaml", "results/allParameters.yaml")
-
-        # logging.info("===== Initializition =====")
-        # initPop = self.Generator.Generate_pop(self.parameters.initSize)
-        # logging.info("initPop length: {}".format(len(initPop)))
-
-        # #initPop.extend(read_seeds(parameters))
-        # write_results(initPop, 'init')
-
-        # relaxPop=self.MainCalculator.relax(initPop)
-
-        # """
-        # logging.info("check distance")
-        # relaxPop = check_dist(relaxPop, self.parameters.dRatio)
-        # logging.info("check survival: {}".format(len(relaxPop)))
-        # """
-        
-        # self.ML.get_fp(relaxPop)
-        # self.get_fitness(relaxPop)
-
-        # write_results(relaxPop, 'relax',self.parameters.resultsDir)
+        if os.path.exists("results"):
+            i=0
+            while os.path.exists("results{}".format(i)):
+                i+=1
+            shutil.move("results", "results{}".format(i))
+        os.mkdir("results")
         self.parameters.resultsDir=os.path.join(self.parameters.workDir,'results')
-        relaxPop=ase.io.read('results/relax.traj',':')
-        self.ML.get_fp(relaxPop)
+        shutil.copy("allParameters.yaml", "results/allParameters.yaml")
+
+        logging.info("===== Initializition =====")
+        initPop = self.Generator.Generate_pop(self.parameters.initSize)
+        logging.info("initPop length: {}".format(len(initPop)))
+
+        write_results(initPop, 'init0',self.parameters.resultsDir)
+
+        relaxPop=self.MainCalculator.relax(initPop)
+        write_results(relaxPop, 'debug0',self.parameters.resultsDir)
+        
+        logging.info("check distance")
+        relaxPop = check_dist(relaxPop, self.parameters.dRatio)
+        logging.info("check survival: {}".format(len(relaxPop)))
+
         self.get_fitness(relaxPop)
+        for ind in relaxPop:
+            logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
+        write_results(relaxPop, 'relax0',self.parameters.resultsDir)
+
+        self.ML.get_fp(relaxPop)
         self.ML.updatedataset(relaxPop)
         self.ML.train()
         logging.info("loss:{}".format(self.ML.get_loss(relaxPop)))
@@ -70,27 +73,110 @@ class Magus:
         
 
     def Onestep(self):
-        curPop=self.pop
-        initPop=self.Algo.generate(curPop)
-        logging.info("generate:{}".format(len(initPop)))
+        self.curgen+=1
+        logging.info("===== Generation {} =====".format(self.curgen))
+        optPop=self.pop
+        try:
+            goodPop = ase.io.read("{}/good.traj".format(self.parameters.resultsDir), format='traj', index=':')
+            keepPop = ase.io.read("{}/keep{}.traj".format(self.parameters.resultsDir, self.curgen-1), format='traj', index=':')
+        except:
+            goodPop = list()
+            keepPop = list()
+
+        for Pop in [optPop,goodPop,keepPop]:
+            self.get_fitness(Pop)
+        logging.info('calc_fitness finish')
+
+
+        # Calculate fingerprints
+        logging.debug('calc_all_fingerprints begin')
+        self.ML.get_fp(optPop)
+        logging.info('calc_all_fingerprints finish')
+
+        logging.info('del_duplicate optPop begin')
+        optPop = del_duplicate(optPop)
+        logging.info('del_duplicate optPop finish')
+
+
+        ### save good individuals
+        logging.info('goodPop')
+        goodPop = calc_dominators(optPop+goodPop)
+        goodPop = del_duplicate(goodPop)
+        goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])
+
+        if len(goodPop) > self.parameters.popSize:
+            goodPop = goodPop[:self.parameters.popSize]
+
+        ### keep best
+        logging.info('keepPop')
+        labels, keepPop = clustering(goodPop, self.parameters.saveGood)
+
+        ### write results
+        write_results(optPop,  'gen{}'.format(self.curgen),self.parameters.resultsDir)
+        write_results(goodPop, 'good',self.parameters.resultsDir)
+        write_results(keepPop, 'keep{}'.format(self.curgen),self.parameters.resultsDir)
+        shutil.copy('log.txt', 'results/log.txt')
+
+        ### write dataset
+        write_dataset(optPop)
+
+        bboPop = del_duplicate(optPop + keepPop)
+
+        # renew volRatio
+        volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
+        self.Generator.updatevolRatio(0.5*(volRatio + self.Generator.volRatio))
+        logging.debug("volRatio: {}".format(self.Generator.volRatio))
+
+        initPop=self.Algo.generate(bboPop)
+
+        if len(initPop) < self.parameters.popSize:
+            logging.info("random structures out of Kriging")
+            initPop.extend(self.Generator.Generate_pop(self.parameters.initSize-len(initPop)))
+
+        ### Initail check
+        initPop = check_dist(initPop, self.parameters.dRatio)
+
+        ### Initial fingerprint
+        self.ML.get_fp(initPop)
+
+        ### Save Initial
+        write_results(initPop,'init{}'.format(self.curgen),self.parameters.resultsDir)
+
+
+        ### mlrelax
         for _ in range(10):
-            write_results(initPop,'gen-init',self.parameters.resultsDir)
-            logging.info("ML relax {}".format(_))
-            relaxPop=self.ML.relax(initPop)
-            write_results(relaxPop,'gen-relax',self.parameters.resultsDir)
-            self.get_fitness(relaxPop)
-            relaxPop=sorted(relaxPop,key=lambda x:x.info['fitness1'])
-            selectPop=relaxPop[:min(len(relaxPop),self.parameters.popSize)]
-            logging.info('shabi{}'.format(len(selectPop)))
-            selectPop=self.MainCalculator.scf(selectPop)
-            write_results(selectPop,'select',self.parameters.resultsDir)
-            logging.info("MSE:{}".format(self.ML.get_loss(selectPop)))
-            if self.ML.get_loss(selectPop)[0]>0.1:
-                self.ML.updatedataset(selectPop)
-                self.ML.train()
-            else:
+            relaxPop = self.ML.relax(initPop)
+            scfPop = self.MainCalculator.scf(relaxPop)
+            loss = self.ML.get_loss(scfPop)
+            if loss[1]>0.8:
+                logging.info('di {} dai , neng liang wu cha {} , ke yi de'.format(_,loss[1]))
                 break
-    
+            logging.info('QAQ di {} dai le , neng liang wu cha {}'.format(_,loss[1]))
+            self.ML.updatedataset(scfPop)
+            self.ML.train()
+            
+        else:
+            relaxPop = self.MainCalculator.relax(initPop)
+            logging.info('hai shi yong di yi xing le')
+
+
+        logging.info("check distance")
+        relaxPop = check_dist(relaxPop, self.parameters.dRatio)
+        logging.info("check survival: {}".format(len(relaxPop)))
+
+        self.get_fitness(relaxPop)
+        for ind in relaxPop:
+            logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
+        write_results(relaxPop, 'relax0',self.parameters.resultsDir)
+
+        self.ML.get_fp(relaxPop)
+        self.ML.updatedataset(relaxPop)
+        self.ML.train()
+        scfPop = self.MainCalculator.scf(relaxPop)
+        logging.info("loss:{}".format(self.ML.get_loss(scfPop)))
+        self.pop=copy.deepcopy(relaxPop)
+
+
 
         
 parser = argparse.ArgumentParser()
@@ -108,5 +194,4 @@ for key, val in parameters.items():
     setattr(p, key, val)
 
 m=Magus(p)
-m.Initialize()
-m.Onestep()
+m.run()

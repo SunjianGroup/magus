@@ -4,6 +4,11 @@ import numpy as np
 from ase import Atoms, Atom, units
 from ase.optimize import BFGS,FIRE
 from ase.units import GPa
+from ase.constraints import UnitCellFilter,ExpCellFilter
+from ase.optimize import BFGS, LBFGS, FIRE
+from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
+from .renew import del_duplicate
+import copy
 
 class MachineLearning:
     def __init__(self):
@@ -37,12 +42,13 @@ class LRCalculator(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
         X,n=[],[]
 
-        eFps, fFps ,sFps= self.cf.get_all_fingerprints(self.atoms)
+        eFps, fFps, sFps = self.cf.get_all_fingerprints(self.atoms)
         fFps = np.sum(fFps,axis=0)
-
+        sFps = np.sum(sFps,axis=0)
         X.append(np.mean(eFps,axis=0))
         X.extend(fFps.reshape(-1,eFps.shape[1]))
-        n.extend([1.0]+[0.0]*len(atoms)*3)
+        X.extend(sFps.reshape(-1,eFps.shape[1]))
+        n.extend([1.0]+[0.0]*len(atoms)*3+[0.0]*6)
         X=np.array(X)
         n=np.array(n)
         X=np.concatenate((n.reshape(-1,1),X),axis=1)
@@ -50,11 +56,8 @@ class LRCalculator(Calculator):
         y=self.reg.predict(X)
         self.results['energy'] = y[0]*len(self.atoms)
         self.results['free_energy'] = y[0]*len(self.atoms)
-        self.results['forces'] = y[1:].reshape((len(self.atoms),3))
-
-        X=np.concatenate((np.zeros((9,1)),sFps),axis=1)
-        y=self.reg.predict(X)
-        self.results['stress'] = y.reshape((3,3))
+        self.results['forces'] = y[1:-6].reshape((len(self.atoms),3))
+        self.results['stress'] = y[-6:]/self.atoms.get_volume()/2
 
 
 optimizers={'BFGS':BFGS,'FIRE':FIRE}
@@ -66,28 +69,39 @@ class LRmodel(MachineLearning):
         nmax = 8
         ncut = 4
         self.cf = ZernikeFp(cutoff, nmax, None, ncut, elems,diag=False)
-        self.w_energy = 10.0
+        self.w_energy = 30.0
         self.w_force = 1.0
+        self.w_stress = 1.0
         self.X = None
-        self.optimizer=optimizers[parameters.mloptimizer]
+        #self.optimizer=optimizers[parameters.mloptimizer]
+        self.dataset = []
         
     def train(self):
-        logging.info('OvO!')
+        logging.info('OvO!{}'.format(len(self.dataset)))
         self.reg = LinearRegression().fit(self.X, self.y, self.w)
 
-    def get_data(self,images):
+    def get_data(self,images,implemented_properties = ['energy', 'forces']):
         X,y,w,n=[],[],[],[]
         for atoms in images:
-            eFps, fFps ,_= self.cf.get_all_fingerprints(atoms)
-            fFps = np.sum(fFps,axis=0)
-
-            X.append(np.mean(eFps,axis=0))
-            X.extend(fFps.reshape(-1,eFps.shape[1]))
-            w.extend([self.w_energy]+[self.w_force]*len(atoms)*3)
-            
-            y.append(atoms.info['energy']/len(atoms))
-            y.extend(atoms.info['forces'].reshape(-1))
-            n.extend([1.0]+[0.0]*len(atoms)*3)
+            eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
+            totNd = eFps.shape[1]
+            if 'energy' in implemented_properties:
+                X.append(np.mean(eFps,axis=0))
+                w.append(self.w_energy)
+                n.append(1.0)
+                y.append(atoms.info['energy']/len(atoms))
+            if 'forces' in implemented_properties:
+                fFps = np.sum(fFps, axis=0)
+                X.extend(fFps.reshape(-1,totNd))
+                w.extend([self.w_force]*len(atoms)*3)
+                n.extend([0.0]*len(atoms)*3)
+                y.extend(atoms.info['forces'].reshape(-1))
+            if 'stress' in implemented_properties:
+                sFps = np.sum(sFps, axis=0)
+                X.extend(sFps.reshape(-1,totNd))
+                w.extend([self.w_stress]*6)
+                n.extend([0.0]*6)
+                y.extend(atoms.info['stress'].reshape(-1))
         X=np.array(X)
         w=np.array(w)
         y=np.array(y)
@@ -96,40 +110,44 @@ class LRmodel(MachineLearning):
         return X,y,w
 
     def updatedataset(self,images):
-        X,y,w = self.get_data(images)
-        if self.X is None:
-            self.X,self.y,self.w=X,y,w
-        else:
-            self.X=np.concatenate((self.X,X),axis=0)  
-            self.y=np.concatenate((self.y,y),axis=0)  
-            self.w=np.concatenate((self.w,w),axis=0)  
+        alldata=copy.deepcopy(self.dataset)
+        alldata.extend(images)
+        alldata=del_duplicate(alldata)
+        newdata=[]
+        for data in alldata:
+            if data not in self.dataset:
+                newdata.append(data)
+        if newdata:
+            self.dataset.extend(newdata)
+            X,y,w = self.get_data(newdata)
+            if self.X is None:
+                self.X,self.y,self.w=X,y,w
+            else:
+                self.X=np.concatenate((self.X,X),axis=0)  
+                self.y=np.concatenate((self.y,y),axis=0)  
+                self.w=np.concatenate((self.w,w),axis=0)  
         
     def get_loss(self,images):
-        X,y,w = self.get_data(images)
-        X_forces, X_energies = [], []
-        y_forces, y_energies = [], []
-        w_forces, w_energies = [], []
 
-        for i, x in enumerate(X):
-            if x[0] == 0.:
-                X_forces.append(X[i])
-                y_forces.append(y[i])
-                w_forces.append(w[i]+1.0)
-            else:
-                X_energies.append(X[i])
-                y_energies.append(y[i])
-                w_energies.append(w[i])
-                
         # Evaluate energy
-        yp_energies = self.reg.predict(X_energies)
-        mae_energies = mean_absolute_error(y_energies, yp_energies)
-        r2_energies = self.reg.score(X_energies, y_energies, w_energies)
+        X,y,w = self.get_data(images,['energy'])
+        yp = self.reg.predict(X)
+        mae_energies = mean_absolute_error(y, yp)
+        r2_energies = self.reg.score(X, y, w)
 
         # Evaluate force
-        yp_forces = self.reg.predict(X_forces)
-        mae_forces = mean_absolute_error(y_forces, yp_forces)
-        r2_forces = self.reg.score(X_forces, y_forces, w_forces)
-        return mae_energies, r2_energies, mae_forces, r2_forces 
+        X,y,w = self.get_data(images,['forces'])
+        yp = self.reg.predict(X)
+        mae_forces = mean_absolute_error(y, yp)
+        r2_forces = self.reg.score(X, y, w)
+
+        # Evaluate stress
+        X,y,w = self.get_data(images,['stress'])
+        yp = self.reg.predict(X)
+        mae_stresses = mean_absolute_error(y, yp)
+        r2_stresses = self.reg.score(X, y, w)
+        #np.savez('stress',y=y,yp=yp)
+        return mae_energies, r2_energies, mae_forces, r2_forces ,mae_stresses ,r2_stresses
 
     def relax(self,structs):
         calc = LRCalculator(self.reg,self.cf)
@@ -137,10 +155,20 @@ class LRmodel(MachineLearning):
         structs_=copy.deepcopy(structs)
         for ind in structs_:
             ind.set_calculator(calc)
-            dyn = self.optimizer(ind,logfile="{}/MLrelax.log".format(self.parameters.MLpath))
             for j in range(self.parameters.mlrelaxNum):
                 try:
-                    label=dyn.run(fmax=self.parameters.epsArr[j], steps=self.parameters.stepArr[j])
+                    ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+                except:
+                    ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+                if self.parameters.mloptimizer == 'cg':
+                    gopt = SciPyFminCG(ucf, logfile="{}/MLrelax.log".format(self.parameters.MLpath),)
+                elif self.parameters.mloptimizer == 'BFGS':
+                    gopt = BFGS(ucf, logfile="{}/MLrelax.log".format(self.parameters.MLpath), maxstep=self.parameters.maxRelaxStep)
+                elif self.parameters.mloptimizer == 'fire':
+                    gopt = FIRE(ucf, logfile="{}/MLrelax.log".format(self.parameters.MLpath), maxmove=self.parameters.maxRelaxStep)
+
+                try:
+                    label=gopt.run(fmax=self.parameters.mlepsArr[j], steps=self.parameters.mlstepArr[j])
                 except Converged:
                     pass
                 except TimeoutError:
@@ -154,7 +182,7 @@ class LRmodel(MachineLearning):
                 if label:
                     ind.info['energy'] = ind.get_potential_energy()
                     ind.info['forces'] = ind.get_forces()
-                    #ind.info['stress'] = ind.get_stress()
+                    ind.info['stress'] = ind.get_stress()
                     enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
                     ind.info['enthalpy'] = round(enthalpy, 3)
                     ind.set_calculator(None)
@@ -166,82 +194,3 @@ class LRmodel(MachineLearning):
             X,y,w = self.get_data([ind])
             ind.info['image_fp']=X[0,1:]
 
-"""
-from amp import Amp
-from amp.descriptor.gaussian import Gaussian
-from amp.model.neuralnetwork import NeuralNetwork
-from amp.model import LossFunction
-from .utils import SBCalculator
-from amp.utilities import hash_images
-class AMPmodel(MachineLearning):
-
-    descriptors={'Gaussian':Gaussian()}
-    models={'NN':NeuralNetwork}
-    optimizers={'BFGS':BFGS,'FIRE':FIRE}
-
-    def __init__(self,parameters):
-        self.parameters=parameters
-        self.descriptor=descriptors[parameters.descriptor]
-        model=models[parameters.model](hiddenlayers=parameters.hiddenlayers)
-        label=os.path.join(parameters.workDir,parameters.MLpath,'amp')
-        self.calc=Amp(self.descriptor,model,label)
-        self.calc.cores=12
-        self.calc.model.lossfunction = LossFunction(convergence={'energy_rmse': 0.5,'force_rmse': 2})
-        self.dataset=[]
-        self.optimizer=optimizers[parameters.mloptimizer]
-        
-    def train(self):
-        logging.info('OvO')
-        for atoms in self.dataset:
-            atoms.set_calculator(SBCalculator())
-        self.calc.train(self.dataset)
-
-    def updatedataset(self,images):
-        self.dataset.extend(copy.deepcopy(images))
-
-    def getloss(self,images):
-        testset=copy.deepcopy(images)
-        MSE_energy=0
-        MSE_forces=0
-        for atoms in testset:
-            atoms.set_calculator(self.calc)
-            MSE_energy+=(atoms.get_potential_energy()-atoms.info['energy'])**2
-            MSE_forces+=np.mean((atoms.get_forces()-atoms.info['forces'])**2,axis=0)
-        return MSE_energy/len(testset),MSE_forces/len(testset)
-
-    def relax(self,structs):
-        newStructs = []
-        structs_=copy.deepcopy(structs)
-        for ind in structs_:
-            ind.set_calculator(self.calc)
-            dyn = self.optimizer(ind,logfile="{}/MLrelax.log".format(self.parameters.MLpath))
-            for j in range(self.parameters.mlrelaxNum):
-                try:
-                    dyn.run(fmax=self.parameters.epsArr[j], steps=self.parameters.stepArr[j])
-                except Converged:
-                    pass
-                except TimeoutError:
-                    logging.info("Timeout")
-                    break
-                except:
-                    logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-                    logging.info("ML relax fail")
-                    break
-        else:
-            ind.info['energy'] = ind.get_potential_energy()
-            ind.info['forces'] = ind.get_forces()
-            ind.info['stress'] = ind.get_stress()
-            enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
-            ind.info['enthalpy'] = round(enthalpy, 3)
-            ind.set_calculator(None)
-            newStructs.append(ind)
-        return newStructs
-
-    def get_fp(self,pop):
-        hash_pop=hash_images(pop)
-        self.descriptor.calculate_fingerprints(hash_pop)
-        for ind in pop:
-            h=list(hash_images([ind]).keys())[0]
-            fps=np.array([np.array(self.descriptor.fingerprints[h][i][1]) for i in range(len(ind))])
-            ind.info['image_fp']=np.mean(fps,axis=0)
-"""
