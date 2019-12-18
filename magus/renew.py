@@ -20,159 +20,10 @@ from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from sklearn import cluster
 from .utils import *
 
-class PotKriging:
-    def __init__(self, parameters):
-
-        # global
-        self.parameters = parameters
-        self.symbols = parameters.symbols
-        self.formula = parameters.formula
-        self.saveGood = parameters.saveGood
-        self.addSym = parameters.addSym
-
-        krigParm = parameters.krigParm
-        self.randFrac = krigParm['randFrac']
-        self.permNum = krigParm['permNum']
-        self.latDisps = krigParm['latDisps']
-        self.ripRho = krigParm['ripRho']
-        self.rotNum = krigParm['rotNum']
-    
-        self.kind = krigParm['kind']
-        self.xi = krigParm['xi']
-        self.grids = krigParm['grids']
-        self.kappaLoop = krigParm['kappaLoop']
-        self.scaled_factor = krigParm['scale']
-        self.parent_factor = 0
-
-
-
-    def heredity(self):
-        symbols = self.parameters.symbols
-        grids = self.parameters.grids
-        labels, goodPop = self.labels, self.goodPop
-        hrdPop = list()
-        for i in range(self.saveGood):
-            splitPop = [ind for n, ind in enumerate(self.curPop) if labels[n] == i]
-            goodInd = goodPop[i]
-            splitLen = len(splitPop)
-            logging.debug("splitlen: %s"%(splitLen))
-            for spInd in splitPop:
-                tranPos = spInd.get_scaled_positions() # Displacement
-                tranPos += np.array([[random.random(), random.random(), random.random()]]*len(spInd))
-                spInd.set_scaled_positions(tranPos)
-                spInd.wrap()
-
-                # grid = random.choice(grids)
-                for grid in grids:
-                    try:
-                        ind1 = cut_cell([spInd, goodInd], grid, symbols, 0.2)
-                        ind2 = cut_cell([goodInd, spInd], grid, symbols, 0.2)
-                    except:
-                        continue
-
-                    parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
-                    ind1.info['parentE'] = parentE
-                    ind2.info['parentE'] = parentE
-                    ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
-
-                    nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
-                    ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
-                    ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
-                    ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
-                    ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
-
-                    pairPop = [ind for ind in [ind1, ind2] if ind]
-                    hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
-
-        return hrdPop
-
-    def permutate(self, permNum):
-        goodPop = self.goodPop
-        permPop = list()
-        for parInd in goodPop:
-            parentE = parInd.info['enthalpy']
-            for i in range(permNum):
-                rate = random.uniform(0.4,0.6)
-                permInd = exchage_atom(parInd, rate)
-                permInd.info['symbols'] = self.symbols
-                permInd.info['formula'] = parInd.info['formula']
-                permInd.info['parentE'] = parentE
-                permPop.append(permInd)
-
-        return permPop
-
-    def latmutate(self, disps=[1, 2, 3, 4], sigma=0.2):
-        goodPop = self.goodPop
-        curPop = self.curPop
-        latPop = list()
-        for parInd in goodPop:
-            parentE = parInd.info['enthalpy']
-            for disp in disps:
-                latInd = gauss_mut(parInd, sigma=sigma, cellCut=disp, distCut=0.5)
-                latInd.info['symbols'] = self.symbols
-                latInd.info['formula'] = parInd.info['formula']
-                latInd.info['parentE'] = parentE
-                latPop.append(latInd)
-        return latPop
-
-    def slipmutate(self, cuts=[0.3, 0.4, 0.5]):
-        goodPop = self.goodPop
-        curPop = self.curPop
-        slipPop = list()
-        for parInd in goodPop:
-            parentE = parInd.info['enthalpy']
-            for cut in cuts:
-                slipInd = slip(parInd, cut=cut)
-                slipInd.info['symbols'] = self.symbols
-                slipInd.info['formula'] = parInd.info['formula']
-                slipInd.info['parentE'] = parentE
-                slipPop.append(slipInd)
-
-        return slipPop
-
-    def ripmutate(self, rhos=[0.2, 0.3, 0.4]):
-        goodPop = self.goodPop
-        curPop = self.curPop
-        ripPop = list()
-        for parInd in goodPop:
-            parentE = parInd.info['enthalpy']
-            for rho in rhos:
-                ripInd = ripple(parInd, rho=rho)
-                ripInd.info['symbols'] = self.symbols
-                ripInd.info['formula'] = parInd.info['formula']
-                ripInd.info['parentE'] = parentE
-                ripPop.append(ripInd)
-
-        return ripPop
-
-    def set_factor(self, factor):
-        self.scaled_factor = factor
-
-    def generate(self,curPop):
-        
-        # local
-        self.curPop = calc_dominators(curPop)
-
-        self.labels, self.goodPop = clustering(self.curPop, self.saveGood)
-        if self.addSym:
-            self.goodPop = standardize_pop(self.goodPop, 1.)
-        hrdPop = self.heredity()
-        # hrdPop = []
-        permPop = self.permutate(self.permNum)
-        latPop = self.latmutate(self.latDisps)
-        slipPop = self.slipmutate()
-        ripPop = self.ripmutate(self.ripRho)
-        logging.debug("hrdPop length: %s"%(len(hrdPop)))
-        logging.debug("permPop length: %s"%(len(permPop)))
-        logging.debug("latPop length: %s"%(len(latPop)))
-        logging.debug("slipPop length: %s"%(len(slipPop)))
-        logging.debug("ripPop length: %s"%(len(ripPop)))
-        tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
-        self.tmpPop.extend(tmpPop)
 
 class Kriging:
     def __init__(self, parameters):
-               
+
         self.parameters = parameters
         self.symbols = parameters.symbols
         self.formula = parameters.formula
@@ -200,7 +51,7 @@ class Kriging:
         self.dRatio = parameters.dRatio
         self.bondRatio = parameters.bondRatio
         self.bondRange = parameters.bondRange
- 
+
     def heredity(self, cutNum=5, mode='atom'):
         #curPop = standardize_pop(self.curPop, 1.)
         curPop = self.curPop
@@ -223,7 +74,7 @@ class Kriging:
                 tranPos += np.array([[random.random(), random.random(), random.random()]]*len(spInd))
                 spInd.set_scaled_positions(tranPos)
                 spInd.wrap()
-              
+
                 ind1 = cut_cell([spInd, goodInd], grid, symbols, 0.2)
                 ind2 = cut_cell([goodInd, spInd], grid, symbols, 0.2)
                 ind1 = merge_atoms(ind1, self.dRatio)
@@ -236,7 +87,7 @@ class Kriging:
                 ind1.info['parDom'], ind2.info['parDom'] = parDom, parDom
                 ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
 
-            
+
                 nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
                 ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
                 ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
@@ -368,7 +219,7 @@ class Kriging:
         self.labels, self.goodPop = clustering(self.curPop, self.saveGood)
         if self.addSym:
             self.goodPop = standardize_pop(self.goodPop, 1.)
-        
+
         self.curLen = len(self.curPop)
         logging.debug("curLen: {}".format(self.curLen))
         assert self.curLen >= self.saveGood, "saveGood should be shorter than length of curPop!"
@@ -379,7 +230,7 @@ class Kriging:
         self.clusters = []
         for i in range(self.saveGood):
             self.clusters.append([ind for n, ind in enumerate(self.curPop) if self.labels[n] == i])
-            
+
         hrdPop = self.heredity(self.cutNum)
         # hrdPop = []
         permPop = self.permutate(self.permNum)
@@ -832,4 +683,3 @@ if __name__=="__main__":
     from .writeresults import write_dataset, write_results, write_traj
     write_results(repop, 'result', '.')
 
-    
