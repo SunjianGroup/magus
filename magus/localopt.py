@@ -2,843 +2,314 @@ from __future__ import print_function, division
 from ase import Atoms
 import ase.io
 from .readvasp import *
-import math, os, shutil, subprocess, logging, copy, yaml, sys, traceback
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+import sys, math, os, shutil, subprocess, logging, copy, yaml, traceback
+
 from ase.calculators.lj import LennardJones
 from ase.calculators.vasp import Vasp
-from ase.calculators.cp2k import CP2K, Cp2kShell
-from ase.constraints import UnitCellFilter
-from ase.optimize import BFGS, LBFGS, FIRE
-from ase.optimize.precon import Exp, PreconLBFGS, PreconFIRE
-from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
-from ase.units import GPa
 from ase.spacegroup import crystal
 # from parameters import parameters
-from .writeresults import write_traj
+from .writeresults import write_yaml, read_yaml, write_traj
 from .utils import *
-from .mopac import MOPAC
+from ase.units import GPa
 try:
     from xtb import GFN0
     from ase.constraints import ExpCellFilter
 except:
     pass
 
-def timeout_n(fnc, n, *args, **kwargs):
-    """
-    Raise a TimeError if fnc's runtime is longer than n seconds.
-    """
-    # with ProcessPoolExecutor() as ex:
-    with ThreadPoolExecutor(max_workers=1) as ex:
-        f = ex.submit(fnc, *args, **kwargs)
-        return f.result(timeout=n)
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from ase.calculators.lj import LennardJones
+from ase.constraints import UnitCellFilter
+from ase.optimize import BFGS, LBFGS, FIRE
+from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
+from .queue import JobManager
 
+class Calculator:
+    def __init__(self):
+        pass
 
-def calc_vasp_once(
-    calc,    # ASE calculator
-    struct,
-    index,
-    ):
-    struct.set_calculator(calc)
+    def relax(self,calcPop):
+        pass
 
-    try:
-        energy = struct.get_potential_energy()
-        forces = struct.get_forces()
-        stress = struct.get_stress()
-        gap = read_eigen()
-    except:
-        # s = sys.exc_info()
-        # logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-        logging.info("VASP fail")
-        # print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+    def scf(self,calcPop):
+        pass
 
-        return None
+class ASECalculator(Calculator):
+    def __init__(self,parameters,calc):
+        self.parameters=parameters
+        self.calc=calc
 
-    if calc.float_params['pstress']:
-        pstress = calc.float_params['pstress']
-    else:
-        pstress = 0
+    def relax(self, calcPop):
+        os.chdir(self.parameters.workDir)
+        if not os.path.exists('calcFold'):
+            os.mkdir('calcFold')
+        os.chdir('calcFold')
 
-    struct.info['pstress'] = pstress
-
-    volume = struct.get_volume()
-    enthalpy = energy + pstress * volume / 1602.262
-    enthalpy = enthalpy/len(struct)
-
-    struct.info['gap'] = round(gap, 3)
-    struct.info['enthalpy'] = round(enthalpy, 3)
-
-    # save energy, forces, stress for trainning potential
-    struct.info['energy'] = energy
-    struct.info['forces'] = forces
-    struct.info['stress'] = stress
-
-    # save relax trajectory
-    traj = ase.io.read('OUTCAR', index=':', format='vasp-out')
-    trajDict = [extract_atoms(ats) for ats in traj]
-    # if index == 0:
-    #     struct.info['trajs'] = []
-    # struct.info['trajs'].append(trajDict)
-    struct.info['traj'] = trajDict
-
-    logging.info("VASP finish")
-    return struct[:]
-
-
-def calc_vasp(
-    calcs,    #a list of ASE calculator
-    structs,    #a list of structures
-    ):
-    newStructs = []
-    for i, ind in enumerate(structs):
-        initInd = ind.copy()
-        initInd.info = {}
-        for j, calc in enumerate(calcs):
-            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
-            logging.info("Structure {} Step {}".format(i, j))
-            # print("Structure {} Step {}".format(i, j))
-            ind = calc_vasp_once(copy.deepcopy(calc), ind, j)
-            press = calc.float_params['pstress']/10
-            shutil.copy("OUTCAR", "OUTCAR-{}-{}-{}".format(i, j, press))
-            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
-
-            if ind is None:
-                break
-
-        else:
-            # ind.info['initStruct'] = extract_atoms(initInd)
-            newStructs.append(ind)
-
-    return newStructs
-
-def generate_calcs(calcNum, parameters):
-    workDir = parameters['workDir']
-    xc = parameters['xc']
-    pressure = parameters['pressure']
-    symbols = parameters['symbols']
-    ppLabel = parameters['ppLabel']
-
-    vaspSetup = dict(zip(symbols, ppLabel))
-
-    incars = ["{}/inputFold/INCAR_{}".format(workDir, i) for i in range(1, calcNum + 1)]
-
-    calcs = []
-    for incar in incars:
-        calc = Vasp()
-        calc.read_incar(incar)
-        calc.set(xc=xc)
-        calc.set(setups=vaspSetup)
-        calc.set(pstress=pressure*10)
-        calcs.append(calc)
-
-    return calcs
-
-
-def calc_vasp_parallel(calcNum, calcPop, parameters, prefix='calcVasp'):
-    workDir = parameters['workDir']
-    queueName = parameters['queueName']
-    numParallel = parameters['numParallel']
-    numCore = parameters['numCore']
-    xc = parameters['xc']
-    pressure = parameters['pressure']
-    symbols = parameters['symbols']
-    ppLabel = parameters['ppLabel']
-    maxRelaxTime = parameters['maxRelaxTime']
-    jobPrefix = parameters['jobPrefix']
-
-    vaspSetup = dict(zip(symbols, ppLabel))
-
-    # incars = ["{}/inputFold/INCAR_{}".format(workDir, i) for i in range(1, calcNum + 1)]
-
-    popLen = len(calcPop)
-    eachLen = popLen//numParallel
-    remainder = popLen%numParallel
-
-    runArray = []
-    for i in range(numParallel):
-        tmpList = [ i + numParallel*j for j in range(eachLen)]
-        if i < remainder:
-            tmpList.append(numParallel*eachLen + i)
-        runArray.append(tmpList)
-
-
-
-    runJobs = []
-    for i in range(numParallel):
-        if not os.path.exists("{}{}".format(prefix, i)):
-            os.mkdir("{}{}".format(prefix, i))
-        os.chdir("{}{}".format(prefix, i))
-
-        tmpPop = [calcPop[j] for j in runArray[i]]
-        write_traj('initPop.traj', tmpPop)
-        for f in os.listdir("{}/inputFold".format(workDir)):
-            filepath = "{}/inputFold/{}".format(workDir, f)
-            if os.path.isfile(filepath):
-                shutil.copy(filepath, f)
-        # for j in range(1, calcNum + 1):
-        #     shutil.copy("{}/inputFold/INCAR_{}".format(workDir, j), 'INCAR_{}'.format(j))
-        # shutil.copy("../run_vasp.py", "run_vasp.py")
-        with open('vaspSetup.yaml', 'w') as setupF:
-            setupF.write(yaml.dump(vaspSetup))
-
-        f = open('parallel.sh', 'w')
-        f.write("#BSUB -q %s\n"
-                "#BSUB -n %s\n"
-                "#BSUB -o out\n"
-                "#BSUB -e err\n"
-                "#BSUB -W %s\n"
-                "#BSUB -J Vasp_%s\n"% (queueName, numCore, int(maxRelaxTime*len(tmpPop)*calcNum/60), i))
-        f.write("{}\n".format(jobPrefix))
-        f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(calcNum, xc, pressure))
-        f.close()
-
-        jobID = subprocess.check_output("bsub < parallel.sh", shell=True).split()[1]
-        jobID = jobID[1: -1]
-        runJobs.append(jobID)
-
-        os.chdir("%s/calcFold" %(workDir))
-
-    return runJobs
-
-def read_parallel_results(jobStat, parameters, prefix):
-
-    optPop = []
-    for i, stat in enumerate(jobStat):
-        jobDir = "{}/calcFold/{}{}".format(parameters['workDir'], prefix, i)
-        if stat == 'DONE' and os.path.exists("{}/DONE".format(jobDir)):
-            # logging.info(os.getcwd())
+        relaxPop = []
+        errorPop = []
+        for i, ind in enumerate(calcPop):
+            ind.set_calculator(self.calc)
             try:
-                # optPop.extend(ase.io.read("{}/calcFold/{}{}/optPop.traj".format(parameters['workDir'], prefix, i), format='traj', index=':'))
-                optPop.extend(ase.io.read("{}/optPop.traj".format(jobDir), format='traj', index=':'))
+                ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
             except:
-                logging.info("ERROR in read results")
-
-    return optPop
-
-
-
-
-def calc_lj(structs):
-    ljCalc = LennardJones()
-    newStructs = []
-    for ind in structs:
-        ind.set_calculator(ljCalc)
-        energy = ind.get_potential_energy()
-        energy = energy/len(ind)
-        ind.info['enthalpy'] = round(energy, 3)
-        ind.info['gap'] = 0
-        if not math.isnan(energy):
-            newStructs.append(ind)
-
-    return newStructs
-
-def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
-    optPop = []
-    for n, ind in enumerate(calcPop):
-        for i in range(1, calcNum + 1):
-            ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
-            logging.info("Structure %s Step %s" %(n, i))
-
-        if ind:
-            optPop.append(ind)
-        else:
-            logging.info("fail in localopt")
-    logging.info('\n')
-    return optPop
-
-def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
-    """
-    exeCmd should be "gulp < input > output"
-    """
-    if os.path.exists('output'):
-        os.remove('output')
-
-    try:
-        # subprocess.call("cp {}/* .".format(inputDir), shell=True)
-        # subprocess.call("cat goptions_{} > input".format(calcStep), shell=True)
-        for f in os.listdir("{}".format(inputDir)):
-            filepath = "{}/{}".format(inputDir, f)
-            if os.path.isfile(filepath):
-                shutil.copy(filepath, f)
-        shutil.copy("goptions_{}".format(calcStep), "input")
-
-
-        with open('input', 'a') as gulpIn:
-            gulpIn.write('cell\n')
-            a, b, c, alpha, beta, gamma = calcInd.get_cell_lengths_and_angles()
-            gulpIn.write("%g %g %g %g %g %g\n" %(a, b, c, alpha, beta, gamma))
-            gulpIn.write('fractional\n')
-            for atom in calcInd:
-                gulpIn.write("%s %.6f %.6f %.6f\n" %(atom.symbol, atom.a, atom.b, atom.c))
-            gulpIn.write('\n')
-
-            with open("ginput_{}".format(calcStep), 'r') as gin:
-                gulpIn.write(gin.read())
-
-            gulpIn.write('pressure\n{}\n'.format(pressure))
-            gulpIn.write("dump every optimized.structure")
-
-        exitcode = subprocess.call(exeCmd, shell=True)
-        if exitcode != 0:
-            raise RuntimeError('Gulp exited with exit code: %d.  ' % exitcode)
-
-        fout = open('optimized.structure', 'r')
-        output = fout.readlines()
-        fout.close()
-
-        for i, line in enumerate(output):
-            if 'cell' in line:
-                cellIndex = i + 1
-            if 'fractional' in line:
-                posIndex = i + 1
-
-        cellpar = output[cellIndex].split()
-        cellpar = [float(par) for par in cellpar]
-
-        pos = []
-        for line in output[posIndex:posIndex + len(calcInd)]:
-            pos.append([eval(i) for i in line.split()[2:5]])
-
-        optInd = crystal(symbols=calcInd, cellpar=cellpar)
-        optInd.set_scaled_positions(pos)
-
-        optInd.info = calcInd.info.copy()
-
-        enthalpy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
-        enthalpy = float(enthalpy)/len(optInd)
-        optInd.info['enthalpy'] = round(enthalpy, 3)
-
-        return optInd
-
-    except:
-        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-        # s = sys.exc_info()
-        # print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-        # logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-        logging.info("GULP fail")
-        return None
-
-def calc_gulp_parallel(calcNum, calcPop, parameters,):
-
-    workDir = parameters['workDir']
-    queueName = parameters['queueName']
-    numParallel = parameters['numParallel']
-    numCore = parameters['numCore']
-
-    pressure = parameters['pressure']
-    exeCmd = parameters['exeCmd']
-    inputDir = "{}/inputFold".format(parameters['workDir'])
-    jobPrefix = parameters['jobPrefix']
-    maxRelaxTime = parameters['maxRelaxTime']
-
-    calcDic = {
-        'calcNum': calcNum,
-        'pressure': pressure,
-        'exeCmd': exeCmd,
-        'inputDir': inputDir,
-    }
-
-    popLen = len(calcPop)
-    eachLen = popLen//numParallel
-    remainder = popLen%numParallel
-
-    runArray = []
-    for i in range(numParallel):
-        tmpList = [ i + numParallel*j for j in range(eachLen)]
-        if i < remainder:
-            tmpList.append(numParallel*eachLen + i)
-        runArray.append(tmpList)
-
-
-
-
-    runJobs = []
-    for i in range(numParallel):
-        if not os.path.exists('calcGulp%s' %(i)):
-            os.mkdir('calcGulp%s' %(i))
-        os.chdir('calcGulp%s' %(i))
-
-        tmpPop = [calcPop[j] for j in runArray[i]]
-#        logging.info("runArray[i]: %s"% (runArray[i]))
-        write_traj('initPop.traj', tmpPop)
-        # shutil.copy("../run_gulp.py", "run_gulp.py")
-        with open('gulpSetup.yaml', 'w') as setupF:
-            setupF.write(yaml.dump(calcDic))
-
-
-        f = open('parallel.sh', 'w')
-        f.write("#BSUB -q %s\n"
-                "#BSUB -n %s\n"
-                "#BSUB -o out\n"
-                "#BSUB -e err\n"
-                "#BSUB -J Gulp_%s\n"% (queueName, numCore ,i))
-        f.write("{}\n".format(jobPrefix))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
-        f.close()
-
-        jobID = subprocess.check_output("bsub < parallel.sh", shell=True).split()[1]
-        jobID = jobID[1: -1]
-        runJobs.append(jobID)
-
-        os.chdir("%s/calcFold" %(workDir))
-
-    return runJobs
-
-def jobs_stat(runJobs):
-    """
-    Check if the job has been done.
-    """
-    jobStat = []
-    for jobID in runJobs:
-        try:
-            stat = subprocess.check_output("bjobs %s | grep %s | awk '{print $3}'"% (jobID, jobID), shell=True)
-            stat = stat.decode()[:-1]
-        except:
-            s = sys.exc_info()
-            logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-            stat = ''
-        # logging.debug(jobID, stat)
-        if stat == 'DONE':
-            jobStat.append('DONE')
-        elif stat == 'PEND' or stat == 'RUN':
-            jobStat.append('RUN')
-        elif stat == '':
-            # Time is too long to find the status of the job. Suppose it is done and check it in following process.
-            jobStat.append('DONE')
-        else:
-            jobStat.append('ERROR')
-
-    return jobStat
-
-
-
-
-def calc_mopac_once(
-    calc,    # mopac calculator
-    struct,
-    index,
-    pressure, # GPa unit
-    ):
-    struct.set_calculator(calc)
-
-    try:
-        energy = struct.get_potential_energy()
-        forces = struct.get_forces()
-    except:
-        # s = sys.exc_info()
-        # logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-        logging.info("MOPAC fail")
-        # print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-
-        return None
-
-    # if calc.float_params['pstress']:
-    #     pstress = calc.float_params['pstress']
-    # else:
-    #     pstress = 0
-
-    # struct.info['pstress'] = pstress
-    calc.read(label=calc.label)
-    info = struct.info
-    struct = calc.atoms
-    struct.info = info.copy()
-
-    volume = struct.get_volume()
-    enthalpy = energy + pressure * volume * GPa
-    enthalpy = enthalpy/len(struct)
-
-    struct.info['enthalpy'] = round(enthalpy, 3)
-
-    # save energy, forces, stress for trainning potential
-    struct.info['energy'] = energy
-    struct.info['forces'] = forces
-
-
-    logging.info("MOPAC finish")
-    return struct[:]
-
-
-def calc_mopac(
-    calcs,    #a list of ASE calculator
-    structs,    #a list of structures
-    pressure,
-    ):
-    newStructs = []
-    for i, ind in enumerate(structs):
-        initInd = ind.copy()
-        initInd.info = {}
-        for j, calc in enumerate(calcs):
-            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
-            logging.info("Structure {} Step {}".format(i, j))
-            # print("Structure {} Step {}".format(i, j))
-            ind = calc_mopac_once(copy.deepcopy(calc), ind, j, pressure)
-            shutil.copy("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
-            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
-
-            if ind is None:
-                break
-
-        else:
-            # ind.info['initStruct'] = extract_atoms(initInd)
-            newStructs.append(ind)
-
-    return newStructs
-
-def generate_mopac_calcs(calcNum, parameters):
-    workDir = parameters['workDir']
-    pressure = parameters['pressure']
-    mopacCmd = os.environ.get('ASE_MOPAC_COMMAND')
-    if not mopacCmd:
-        mopacCmd = parameters['exeCmd']
-
-
-    mopac_inputs = [yaml.load(open("{}/inputFold/mopac_{}.yaml".format(workDir, i))) for i in range(1, calcNum + 1)]
-
-    calcs = []
-    for inDic in mopac_inputs:
-        task = inDic['task'] + " P={}GPa ".format(pressure)
-        calc = MOPAC(label='mopac', command=mopacCmd, task=task, method=inDic['method'])
-        calcs.append(calc)
-
-    return calcs
-
-
-def calc_cp2k_once(
-    calc,    # cp2k calculator
-    struct,
-    pressure, # GPa unit
-    eps,
-    steps,
-    maxRelaxTime,
-    maxRelaxStep,
-    optimizer,
-    ):
-    atoms = struct[:]
-    # if calc._shell:
-    #     calc._release_force_env()
-
-    atoms.set_calculator(calc)
-
-    ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    if optimizer == 'cg':
-        gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-    elif optimizer == 'bfgs':
-        gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
-    elif optimizer == 'fire':
-        gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
-
-    try:
-        gopt.run(fmax=eps, steps=steps)
-        # timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
-    except Converged:
-        pass
-    except TimeoutError:
-        logging.info("Timeout")
-        return None
-    except:
-        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-        logging.info("CP2K fail")
-        calc._release_force_env()
-        del(calc._shell)
-        calc._shell = Cp2kShell(calc.command, calc._debug)
-        return None
-
-    atoms.info = struct.info.copy()
-    volume = atoms.get_volume()
-    energy = atoms.get_potential_energy()
-    forces = atoms.get_forces()
-    stress = atoms.get_stress()
-    enthalpy = energy + pressure * volume * GPa
-    enthalpy = enthalpy/len(atoms)
-    atoms.info['enthalpy'] = round(enthalpy, 3)
-
-    # save energy, forces, stress for trainning potential
-    atoms.info['energy'] = energy
-    atoms.info['forces'] = forces
-    atoms.info['stress'] = stress
-
-    logging.info("CP2K finish")
-    return atoms
-
-def calc_cp2k(
-    calcs,    #a list of ASE calculator
-    structs,    #a list of structures
-    pressure,
-    epsArr,
-    stepArr,
-    maxRelaxTime,
-    maxRelaxStep=0.1,
-    optimizer='bfgs'
-    ):
-
-    newStructs = []
-    for i, ind in enumerate(structs):
-        initInd = ind.copy()
-        initInd.info = {}
-        for j, calc in enumerate(calcs):
-            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
-            logging.info("Structure {} Step {}".format(i, j))
-            # print("Structure {} Step {}".format(i, j))
-            # calc.set(label='cp2k-{}-{}'.format(i,j))
-            logging.debug(ind)
-            ind = calc_cp2k_once(calc, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime, maxRelaxStep, optimizer)
-            # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
-            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
-
-            if ind is None:
-                break
-
-        else:
-            # ind.info['initStruct'] = extract_atoms(initInd)
-            newStructs.append(ind)
-
-    return newStructs
-
-def generate_cp2k_calcs(calcNum, parameters):
-    workDir = parameters['workDir']
-    exeCmd = parameters['exeCmd']
-
-    unuseKeys = ['basis_set', 'basis_set_file', 'charge', 'cutoff', 'force_eval_method', 'potential_file', 'max_scf', 'pseudo_potential', 'uks', 'poisson_solver', 'xc']
-    unuseDict = {}
-    for key in unuseKeys:
-        unuseDict[key] = None
-
-    calcs = []
-    for i in range(1, calcNum + 1):
-        with open("{}/inputFold/cp2k_{}.inp".format(workDir, i)) as f:
-            inp = f.read()
-        calc = CP2K(command=exeCmd, inp=inp, debug=False, **unuseDict)
-        # calc = CP2K(command=exeCmd, inp=inp, debug=True, **unuseDict)
-        calcs.append(calc)
-
-
-    return calcs
-
-def calc_cp2k_once_params(
-    param,    # cp2k calculator parameters
-    struct,
-    pressure, # GPa unit
-    eps,
-    steps,
-    maxRelaxTime,
-    maxRelaxStep,
-    optimizer,
-    ):
-    atoms = struct[:]
-    # if calc._shell:
-    #     calc._release_force_env()
-    calc = CP2K(**param)
-    atoms.set_calculator(calc)
-
-    try:
-        ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
-    except:
-        ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    if optimizer == 'cg':
-        gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-    elif optimizer == 'bfgs':
-        gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
-    elif optimizer == 'fire':
-        gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
-
-    try:
-        gopt.run(fmax=eps, steps=steps)
-        # timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
-    except Converged:
-        pass
-    except TimeoutError:
-        logging.info("Timeout")
-        return None
-    except:
-        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-        logging.info("CP2K fail")
-        # calc._release_force_env()
-        # del(calc._shell)
-        # calc._shell = Cp2kShell(calc.command, calc._debug)
-        return None
-
-    atoms.info = struct.info.copy()
-    volume = atoms.get_volume()
-    energy = atoms.get_potential_energy()
-    forces = atoms.get_forces()
-    stress = atoms.get_stress()
-    enthalpy = energy + pressure * volume * GPa
-    enthalpy = enthalpy/len(atoms)
-    atoms.info['enthalpy'] = round(enthalpy, 3)
-
-    # save energy, forces, stress for trainning potential
-    atoms.info['energy'] = energy
-    atoms.info['forces'] = forces
-    atoms.info['stress'] = stress
-
-    logging.info("CP2K finish")
-    return atoms
-
-def calc_cp2k_params(
-    paramArr,    #a list of cp2k calculator parameters
-    structs,    #a list of structures
-    pressure,
-    epsArr,
-    stepArr,
-    maxRelaxTime,
-    maxRelaxStep=0.1,
-    optimizer='bfgs'
-    ):
-
-    logging.debug('optimizer: {}'.format(optimizer))
-    newStructs = []
-    for i, ind in enumerate(structs):
-        initInd = ind.copy()
-        initInd.info = {}
-        for j, param in enumerate(paramArr):
-            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
-            logging.info("Structure {} Step {}".format(i, j))
-            # print("Structure {} Step {}".format(i, j))
-            # calc.set(label='cp2k-{}-{}'.format(i,j))
-            logging.debug(ind)
-            ind = calc_cp2k_once_params(param, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime,maxRelaxStep, optimizer)
-            # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
-            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
-
-            if ind is None:
-                break
-
-        else:
-            # ind.info['initStruct'] = extract_atoms(initInd)
-            newStructs.append(ind)
-
-    return newStructs
-
-def generate_cp2k_params(calcNum, parameters):
-    workDir = parameters['workDir']
-    exeCmd = parameters['exeCmd']
-
-    unuseKeys = ['basis_set', 'basis_set_file', 'charge', 'cutoff', 'force_eval_method', 'potential_file', 'max_scf', 'pseudo_potential', 'uks', 'poisson_solver', 'xc']
-    unuseDict = {}
-    for key in unuseKeys:
-        unuseDict[key] = None
-
-    paramArr = []
-    for i in range(1, calcNum + 1):
-        with open("{}/inputFold/cp2k_{}.inp".format(workDir, i)) as f:
-            inp = f.read()
-        param = unuseDict.copy()
-        param['command'] = exeCmd
-        param['inp'] = inp
-        param['debug'] = False
-        # param['maxRelaxStep'] = parameters['maxRelaxStep']
-        # calc = CP2K(command=exeCmd, inp=inp, debug=False, **unuseDict)
-        # calc = CP2K(command=exeCmd, inp=inp, debug=True, **unuseDict)
-        paramArr.append(param)
-
-
-    return paramArr
-
-
-def calc_xtb_once(
-    calc,    # xtb calculator
-    struct,
-    pressure, # GPa unit
-    eps,
-    steps,
-    maxRelaxTime,
-    maxRelaxStep,
-    optimizer,
-    ):
-    atoms = struct[:]
-    # if calc._shell:
-    #     calc._release_force_env()
-
-    atoms.set_calculator(calc)
-
-    try:
-        ucf = ExpCellFilter(atoms, scalar_pressure=pressure*GPa)
-    except:
-        ucf = UnitCellFilter(atoms, scalar_pressure=pressure*GPa)
-    if optimizer == 'cg':
-        gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-    elif optimizer == 'bfgs':
-        gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
-    elif optimizer == 'fire':
-        gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
-    elif optimizer == 'preconfire':
-        gopt = PreconFIRE(ucf, logfile='aseOpt.log', maxmove=maxRelaxStep)
-    elif optimizer == 'preconlbfgs':
-        gopt = PreconLBFGS(ucf, logfile='aseOpt.log', maxstep=maxRelaxStep)
-
-    try:
-        gopt.run(fmax=eps, steps=steps)
-        # timeout_n(fnc=gopt.run, n=maxRelaxTime, fmax=eps, steps=steps)
-    except Converged:
-        pass
-    except TimeoutError:
-        logging.info("Timeout")
-        return None
-    except:
-        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-        logging.info("XTB fail")
-        return None
-
-    atoms.info = struct.info.copy()
-    volume = atoms.get_volume()
-    energy = atoms.get_potential_energy()
-    forces = atoms.get_forces()
-    stress = atoms.get_stress()
-    enthalpy = energy + pressure * volume * GPa
-    enthalpy = enthalpy/len(atoms)
-    atoms.info['enthalpy'] = round(enthalpy, 3)
-
-    # save energy, forces, stress for trainning potential
-    atoms.info['energy'] = energy
-    atoms.info['forces'] = forces
-    atoms.info['stress'] = stress
-
-    logging.info("XTB finish")
-    return atoms
-
-def calc_xtb(
-    calcs,    #a list of ASE calculator
-    structs,    #a list of structures
-    pressure,
-    epsArr,
-    stepArr,
-    maxRelaxTime,
-    maxRelaxStep=0.1,
-    optimizer='bfgs'
-    ):
-
-    newStructs = []
-    for i, ind in enumerate(structs):
-        initInd = ind.copy()
-        initInd.info = {}
-        for j, calc in enumerate(calcs):
-            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
-            logging.info("Structure {} Step {}".format(i, j))
-            # print("Structure {} Step {}".format(i, j))
-            # calc.set(label='cp2k-{}-{}'.format(i,j))
-            logging.debug(ind)
-            ind = calc_xtb_once(calc, ind, pressure, epsArr[j], stepArr[j], maxRelaxTime, maxRelaxStep, optimizer)
-            # shutil.move("{}.out".format(calc.label), "{}-{}-{}.out".format(calc.label, i, j))
-            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
-
-            if ind is None:
-                break
-
-        else:
-            # ind.info['initStruct'] = extract_atoms(initInd)
-            newStructs.append(ind)
-
-    return newStructs
-
-def generate_xtb_calcs(calcNum, parameters):
-    workDir = parameters['workDir']
-
-    calcs = []
-    for i in range(1, calcNum + 1):
-        params = yaml.load(open("{}/inputFold/xtb_{}.yaml".format(workDir, i)))
+                ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+            if self.parameters.mainoptimizer == 'cg':
+                gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+            elif self.parameters.mainoptimizer == 'BFGS':
+                gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
+            elif self.parameters.mainoptimizer == 'fire':
+                gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=self.parameters.maxRelaxStep)
+
+            try:
+                label=gopt.run(fmax=self.parameters.epsArr, steps=self.parameters.stepArr)
+            except Converged:
+                pass
+            except TimeoutError:
+                errorPop.append(ind)
+                logging.info("Timeout")
+                continue
+            except:
+                errorPop.append(ind)
+                logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                logging.info("ASE relax fail")
+                continue
+
+            if label:
+                # save energy, forces, stress for trainning potential
+                ind.info['energy'] = ind.get_potential_energy()
+                ind.info['forces'] = ind.get_forces()
+                ind.info['stress'] = ind.get_stress()
+                enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
+                ind.info['enthalpy'] = round(enthalpy, 3)
+
+                ind.set_calculator(None)
+                relaxPop.append(ind)
+        os.chdir(self.parameters.workDir)
+        return relaxPop
+
+    def scf(self, calcPop):
+        scfPop = []
+        for ind in calcPop:
+            atoms=copy.deepcopy(ind)
+            atoms.set_calculator(self.calc)
+            try:
+                atoms.info['energy'] = atoms.get_potential_energy()
+                atoms.info['forces'] = atoms.get_forces()
+                atoms.info['stress'] = atoms.get_stress()
+                enthalpy = (atoms.info['energy'] + self.parameters.pressure * atoms.get_volume() * GPa)/len(atoms)
+                atoms.info['enthalpy'] = round(enthalpy, 3)
+                atoms.set_calculator(None)
+                scfPop.append(atoms)
+            except:
+                pass
+        return scfPop
+
+class LJCalculator(ASECalculator):
+    def __init__(self,parameters):
+        calc = LennardJones()
+        return super(LJCalculator, self).__init__(parameters,calc)
+
+    def relax(self, calcPop):
+        return super(LJCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(LJCalculator, self).scf(calcPop)
+
+class xtbCalculator:
+    def __init__(self,parameters):
+        self.parameters=parameters
+
+    def calc_xtb(self,calcs,structs):
+        newStructs = []
+        for i, ind in enumerate(structs):
+            for j, calc in enumerate(calcs):
+                ind.set_calculator(calc)
+                logging.info("Structure {} Step {}".format(i, j))
+                try:
+                    ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+                except:
+                    ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+                if self.parameters.xtboptimizer == 'cg':
+                    gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+                elif self.parameters.xtboptimizer == 'BFGS':
+                    gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
+                elif self.parameters.xtboptimizer == 'fire':
+                    gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=self.parameters.maxRelaxStep)
+
+                try:
+                    label=gopt.run(fmax=self.parameters.epsArr[j], steps=self.parameters.stepArr[j])
+                except Converged:
+                    pass
+                except TimeoutError:
+                    logging.info("Timeout")
+                    break
+                except:
+                    logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                    logging.info("XTB fail")
+                    break
+
+            else:
+                if label:
+                    # save energy, forces, stress for trainning potential
+                    ind.info['energy'] = ind.get_potential_energy()
+                    ind.info['forces'] = ind.get_forces()
+                    ind.info['stress'] = ind.get_stress()
+                    enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
+                    ind.info['enthalpy'] = round(enthalpy, 3)
+
+                    logging.info("XTB finish")
+                    ind.set_calculator(None)
+                    newStructs.append(ind)
+
+        return newStructs
+
+    def relax(self,calcPop):
+        os.chdir(self.parameters.workDir)
+        if not os.path.exists('calcFold'):
+            os.mkdir('calcFold')
+        os.chdir('calcFold')
+        calcs = []
+        for i in range(1, self.parameters.calcNum + 1):
+            params = yaml.load(open("{}/inputFold/xtb_{}.yaml".format(self.parameters.workDir, i)))
+            calc = GFN0(**params)
+            calcs.append(calc)
+        relaxPop = self.calc_xtb(calcs, calcPop)
+        os.chdir(self.parameters.workDir)
+        return relaxPop
+
+    def scf(self,calcPop):
+        params = yaml.load(open("{}/inputFold/xtb_scf.yaml".format(self.parameters.workDir)))
         calc = GFN0(**params)
-        calcs.append(calc)
+        scfPop=[]
+        for ind in calcPop:
+            atoms=copy.deepcopy(ind)
+            atoms.set_calculator(calc)
+            try:
+                atoms.info['energy'] = atoms.get_potential_energy()
+                atoms.info['forces'] = atoms.get_forces()
+                atoms.info['stress'] = atoms.get_stress()
+                enthalpy = (atoms.info['energy'] + self.parameters.pressure * atoms.get_volume() * GPa)/len(atoms)
+                atoms.info['enthalpy'] = round(enthalpy, 3)
+                atoms.set_calculator(None)
+                scfPop.append(atoms)
+            except:
+                pass
+        return scfPop
 
 
-    return calcs
+class VaspCalculator:
+    def __init__(self,parameters,prefix='calcVasp'):
+        self.parameters=parameters
+        self.J=JobManager()
+        self.prefix=prefix
+
+    def scf(self,calcPop):
+        os.chdir(self.parameters.workDir)
+        if not os.path.exists('calcFold'):
+            os.mkdir('calcFold')
+        os.chdir('calcFold')
+        numParallel = self.parameters.numParallel
+        vaspSetup = dict(zip(self.parameters.symbols, self.parameters.ppLabel))
+        popLen = len(calcPop)
+        eachLen = popLen//numParallel
+        remainder = popLen%numParallel
+
+        runArray = []
+        for i in range(numParallel):
+            tmpList = [ i + numParallel*j for j in range(eachLen)]
+            if i < remainder:
+                tmpList.append(numParallel*eachLen + i)
+            runArray.append(tmpList)
+
+        for i in range(numParallel):
+            if not os.path.exists("{}{}".format(self.prefix, i)):
+                os.mkdir("{}{}".format(self.prefix, i))
+            os.chdir("{}{}".format(self.prefix, i))
+
+            tmpPop = [calcPop[j] for j in runArray[i]]
+            write_traj('initPop.traj', tmpPop)
+            shutil.copy("{}/inputFold/INCAR_scf".format(self.parameters.workDir),'INCAR_scf')
+
+            with open('vaspSetup.yaml', 'w') as setupF:
+                setupF.write(yaml.dump(vaspSetup))
+
+            f = open('parallel.sh', 'w')
+            f.write("#BSUB -q %s\n"
+                    "#BSUB -n %s\n"
+                    "#BSUB -o out\n"
+                    "#BSUB -e err\n"
+                    "#BSUB -W %s\n"
+                    "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+            f.write("{}\n".format(self.parameters.jobPrefix))
+            f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
+            f.close()
+
+            self.J.bsub('bsub < parallel.sh')
+            os.chdir("%s/calcFold" %(self.parameters.workDir))
+
+        self.J.WaitJobsDone(self.parameters.waitTime)
+        os.chdir(self.parameters.workDir)
+        scfPop=self.read_parallel_results()
+        self.J.clear()
+        return scfPop
+
+    def relax(self,calcPop):
+        os.chdir(self.parameters.workDir)
+        if not os.path.exists('calcFold'):
+            os.mkdir('calcFold')
+        os.chdir('calcFold')
+        numParallel = self.parameters.numParallel
+        vaspSetup = dict(zip(self.parameters.symbols, self.parameters.ppLabel))
+        popLen = len(calcPop)
+        eachLen = popLen//numParallel
+        remainder = popLen%numParallel
+
+        runArray = []
+        for i in range(numParallel):
+            tmpList = [ i + numParallel*j for j in range(eachLen)]
+            if i < remainder:
+                tmpList.append(numParallel*eachLen + i)
+            runArray.append(tmpList)
+
+        for i in range(numParallel):
+            if not os.path.exists("{}{}".format(self.prefix, i)):
+                os.mkdir("{}{}".format(self.prefix, i))
+            os.chdir("{}{}".format(self.prefix, i))
+
+            tmpPop = [calcPop[j] for j in runArray[i]]
+            write_traj('initPop.traj', tmpPop)
+            for j in range(1, self.parameters.calcNum + 1):
+                shutil.copy("{}/inputFold/INCAR_{}".format(self.parameters.workDir, j), 'INCAR_{}'.format(j))
+
+            with open('vaspSetup.yaml', 'w') as setupF:
+                setupF.write(yaml.dump(vaspSetup))
+
+            f = open('parallel.sh', 'w')
+            f.write("#BSUB -q %s\n"
+                    "#BSUB -n %s\n"
+                    "#BSUB -o out\n"
+                    "#BSUB -e err\n"
+                    "#BSUB -W %s\n"
+                    "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+            f.write("{}\n".format(self.parameters.jobPrefix))
+            f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.calcNum, self.parameters.xc, self.parameters.pressure))
+            f.close()
+
+            self.J.bsub('bsub < parallel.sh')
+            os.chdir("%s/calcFold" %(self.parameters.workDir))
+
+        self.J.WaitJobsDone(self.parameters.waitTime)
+        os.chdir(self.parameters.workDir)
+        relaxPop=self.read_parallel_results()
+        self.J.clear()
+        return relaxPop
+
+    def read_parallel_results(self):
+        optPop = []
+        for job in self.J.jobs:
+            try:
+                optPop.extend(ase.io.read("{}/optPop.traj".format(job['workDir']), format='traj', index=':'))
+            except:
+                logging.info("ERROR in read results {}".format(job['workDir']))
+        #bjobs.clear()
+        return optPop
