@@ -21,9 +21,6 @@ from ase.constraints import UnitCellFilter#, ExpCellFilter
 from .fingerprint import calc_all_fingerprints, clustering
 from .bayes import UtilityFunction, GP_fit, atoms_util
 from .writeresults import read_dataset
-from .dataset import PreProcess
-from .atomgp import AtomGP
-from .mlpot import MLPot
 from .utils import *
 from .crystgraph import quotient_graph, cycle_sums, graphDim
 
