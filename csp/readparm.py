@@ -68,7 +68,7 @@ def read_parameters(inputFile):
         'updateVol': True,
         'addSym': True,
         'symprec': 0.1,
-        'compress': True,
+        'compress': False,
         'cRatio': 0.8,
     }
 

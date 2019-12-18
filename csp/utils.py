@@ -287,10 +287,10 @@ def read_atDict(atDict):
 
 def calc_volRatio(atoms):
     ballVol = 0
-    for num in atoms.get_atomic_numbers():
-        ballVol += 4*math.pi/3*(covalent_radii[num])**3
+    # for num in atoms.get_atomic_numbers():
+    #     ballVol += 4*math.pi/3*(covalent_radii[num])**3
 
-    volRatio = atoms.get_volume()/ballVol
+    volRatio = atoms.get_volume()/calc_ball_volume(atoms)
     return volRatio
 
 def calc_ball_volume(atoms):
@@ -693,7 +693,7 @@ def lda_mol(centers, rltPos, cell, ratio, coefEps=1e-3, ratioEps=1e-3):
     else:
         return None
 
-def compress_mol_crystal(molC, minRatio, bondRatio, nsteps=5):
+def compress_mol_crystal(molC, minRatio, bondRatio, nsteps=10):
     partition = [set(p) for p in molC.partition]
     ratioArr = np.linspace(1, minRatio, nsteps+1)
     ratioArr = ratioArr[1:]/ratioArr[:-1]
@@ -712,20 +712,21 @@ def compress_mol_crystal(molC, minRatio, bondRatio, nsteps=5):
             outMolC.set_cell(rdcCell)
             testMolC = atoms2molcryst(outMolC.to_atoms(), bondRatio)
             if False in [set(p) in partition for p in testMolC.partition]:
-                logging.debug('Overlap between molecules')
+                # logging.debug('Overlap between molecules')
                 return inMolC
             else:
                 inMolC = outMolC
 
     return outMolC
 
-def compress_mol_pop(molPop, volRatio, bondRatio):
+def compress_mol_pop(molPop, volRatio, bondRatio, nsteps=10):
     outPop = []
     for ind in molPop:
         minRatio = volRatio/calc_volRatio(ind)
+        logging.debug("minRatio: {}".format(minRatio))
         if minRatio < 1:
             molC = atoms2molcryst(ind, bondRatio)
-            outMolC = compress_mol_crystal(molC, minRatio, bondRatio)
+            outMolC = compress_mol_crystal(molC, minRatio, bondRatio, nsteps)
             outInd = outMolC.to_atoms()
             outInd.info = ind.info.copy()
             outPop.append(outInd)

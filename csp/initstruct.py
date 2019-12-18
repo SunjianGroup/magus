@@ -350,7 +350,7 @@ def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, smallRadi
         meanVol += vol * molFormula[i]
 
     minVol = 0.5*meanVol
-    maxVol = 3*meanVol
+    maxVol = 1.5*meanVol
 
     molPop = []
     for _ in range(numStruct):
