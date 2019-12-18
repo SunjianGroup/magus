@@ -8,16 +8,29 @@ import numpy as np
 import ase.io
 from ase import Atoms
 
-def write_results(Pop, filename, resultsDir = "results"):
+def write_results(Pop, gen, prefix, resultsDir = "results"):
     '''
     Pop: population to write,
+    gen: generation,
+    prefix = 'gen', 'pareto', 'good'
     resultsDir: directory to save results
     '''
 
     if not os.path.exists(resultsDir):
         os.mkdir(resultsDir)
+    # os.chdir(resultsDir)
 
-    write_traj("{}/{}.traj".format(resultsDir,filename), Pop)
+    write_traj("{}/{}{}.traj".format(resultsDir, prefix, gen), Pop)
+
+    # formulas = set([ind.get_chemical_formula() for ind in Pop])
+    # for frml in formulas:
+    #     writePop = [ind for ind in Pop if ind.get_chemical_formula() == frml]
+
+    #     # ase.io.write("%s%s_%s.traj" %(prefix, gen, frml), writePop, 'traj')
+    #     write_py("%s%s_%s.py" %(prefix, gen, frml), writePop)
+    # ase.io.write('pareto0.traj', paretoPop, 'traj')
+    # ase.io.write('Gen0.traj', optPop, 'traj')
+    # os.chdir('..')
 
 def write_py(fileobj, images, **kwargs):
     """Write to ASE-compatible python script."""
@@ -96,35 +109,6 @@ def read_dataset(filename="dataset.yaml", resultsDir = "results"):
 
     return data, value
 
-def write_yaml(filename, images, delTraj=True):
-
-    if not isinstance(images, (list, tuple)):
-        images = [images]
-
-    writeList = list()
-    for atoms in images:
-        struct = dict()
-        struct['cell'] = atoms.get_cell()
-        struct['positions'] = atoms.get_positions()
-        struct['numbers'] = atoms.get_atomic_numbers()
-        struct['pbc'] = atoms.get_pbc()
-
-        for key, val in struct.items():
-            struct[key] = val.tolist()
-
-        info = atoms.info
-        # delete the trajectories in info to reduce size
-        if delTraj and 'trajs' in info.keys():
-            info['trajs'] = []
-        # for key, val in info.items():
-        #     if isinstance(val, np.ndarray):
-        #         info[key] = val.astype(float)
-
-        writeList.append((struct, info))
-
-    with open(filename, 'w') as fileObj:
-        fileObj.write(yaml.dump(writeList))
-
 def write_traj(filename, images, delTraj=True):
     writeImages = []
     for atoms in images:
@@ -136,17 +120,6 @@ def write_traj(filename, images, delTraj=True):
         writeImages.append(writeAtoms)
     ase.io.write(filename, images, format='traj')
 
-def read_yaml(filename):
-
-    readList = yaml.load(open(filename))
-
-    images = list()
-    for struct, info in readList:
-        image = Atoms(**struct)
-        image.info = info
-        images.append(image)
-
-    return images
 
 
 

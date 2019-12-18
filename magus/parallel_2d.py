@@ -9,7 +9,7 @@ from ase import Atoms, Atom
 import ase.io
 from .localopt import generate_calcs, calc_gulp_parallel, calc_vasp_parallel, jobs_stat, read_parallel_results
 from .renewstruct import Kriging, BBO, pareto_front, convex_hull, calc_dominators
-from .initstruct import BaseGenerator,read_seeds,VarGenerator
+from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build,build_struct_2d
 # from .readvasp import *
 from .setfitness import calc_fitness
 from .writeresults import write_dataset, write_results, write_traj
@@ -17,7 +17,7 @@ from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from .bayes import atoms_util
 from .readparm import read_parameters
 from .utils import *
-import copy
+
 
 def check_jobs(statFile='currentStat.json'):
     if not os.path.exists(statFile):
@@ -71,16 +71,16 @@ def csp_loop(curStat, parameters):
 
         # Initialize paretoPop, goodPop
         if curGen > 1:
-            # paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
+            paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
             goodPop = ase.io.read("{}/results/good.traj".format(p.workDir), format='traj', index=':')
             keepPop = ase.io.read("{}/results/keep{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
         else:
-            # paretoPop = list()
+            paretoPop = list()
             goodPop = list()
             keepPop = list()
 
         #Convex Hull
-        allPop = optPop + goodPop + keepPop
+        allPop = optPop + paretoPop + goodPop
         if p.calcType == 'var':
             allPop = convex_hull(allPop)
 
@@ -88,7 +88,10 @@ def csp_loop(curStat, parameters):
         logging.info('calc_fitness finish')
 
         optLen = len(optPop)
-        # optPop = allPop[:optLen]
+        paretoLen = len(paretoPop)
+        optPop = allPop[:optLen]
+        paretoPop = allPop[optLen:optLen+paretoLen]
+        goodPop = allPop[optLen+paretoLen:]
 
         for ind in optPop:
             # logging.info("formula: {}".format(ind.get_chemical_formula()))
@@ -135,7 +138,7 @@ def csp_loop(curStat, parameters):
             if len(goodPop) > p.popSize:
                 goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]
         elif p.calcType == 'var':
-            goodPop = [ind for ind in goodPop if ind.info['ehull']<=p.goodehull]
+            goodPop = [ind for ind in goodPop if ind.info['ehull']<=0.1]
 
         # if len(goodPop) > p.popSize:
         #     goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]
@@ -174,19 +177,16 @@ def csp_loop(curStat, parameters):
 
         logging.info("===== Generation 1 =====")
         if p.calcType == 'fix':
-            g=BaseGenerator(p)
-            initPop = g.Generate_pop(p.initSize)
-
+            initPop = build_struct_2d(p.initSize, p.symbols, p.formula,p.cmin,p.cmax,p.d, p.numFrml, volRatio=p.volRatio)
         elif p.calcType == 'var':
             logging.info('calc var')
-            g=VarGenerator(p)
-            initPop = g.Generate_pop(p.initSize)
-            p_=copy.deepcopy(p)
-            for sybl in p.symbols:
-                p_.symbols=[sybl]
-                p_.formula=np.array([[1]])
-                g=VarGenerator(p_)
-                initPop.extend(g.Generate_pop(p_.eleSize))
+            initPop = varcomp_build(p.initSize, p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio)
+            # logging.debug("initPop length: {}".format(len(initPop)))
+            # initPop = varcomp_2elements(popSize - len(symbols), symbols, minAt, maxAt)
+            for n, sybl in enumerate(p.symbols):
+                eleFrml = [0 for _ in range(len(p.symbols))]
+                eleFrml[n] = 1
+                initPop.extend(build_struct_2d(p.eleSize, p.symbols, eleFrml,p.formula,p.cmin,p.cmax,p.d, list(range(p.minAt, p.minAt+1)), volRatio=p.volRatio))
 
         logging.info("initPop length: {}".format(len(initPop)))
         initPop.extend(read_seeds(parameters))
@@ -213,7 +213,7 @@ def csp_loop(curStat, parameters):
         #     mainAlgo.generate()
         #     mainAlgo.fit_gp()
         #     mainAlgo.select()
-            initPop = mainAlgo.get_nextPop()
+        #     initPop = mainAlgo.get_nextPop()
 
 
         elif p.setAlgo == 'bbo':
@@ -228,11 +228,10 @@ def csp_loop(curStat, parameters):
         if len(initPop) < p.popSize:
             logging.info("random structures out of Kriging")
             if p.calcType == 'fix':
-                g=BaseGenerator(p)
-                initPop.extend(g.Generate_pop(p.popSize-len(initPop)))
+                initPop.extend(build_struct_2d(p.popSize - len(initPop), p.symbols, p.formula, p.formula,p.cmin,p.cmax,p.d,p.numFrml, volRatio=p.volRatio))
             if p.calcType == 'var':
-                g=VarGenerator(p)
-                initPop.extend(g.Generate_pop(p.popSize-len(initPop)))
+                initPop.extend(varcomp_build(p.popSize - len(initPop), p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio))
+                # initPop.extend(varcomp_2elements(popSize - len(initPop), symbols, minAt, maxAt))
 
         # read seeds
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))

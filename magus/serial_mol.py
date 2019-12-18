@@ -7,17 +7,17 @@ from scipy.spatial.distance import cdist
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac
-from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
-from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build, build_mol_struct
+from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k, generate_cp2k_params, calc_cp2k_params, generate_xtb_calcs, calc_xtb
+from .renewstruct import Kriging, BBO, pareto_front, convex_hull, calc_dominators
+from .initstruct import read_seeds, build_mol_struct
 # from .readvasp import *
 from .setfitness import calc_fitness
 from .writeresults import write_dataset, write_results
 from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from .bayes import atoms_util
 from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio, check_mol_pop, calc_ball_volume
-
+from .utils import *
+import pdb
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
@@ -55,6 +55,9 @@ for curGen in range(1, p.numGen+1):
         if p.molType == 'fix':
             # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
             initPop = build_mol_struct(p.initSize, p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, fixCell=p.fixCell, setCellPar=p.setCellPar)
+            if p.compress:
+                logging.info("compress the random structurs")
+                initPop = compress_mol_pop(initPop, p.volRatio*p.cRatio, p.bondRatio)
 
 
 
@@ -63,8 +66,10 @@ for curGen in range(1, p.numGen+1):
 
     else:
         bboPop = del_duplicate(optPop + keepPop)
+        logging.debug('bboPop: {}'.format(len(bboPop)))
 
         # renew volRatio
+        logging.debug("Renew volRatio")
         volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
         p.volRatio = 0.5*(volRatio + p.volRatio)
         logging.debug("p.volRatio: {}".format(p.volRatio))
@@ -74,19 +79,19 @@ for curGen in range(1, p.numGen+1):
 
             mainAlgo.generate()
             mainAlgo.fit_gp()
-            if p.calculator in ['vasp']:
+            if p.calculator in ['vasp', 'cp2k', 'xtb']:
                 mainAlgo.select()
             elif p.calculator in ['gulp', 'mopac']:
                 mainAlgo.select(enFilter=False)
             initPop = mainAlgo.get_nextPop()
 
-        elif p.setAlgo == 'mlpot':
-            mainAlgo = PotKriging(bboPop, curGen, parameters)
+        # elif p.setAlgo == 'mlpot':
+        #     mainAlgo = PotKriging(bboPop, curGen, parameters)
 
-            mainAlgo.generate()
-            mainAlgo.fit_gp()
-            mainAlgo.select()
-            initPop = mainAlgo.get_nextPop()
+        #     mainAlgo.generate()
+        #     mainAlgo.fit_gp()
+        #     mainAlgo.select()
+        #     initPop = mainAlgo.get_nextPop()
 
 
         elif p.setAlgo == 'bbo':
@@ -111,7 +116,11 @@ for curGen in range(1, p.numGen+1):
             logging.info("random structures out of Kriging")
             if p.molType == 'fix':
                 # inputMols = [Atoms(**molInfo) for molInfo in p.molList]
-                initPop.extend(build_mol_struct(p.popSize - len(initPop), p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, fixCell=p.fixCell, setCellPar=p.setCellPar))
+                buildPop = build_mol_struct(p.popSize - len(initPop), p.symbols, p.formula, p.inputMols, p.molFormula, p.numFrml, p.spacegroup, fixCell=p.fixCell, setCellPar=p.setCellPar)
+                if p.compress:
+                    logging.info("compress the random structurs")
+                    buildPop = compress_mol_pop(buildPop, p.volRatio*p.cRatio, p.bondRatio)
+                initPop.extend(buildPop)
 
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))
 
@@ -137,16 +146,27 @@ for curGen in range(1, p.numGen+1):
 
     ### Calculation
     if not os.path.exists('calcFold'):
-        os.mkdir('calcFold')
+        # os.mkdir('calcFold')
+        shutil.copytree('inputFold', 'calcFold')
     os.chdir('calcFold')
     if p.calculator == 'gulp':
-        optPop = calc_gulp(p.calcNum, initPop, p.pressure, p.exeCmd, p.inputDir)
+        optPop = calc_gulp(p.calcNum, initPop, p.pressure, p.exeCmd, "{}/inputFold".format(p.workDir))
     elif p.calculator == 'vasp':
         calcs = generate_calcs(p.calcNum, parameters)
         optPop = calc_vasp(calcs, initPop)
     elif p.calculator == 'mopac':
         calcs = generate_mopac_calcs(p.calcNum, parameters)
         optPop = calc_mopac(calcs, initPop, p.pressure)
+    elif p.calculator == 'xtb':
+        calcs = generate_xtb_calcs(p.calcNum, parameters)
+        optPop = calc_xtb(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
+    elif p.calculator == 'cp2k':
+        if p.fastcp2k:
+            calcs = generate_cp2k_calcs(p.calcNum, parameters)
+            optPop = calc_cp2k(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
+        else:
+            calcParam = generate_cp2k_params(p.calcNum, parameters)
+            optPop = calc_cp2k_params(calcParam, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
 
     os.chdir(p.workDir)
 
@@ -167,14 +187,18 @@ for curGen in range(1, p.numGen+1):
 
     # Initialize paretoPop, goodPop
     if curGen > 1:
-        paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
+        # paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
         goodPop = ase.io.read("{}/results/good.traj".format(p.workDir), format='traj', index=':')
+        keepPop = ase.io.read("{}/results/keep{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
     else:
-        paretoPop = list()
+        # paretoPop = list()
         goodPop = list()
+        keepPop = list()
+
 
     #Convex Hull
-    allPop = optPop + paretoPop + goodPop
+    allPop = optPop + goodPop + keepPop
+    # allPop = optPop + paretoPop + goodPop
     if p.calcType == 'var':
         allPop = convex_hull(allPop)
 
@@ -182,10 +206,11 @@ for curGen in range(1, p.numGen+1):
     logging.info('calc_fitness finish')
 
     optLen = len(optPop)
-    paretoLen = len(paretoPop)
+    # paretoLen = len(paretoPop)
     optPop = allPop[:optLen]
-    paretoPop = allPop[optLen:optLen+paretoLen]
-    goodPop = allPop[optLen+paretoLen:]
+    # paretoPop = allPop[optLen:optLen+paretoLen]
+    # goodPop = allPop[optLen:]
+
     for ind in optPop:
         # logging.debug("formula: {}".format(ind.get_chemical_formula()))
         logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format( strFrml=ind.get_chemical_formula(), **ind.info))

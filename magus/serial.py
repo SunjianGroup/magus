@@ -7,17 +7,17 @@ from scipy.spatial.distance import cdist
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac
-from .renewstruct import del_duplicate, Kriging, PotKriging, BBO, pareto_front, convex_hull, check_dist, calc_dominators
-from .initstruct import build_struct, read_seeds, varcomp_2elements, varcomp_build
+from .localopt import generate_calcs, calc_gulp, calc_vasp, generate_mopac_calcs, calc_mopac, generate_cp2k_calcs, calc_cp2k, generate_cp2k_params, calc_cp2k_params, generate_xtb_calcs, calc_xtb
+from .renewstruct import Kriging, BBO, pareto_front, convex_hull, calc_dominators
+from .initstruct import BaseGenerator, read_seeds, VarGenerator
 # from .readvasp import *
 from .setfitness import calc_fitness
 from .writeresults import write_dataset, write_results
 from .fingerprint import calc_all_fingerprints, calc_one_fingerprint, clustering
 from .bayes import atoms_util
 from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio
-
+from .utils import *
+import copy
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
@@ -51,16 +51,19 @@ for curGen in range(1, p.numGen+1):
 
 
         if p.calcType == 'fix':
-            initPop = build_struct(p.initSize, p.symbols, p.formula, p.numFrml, volRatio=p.volRatio)
+            g=BaseGenerator(p)
+            # logging.debug("generator: {}".format(g.meanVolume))
+            initPop=g.Generate_pop(p.initSize)
         elif p.calcType == 'var':
             logging.info('calc var')
-            initPop = varcomp_build(p.initSize, p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio)
-            # logging.info("initPop length: {}".format(len(initPop)))
-            # initPop = varcomp_2elements(popSize - len(symbols), symbols, minAt, maxAt)
-            for n, sybl in enumerate(p.symbols):
-                eleFrml = [0 for _ in range(len(p.symbols))]
-                eleFrml[n] = 1
-                initPop.extend(build_struct(p.eleSize, p.symbols, eleFrml, list(range(p.minAt, p.minAt+1)), volRatio=p.volRatio))
+            g=VarGenerator(p)
+            initPop = g.Generate_pop(p.initSize)
+            p_=copy.deepcopy(p)
+            for sybl in p.symbols:
+                p_.symbols=[sybl]
+                p_.formula=np.array([[1]])
+                g=VarGenerator(p_)
+                initPop.extend(g.Generate_pop(p_.eleSize))
 
         logging.info("initPop length: {}".format(len(initPop)))
         initPop.extend(read_seeds(parameters))
@@ -69,8 +72,9 @@ for curGen in range(1, p.numGen+1):
         bboPop = del_duplicate(optPop + keepPop)
 
         # renew volRatio
-        volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
-        p.volRatio = 0.5*(volRatio + p.volRatio)
+        if p.updateVol:
+            volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
+            p.volRatio = 0.5*(volRatio + p.volRatio)
         logging.debug("p.volRatio: {}".format(p.volRatio))
 
         if p.setAlgo == 'bayes':
@@ -78,19 +82,20 @@ for curGen in range(1, p.numGen+1):
 
             mainAlgo.generate()
             mainAlgo.fit_gp()
-            if p.calculator in ['vasp']:
-                mainAlgo.select()
-            elif p.calculator in ['gulp', 'mopac']:
-                mainAlgo.select(enFilter=False)
-            initPop = mainAlgo.get_nextPop()
-
-        elif p.setAlgo == 'mlpot':
-            mainAlgo = PotKriging(bboPop, curGen, parameters)
-
-            mainAlgo.generate()
-            mainAlgo.fit_gp()
             mainAlgo.select()
+           # if p.calculator in ['vasp', 'cp2k', 'xtb']:
+           #     mainAlgo.select()
+           # elif p.calculator in ['gulp', 'mopac']:
+           #     mainAlgo.select(enFilter=False)
             initPop = mainAlgo.get_nextPop()
+
+        # elif p.setAlgo == 'mlpot':
+        #     mainAlgo = PotKriging(bboPop, curGen, parameters)
+
+        #     mainAlgo.generate()
+        #     mainAlgo.fit_gp()
+        #     mainAlgo.select()
+        #     initPop = mainAlgo.get_nextPop()
 
 
         elif p.setAlgo == 'bbo':
@@ -108,9 +113,11 @@ for curGen in range(1, p.numGen+1):
         if len(initPop) < p.popSize:
             logging.info("random structures out of Kriging")
             if p.calcType == 'fix':
-                initPop.extend(build_struct(p.popSize - len(initPop), p.symbols, p.formula, p.numFrml, volRatio=p.volRatio))
+                g=BaseGenerator(p)
+                initPop.extend(g.Generate_pop(p.popSize-len(initPop)))
             if p.calcType == 'var':
-                initPop.extend(varcomp_build(p.popSize - len(initPop), p.symbols, p.minAt, p.maxAt, p.formula, p.invFrml, p.fullEles, volRatio=p.volRatio))
+                g=VarGenerator(p)
+                initPop.extend(g.Generate_pop(p.popSize-len(initPop    )))
 
         initPop.extend(read_seeds(parameters, 'Seeds/POSCARS_{}'.format(curGen)))
 
@@ -136,16 +143,27 @@ for curGen in range(1, p.numGen+1):
 
     ### Calculation
     if not os.path.exists('calcFold'):
-        os.mkdir('calcFold')
+        # os.mkdir('calcFold')
+        shutil.copytree('inputFold', 'calcFold')
     os.chdir('calcFold')
     if p.calculator == 'gulp':
-        optPop = calc_gulp(p.calcNum, initPop, p.pressure, p.exeCmd, p.inputDir)
+        optPop = calc_gulp(p.calcNum, initPop, p.pressure, p.exeCmd, "{}/inputFold".format(p.workDir))
     elif p.calculator == 'vasp':
         calcs = generate_calcs(p.calcNum, parameters)
         optPop = calc_vasp(calcs, initPop)
     elif p.calculator == 'mopac':
         calcs = generate_mopac_calcs(p.calcNum, parameters)
         optPop = calc_mopac(calcs, initPop, p.pressure)
+    elif p.calculator == 'xtb':
+        calcs = generate_xtb_calcs(p.calcNum, parameters)
+        optPop = calc_xtb(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
+    elif p.calculator == 'cp2k':
+        if p.fastcp2k:
+            calcs = generate_cp2k_calcs(p.calcNum, parameters)
+            optPop = calc_cp2k(calcs, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
+        else:
+            calcParam = generate_cp2k_params(p.calcNum, parameters)
+            optPop = calc_cp2k_params(calcParam, initPop, p.pressure, p.epsArr, p.stepArr, p.maxRelaxTime, p.maxRelaxStep, p.optimizer)
 
     os.chdir(p.workDir)
 
@@ -161,25 +179,29 @@ for curGen in range(1, p.numGen+1):
 
     # Initialize paretoPop, goodPop
     if curGen > 1:
-        paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
+        # paretoPop = ase.io.read("{}/results/pareto{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
         goodPop = ase.io.read("{}/results/good.traj".format(p.workDir), format='traj', index=':')
+        keepPop = ase.io.read("{}/results/keep{}.traj".format(p.workDir, curGen-1), format='traj', index=':')
     else:
-        paretoPop = list()
+        # paretoPop = list()
         goodPop = list()
+        keepPop = list()
 
     #Convex Hull
-    allPop = optPop + paretoPop + goodPop
+    allPop = optPop + goodPop + keepPop
+    # allPop = optPop + paretoPop + goodPop
     if p.calcType == 'var':
         allPop = convex_hull(allPop)
 
     allPop = calc_fitness(allPop, parameters)
     logging.info('calc_fitness finish')
+    #write_results(allPop, curGen, 'all')
 
     optLen = len(optPop)
-    paretoLen = len(paretoPop)
+    # paretoLen = len(paretoPop)
     optPop = allPop[:optLen]
-    paretoPop = allPop[optLen:optLen+paretoLen]
-    goodPop = allPop[optLen+paretoLen:]
+    # paretoPop = allPop[optLen:optLen+paretoLen]
+    # goodPop = allPop[optLen:]
     for ind in optPop:
         # logging.debug("formula: {}".format(ind.get_chemical_formula()))
         logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format( strFrml=ind.get_chemical_formula(), **ind.info))
@@ -215,7 +237,7 @@ for curGen in range(1, p.numGen+1):
         if len(goodPop) > p.popSize:
             goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]
     elif p.calcType == 'var':
-        goodPop = [ind for ind in goodPop if ind.info['ehull']<=0.1]
+        goodPop = [ind for ind in goodPop if ind.info['ehull']<=p.goodehull]
 
     # if len(goodPop) > p.popSize:
     #     goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])[:p.popSize]

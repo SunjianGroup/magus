@@ -17,6 +17,7 @@ def read_parameters(inputFile):
     #Initialize
 
     parameters = yaml.load(open(inputFile))
+    # parameters = yaml.load(open(inputFile), Loader=yaml.FullLoader)
     p = EmptyClass()
     p.workDir = os.getcwd()
 
@@ -38,18 +39,19 @@ def read_parameters(inputFile):
         'exeCmd': "",
         'initSize': parameters['popSize'],
         'jobPrefix':"",
-        'permNum': 4,
         'latDisps': list(range(1,5)),
         'ripRho': [0.5, 1, 1.5, 2],
         'molDetector': 0,
-        'rotNum': 5,
-        'cutNum': 5,
-        'slipNum': 5,
-        'latNum': 5,
+        'permNum': int(parameters['popSize']/5)+1,
+        'rotNum': int(parameters['popSize']/5)+1,
+        'cutNum': int(parameters['popSize']/5)+1,
+        'slipNum': int(parameters['popSize']/5)+1,
+        'latNum': int(parameters['popSize']/5)+1,
         'grids': [[2, 1, 1], [1, 2, 1], [1, 1, 2]],
-        'bondRatio': 1.1,
-        'bondRange': [0.9, 0.95, 1., 1.05, 1.1, 1.15],
-        'maxRelaxTime': 120,
+        'bondRatio': 1.15,
+        'bondRange': [0.95, 1., 1.05, 1.1, 1.15],
+        'waitTime': 60,
+        'maxRelaxTime': 1200,
         'xrdFile': None,
         'xrdLamb': 0.6,
         'fixCell': False,
@@ -58,6 +60,16 @@ def read_parameters(inputFile):
         'molType': 'fix',
         'chkMol': False,
         'molScaleCell': False,
+        'fastcp2k': False,
+        'maxRelaxStep': 0.1,
+        'optimizer': 'bfgs',
+        'goodehull': 0.1,
+        'gp_factor': 1,
+        'updateVol': True,
+        'addSym': True,
+        'symprec': 0.1,
+        'compress': False,
+        'cRatio': 0.8,
     }
 
     for key, val in dParms.items():
@@ -128,6 +140,13 @@ def read_parameters(inputFile):
     p.invFrml = np.linalg.inv(np.dot(tmpFrml, tmpFrml.T))
     p.invFrml = p.invFrml.tolist()
 
+    # check epsArr, stepArr for ASE optimization, e.g. CP2K
+    if 'epsArr' in parameters.keys():
+        assert len(p.epsArr) == p.calcNum
+    if 'stepArr' in parameters.keys():
+        assert len(p.stepArr) == p.calcNum
+
+
 
 
     ############ BBO Parameters#############
@@ -144,8 +163,8 @@ def read_parameters(inputFile):
     p.krigParm['rotNum'] = p.rotNum
     p.krigParm['cutNum'] = p.cutNum
     p.krigParm['slipNum'] = p.slipNum
-    p.krigParm['latDisps'] = p.latDisps
     p.krigParm['latNum'] = p.latNum
+    p.krigParm['latDisps'] = p.latDisps
     p.krigParm['ripRho'] = p.ripRho
     p.krigParm['grids'] = p.grids
     p.krigParm['kind'] = 'lcb'
@@ -154,6 +173,7 @@ def read_parameters(inputFile):
     p.krigParm['xi'] = 0
     p.krigParm['scale'] = p.scale
     p.krigParm['parent_factor'] = p.parent_factor
+    p.krigParm['gp_factor'] = p.gp_factor
 
     ##############################
     parmList = [

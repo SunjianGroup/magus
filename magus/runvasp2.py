@@ -3,8 +3,8 @@ import sys, os
 import yaml
 from ase.calculators.vasp import Vasp
 import ase.io
-from csp.localopt import calc_vasp
-from csp.writeresults import write_traj
+from magus.localopt import calc_vasp
+from magus.writeresults import write_traj
 
 if  __name__ == "__main__":
     vaspDict = yaml.load(open(sys.argv[1]))

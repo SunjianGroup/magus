@@ -1,10 +1,10 @@
 from __future__ import print_function
 import sys
 import yaml
-from csp.mopac import MOPAC
+from magus.mopac import MOPAC
 import ase.io
-from csp.localopt import calc_vasp
-from csp.writeresults import write_traj
+from magus.localopt import calc_vasp
+from magus.writeresults import write_traj
 
 if  __name__ == "__main__":
     calcNum, xc, vaspStpFile, pressure, inputTraj, outTraj = sys.argv[1:]
