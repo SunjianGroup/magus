@@ -3,8 +3,6 @@ import numpy as np
 from ase.neighborlist import NeighborList, neighbor_list, NewPrimitiveNeighborList
 from ase.data import atomic_numbers
 from ase import io
-# import fmodules
-#from . import fmodules
 from . import lrpot
 ##############################################################################
 
