@@ -122,7 +122,7 @@ class calculator:
         return newStructs
 
     def calc_vasp_parallel(self, calcPop, J, prefix='calcVasp'):
-        
+
         vaspSetup = dict(zip(symbols, ppLabel))
 
         popLen = len(calcPop)
@@ -158,7 +158,7 @@ class calculator:
                     "#BSUB -W %s\n"
                     "#BSUB -J Vasp_%s\n"% (queueName, numCore, maxRelaxTime*len(tmpPop), i))
             f.write("{}\n".format(jobPrefix))
-            f.write("python -m csp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(calcNum, xc, pressure))
+            f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(calcNum, xc, pressure))
             f.close()
 
             J.bsub('bsub < parallel.sh')

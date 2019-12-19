@@ -7,7 +7,7 @@ from ase.units import GPa
 from ase.constraints import UnitCellFilter,ExpCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
-from .renew import del_duplicate
+from .utils import del_duplicate
 import copy
 
 class MachineLearning:
@@ -16,7 +16,7 @@ class MachineLearning:
 
     def train(self):
         pass
-    
+
     def updatedataset(self,images):
         pass
 
@@ -52,7 +52,7 @@ class LRCalculator(Calculator):
         X=np.array(X)
         n=np.array(n)
         X=np.concatenate((n.reshape(-1,1),X),axis=1)
-        
+
         y=self.reg.predict(X)
         self.results['energy'] = y[0]*len(self.atoms)
         self.results['free_energy'] = y[0]*len(self.atoms)
@@ -75,7 +75,7 @@ class LRmodel(MachineLearning):
         self.X = None
         #self.optimizer=optimizers[parameters.mloptimizer]
         self.dataset = []
-        
+
     def train(self):
         logging.info('OvO!{}'.format(len(self.dataset)))
         self.reg = LinearRegression().fit(self.X, self.y, self.w)
@@ -123,10 +123,10 @@ class LRmodel(MachineLearning):
             if self.X is None:
                 self.X,self.y,self.w=X,y,w
             else:
-                self.X=np.concatenate((self.X,X),axis=0)  
-                self.y=np.concatenate((self.y,y),axis=0)  
-                self.w=np.concatenate((self.w,w),axis=0)  
-        
+                self.X=np.concatenate((self.X,X),axis=0)
+                self.y=np.concatenate((self.y,y),axis=0)
+                self.w=np.concatenate((self.w,w),axis=0)
+
     def get_loss(self,images):
 
         # Evaluate energy
@@ -156,10 +156,8 @@ class LRmodel(MachineLearning):
         for ind in structs_:
             ind.set_calculator(calc)
             for j in range(self.parameters.mlrelaxNum):
-                try:
-                    ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
-                except:
-                    ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+                ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+                # ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
                 if self.parameters.mloptimizer == 'cg':
                     gopt = SciPyFminCG(ucf, logfile="{}/MLrelax.log".format(self.parameters.MLpath),)
                 elif self.parameters.mloptimizer == 'BFGS':
@@ -191,6 +189,6 @@ class LRmodel(MachineLearning):
 
     def get_fp(self,pop):
         for ind in pop:
-            X,y,w = self.get_data([ind])
+            X,_,_ = self.get_data([ind])
             ind.info['image_fp']=X[0,1:]
 

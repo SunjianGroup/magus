@@ -5,10 +5,11 @@ from .readvasp import *
 import sys, math, os, shutil, subprocess, logging, copy, yaml, traceback
 
 from ase.calculators.lj import LennardJones
+from ase.calculators.emt import EMT
 from ase.calculators.vasp import Vasp
 from ase.spacegroup import crystal
 # from parameters import parameters
-from .writeresults import write_yaml, read_yaml, write_traj
+from .writeresults import write_traj
 from .utils import *
 from ase.units import GPa
 try:
@@ -37,9 +38,9 @@ class Calculator:
         pass
 
 class ASECalculator(Calculator):
-    def __init__(self,parameters,calc):
+    def __init__(self,parameters,calcs):
         self.parameters=parameters
-        self.calc=calc
+        self.calcs=calcs
 
     def relax(self, calcPop):
         os.chdir(self.parameters.workDir)
@@ -50,42 +51,43 @@ class ASECalculator(Calculator):
         relaxPop = []
         errorPop = []
         for i, ind in enumerate(calcPop):
-            ind.set_calculator(self.calc)
-            try:
+            for j, calc in enumerate(self.calcs):
+                ind.set_calculator(calc)
+                logging.info("Structure {} Step {}".format(i, j))
                 ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
-            except:
-                ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
-            if self.parameters.mainoptimizer == 'cg':
-                gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-            elif self.parameters.mainoptimizer == 'BFGS':
-                gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
-            elif self.parameters.mainoptimizer == 'fire':
-                gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=self.parameters.maxRelaxStep)
+                # ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+                if self.parameters.mainoptimizer == 'cg':
+                    gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
+                elif self.parameters.mainoptimizer == 'BFGS':
+                    gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
+                elif self.parameters.mainoptimizer == 'fire':
+                    gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=self.parameters.maxRelaxStep)
 
-            try:
-                label=gopt.run(fmax=self.parameters.epsArr, steps=self.parameters.stepArr)
-            except Converged:
-                pass
-            except TimeoutError:
-                errorPop.append(ind)
-                logging.info("Timeout")
-                continue
-            except:
-                errorPop.append(ind)
-                logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-                logging.info("ASE relax fail")
-                continue
+                try:
+                    label=gopt.run(fmax=self.parameters.epsArr[j], steps=self.parameters.stepArr[j])
+                except Converged:
+                    pass
+                except TimeoutError:
+                    errorPop.append(ind)
+                    logging.info("Timeout")
+                    continue
+                except:
+                    errorPop.append(ind)
+                    logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                    logging.info("ASE relax fail")
+                    continue
 
-            if label:
-                # save energy, forces, stress for trainning potential
-                ind.info['energy'] = ind.get_potential_energy()
-                ind.info['forces'] = ind.get_forces()
-                ind.info['stress'] = ind.get_stress()
-                enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
-                ind.info['enthalpy'] = round(enthalpy, 3)
+            else:
+                if label:
+                    # save energy, forces, stress for trainning potential
+                    ind.info['energy'] = ind.get_potential_energy()
+                    ind.info['forces'] = ind.get_forces()
+                    ind.info['stress'] = ind.get_stress()
+                    enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
+                    ind.info['enthalpy'] = round(enthalpy, 3)
 
-                ind.set_calculator(None)
-                relaxPop.append(ind)
+                    ind.set_calculator(None)
+                    relaxPop.append(ind)
         os.chdir(self.parameters.workDir)
         return relaxPop
 
@@ -93,7 +95,7 @@ class ASECalculator(Calculator):
         scfPop = []
         for ind in calcPop:
             atoms=copy.deepcopy(ind)
-            atoms.set_calculator(self.calc)
+            atoms.set_calculator(self.calcs[0])
             try:
                 atoms.info['energy'] = atoms.get_potential_energy()
                 atoms.info['forces'] = atoms.get_forces()
@@ -108,14 +110,25 @@ class ASECalculator(Calculator):
 
 class LJCalculator(ASECalculator):
     def __init__(self,parameters):
-        calc = LennardJones()
-        return super(LJCalculator, self).__init__(parameters,calc)
+        calcs = [LennardJones() for _ in range(parameters.calcNum)]
+        return super(LJCalculator, self).__init__(parameters,calcs)
 
     def relax(self, calcPop):
         return super(LJCalculator, self).relax(calcPop)
 
     def scf(self, calcPop):
         return super(LJCalculator, self).scf(calcPop)
+
+class EMTCalculator(ASECalculator):
+    def __init__(self,parameters):
+        calcs = [EMT() for _ in range(parameters.calcNum)]
+        return super(EMTCalculator, self).__init__(parameters,calcs)
+
+    def relax(self, calcPop):
+        return super(EMTCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(EMTCalculator, self).scf(calcPop)
 
 class xtbCalculator:
     def __init__(self,parameters):
@@ -209,7 +222,7 @@ class ABinitCalculator(Calculator):
             self.scf = self.scf_parallel
             self.relax = self.relax_parallel
             self.prefix=prefix
-    
+
     def cdcalcFold(self):
         os.chdir(self.parameters.workDir)
         if not os.path.exists('calcFold'):
@@ -218,7 +231,7 @@ class ABinitCalculator(Calculator):
 
     def scf_serial(self,calcPop):
         pass
-           
+
     def relax_serial(self,calcPop):
         pass
 
@@ -244,7 +257,7 @@ class ABinitCalculator(Calculator):
             write_traj('initPop.traj', tmpPop)
 
             runjob()
-            
+
             os.chdir("%s/calcFold" %(self.parameters.workDir))
 
         self.J.WaitJobsDone(self.parameters.waitTime)
@@ -256,7 +269,7 @@ class ABinitCalculator(Calculator):
         scfPop = self.read_parallel_results()
         self.J.clear()
         return scfPop
-    
+
     def scfjob(self):
         pass
 
@@ -317,7 +330,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -W %s\n"
                 "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
         f.write("{}\n".format(self.parameters.jobPrefix))
-        f.write("python -m newcsp.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
+        f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh')
 
@@ -334,7 +347,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -W %s\n"
                 "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
         f.write("{}\n".format(self.parameters.jobPrefix))
-        f.write("python -m newcsp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.calcNum, self.parameters.xc, self.parameters.pressure))
+        f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.calcNum, self.parameters.xc, self.parameters.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh')
 
@@ -390,12 +403,18 @@ class gulpCalculator(ABinitCalculator):
                 "#BSUB -W %s\n"
                 "#BSUB -J Gulp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
         f.write("{}\n".format(self.parameters.jobPrefix))
-        f.write("python -m csp.rungulp gulpSetup.yaml")
+        f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh')
 
-    def relaxjob(self):
+    def relaxjob(self,calcPop):
+        calcDic = {
+            'calcNum': 0,
+            'pressure': self.parameters.pressure,
+            'exeCmd': self.parameters.exeCmd,
+            'inputDir': "{}/inputFold".format(self.parameters.workDir),
+        }
         tmpPop = [calcPop[j] for j in runArray[i]]
         write_traj('initPop.traj', tmpPop)
 
@@ -410,9 +429,9 @@ class gulpCalculator(ABinitCalculator):
                 "#BSUB -W %s\n"
                 "#BSUB -J Gulp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
         f.write("{}\n".format(self.parameters.jobPrefix))
-        f.write("python -m csp.rungulp gulpSetup.yaml")
+        f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh')
 
-    
+

@@ -2,7 +2,7 @@ import sys, os,shutil,subprocess,logging,traceback
 import yaml
 from ase.calculators.vasp import Vasp
 import ase.io
-from csp.writeresults import write_traj
+from magus.writeresults import write_traj
 from ase.spacegroup import crystal
 
 def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
@@ -14,7 +14,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
             if ind:
                 optPop.append(ind)
             else:
-                logging.info("fail in scf") 
+                logging.info("fail in scf")
         else:
             for i in range(1, calcNum + 1):
                 ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)

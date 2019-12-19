@@ -70,6 +70,7 @@ def read_parameters(inputFile):
         'symprec': 0.1,
         'compress': False,
         'cRatio': 0.8,
+        "mlRelax": False,
     }
 
     for key, val in dParms.items():
