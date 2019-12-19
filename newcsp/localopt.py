@@ -23,6 +23,8 @@ from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from .queue import JobManager
+from .runvasp import calc_vasp
+from .rungulp import calc_gulp
 
 class Calculator:
     def __init__(self):
@@ -196,20 +198,32 @@ class xtbCalculator:
                 pass
         return scfPop
 
-
-class VaspCalculator:
-    def __init__(self,parameters,prefix='calcVasp'):
+class ABinitCalculator(Calculator):
+    def __init__(self,parameters,prefix):
         self.parameters=parameters
-        self.J=JobManager()
-        self.prefix=prefix
-
-    def scf(self,calcPop):
+        if self.parameters.mode == 'serial':
+            self.scf = self.scf_serial
+            self.relax = self.relax_serial
+        elif self.parameters.mode == 'parallel':
+            self.J=JobManager()
+            self.scf = self.scf_parallel
+            self.relax = self.relax_parallel
+            self.prefix=prefix
+    
+    def cdcalcFold(self):
         os.chdir(self.parameters.workDir)
         if not os.path.exists('calcFold'):
             os.mkdir('calcFold')
         os.chdir('calcFold')
+
+    def scf_serial(self,calcPop):
+        pass
+           
+    def relax_serial(self,calcPop):
+        pass
+
+    def paralleljob(self,calcPop,runjob):
         numParallel = self.parameters.numParallel
-        vaspSetup = dict(zip(self.parameters.symbols, self.parameters.ppLabel))
         popLen = len(calcPop)
         eachLen = popLen//numParallel
         remainder = popLen%numParallel
@@ -228,89 +242,177 @@ class VaspCalculator:
 
             tmpPop = [calcPop[j] for j in runArray[i]]
             write_traj('initPop.traj', tmpPop)
-            shutil.copy("{}/inputFold/INCAR_scf".format(self.parameters.workDir),'INCAR_scf')
 
-            with open('vaspSetup.yaml', 'w') as setupF:
-                setupF.write(yaml.dump(vaspSetup))
-
-            f = open('parallel.sh', 'w')
-            f.write("#BSUB -q %s\n"
-                    "#BSUB -n %s\n"
-                    "#BSUB -o out\n"
-                    "#BSUB -e err\n"
-                    "#BSUB -W %s\n"
-                    "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
-            f.write("{}\n".format(self.parameters.jobPrefix))
-            f.write("python -m newcsp.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
-            f.close()
-
-            self.J.bsub('bsub < parallel.sh')
+            runjob()
+            
             os.chdir("%s/calcFold" %(self.parameters.workDir))
 
         self.J.WaitJobsDone(self.parameters.waitTime)
         os.chdir(self.parameters.workDir)
-        scfPop=self.read_parallel_results()
+
+    def scf_parallel(self,calcPop):
+        self.cdcalcFold()
+        self.paralleljob(calcPop,self.scfjob)
+        scfPop = self.read_parallel_results()
         self.J.clear()
         return scfPop
+    
+    def scfjob(self):
+        pass
 
-    def relax(self,calcPop):
+    def relax_parallel(self,calcPop):
+        self.cdcalcFold()
+        self.paralleljob(calcPop,self.relaxjob)
+        relaxPop = self.read_parallel_results()
+        self.J.clear()
+        return relaxPop
+
+    def relaxjob(self):
+        pass
+
+    def read_parallel_results(self):
+        pop = []
+        for job in self.J.jobs:
+            try:
+                pop.extend(ase.io.read("{}/optPop.traj".format(job['workDir']), format='traj', index=':'))
+            except:
+                logging.info("ERROR in read results {}".format(job['workDir']))
+        return pop
+
+class VaspCalculator(ABinitCalculator):
+    def __init__(self,parameters,prefix='calcVasp'):
+        super().__init__(parameters,prefix)
+
+    def scf_serial(self,calcPop):
+        self.cdcalcFold()
+        calc = Vasp()
+        calc.read_incar('INCAR_scf')
+        calc.set(xc=self.parameters.xc,setups=dict(zip(self.parameters.symbols, self.parameters.ppLabel)),pstress=self.parameters.pressure*10)
+        scfPop = calc_vasp([calc], calcPop)
+        return scfPop
+
+    def relax_serial(self,calcPop):
+        self.cdcalcFold()
+        incars = ['INCAR_{}'.format(i) for i in range(1, self.parameters.calcNum+1)]
+        calcs = []
+        for incar in incars:
+            calc = Vasp()
+            calc.read_incar(incar)
+            calc.set(xc=self.parameters.xc,setups=dict(zip(self.parameters.symbols, self.parameters.ppLabel)),pstress=self.parameters.pressure*10)
+            calcs.append(calc)
+        relaxPop = calc_vasp(calcs, calcPop)
+        return relaxPop
+
+    def scfjob(self):
+        shutil.copy("{}/inputFold/INCAR_scf".format(self.parameters.workDir),'INCAR_scf')
+        vaspSetup = dict(zip(self.parameters.symbols, self.parameters.ppLabel))
+        with open('vaspSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(vaspSetup))
+
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -W %s\n"
+                "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+        f.write("{}\n".format(self.parameters.jobPrefix))
+        f.write("python -m newcsp.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
+        f.close()
+        self.J.bsub('bsub < parallel.sh')
+
+    def relaxjob(self):
+        vaspSetup = dict(zip(self.parameters.symbols, self.parameters.ppLabel))
+        with open('vaspSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(vaspSetup))
+
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -W %s\n"
+                "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+        f.write("{}\n".format(self.parameters.jobPrefix))
+        f.write("python -m newcsp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.calcNum, self.parameters.xc, self.parameters.pressure))
+        f.close()
+        self.J.bsub('bsub < parallel.sh')
+
+class gulpCalculator(ABinitCalculator):
+    def __init__(self, parameters,prefix='calcGulp'):
+        super().__init__(parameters,prefix)
+
+    def scf_serial(self,calcPop):
         os.chdir(self.parameters.workDir)
         if not os.path.exists('calcFold'):
             os.mkdir('calcFold')
         os.chdir('calcFold')
-        numParallel = self.parameters.numParallel
-        vaspSetup = dict(zip(self.parameters.symbols, self.parameters.ppLabel))
-        popLen = len(calcPop)
-        eachLen = popLen//numParallel
-        remainder = popLen%numParallel
 
-        runArray = []
-        for i in range(numParallel):
-            tmpList = [ i + numParallel*j for j in range(eachLen)]
-            if i < remainder:
-                tmpList.append(numParallel*eachLen + i)
-            runArray.append(tmpList)
+        calcNum = 0
+        exeCmd = self.parameters.exeCmd
+        pressure = self.parameters.pressure
+        inputDir = "{}/inputFold".format(self.parameters.workDir)
 
-        for i in range(numParallel):
-            if not os.path.exists("{}{}".format(self.prefix, i)):
-                os.mkdir("{}{}".format(self.prefix, i))
-            os.chdir("{}{}".format(self.prefix, i))
+        scfPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
+        write_traj('optPop.traj', scfPop)
+        return scfPop
 
-            tmpPop = [calcPop[j] for j in runArray[i]]
-            write_traj('initPop.traj', tmpPop)
-            for j in range(1, self.parameters.calcNum + 1):
-                shutil.copy("{}/inputFold/INCAR_{}".format(self.parameters.workDir, j), 'INCAR_{}'.format(j))
-
-            with open('vaspSetup.yaml', 'w') as setupF:
-                setupF.write(yaml.dump(vaspSetup))
-
-            f = open('parallel.sh', 'w')
-            f.write("#BSUB -q %s\n"
-                    "#BSUB -n %s\n"
-                    "#BSUB -o out\n"
-                    "#BSUB -e err\n"
-                    "#BSUB -W %s\n"
-                    "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
-            f.write("{}\n".format(self.parameters.jobPrefix))
-            f.write("python -m newcsp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.calcNum, self.parameters.xc, self.parameters.pressure))
-            f.close()
-
-            self.J.bsub('bsub < parallel.sh')
-            os.chdir("%s/calcFold" %(self.parameters.workDir))
-
-        self.J.WaitJobsDone(self.parameters.waitTime)
+    def relax_serial(self,calcPop):
         os.chdir(self.parameters.workDir)
-        relaxPop=self.read_parallel_results()
-        self.J.clear()
+        if not os.path.exists('calcFold'):
+            os.mkdir('calcFold')
+        os.chdir('calcFold')
+
+        calcNum = self.parameters.calcNum
+        exeCmd = self.parameters.exeCmd
+        pressure = self.parameters.pressure
+        inputDir = "{}/inputFold".format(self.parameters.workDir)
+
+        relaxPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
+        write_traj('optPop.traj', relaxPop)
         return relaxPop
-    
-    def read_parallel_results(self):
-        optPop = []
-        for job in self.J.jobs:
-            try:
-                optPop.extend(ase.io.read("{}/optPop.traj".format(job['workDir']), format='traj', index=':'))
-            except:
-                logging.info("ERROR in read results {}".format(job['workDir']))
-        #bjobs.clear()
-        return optPop
+
+    def scfjob(self):
+        calcDic = {
+            'calcNum': 0,
+            'pressure': self.parameters.pressure,
+            'exeCmd': self.parameters.exeCmd,
+            'inputDir': "{}/inputFold".format(self.parameters.workDir),
+        }
+        with open('gulpSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -W %s\n"
+                "#BSUB -J Gulp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+        f.write("{}\n".format(self.parameters.jobPrefix))
+        f.write("python -m csp.rungulp gulpSetup.yaml")
+        f.close()
+
+        self.J.bsub('bsub < parallel.sh')
+
+    def relaxjob(self):
+        tmpPop = [calcPop[j] for j in runArray[i]]
+        write_traj('initPop.traj', tmpPop)
+
+        with open('gulpSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -W %s\n"
+                "#BSUB -J Gulp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+        f.write("{}\n".format(self.parameters.jobPrefix))
+        f.write("python -m csp.rungulp gulpSetup.yaml")
+        f.close()
+
+        self.J.bsub('bsub < parallel.sh')
+
     
