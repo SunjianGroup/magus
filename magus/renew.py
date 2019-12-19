@@ -218,7 +218,7 @@ class Kriging:
         self.curPop = calc_dominators(curPop)
         self.labels, self.goodPop = clustering(self.curPop, self.saveGood)
         if self.addSym:
-            self.goodPop = standardize_pop(self.goodPop, 1.)
+            self.goodPop = symmetrize_pop(self.goodPop, 1.)
 
         self.curLen = len(self.curPop)
         logging.debug("curLen: {}".format(self.curLen))
@@ -455,32 +455,6 @@ def ripple(parInd, rho=0.3, mu=2, eta=1):
     chdInd.set_scaled_positions(pos)
     return chdInd
 
-def standardize_atoms(atoms, symprec=1e-5):
-    """
-    Use spglib to get standardize cell of atoms
-    """
-
-    spgCell = spglib.standardize_cell(atoms, symprec=symprec)
-    if spgCell:
-        lattice, pos, numbers = spgCell
-        stdAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers)
-        stdAts.info = atoms.info.copy()
-    else:
-        stdAts = Atoms(atoms)
-
-    return stdAts
-
-def standardize_pop(pop, symprec=1e-5):
-
-    stdPop = list()
-    for ind in pop:
-        stdInd = standardize_atoms(ind, symprec)
-        if len(stdInd) == len(ind):
-            stdPop.append(stdInd)
-        else:
-            stdPop.append(Atoms(ind))
-
-    return stdPop
 
 def tournament(pop, num):
     smpPop = random.sample(pop, num)

@@ -24,8 +24,8 @@ from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from .queue import JobManager
-from .runvasp import calc_vasp
-from .rungulp import calc_gulp
+# from .runvasp import calc_vasp
+# from .rungulp import calc_gulp
 
 class Calculator:
     def __init__(self):
@@ -435,3 +435,172 @@ class gulpCalculator(ABinitCalculator):
         self.J.bsub('bsub < parallel.sh')
 
 
+
+def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
+    optPop = []
+    for n, ind in enumerate(calcPop):
+        if calcNum == 0:
+            ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
+            logging.info("Structure %s scf" %(n))
+            if ind:
+                optPop.append(ind)
+            else:
+                logging.info("fail in scf")
+        else:
+            for i in range(1, calcNum + 1):
+                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
+                logging.info("Structure %s Step %s" %(n, i))
+
+            if ind:
+                optPop.append(ind)
+            else:
+                logging.info("fail in localopt")
+    logging.info('\n')
+    return optPop
+
+def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
+    """
+    exeCmd should be "gulp < input > output"
+    """
+    if os.path.exists('output'):
+        os.remove('output')
+    try:
+        for f in os.listdir(inputDir):
+            filepath = "{}/{}".format(inputDir, f)
+            if os.path.isfile(filepath):
+                shutil.copy(filepath, f)
+        if calcStep == 0:
+            shutil.copy("goptions_scf", "input")
+        else:
+            shutil.copy("goptions_{}".format(calcStep), "input")
+
+        with open('input', 'a') as gulpIn:
+            gulpIn.write('cell\n')
+            a, b, c, alpha, beta, gamma = calcInd.get_cell_lengths_and_angles()
+            gulpIn.write("%g %g %g %g %g %g\n" %(a, b, c, alpha, beta, gamma))
+            gulpIn.write('fractional\n')
+            for atom in calcInd:
+                gulpIn.write("%s %.6f %.6f %.6f\n" %(atom.symbol, atom.a, atom.b, atom.c))
+            gulpIn.write('\n')
+
+            with open("ginput_{}".format(calcStep), 'r') as gin:
+                gulpIn.write(gin.read())
+
+            gulpIn.write('pressure\n{}\n'.format(pressure))
+            gulpIn.write("dump every optimized.structure")
+
+        exitcode = subprocess.call(exeCmd, shell=True)
+        if exitcode != 0:
+            raise RuntimeError('Gulp exited with exit code: %d.  ' % exitcode)
+
+        fout = open('optimized.structure', 'r')
+        output = fout.readlines()
+        fout.close()
+
+        for i, line in enumerate(output):
+            if 'cell' in line:
+                cellIndex = i + 1
+            if 'fractional' in line:
+                posIndex = i + 1
+
+        cellpar = output[cellIndex].split()
+        cellpar = [float(par) for par in cellpar]
+
+        pos = []
+        for line in output[posIndex:posIndex + len(calcInd)]:
+            pos.append([eval(i) for i in line.split()[2:5]])
+
+        optInd = crystal(symbols=calcInd, cellpar=cellpar)
+        optInd.set_scaled_positions(pos)
+
+        optInd.info = calcInd.info.copy()
+
+        enthalpy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
+        enthalpy = float(enthalpy)/len(optInd)
+        optInd.info['enthalpy'] = round(enthalpy, 3)
+
+        return optInd
+
+    except:
+        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        logging.info("GULP fail")
+        return None
+
+
+def calc_vasp_once(
+    calc,    # ASE calculator
+    struct,
+    index,
+    ):
+    struct.set_calculator(calc)
+
+    try:
+        energy = struct.get_potential_energy()
+        forces = struct.get_forces()
+        stress = struct.get_stress()
+        gap = read_eigen()
+    except:
+        s = sys.exc_info()
+        logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        logging.info("VASP fail")
+        print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+
+        return None
+
+    if calc.float_params['pstress']:
+        pstress = calc.float_params['pstress']
+    else:
+        pstress = 0
+
+    struct.info['pstress'] = pstress
+
+    volume = struct.get_volume()
+    enthalpy = energy + pstress * volume / 1602.262
+    enthalpy = enthalpy/len(struct)
+
+    struct.info['gap'] = round(gap, 3)
+    struct.info['enthalpy'] = round(enthalpy, 3)
+
+    # save energy, forces, stress for trainning potential
+    struct.info['energy'] = energy
+    struct.info['forces'] = forces
+    struct.info['stress'] = stress
+
+    # save relax trajectory
+    traj = ase.io.read('OUTCAR', index=':', format='vasp-out')
+    trajDict = [extract_atoms(ats) for ats in traj]
+    if index == 0:
+        struct.info['trajs'] = []
+    struct.info['trajs'].append(trajDict)
+
+    logging.info("VASP finish")
+    return struct[:]
+
+def calc_vasp(
+    calcs,    #a list of ASE calculator
+    structs,    #a list of structures
+    ):
+
+    newStructs = []
+    logging.info('1')
+    for i, ind in enumerate(structs):
+        initInd = ind.copy()
+        logging.info('1')
+        initInd.info = {}
+        for j, calc in enumerate(calcs):
+            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
+            logging.info("Structure {} Step {}".format(i, j))
+            # print("Structure {} Step {}".format(i, j))
+            ind = calc_vasp_once(copy.deepcopy(calc), ind, j)
+            press = calc.float_params['pstress']/10
+            shutil.copy("OUTCAR", "OUTCAR-{}-{}-{}".format(i, j, press))
+            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
+
+            if ind is None:
+                break
+
+        else:
+            # ind.info['initStruct'] = extract_atoms(initInd)
+            newStructs.append(ind)
+
+    return newStructs
