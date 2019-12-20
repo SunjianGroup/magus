@@ -441,8 +441,8 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
                 logging.info("fail in scf")
         else:
             for i in range(1, calcNum + 1):
-                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
                 logging.info("Structure %s Step %s" %(n, i))
+                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)             
 
             if ind:
                 optPop.append(ind)
