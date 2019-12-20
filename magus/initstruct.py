@@ -16,7 +16,7 @@ class BaseGenerator:
         Default={'threshold':1.0,'maxAttempts':50,'method':2,'volRatio':1.5,'spgs':np.arange(1,231),'maxtryNum':100}
         self.checkParameters(Requirement,Default)
         self.radius = p.raidus if hasattr(p,'radius') else [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
-        
+
         self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*np.array(self.formula))*self.volRatio/sum(self.formula)
         self.minVolume = p.minVolume if hasattr(p,'minVolume') else self.meanVolume*0.5
         self.maxVolume = p.maxVolume if hasattr(p,'maxVolume') else self.meanVolume*1.5
@@ -59,8 +59,9 @@ class BaseGenerator:
         generator.maxAttempts = self.maxAttempts
         generator.threshold=self.threshold
         generator.method=self.method
-        # generator.forceMostGeneralWyckPos=True
-        
+        generator.forceMostGeneralWyckPos=False
+        generator.UselocalCellTrans = 'y'
+
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
         generator.minVolume = minVolume
         generator.maxVolume = maxVolume
@@ -141,7 +142,7 @@ class LayerGenerator(BaseGenerator):
         k=self.d*np.linalg.norm(c_)/np.dot(c,c_)+1
         ind.cell[2]*=k
 
-    def afterprocessing(self,ind,nfm): 
+    def afterprocessing(self,ind,nfm):
         super().afterprocessing(ind,nfm)
         #self.addVacuumlayer(ind)
 
@@ -154,7 +155,7 @@ class VarGenerator(BaseGenerator):
         super().__init__(p)
         super().checkParameters(Requirement=['minAt','maxAt'],Default={'fullEles':True})
         self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
-     
+
 
     def afterprocessing(self,ind):
         ind.info['symbols'] = self.symbols

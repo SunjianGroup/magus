@@ -4,7 +4,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import VaspCalculator,xtbCalculator,LJCalculator,EMTCalculator,gulpCalculator
+from .localopt import VaspCalculator,xtbCalculator,LJCalculator,EMTCalculator,GULPCalculator
 from .initstruct import BaseGenerator,read_seeds,VarGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .readparm import read_parameters
@@ -28,10 +28,12 @@ class Magus:
             self.MainCalculator = LJCalculator(parameters)
         elif self.parameters.calculator == 'emt':
             self.MainCalculator = EMTCalculator(parameters)
+        elif self.parameters.calculator == 'gulp':
+            self.MainCalculator = GULPCalculator(parameters)
         self.ML=LRmodel(parameters)
         self.get_fitness=calc_fitness
         self.pop=[]
-        self.curgen=0
+        self.curgen=1
 
     def run(self):
         self.Initialize()
@@ -40,15 +42,17 @@ class Magus:
 
     def Initialize(self):
         if os.path.exists("results"):
-            i=0
+            i=1
             while os.path.exists("results{}".format(i)):
                 i+=1
             shutil.move("results", "results{}".format(i))
         os.mkdir("results")
+        if not os.path.exists("calcFold"):
+            os.mkdir("calcFold")
         self.parameters.resultsDir=os.path.join(self.parameters.workDir,'results')
         shutil.copy("allParameters.yaml", "results/allParameters.yaml")
 
-        logging.info("===== Initializition =====")
+        logging.info("===== Generation {} =====".format(self.curgen))
         initPop = self.Generator.Generate_pop(self.parameters.initSize)
         logging.info("initPop length: {}".format(len(initPop)))
 

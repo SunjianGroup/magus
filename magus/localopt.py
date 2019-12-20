@@ -256,7 +256,7 @@ class ABinitCalculator(Calculator):
             tmpPop = [calcPop[j] for j in runArray[i]]
             write_traj('initPop.traj', tmpPop)
 
-            runjob()
+            runjob(index=i)
 
             os.chdir("%s/calcFold" %(self.parameters.workDir))
 
@@ -280,7 +280,7 @@ class ABinitCalculator(Calculator):
         self.J.clear()
         return relaxPop
 
-    def relaxjob(self):
+    def relaxjob(self, index):
         pass
 
     def read_parallel_results(self):
@@ -328,13 +328,13 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
                 "#BSUB -W %s\n"
-                "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+                "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, index))
         f.write("{}\n".format(self.parameters.jobPrefix))
         f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh')
 
-    def relaxjob(self):
+    def relaxjob(self,index):
         vaspSetup = dict(zip(self.parameters.symbols, self.parameters.ppLabel))
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(vaspSetup))
@@ -344,14 +344,13 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -W %s\n"
-                "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+                "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, index))
         f.write("{}\n".format(self.parameters.jobPrefix))
         f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.calcNum, self.parameters.xc, self.parameters.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh')
 
-class gulpCalculator(ABinitCalculator):
+class GULPCalculator(ABinitCalculator):
     def __init__(self, parameters,prefix='calcGulp'):
         super().__init__(parameters,prefix)
 
@@ -385,7 +384,7 @@ class gulpCalculator(ABinitCalculator):
         write_traj('optPop.traj', relaxPop)
         return relaxPop
 
-    def scfjob(self):
+    def scfjob(self,index):
         calcDic = {
             'calcNum': 0,
             'pressure': self.parameters.pressure,
@@ -400,24 +399,20 @@ class gulpCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -W %s\n"
-                "#BSUB -J Gulp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+                "#BSUB -J Gulp_%s\n"% (self.parameters.queueName, self.parameters.numCore, index))
         f.write("{}\n".format(self.parameters.jobPrefix))
         f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh')
 
-    def relaxjob(self,calcPop):
+    def relaxjob(self,index):
         calcDic = {
             'calcNum': 0,
             'pressure': self.parameters.pressure,
             'exeCmd': self.parameters.exeCmd,
             'inputDir': "{}/inputFold".format(self.parameters.workDir),
         }
-        tmpPop = [calcPop[j] for j in runArray[i]]
-        write_traj('initPop.traj', tmpPop)
-
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
 
@@ -426,8 +421,7 @@ class gulpCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -W %s\n"
-                "#BSUB -J Gulp_%s\n"% (self.parameters.queueName, self.parameters.numCore, self.parameters.maxRelaxTime*len(tmpPop), i))
+                "#BSUB -J Gulp_%s\n"% (self.parameters.queueName, self.parameters.numCore, index))
         f.write("{}\n".format(self.parameters.jobPrefix))
         f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
