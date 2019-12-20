@@ -316,7 +316,7 @@ class VaspCalculator(ABinitCalculator):
         relaxPop = calc_vasp(calcs, calcPop)
         return relaxPop
 
-    def scfjob(self):
+    def scfjob(self,index):
         shutil.copy("{}/inputFold/INCAR_scf".format(self.parameters.workDir),'INCAR_scf')
         vaspSetup = dict(zip(self.parameters.symbols, self.parameters.ppLabel))
         with open('vaspSetup.yaml', 'w') as setupF:
@@ -327,7 +327,6 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -W %s\n"
                 "#BSUB -J Vasp_%s\n"% (self.parameters.queueName, self.parameters.numCore, index))
         f.write("{}\n".format(self.parameters.jobPrefix))
         f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.parameters.xc, self.parameters.pressure))
