@@ -97,7 +97,7 @@ def cycle_sums(G):
 
     return np.array(cycleSums)
 
-def graphDim(G):
+def graph_dim(G):
     return np.linalg.matrix_rank(cycle_sums(G))
 
 def getMut_3D(cycSums):
