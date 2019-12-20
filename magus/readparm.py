@@ -24,11 +24,6 @@ def read_parameters(inputFile):
     for key, val in parameters.items():
         setattr(p, key, val)
 
-    # for parm in parameters.keys():
-    #     exec "{0} = parameters['{0}']".format(parm)
-    # if 'spacegroup' not in parameters.keys():
-    #     p.spacegroup = range(1,231)
-
     # Default parameters
     dParms = {
         'spacegroup': list(range(1, 231)),
@@ -95,13 +90,6 @@ def read_parameters(inputFile):
         if not hasattr(p, 'ppLabel'):
             p.ppLabel = ['' for _ in p.symbols]
 
-
-    if p.setAlgo == 'bbo':
-        sumFrac = sum([p.migrateFrac, p.mutateFrac, p.randFrac])
-        p.migrateFrac = p.migrateFrac/sumFrac
-        p.mutateFrac = p.mutateFrac/sumFrac
-        p.randFrac = p.randFrac/sumFrac
-
     assert p.randFrac <= 1, 'randFrac should be lower than 1'
     if p.molMode:
         assert 'molFile' in parameters.keys(), 'Please define molFile'
@@ -149,14 +137,6 @@ def read_parameters(inputFile):
 
 
 
-
-    ############ BBO Parameters#############
-    p.bboParm = dict()
-    p.bboParm['migrateFrac'] = p.migrateFrac
-    p.bboParm['mutateFrac'] = p.mutateFrac
-    p.bboParm['randFrac'] = p.randFrac
-    p.bboParm['grids'] = p.grids
-
     ############ Krig Parameters #######
     p.krigParm = dict()
     p.krigParm['randFrac'] = p.randFrac
@@ -195,14 +175,11 @@ def read_parameters(inputFile):
                 'calcNum',
                 'numParallel',
                 # 'pickPareto',
-                'bboParm',
                 'krigParm',
                 'saveGood',
                 'queueName',
                 'numCore',
                 'randFrac',
-                'mutateFrac',
-                'migrateFrac',
                 ]
     if p.molMode:
         parmList.extend(['molList', 'molNum'])

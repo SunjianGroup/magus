@@ -16,12 +16,11 @@ from ase.geometry import cell_to_cellpar, cellpar_to_cell
 from ase.optimize import BFGS, FIRE, BFGSLineSearch, LBFGS, LBFGSLineSearch
 from ase.units import GPa
 from ase.constraints import UnitCellFilter#, ExpCellFilter
-from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from sklearn import cluster
 from .utils import *
 
 
-class Kriging:
+class BaseEA:
     def __init__(self, parameters):
 
         self.parameters = parameters
@@ -51,6 +50,8 @@ class Kriging:
         self.dRatio = parameters.dRatio
         self.bondRatio = parameters.bondRatio
         self.bondRange = parameters.bondRange
+
+        self.newLen = int((self.parameters.popSize*(1-self.parameters.randFrac)))
 
     def heredity(self, cutNum=5, mode='atom'):
         #curPop = standardize_pop(self.curPop, 1.)
@@ -243,9 +244,20 @@ class Kriging:
         logging.debug("slipPop length: %s"%(len(slipPop)))
         logging.debug("ripPop length: %s"%(len(ripPop)))
         tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
+        tmpPop = check_dist(tmpPop, self.dRatio)
         self.tmpPop.extend(tmpPop)
-        return tmpPop
+        return self.tmpPop
 
+    def select(self):
+        tmpLen = len(self.tmpPop)
+        tmpPop = self.tmpPop[:]
+        newPop = []
+        for _ in range(self.newLen):
+            newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='parDom')
+            newPop.append(newInd)
+            tmpPop.remove(newInd)
+
+        return newPop
 
 def cut_cell(cutPop, grid, symbols, cutDisp=0):
     """
@@ -456,10 +468,14 @@ def ripple(parInd, rho=0.3, mu=2, eta=1):
     return chdInd
 
 
-def tournament(pop, num):
+def tournament(pop, num, keyword='dominators'):
     smpPop = random.sample(pop, num)
-    ind = sorted(smpPop, key=lambda x:x.info['dominators'])[0]
-    return ind
+    best = smpPop[0]
+    for ind in smpPop[1:]:
+        if ind.info[keyword] < best.info[keyword]:
+            best = ind
+
+    return best
 
 def calc_dominators(Pop):
     domPop = [ind.copy() for ind in Pop]

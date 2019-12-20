@@ -158,12 +158,13 @@ class LRmodel(MachineLearning):
             for j in range(self.parameters.mlrelaxNum):
                 ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
                 # ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
+                logfile = "{}/calcFold/MLrelax.log".format(self.parameters.workDir)
                 if self.parameters.mloptimizer == 'cg':
-                    gopt = SciPyFminCG(ucf, logfile="{}/MLrelax.log".format(self.parameters.MLpath),)
+                    gopt = SciPyFminCG(ucf, logfile=logfile,)
                 elif self.parameters.mloptimizer == 'BFGS':
-                    gopt = BFGS(ucf, logfile="{}/MLrelax.log".format(self.parameters.MLpath), maxstep=self.parameters.maxRelaxStep)
+                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.parameters.maxRelaxStep)
                 elif self.parameters.mloptimizer == 'fire':
-                    gopt = FIRE(ucf, logfile="{}/MLrelax.log".format(self.parameters.MLpath), maxmove=self.parameters.maxRelaxStep)
+                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.parameters.maxRelaxStep)
 
                 try:
                     label=gopt.run(fmax=self.parameters.mlepsArr[j], steps=self.parameters.mlstepArr[j])
