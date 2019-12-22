@@ -10,9 +10,10 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_numbers, covalent_radii
 from ase.neighborlist import neighbor_list
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn import cluster
 from scipy.optimize import root
 from scipy.spatial.distance import cdist, pdist
-from .crystgraph import quotient_graph, cycle_sums, graphDim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
+from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
 try:
     from functools import reduce
     from ase.utils.structure_comparator import SymmetryEquivalenceCheck
@@ -740,3 +741,45 @@ def compress_mol_pop(molPop, volRatio, bondRatio, nsteps=10):
 
 
 
+def calc_dominators(Pop):
+    domPop = [ind.copy() for ind in Pop]
+    domLen = len(domPop)
+    for ind in domPop:
+        ftn1 = ind.info['fitness1']
+        ftn2 = ind.info['fitness2']
+        dominators = 0 #number of individuals that dominate the current ind
+        # toDominate = 0 #number of individuals that are dominated by the current ind
+        for otherInd in domPop[:]:
+            if ((otherInd.info['fitness1'] < ftn1 and otherInd.info['fitness2'] < ftn2)
+                or (otherInd.info['fitness1'] <= ftn1 and otherInd.info['fitness2'] < ftn2)
+                or (otherInd.info['fitness1'] < ftn1 and otherInd.info['fitness2'] <= ftn2)):
+
+                dominators += 1
+
+        ind.info['dominators'] = dominators
+        ind.info['MOGArank'] = dominators + 1
+        ind.info['sclDom'] = (dominators)/domLen
+
+    return domPop
+
+def clustering(inPop, numClusters, label=False):
+    """
+    clustering by fingerprints
+    """
+    if numClusters >= len(inPop):
+        return [i for i in range(len(inPop))], inPop
+
+    fpMat = np.array([ind.info['image_fp'] for ind in inPop])
+    km = cluster.KMeans(n_clusters=numClusters,)
+    km.fit(fpMat)
+    labels = km.labels_
+
+    goodPop = [None]*numClusters
+    for label, ind in zip(labels, inPop):
+        curBest = goodPop[label]
+        if curBest:
+            if ind.info['dominators'] < curBest.info['dominators']:
+                goodPop[label] = ind
+        else:
+            goodPop[label] = ind
+    return labels, goodPop

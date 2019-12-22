@@ -26,6 +26,7 @@ def read_parameters(inputFile):
 
     # Default parameters
     dParms = {
+        'mode': 'serial',
         'spacegroup': list(range(1, 231)),
         'eleSize': 1,
         'fullEles': False,
@@ -44,7 +45,7 @@ def read_parameters(inputFile):
         'latNum': int(parameters['popSize']/5)+1,
         'grids': [[2, 1, 1], [1, 2, 1], [1, 1, 2]],
         'bondRatio': 1.15,
-        'bondRange': [0.95, 1., 1.05, 1.1, 1.15],
+        'bondRange': [1., 1.1, 1.2],
         'waitTime': 60,
         'maxRelaxTime': 1200,
         'xrdFile': None,
@@ -73,6 +74,14 @@ def read_parameters(inputFile):
             setattr(p, key, val)
             parameters[key] = val
 
+    # Check parameters
+    assert p.mode in ['serial', 'parallel'], "Undefined mode"
+    assert p.calcType in ['fix', 'var'], "Undefined calcType"
+    assert p.calculator in ['lj', 'emt', 'vasp', 'gulp', 'xtb', 'cp2k'], "Undefined calculator"
+    if p.calculator in ['lj', 'emt', 'xtb']:
+        assert p.mode == 'serial', "The calculator only support serial mode"
+    assert p.randFrac <= 1, 'randFrac should be lower than 1'
+
     expandSpg = []
     for item in p.spacegroup:
         if isinstance(item, int):
@@ -90,7 +99,6 @@ def read_parameters(inputFile):
         if not hasattr(p, 'ppLabel'):
             p.ppLabel = ['' for _ in p.symbols]
 
-    assert p.randFrac <= 1, 'randFrac should be lower than 1'
     if p.molMode:
         assert 'molFile' in parameters.keys(), 'Please define molFile'
         assert 'molFormula' in parameters.keys(), 'Please define molFormula'

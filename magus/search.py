@@ -8,11 +8,11 @@ from .localopt import VaspCalculator,xtbCalculator,LJCalculator,EMTCalculator,GU
 from .initstruct import BaseGenerator,read_seeds,VarGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio, del_duplicate, check_dist
+from .utils import EmptyClass, calc_volRatio, del_duplicate, check_dist, calc_dominators, clustering
 import copy
 from .queue import JobManager
 from .setfitness import calc_fitness
-from .renew import BaseEA, calc_dominators, clustering
+from .renew import BaseEA
 #ML module
 from .machinelearning import LRmodel
 
@@ -68,7 +68,7 @@ class Magus:
         self.get_fitness(relaxPop)
         for ind in relaxPop:
             logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
-        write_results(relaxPop, 0, 'relax', self.parameters.resultsDir)
+        write_results(relaxPop, 0, 'gen', self.parameters.resultsDir)
 
         self.ML.get_fp(relaxPop)
         if self.parameters.mlRelax:
@@ -119,7 +119,7 @@ class Magus:
 
         ### write results
         write_results(optPop, self.curgen, 'gen', self.parameters.resultsDir)
-        write_results(goodPop, self.curgen, 'good',self.parameters.resultsDir)
+        write_results(goodPop, '', 'good',self.parameters.resultsDir)
         write_results(keepPop, self.curgen, 'keep',self.parameters.resultsDir)
         shutil.copy('log.txt', 'results/log.txt')
 
@@ -178,7 +178,7 @@ class Magus:
         self.get_fitness(relaxPop)
         for ind in relaxPop:
             logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
-        write_results(relaxPop, 0, 'relax',self.parameters.resultsDir)
+        write_results(relaxPop, 0, 'gen',self.parameters.resultsDir)
 
         self.ML.get_fp(relaxPop)
         if self.parameters.mlRelax:

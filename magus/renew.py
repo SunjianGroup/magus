@@ -438,48 +438,6 @@ def tournament(pop, num, keyword='dominators'):
 
     return best
 
-def calc_dominators(Pop):
-    domPop = [ind.copy() for ind in Pop]
-    domLen = len(domPop)
-    for ind in domPop:
-        ftn1 = ind.info['fitness1']
-        ftn2 = ind.info['fitness2']
-        dominators = 0 #number of individuals that dominate the current ind
-        # toDominate = 0 #number of individuals that are dominated by the current ind
-        for otherInd in domPop[:]:
-            if ((otherInd.info['fitness1'] < ftn1 and otherInd.info['fitness2'] < ftn2)
-                or (otherInd.info['fitness1'] <= ftn1 and otherInd.info['fitness2'] < ftn2)
-                or (otherInd.info['fitness1'] < ftn1 and otherInd.info['fitness2'] <= ftn2)):
-
-                dominators += 1
-
-        ind.info['dominators'] = dominators
-        ind.info['MOGArank'] = dominators + 1
-        ind.info['sclDom'] = (dominators)/domLen
-
-    return domPop
-
-def clustering(inPop, numClusters, label=False):
-    """
-    clustering by fingerprints
-    """
-    if numClusters >= len(inPop):
-        return [i for i in range(len(inPop))], inPop
-
-    fpMat = np.array([ind.info['image_fp'] for ind in inPop])
-    km = cluster.KMeans(n_clusters=numClusters,)
-    km.fit(fpMat)
-    labels = km.labels_
-
-    goodPop = [None]*numClusters
-    for label, ind in zip(labels, inPop):
-        curBest = goodPop[label]
-        if curBest:
-            if ind.info['dominators'] < curBest.info['dominators']:
-                goodPop[label] = ind
-        else:
-            goodPop[label] = ind
-    return labels, goodPop
 
 
 def merge_atoms(atoms, tolerance=0.3,):
