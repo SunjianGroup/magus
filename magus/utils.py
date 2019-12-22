@@ -11,6 +11,7 @@ from ase.data import atomic_numbers, covalent_radii
 from ase.neighborlist import neighbor_list
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from scipy.optimize import root
+from scipy.spatial.distance import cdist, pdist
 from .crystgraph import quotient_graph, cycle_sums, graphDim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
 try:
     from functools import reduce
@@ -232,15 +233,30 @@ def symbols_and_formula(atoms):
 
     allSym = atoms.get_chemical_symbols()
     symbols = list(set(allSym))
-    numOfSym = lambda sym: len([i for i in allSym if i == sym])
-    formula = list(map(numOfSym, symbols))
+    counter = Counter(allSym)
+    formula = [counter[s] for s in symbols]
 
     return symbols, formula
 
 def get_formula(atoms, symbols):
     allSym = atoms.get_chemical_symbols()
-    formula = [allSym.count(s) for s in symbols]
+    counter = Counter(allSym)
+    formula = [counter[s] for s in symbols]
     return formula
+
+def sort_elements(atoms):
+    allSym = atoms.get_chemical_symbols()
+    symbols = list(set(allSym))
+    info = atoms.info
+    atList = []
+    for s in symbols:
+        atList.extend([atom for atom in atoms if atom.symbol==s])
+    sortAts = Atoms(atList)
+    sortAts.set_cell(atoms.get_cell())
+    sortAts.set_pbc(atoms.get_pbc())
+    sortAts.info = info
+
+    return sortAts
 
 def find_spg(Pop, tol): #tol:tolerance
 
@@ -349,35 +365,6 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
     # logging.info("Read Seeds: %s"%(len(seedPop)))
     return seedPop
 
-def merge_atoms(atoms, tolerance=0.3,):
-    """
-    if a pair of atoms are too close, merge them.
-    """
-
-    cutoffs = [tolerance * covalent_radii[num] for num in atoms.get_atomic_numbers()]
-    nl = neighbor_list("ij", atoms, cutoffs)
-    indices = list(range(len(atoms)))
-    exclude = []
-
-    # logging.debug("merge_atoms()")
-    # logging.debug("number of atoms: {}".format(len(atoms)))
-    # logging.debug("{}".format(nl[0]))
-    # logging.debug("{}".format(nl[1]))
-
-    for i, j in zip(*nl):
-        if i in exclude or j in exclude:
-            continue
-        exclude.append(random.choice([i,j]))
-
-    if len(exclude) > 0:
-        save = [index for index in indices if index not in exclude]
-        # logging.debug("exculde: {}\tsave: {}".format(exclude, save))
-        mAts = atoms[save]
-        mAts.info = atoms.info.copy()
-    else:
-        mAts = atoms
-
-    return mAts
 
 def rand_rotMat():
     phi, theta, psi = [2*math.pi*random.uniform(-1,1) for _ in range(3)]
@@ -565,6 +552,22 @@ def check_dist(pop, threshold=0.7):
 
     return checkPop
 
+def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
+
+    supAts = atoms * (3,3,3)
+    rs = [covalent_radii[num] for num in supAts.get_atomic_numbers()]
+    rnew = covalent_radii[atomic_numbers[newSymbol]]
+    # Place the new atoms in the centeral cell
+    cell = atoms.get_cell()
+    centerPos = newPosition+ np.dot(cell,[1,1,1])
+    distArr = cdist([centerPos], supAts.get_positions())[0]
+
+    for i, dist in enumerate(distArr):
+        if dist/(rs[i]+rnew) < threshold:
+            return False
+
+    return True
+
 def symmetrize_atoms(atoms, symprec=1e-5):
     """
     Use spglib to get standardize cell of atoms
@@ -734,10 +737,6 @@ def compress_mol_pop(molPop, volRatio, bondRatio, nsteps=10):
             outPop.append(ind)
 
     return outPop
-
-
-
-
 
 
 

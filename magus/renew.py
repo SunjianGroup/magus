@@ -320,45 +320,6 @@ def cut_cell(cutPop, grid, symbols, cutDisp=0):
     return cutInd
 
 
-def repair_atoms(ind, sybls, toFrml, numFrml=1):
-    """
-    sybls: a list of symbols
-    toFrml: a list of formula after repair
-    """
-
-    toFrml = [numFrml*i for i in toFrml]
-    toDict = dict(zip(sybls, toFrml))
-    saveInfo = ind.info
-
-    strFrml = ''
-    repPos = []
-    for sybl in sybls:
-        syblPos = [(at.a, at.b, at.c) for at in ind if at.symbol is sybl]
-        curLen = len(syblPos)
-
-        if toDict[sybl] < curLen:
-            toDel = random.sample(range(len(syblPos)),
-            curLen - toDict[sybl])
-            toDel.sort(reverse=True)
-            for i in toDel:
-                del syblPos[i]
-
-        if toDict[sybl] > curLen:
-            for i in range(toDict[sybl] - curLen):
-                syblPos.append((random.random(),
-                                random.random(),
-                                random.random(),))
-
-        repPos.extend(syblPos)
-        strFrml = strFrml + sybl + str(toDict[sybl])
-
-    repInd = Atoms(strFrml, cell=ind.get_cell(), pbc=True)
-    repInd.set_scaled_positions(repPos)
-    repInd.info = saveInfo
-    repInd.info['formula'] = toFrml
-    #logging.debug(repInd.get_chemical_formula())
-
-    return repInd
 
 
 def exchage_atom(parInd, fracSwaps=None):
@@ -519,6 +480,125 @@ def clustering(inPop, numClusters, label=False):
         else:
             goodPop[label] = ind
     return labels, goodPop
+
+
+def merge_atoms(atoms, tolerance=0.3,):
+    """
+    if a pair of atoms are too close, merge them.
+    """
+
+    cutoffs = [tolerance * covalent_radii[num] for num in atoms.get_atomic_numbers()]
+    nl = neighbor_list("ij", atoms, cutoffs)
+    indices = list(range(len(atoms)))
+    exclude = []
+
+    # logging.debug("merge_atoms()")
+    # logging.debug("number of atoms: {}".format(len(atoms)))
+    # logging.debug("{}".format(nl[0]))
+    # logging.debug("{}".format(nl[1]))
+
+    # remove self connection
+    iArr = []
+    jArr = []
+    for i, j in zip(*nl):
+        if i == j:
+            pass
+        else:
+            iArr.append(i)
+            jArr.append(j)
+
+
+    for i, j in zip(iArr, jArr):
+        if i in exclude or j in exclude:
+            pass
+        else:
+            exclude.append(random.choice([i,j]))
+
+    if len(exclude) > 0:
+        save = [index for index in indices if index not in exclude]
+        # logging.debug("exculde: {}\tsave: {}\n".format(exclude, save))
+        mAts = atoms[save]
+        mAts.info = atoms.info.copy()
+    else:
+        mAts = atoms
+
+    return mAts
+
+def repair_atoms(ind, symbols, toFrml, numFrml=1, dRatio=1, tryNum=20):
+    """
+    sybls: a list of symbols
+    toFrml: a list of formula after repair
+    """
+
+    # numbers = [atomic_numbers[s] for s in symbols]
+    inCt = Counter(ind.get_chemical_symbols())
+    toFrml = [numFrml*i for i in toFrml]
+    toDict = dict(zip(symbols, toFrml))
+    diff = dict()
+    for s in symbols:
+        diff[s] = toDict[s] - inCt[s]
+
+    sortSym = sorted(symbols, key=lambda x:diff[x])
+
+    repInd = ind.copy()
+    posArr = []
+    for s in sortSym:
+        if diff[s] < 0:
+            atList = [atom for atom in repInd if atom.symbol==s]
+            delAt = random.sample(atList, inCt[s] - toDict[s])
+            delIns = [atom.index for atom in delAt]
+            # Save deleted positons
+            repPos = repInd.get_positions()
+            posArr.extend(repPos[delIns])
+            del repInd[delIns]
+
+        elif diff[s] > 0:
+            addNum = diff[s]
+            if len(posArr) > 0:
+                # Try to place the atoms on the previous positions
+                rmIns = []
+                for i, pos in enumerate(posArr):
+                    if addNum == 0:
+                        break
+                    if check_new_atom_dist(repInd, pos, s, dRatio):
+                        addAt = Atom(symbol=s, position=pos)
+                        repInd.append(addAt)
+                        addNum -= 1
+                        rmIns.append(i)
+                posArr = [posArr[j] for j in range(len(posArr)) if j not in rmIns]
+
+
+            for _ in range(addNum):
+                for _ in range(tryNum):
+                    # select a center atoms
+                    centerAt = repInd[random.randint(0,len(repInd)-1)]
+                    basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[s]]
+                    # random position in spherical coordination
+                    radius = basicR * (dRatio + random.uniform(0,0.3))
+                    theta = random.uniform(0,math.pi)
+                    phi = random.uniform(0,2*math.pi)
+                    pos = centerAt.position + radius*np.array([sin(theta)*cos(phi), sin(theta)*sin(phi),cos(theta)])
+                    if check_new_atom_dist(repInd, pos, s, dRatio):
+                        addAt = Atom(symbol=s, position=pos)
+                        repInd.append(addAt)
+                        break
+                    else:
+                        continue
+
+                else:
+                    # logging.debug("Fail in repairing atoms")
+                    return None
+    repInd = sort_elements(repInd)
+
+    # Still have some bugs, so check the formula before return
+    newFrml = get_formula(repInd, symbols)
+    if (np.array(newFrml) == toFrml).all():
+        return repInd
+    else:
+        logging.debug("Wrong formula in repair_atoms")
+        return None
+
+
 
 if __name__=="__main__":
     from .readparm import read_parameters
