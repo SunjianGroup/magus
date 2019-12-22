@@ -442,7 +442,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
         else:
             for i in range(1, calcNum + 1):
                 logging.info("Structure %s Step %s" %(n, i))
-                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)             
+                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
 
             if ind:
                 optPop.append(ind)
@@ -508,7 +508,11 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
 
         optInd.info = calcInd.info.copy()
 
-        enthalpy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
+        energy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
+        energy = float(energy)
+        optInd.info['energy'] = energy
+        volume = optInd.get_volume()
+        enthalpy = energy + pressure * GPa * volume
         enthalpy = float(enthalpy)/len(optInd)
         optInd.info['enthalpy'] = round(enthalpy, 3)
 
@@ -548,7 +552,8 @@ def calc_vasp_once(
     struct.info['pstress'] = pstress
 
     volume = struct.get_volume()
-    enthalpy = energy + pstress * volume / 1602.262
+    # the unit of pstress is kBar = GPa/10
+    enthalpy = energy + pstress * GPa * volume / 10
     enthalpy = enthalpy/len(struct)
 
     struct.info['gap'] = round(gap, 3)
