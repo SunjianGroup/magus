@@ -163,7 +163,7 @@ def atoms2molcryst(atoms, coef=1.1):
     partition = []
     offSets = np.zeros([len(atoms), 3])
     for G in graphs:
-        if graphDim(G) == 0 and G.number_of_nodes() > 1:
+        if graph_dim(G) == 0 and G.number_of_nodes() > 1:
             nodes, offs = nodes_and_offsets(G)
             partition.append(nodes)
             for i, offSet in zip(nodes, offs):
@@ -206,7 +206,7 @@ def atoms2communities(atoms, coef=1.1):
     offSets = np.zeros([len(atoms), 3])
     for SG in graphs:
         G = remove_selfloops(SG)
-        if graphDim(G) == 0:
+        if graph_dim(G) == 0:
             nodes, offs = nodes_and_offsets(G)
             partition.append(nodes)
             for i, offSet in zip(nodes, offs):
