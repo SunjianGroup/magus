@@ -7,6 +7,7 @@ from ase.units import GPa
 from ase.constraints import UnitCellFilter,ExpCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
+from ase.data import atomic_numbers
 from .utils import del_duplicate
 import copy
 
@@ -65,7 +66,7 @@ class LRmodel(MachineLearning):
     def __init__(self,parameters):
         self.parameters=parameters
         cutoff = 5
-        elems = [13]
+        elems = [atomic_numbers[element] for element in parameters.symbols]
         nmax = 8
         ncut = 4
         self.cf = ZernikeFp(cutoff, nmax, None, ncut, elems,diag=False)
