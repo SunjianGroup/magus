@@ -7,13 +7,14 @@ import sys, math, os, shutil, subprocess, logging, copy, yaml, traceback
 from ase.calculators.lj import LennardJones
 from ase.calculators.emt import EMT
 from ase.calculators.vasp import Vasp
+from ase.calculators.gulp import GULP, Conditions
 from ase.spacegroup import crystal
 # from parameters import parameters
 from .writeresults import write_traj
 from .utils import *
-from ase.units import GPa
+from ase.units import GPa, eV, Ang
 try:
-    from xtb import GFN0
+    from xtb import GFN0, GFN1
     from ase.constraints import ExpCellFilter
 except:
     pass
@@ -45,7 +46,8 @@ class ASECalculator(Calculator):
     def relax(self, calcPop):
         os.chdir(self.parameters.workDir)
         if not os.path.exists('calcFold'):
-            os.mkdir('calcFold')
+            # os.mkdir('calcFold')
+            shutil.copytree("{}/inputFold".format(self.parameters.workDir), "calcFold")
         os.chdir('calcFold')
 
         relaxPop = []
@@ -92,6 +94,12 @@ class ASECalculator(Calculator):
         return relaxPop
 
     def scf(self, calcPop):
+        os.chdir(self.parameters.workDir)
+        if not os.path.exists('calcFold'):
+            # os.mkdir('calcFold')
+            shutil.copytree("{}/inputFold".format(self.parameters.workDir), "calcFold")
+        os.chdir('calcFold')
+
         scfPop = []
         for ind in calcPop:
             atoms=copy.deepcopy(ind)
@@ -130,7 +138,46 @@ class EMTCalculator(ASECalculator):
     def scf(self, calcPop):
         return super(EMTCalculator, self).scf(calcPop)
 
-class xtbCalculator:
+class XTBCalculator(ASECalculator):
+    def __init__(self,parameters):
+        calcs = []
+        for i in range(1, parameters.calcNum + 1):
+            xtbParams = yaml.load(open("{}/inputFold/xtb_{}.yaml".format(parameters.workDir, i)))
+            if xtbParams['type'] == 0:
+                calc = GFN0(**xtbParams)
+            elif xtbParams['type'] == 1:
+                calc = GFN1(**xtbParams)
+            calcs.append(calc)
+        return super(XTBCalculator, self).__init__(parameters,calcs)
+
+    def relax(self, calcPop):
+        return super(XTBCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(XTBCalculator, self).scf(calcPop)
+
+class ASEGULPCalculator(ASECalculator):
+    """
+    Still have bugs
+    """
+    def __init__(self,parameters):
+        calcs = []
+        for i in range(1, parameters.calcNum + 1):
+            with open("{}/inputFold/goptions_{}".format(parameters.workDir, i), 'r') as f:
+                keywords = f.readline()
+            with open("{}/inputFold/ginput_{}".format(parameters.workDir, i), 'r') as f:
+                options = f.readlines()
+            calc = GULP(keywords=keywords, options=options, library='')
+            calcs.append(calc)
+        return super(ASEGULPCalculator, self).__init__(parameters,calcs)
+
+    def relax(self, calcPop):
+        return super(ASEGULPCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(ASEGULPCalculator, self).scf(calcPop)
+
+class OldXTBCalculator:
     def __init__(self,parameters):
         self.parameters=parameters
 
@@ -443,7 +490,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
             for i in range(1, calcNum + 1):
                 logging.info("Structure %s Step %s" %(n, i))
                 ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
-
+                shutil.copy('output', "gulp_out-{}-{}".format(n, i))
             if ind:
                 optPop.append(ind)
             else:
@@ -508,13 +555,12 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
 
         optInd.info = calcInd.info.copy()
 
-        energy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
-        energy = float(energy)
-        optInd.info['energy'] = energy
+        enthalpy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
+        enthalpy = float(enthalpy)
         volume = optInd.get_volume()
-        enthalpy = energy + pressure * GPa * volume
-        enthalpy = float(enthalpy)/len(optInd)
-        optInd.info['enthalpy'] = round(enthalpy, 3)
+        energy = enthalpy + pressure * GPa * volume
+        optInd.info['energy'] = energy
+        optInd.info['enthalpy'] = round(enthalpy/len(optInd), 3)
 
         return optInd
 
@@ -602,3 +648,70 @@ def calc_vasp(
             newStructs.append(ind)
 
     return newStructs
+
+def read_gulp_results(filename):
+
+    with open(filename) as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        m = re.match(r'\s*Total lattice energy\s*=\s*(\S+)\s*eV', line)
+        if m:
+            energy = float(m.group(1))
+
+        elif line.find('Final Cartesian derivatives') != -1:
+            s = i + 5
+            forces = []
+            while(True):
+                s = s + 1
+                if lines[s].find("------------") != -1:
+                    break
+                if lines[s].find(" s ") != -1:
+                    continue
+                g = lines[s].split()[3:6]
+                G = [-float(x) * eV / Ang for x in g]
+                forces.append(G)
+            forces = np.array(forces)
+
+        elif line.find('Final internal derivatives') != -1:
+            s = i + 5
+            forces = []
+            while(True):
+                s = s + 1
+                if lines[s].find("------------") != -1:
+                    break
+                g = lines[s].split()[3:6]
+
+                    # Uncomment the section below to separate the numbers when there is no space between them, in the case of long numbers. This prevents the code to break if numbers are too big.
+
+                '''for t in range(3-len(g)):
+                    g.append(' ')
+                for j in range(2):
+                    min_index=[i+1 for i,e in enumerate(g[j][1:]) if e == '-']
+                    if j==0 and len(min_index) != 0:
+                        if len(min_index)==1:
+                            g[2]=g[1]
+                            g[1]=g[0][min_index[0]:]
+                            g[0]=g[0][:min_index[0]]
+                        else:
+                            g[2]=g[0][min_index[1]:]
+                            g[1]=g[0][min_index[0]:min_index[1]]
+                            g[0]=g[0][:min_index[0]]
+                            break
+                    if j==1 and len(min_index) != 0:
+                        g[2]=g[1][min_index[0]:]
+                        g[1]=g[1][:min_index[0]]'''
+
+                G = [-float(x) * eV / Ang for x in g]
+                forces.append(G)
+            forces = np.array(forces)
+
+        elif line.find('Final stress tensor components') != -1:
+            res=[0.,0.,0.,0.,0.,0.]
+            for j in range(3):
+                var=lines[i+j+3].split()[1]
+                res[j]=float(var)
+                var=lines[i+j+3].split()[3]
+                res[j+3]=float(var)
+            stress=np.array(res)
+
+    return energy, forces, stress
