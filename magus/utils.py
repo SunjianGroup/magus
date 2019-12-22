@@ -569,7 +569,7 @@ def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
 
     return True
 
-def symmetrize_atoms(atoms, symprec=1e-5):
+def symmetrize_atoms(atoms, symprec=1e-2):
     """
     Use spglib to get standardize cell of atoms
     """
@@ -589,7 +589,7 @@ def symmetrize_atoms(atoms, symprec=1e-5):
 
     return symAts
 
-def symmetrize_pop(pop, symprec=1e-5):
+def symmetrize_pop(pop, symprec=1e-2):
 
     # stdPop = list()
     # for ind in pop:

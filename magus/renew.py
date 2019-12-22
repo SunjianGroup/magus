@@ -253,6 +253,7 @@ class BaseEA:
         tmpPop = self.tmpPop[:]
         newPop = []
         for _ in range(self.newLen):
+            logging.debug("select len tmpPop {}".format(len(tmpPop)))
             newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='parDom')
             newPop.append(newInd)
             tmpPop.remove(newInd)
