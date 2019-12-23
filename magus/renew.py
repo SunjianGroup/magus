@@ -259,6 +259,13 @@ class BaseEA:
 
         return newPop
 
+class MLEA(BaseEA):
+    def __init__(self, parameters):
+        return super().__init__(parameters)
+
+    def select(self):
+        return super().select()
+        
 def cut_cell(cutPop, grid, symbols, cutDisp=0):
     """
     Cut cells to generate a new structure.

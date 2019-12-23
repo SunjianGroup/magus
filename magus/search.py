@@ -198,7 +198,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
 args = parser.parse_args()
 if args.debug:
-    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(asctime)s-%(pathname)s:%(message)s")
     logging.info('Debug mode')
 else:
     logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
