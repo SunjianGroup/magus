@@ -157,6 +157,7 @@ class Magus:
             ### mlrelax
             for _ in range(10):
                 relaxPop = self.ML.relax(initPop)
+                relaxPop = check_dist(relaxPop, self.parameters.dRatio)
                 scfPop = self.MainCalculator.scf(relaxPop)
                 loss = self.ML.get_loss(scfPop)
                 if loss[1]>0.8:
