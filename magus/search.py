@@ -74,7 +74,7 @@ class Magus:
         if self.parameters.mlRelax:
             self.ML.updatedataset(relaxPop)
             self.ML.train()
-            logging.info("loss:{}".format(self.ML.get_loss(relaxPop)))
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop)[:4]))
         self.pop=copy.deepcopy(relaxPop)
 
 
@@ -163,6 +163,7 @@ class Magus:
                     break
                 logging.info('QAQ ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
                 self.ML.updatedataset(scfPop)
+                write_results(self.ML.dataset,'','dataset',self.parameters.resultsDir)
                 self.ML.train()
 
             else:
@@ -185,7 +186,7 @@ class Magus:
             self.ML.updatedataset(relaxPop)
             self.ML.train()
             scfPop = self.MainCalculator.scf(relaxPop)
-            logging.info("loss:{}".format(self.ML.get_loss(scfPop)))
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
         self.pop=copy.deepcopy(relaxPop)
 
 

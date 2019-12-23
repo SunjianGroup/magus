@@ -66,6 +66,7 @@ def read_parameters(inputFile):
         'symprec': 0.1,
         'compress': False,
         'cRatio': 0.8,
+        'cutoff': 4.0,
         "mlRelax": False,
     }
 

@@ -65,7 +65,7 @@ optimizers={'BFGS':BFGS,'FIRE':FIRE}
 class LRmodel(MachineLearning):
     def __init__(self,parameters):
         self.parameters=parameters
-        cutoff = 5
+        cutoff = self.parameters.cutoff
         elems = [atomic_numbers[element] for element in parameters.symbols]
         nmax = 8
         ncut = 4
@@ -78,8 +78,9 @@ class LRmodel(MachineLearning):
         self.dataset = []
 
     def train(self):
-        logging.info('OvO!{}'.format(len(self.dataset)))
+        logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
         self.reg = LinearRegression().fit(self.X, self.y, self.w)
+        logging.info('training end')
 
     def get_data(self,images,implemented_properties = ['energy', 'forces']):
         X,y,w,n=[],[],[],[]
@@ -157,8 +158,9 @@ class LRmodel(MachineLearning):
         calc = LRCalculator(self.reg,self.cf)
         newStructs = []
         structs_=copy.deepcopy(structs)
-        for ind in structs_:
+        for i,ind in enumerate(structs_):
             ind.set_calculator(calc)
+            logging.info("Structure {}".format(i))
             for j in range(self.parameters.mlrelaxNum):
                 ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
                 # ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
