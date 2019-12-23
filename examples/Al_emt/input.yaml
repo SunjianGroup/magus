@@ -1,0 +1,64 @@
+calcType: fix
+setAlgo: bayes
+
+initSize: 30
+popSize: 30
+numGen: 60
+saveGood: 2
+
+#structure parameters
+minAt: 12
+maxAt: 12
+symbols: ['Al']
+formula: [1]
+
+
+fullEles: True
+eleSize: 0
+dRatio: 0.6
+volRatio: 3
+randFrac: 0.4
+pressure: 0
+addSym: False
+
+
+#main calculator settings
+calculator: emt
+calcNum: 1
+epsArr: [0.5]
+stepArr: [30]
+maxRelaxTime: 300
+maxRelaxStep: 0.5
+mainoptimizer: fire
+#vasp parameters
+#xc: PBE
+#ppLabel: ['']
+
+#parallel settings
+numParallel: 10
+numCore: 12
+queueName: e52692v2ib!
+waitTime: 100
+
+### Bayesian
+kappa: 0
+kappaLoop: 1
+scale: 0.0005
+parent_factor: 1
+
+### BBO
+#grids: [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
+migrateFrac: 0.0
+mutateFrac: 0.6
+cutNum: 0
+rotNum: 20
+slipNum: 20
+permNum: 0
+
+##ML
+MLpath: MLfold
+mloptimizer: fire
+mlrelaxNum: 1
+mlepsArr: [0.5]
+mlstepArr: [50]
+mlmaxRelaxStep: 0.5

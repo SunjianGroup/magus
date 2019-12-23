@@ -114,6 +114,7 @@ class ASECalculator(Calculator):
                 scfPop.append(atoms)
             except:
                 pass
+        os.chdir(self.parameters.workDir)
         return scfPop
 
 class LJCalculator(ASECalculator):
@@ -256,6 +257,7 @@ class OldXTBCalculator:
                 scfPop.append(atoms)
             except:
                 pass
+        os.chdir(self.parameters.workDir)
         return scfPop
 
 class ABinitCalculator(Calculator):
@@ -401,10 +403,7 @@ class GULPCalculator(ABinitCalculator):
         super().__init__(parameters,prefix)
 
     def scf_serial(self,calcPop):
-        os.chdir(self.parameters.workDir)
-        if not os.path.exists('calcFold'):
-            os.mkdir('calcFold')
-        os.chdir('calcFold')
+        self.cdcalcFold()
 
         calcNum = 0
         exeCmd = self.parameters.exeCmd
@@ -416,10 +415,7 @@ class GULPCalculator(ABinitCalculator):
         return scfPop
 
     def relax_serial(self,calcPop):
-        os.chdir(self.parameters.workDir)
-        if not os.path.exists('calcFold'):
-            os.mkdir('calcFold')
-        os.chdir('calcFold')
+        self.cdcalcFold()
 
         calcNum = self.parameters.calcNum
         exeCmd = self.parameters.exeCmd

@@ -576,11 +576,11 @@ def symmetrize_atoms(atoms, symprec=1e-2):
 
     stdCell = spglib.standardize_cell(atoms, symprec=symprec)
     priCell = spglib.find_primitive(atoms, symprec=symprec)
-    if stdCell and len(stdCell[0])==len(atoms):
+    if stdCell and len(stdCell[1])==len(atoms):
         lattice, pos, numbers = stdCell
         symAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
         symAts.info = atoms.info.copy()
-    elif priCell and len(priCell[0])==len(atoms):
+    elif priCell and len(priCell[1])==len(atoms):
         lattice, pos, numbers = priCell
         symAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
         symAts.info = atoms.info.copy()
