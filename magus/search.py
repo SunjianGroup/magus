@@ -68,7 +68,7 @@ class Magus:
 
         self.get_fitness(relaxPop)
         for ind in relaxPop:
-            logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
+            logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
         write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
 
         self.ML.get_fp(relaxPop)
@@ -82,7 +82,7 @@ class Magus:
     def Onestep(self):
         self.curgen+=1
         logging.info("===== Generation {} =====".format(self.curgen))
-        optPop=self.pop
+        relaxPop=self.pop
         try:
             goodPop = ase.io.read("{}/good.traj".format(self.parameters.resultsDir), format='traj', index=':')
             keepPop = ase.io.read("{}/keep{}.traj".format(self.parameters.resultsDir, self.curgen-1), format='traj', index=':')
@@ -90,24 +90,24 @@ class Magus:
             goodPop = list()
             keepPop = list()
 
-        for Pop in [optPop,goodPop,keepPop]:
+        for Pop in [relaxPop,goodPop,keepPop]:
             self.get_fitness(Pop)
         logging.info('calc_fitness finish')
 
 
         # Calculate fingerprints
         logging.debug('calc_all_fingerprints begin')
-        self.ML.get_fp(optPop)
+        self.ML.get_fp(relaxPop)
         logging.info('calc_all_fingerprints finish')
 
-        logging.info('del_duplicate optPop begin')
-        optPop = del_duplicate(optPop)
-        logging.info('del_duplicate optPop finish')
+        logging.info('del_duplicate relaxPop begin')
+        relaxPop = del_duplicate(relaxPop)
+        logging.info('del_duplicate relaxPop finish')
 
 
         ### save good individuals
         logging.info('goodPop')
-        goodPop = calc_dominators(optPop+goodPop)
+        goodPop = calc_dominators(relaxPop+goodPop)
         goodPop = del_duplicate(goodPop)
         goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])
 
@@ -119,18 +119,18 @@ class Magus:
         labels, keepPop = clustering(goodPop, self.parameters.saveGood)
 
         ### write results
-        write_results(optPop, self.curgen, 'gen', self.parameters.resultsDir)
+        # write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
         write_results(goodPop, '', 'good',self.parameters.resultsDir)
         write_results(keepPop, self.curgen, 'keep',self.parameters.resultsDir)
-        shutil.copy('log.txt', 'results/log.txt')
+        shutil.copy('{}/log.txt'.format(self.parameters.workDir), '{}/results/log.txt'.format(self.parameters.workDir))
 
         ### write dataset
-        write_dataset(optPop)
+        write_dataset(relaxPop)
 
-        curPop = del_duplicate(optPop + keepPop)
+        curPop = del_duplicate(relaxPop + keepPop)
 
         # renew volRatio
-        volRatio = sum([calc_volRatio(ats) for ats in optPop])/len(optPop)
+        volRatio = sum([calc_volRatio(ats) for ats in relaxPop])/len(relaxPop)
         self.Generator.updatevolRatio(0.5*(volRatio + self.Generator.volRatio))
         logging.debug("volRatio: {}".format(self.Generator.volRatio))
 
@@ -180,8 +180,8 @@ class Magus:
 
         self.get_fitness(relaxPop)
         for ind in relaxPop:
-            logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
-        write_results(relaxPop, 0, 'gen',self.parameters.resultsDir)
+            logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
+        write_results(relaxPop, self.curgen, 'gen',self.parameters.resultsDir)
 
         self.ML.get_fp(relaxPop)
         if self.parameters.mlRelax:

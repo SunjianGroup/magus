@@ -67,7 +67,10 @@ def read_parameters(inputFile):
         'compress': False,
         'cRatio': 0.8,
         'cutoff': 4.0,
-        "mlRelax": False,
+        'mlRelax': False,
+        'ZernikeNmax': 4,
+        'ZernikeNcut': 4,
+        'ZernikeDiag': False,
     }
 
     for key, val in dParms.items():

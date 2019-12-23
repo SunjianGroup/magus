@@ -351,6 +351,7 @@ class VaspCalculator(ABinitCalculator):
         calc.read_incar('INCAR_scf')
         calc.set(xc=self.parameters.xc,setups=dict(zip(self.parameters.symbols, self.parameters.ppLabel)),pstress=self.parameters.pressure*10)
         scfPop = calc_vasp([calc], calcPop)
+        os.chdir(self.parameters.workDir)
         return scfPop
 
     def relax_serial(self,calcPop):
@@ -363,6 +364,7 @@ class VaspCalculator(ABinitCalculator):
             calc.set(xc=self.parameters.xc,setups=dict(zip(self.parameters.symbols, self.parameters.ppLabel)),pstress=self.parameters.pressure*10)
             calcs.append(calc)
         relaxPop = calc_vasp(calcs, calcPop)
+        os.chdir(self.parameters.workDir)
         return relaxPop
 
     def scfjob(self,index):
@@ -412,6 +414,7 @@ class GULPCalculator(ABinitCalculator):
 
         scfPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
         write_traj('optPop.traj', scfPop)
+        os.chdir(self.parameters.workDir)
         return scfPop
 
     def relax_serial(self,calcPop):
@@ -424,6 +427,7 @@ class GULPCalculator(ABinitCalculator):
 
         relaxPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
         write_traj('optPop.traj', relaxPop)
+        os.chdir(self.parameters.workDir)
         return relaxPop
 
     def scfjob(self,index):

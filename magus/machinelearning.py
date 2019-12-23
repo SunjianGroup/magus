@@ -67,9 +67,10 @@ class LRmodel(MachineLearning):
         self.parameters=parameters
         cutoff = self.parameters.cutoff
         elems = [atomic_numbers[element] for element in parameters.symbols]
-        nmax = 8
-        ncut = 4
-        self.cf = ZernikeFp(cutoff, nmax, None, ncut, elems,diag=False)
+        nmax = self.parameters.ZernikeNmax
+        ncut = self.parameters.ZernikeNcut
+        diag = self.parameters.ZernikeDiag
+        self.cf = ZernikeFp(cutoff, nmax, None, ncut, elems,diag=diag)
         self.w_energy = 30.0
         self.w_force = 1.0
         self.w_stress = 1.0
@@ -91,10 +92,11 @@ class LRmodel(MachineLearning):
                 X.append(np.mean(eFps,axis=0))
                 w.append(self.w_energy)
                 n.append(1.0)
-                try:
-                    y.append(atoms.info['energy']/len(atoms))
-                except:
-                    y.append(0.0)
+                y.append(atoms.info['energy']/len(atoms))
+                # try:
+                #     y.append(atoms.info['energy']/len(atoms))
+                # except:
+                #     y.append(0.0)
             if 'forces' in implemented_properties:
                 fFps = np.sum(fFps, axis=0)
                 X.extend(fFps.reshape(-1,totNd))
@@ -214,6 +216,10 @@ class LRmodel(MachineLearning):
 
     def get_fp(self,pop):
         for ind in pop:
-            X,_,_ = self.get_data([ind])
+            properties = []
+            for s in ['energy', 'forces', 'stress']:
+                if s in ind.info:
+                    properties.append(s)
+            X,_,_ = self.get_data([ind], implemented_properties=properties)
             ind.info['image_fp']=X[0,1:]
 
