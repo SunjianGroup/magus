@@ -47,7 +47,8 @@ class BaseGenerator:
         minVolume = self.minVolume*np.sum(numlist)
         maxVolume = self.maxVolume*np.sum(numlist)
         minLattice= [2*np.max(self.radius)]*3+[60]*3
-        maxLattice= [maxVolume/2/np.max(self.radius)]*3+[120]*3
+        # maxLattice= [maxVolume/2/np.max(self.radius)]*3+[120]*3
+        maxLattice= [maxVolume**(1./3)]*3+[120]*3
         return minVolume,maxVolume,minLattice,maxLattice
 
     def Generate_ind(self,spg,numlist):

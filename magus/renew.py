@@ -28,6 +28,7 @@ class BaseEA:
         self.formula = parameters.formula
         self.saveGood = parameters.saveGood
         self.addSym = parameters.addSym
+        self.calcType = parameters.calcType
 
         # krigParm = parameters.krigParm
         self.randFrac = parameters.randFrac
@@ -51,7 +52,7 @@ class BaseEA:
         self.bondRatio = parameters.bondRatio
         self.bondRange = parameters.bondRange
         self.molDetector = parameters.molDetector
-        self.molType = parameters.molType
+        self.molMode = parameters.molMode
 
         self.newLen = int((self.parameters.popSize*(1-self.parameters.randFrac)))
 
@@ -91,11 +92,12 @@ class BaseEA:
                 ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
 
 
-                nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
-                ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
-                ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
-                ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
-                ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
+                if self.calcType == 'fix':
+                    nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
+                    ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
+                    ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
+                    ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
+                    ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
 
                 pairPop = [ind for ind in [ind1, ind2] if ind]
                 hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
@@ -255,20 +257,23 @@ class BaseEA:
         logging.debug("ripPop length: %s"%(len(ripPop)))
         tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
         tmpPop = check_dist(tmpPop, self.dRatio)
+        logging.debug("After check distance: {}".format(len(tmpPop)))
         self.tmpPop.extend(tmpPop)
         return self.tmpPop
 
     def select(self):
-        tmpLen = len(self.tmpPop)
         tmpPop = self.tmpPop[:]
         newPop = []
-        for _ in range(self.newLen):
-            logging.debug("select len tmpPop {}".format(len(tmpPop)))
-            newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='parDom')
-            newPop.append(newInd)
-            tmpPop.remove(newInd)
+        if self.newLen < len(tmpPop):
+            for _ in range(self.newLen):
+                # logging.debug("select len tmpPop {}".format(len(tmpPop)))
+                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='parDom')
+                newPop.append(newInd)
+                tmpPop.remove(newInd)
 
-        return newPop
+            return newPop
+        else:
+            return tmpPop
 
 class MLEA(BaseEA):
     def __init__(self, parameters):
