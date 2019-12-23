@@ -194,6 +194,24 @@ class LRmodel(MachineLearning):
                     newStructs.append(ind)
         return newStructs
 
+    def scf(self,calcPop):
+        calc = LRCalculator(self.reg,self.cf)
+        scfPop = []
+        for ind in calcPop:
+            atoms=copy.deepcopy(ind)
+            atoms.set_calculator(calc)
+            try:
+                atoms.info['energy'] = atoms.get_potential_energy()
+                atoms.info['forces'] = atoms.get_forces()
+                atoms.info['stress'] = atoms.get_stress()
+                enthalpy = (atoms.info['energy'] + self.parameters.pressure * atoms.get_volume() * GPa)/len(atoms)
+                atoms.info['enthalpy'] = round(enthalpy, 3)
+                atoms.set_calculator(None)
+                scfPop.append(atoms)
+            except:
+                pass
+        return scfPop
+
     def get_fp(self,pop):
         for ind in pop:
             X,_,_ = self.get_data([ind])
