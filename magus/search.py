@@ -4,7 +4,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import VaspCalculator,xtbCalculator,LJCalculator,EMTCalculator,GULPCalculator
+from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
 from .initstruct import BaseGenerator,read_seeds,VarGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .readparm import read_parameters
@@ -21,7 +21,6 @@ class Magus:
         self.parameters=parameters
         self.Generator=BaseGenerator(parameters)
         self.Algo=BaseEA(parameters)
-        #self.MainCalculator=xtbCalculator(par:ameters)
         if self.parameters.calculator == 'vasp':
             self.MainCalculator=VaspCalculator(parameters)
         elif self.parameters.calculator == 'lj':
@@ -30,6 +29,8 @@ class Magus:
             self.MainCalculator = EMTCalculator(parameters)
         elif self.parameters.calculator == 'gulp':
             self.MainCalculator = GULPCalculator(parameters)
+        elif self.parameters.calculator == 'xtb':
+            self.MainCalculator = XTBCalculator(parameters)
         self.ML=LRmodel(parameters)
         self.get_fitness=calc_fitness
         self.pop=[]
@@ -56,10 +57,10 @@ class Magus:
         initPop = self.Generator.Generate_pop(self.parameters.initSize)
         logging.info("initPop length: {}".format(len(initPop)))
 
-        write_results(initPop, 0, 'init',self.parameters.resultsDir)
+        write_results(initPop, self.curgen, 'init',self.parameters.resultsDir)
 
         relaxPop=self.MainCalculator.relax(initPop)
-        write_results(relaxPop, 0, 'debug', self.parameters.resultsDir)
+        write_results(relaxPop, self.curgen, 'debug', self.parameters.resultsDir)
 
         logging.info("check distance")
         relaxPop = check_dist(relaxPop, self.parameters.dRatio)
@@ -68,7 +69,7 @@ class Magus:
         self.get_fitness(relaxPop)
         for ind in relaxPop:
             logging.info("optPop {strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
-        write_results(relaxPop, 0, 'gen', self.parameters.resultsDir)
+        write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
 
         self.ML.get_fp(relaxPop)
         if self.parameters.mlRelax:
