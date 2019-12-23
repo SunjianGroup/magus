@@ -116,6 +116,7 @@ class BaseEA:
                 parDom = parInd.info['sclDom']
                 rate = random.uniform(0.4,0.6)
                 permInd = exchage_atom(parInd, rate)
+                permInd.info = dict()
                 # if mode == 'atom':
                 #     permInd = exchage_atom(parInd, rate)
                 # elif mode == 'mol':
@@ -147,6 +148,7 @@ class BaseEA:
                 parentE = parInd.info['enthalpy']
                 parDom = parInd.info['sclDom']
                 latInd = gauss_mut(parInd, sigma=sigma, cellCut=0.5)
+                latInd.info = dict()
                 # if mode == 'atom':
                 #     latInd = gauss_mut(parInd, sigma=sigma, cellCut=0.5)
                 # elif mode == 'mol':
@@ -180,6 +182,7 @@ class BaseEA:
                 parentE = parInd.info['enthalpy']
                 parDom = parInd.info['sclDom']
                 slipInd = slip(parInd)
+                slipInd.info = dict()
                 # if mode == 'atom':
                 #     slipInd = slip(parInd)
                 # elif mode == 'mol':
@@ -212,6 +215,7 @@ class BaseEA:
                 parentE = parInd.info['enthalpy']
                 parDom = parInd.info['sclDom']
                 ripInd = ripple(parInd, rho=rho)
+                ripInd.info = dict()
 
                 ripInd.info['symbols'] = self.symbols
                 ripInd.info['formula'] = parInd.info['formula']
@@ -412,7 +416,7 @@ def gauss_mut(parInd, sigma=0.5, cellCut=1):
     #     at.position += atGauss*covalent_radii[atomic_numbers[at.symbol]]
 
     chdInd.wrap()
-    chdInd.info = parInd.info.copy()
+    # chdInd.info = parInd.info.copy()
     # chdInd.info['Origin'] = 'Mutate'
 
     return chdInd
