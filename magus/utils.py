@@ -14,9 +14,9 @@ from sklearn import cluster
 from scipy.optimize import root
 from scipy.spatial.distance import cdist, pdist
 from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
+from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 try:
     from functools import reduce
-    from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 except ImportError:
     pass
 
@@ -395,11 +395,15 @@ def check_mol_pop(molPop, inputMols, bondRatio):
 
 
 
-def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, compareE=True, mode='naive'): #differnce in enthalpy(eV/atom) and volume(%)
-    vol_tol = diffV**(1./3)
+def compare_structure_energy(Pop, diffE=0.01, diffV=0.05, ltol=0.1, stol=0.1, angle_tol=5, compareE=True, mode='naive'):
+    """
+    naive mode simply compare the enthalpy, volume and spacegroup
+    ase mode only compare the structure, do not compare enthalpy
+    ase mode still have bug
+    """
     priList = []
     for ind in Pop:
-        ind.info['vPerAtom'] = ind.get_volume()/len(ind)
+        # ind.info['vPerAtom'] = ind.get_volume()/len(ind)
         priInfo = ind.info['priInfo']
         if priInfo:
             lattice, scaled_positions, numbers = priInfo
@@ -408,77 +412,53 @@ def compare_volume_energy(Pop, diffE, diffV, ltol=0.1, stol=0.1, angle_tol=5, co
             priAts = ind.copy()
         priList.append(priAts)
 
-
-    cmpPop = Pop[:]
-
     toCompare = [(x,y) for x in range(len(Pop)) for y in range(len(Pop)) if x < y]
     # toCompare = [(x,y) for x in Pop for y in Pop if Pop.index(x) < Pop.index(y)]
-    if mode == 'ase':
-        comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
+
+    comp = SymmetryEquivalenceCheck(to_primitive=False, angle_tol=angle_tol, ltol=ltol, stol=stol, scale_volume=True)
+    # comp = SymmetryEquivalenceCheck(to_primitive=True, angle_tol=angle_tol, ltol=ltol, stol=stol,vol_tol=vol_tol)
 
     rmIndices = []
-    for pair in toCompare:
-        s0 = Pop[pair[0]]
-        s1 = Pop[pair[1]]
-        pri0 = priList[pair[0]]
-        pri1 = priList[pair[1]]
+    for i,j in toCompare:
+        s0 = Pop[i]
+        s1 = Pop[j]
+        pri0 = priList[i]
+        pri1 = priList[j]
 
+        if mode == 'ase':
+            if comp.compare(pri0, pri1):
+                if i not in rmIndices and j not in rmIndices:
+                    rmIndices.append(random.choice([i,j]))
 
-        symCt0 = Counter(pri0.numbers)
-        symCt1 = Counter(pri1.numbers)
-        if symCt0 != symCt1 and mode=='naive':
-            continue
+        elif mode == 'naive':
+            symCt0 = Counter(pri0.numbers)
+            symCt1 = Counter(pri1.numbers)
+            # compare formula
+            if symCt0 != symCt1:
+                continue
 
-        duplicate = True
+            # compare space group
+            if s0.info['spg'] != s1.info['spg']:
+                continue
 
-        # pairV = [Pop[n].info['vPerAtom'] for n in pair]
-        pairV = [pri0.get_volume(), pri1.get_volume()]
-        deltaV = abs(pairV[0] - pairV[1])/min(pairV)
+            # compare volume
+            vol0 = pri0.get_volume()
+            vol1 = pri1.get_volume()
+            if abs(1-vol0/vol1) > diffV:
+                continue
 
-        pairSpg = [Pop[n].info['spg'] for n in pair]
+            # compare enthalpy
+            if compareE and abs(s0.info['enthalpy'] - s1.info['enthalpy']) > diffE:
+                continue
 
+            # remove one of them
+            if i not in rmIndices and j not in rmIndices:
+                if compareE:
+                    rmIndices.append(i if s0.info['enthalpy'] < s1.info['enthalpy'] else j)
+                else:
+                    rmIndices.append(random.choice([i,j]))
 
-        if compareE:
-            pairE = [Pop[n].info['enthalpy'] for n in pair]
-            deltaE = abs(pairE[0] - pairE[1])
-            if mode == 'ase':
-                try:
-                    duplicate = comp.compare(pri0, pri1) and deltaE <= diffE
-                except:
-                    s = sys.exc_info()
-                    logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-                    logging.info("ASE check fails. Use native check")
-                    # ase.io.write('failcomp0.vasp', pri0, vasp5=1, direct=1)
-                    # ase.io.write('failcomp1.vasp', pri1, vasp5=1, direct=1)
-                    duplicate = duplicate and deltaE <= diffE and pairSpg[0] == pairSpg[1]
-            elif mode == 'naive':
-                duplicate = duplicate and deltaV <= diffV and deltaE <= diffE and pairSpg[0] == pairSpg[1]
-        else:
-            if mode == 'ase':
-                try:
-                    duplicate = comp.compare(pri0, pri1)
-                except:
-                    s = sys.exc_info()
-                    logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-                    logging.info("ASE check fails. Use native check")
-                    # ase.io.write('failcomp0.vasp', pri0, vasp5=1, direct=1)
-                    # ase.io.write('failcomp1.vasp', pri1, vasp5=1, direct=1)
-                    duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
-            elif mode == 'naive':
-                duplicate = duplicate and deltaV <= diffV and pairSpg[0] == pairSpg[1]
-        # logging.debug('pairindex: %s %s, duplicate: %s' % (Pop.index(pair[0]), Pop.index(pair[1]), duplicate))
-        # logging.debug('pairindex: %s, duplicate: %s' % (pair, duplicate))
-
-        if duplicate:
-            if compareE:
-                rmInd = pair[0] if pairE[0] > pairE[1] else pair[1]
-            else:
-                rmInd = pair[0]
-            rmIndices.append(rmInd)
-            # if cmpInd in cmpPop:
-            #     cmpPop.remove(cmpInd)
-                # logging.info("remove duplicate")
-    cmpPop = [ind for i, ind in enumerate(cmpPop) if i not in rmIndices]
+    cmpPop = [ind for n, ind in enumerate(Pop) if n not in rmIndices]
 
     return cmpPop
 
@@ -501,17 +481,17 @@ def compare_fingerprint(fpPop, diffD):
 
     return cmpPop
 
-def del_duplicate(Pop, compareE=True, tol = 0.2, diffE = 0.005, diffV = 0.05, diffD = 0.01, report=True, mode='naive'):
-    dupPop = find_spg(Pop, tol)
+def del_duplicate(Pop, compareE=True, symprec = 0.2, diffE = 0.005, diffV = 0.01, diffD = 0.01, report=True, mode='naive'):
+    dupPop = find_spg(Pop, symprec)
     #for ind in Pop:
      #   logging.info("spg: %s" %ind.info['spg'])
     # sort the pop by composion, wait for adding
     # dupPop = compare_fingerprint(Pop, diffD)
     # logging.info("fingerprint survival: %s" %(len(dupPop)))
 
-    dupPop = compare_volume_energy(dupPop, diffE, diffV, compareE=compareE, mode=mode)
+    dupPop = compare_structure_energy(dupPop, diffE, diffV, compareE=compareE, mode=mode)
     if report:
-        logging.info("volume_energy survival: %s" %(len(dupPop)))
+        logging.info("del_duplicate survival: %s" %(len(dupPop)))
     # logging.debug("dupPop: {}".format(len(dupPop)))
     return dupPop
 

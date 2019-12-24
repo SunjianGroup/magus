@@ -28,6 +28,7 @@ class BaseEA:
         self.formula = parameters.formula
         self.saveGood = parameters.saveGood
         self.addSym = parameters.addSym
+        self.symprec = parameters.symprec
         self.calcType = parameters.calcType
 
         # krigParm = parameters.krigParm
@@ -100,7 +101,7 @@ class BaseEA:
                     ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
 
                 pairPop = [ind for ind in [ind1, ind2] if ind]
-                hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
+                hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False, symprec=self.symprec))
 
         return hrdPop
 

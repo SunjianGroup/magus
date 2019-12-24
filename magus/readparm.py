@@ -63,7 +63,7 @@ def read_parameters(inputFile):
         'gp_factor': 1,
         'updateVol': True,
         'addSym': True,
-        'symprec': 0.1,
+        'symprec': 0.3,
         'compress': False,
         'cRatio': 0.8,
         'cutoff': 4.0,

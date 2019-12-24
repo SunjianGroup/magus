@@ -101,14 +101,14 @@ class Magus:
         logging.info('calc_all_fingerprints finish')
 
         logging.info('del_duplicate relaxPop begin')
-        relaxPop = del_duplicate(relaxPop)
+        relaxPop = del_duplicate(relaxPop, symprec=self.parameters.symprec)
         logging.info('del_duplicate relaxPop finish')
 
 
         ### save good individuals
         logging.info('goodPop')
         goodPop = calc_dominators(relaxPop+goodPop)
-        goodPop = del_duplicate(goodPop)
+        goodPop = del_duplicate(goodPop, symprec=self.parameters.symprec)
         goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])
 
         if len(goodPop) > self.parameters.popSize:
@@ -127,7 +127,7 @@ class Magus:
         ### write dataset
         write_dataset(relaxPop)
 
-        curPop = del_duplicate(relaxPop + keepPop)
+        curPop = del_duplicate(relaxPop + keepPop, symprec=self.parameters.symprec)
 
         # renew volRatio
         volRatio = sum([calc_volRatio(ats) for ats in relaxPop])/len(relaxPop)
