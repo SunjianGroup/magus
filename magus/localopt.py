@@ -454,7 +454,7 @@ class GULPCalculator(ABinitCalculator):
 
     def relaxjob(self,index):
         calcDic = {
-            'calcNum': 0,
+            'calcNum': self.parameters.calcNum,
             'pressure': self.parameters.pressure,
             'exeCmd': self.parameters.exeCmd,
             'inputDir': "{}/inputFold".format(self.parameters.workDir),
@@ -480,7 +480,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
     optPop = []
     for n, ind in enumerate(calcPop):
         if calcNum == 0:
-            ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
+            ind = calc_gulp_once(0, ind, pressure, exeCmd, inputDir)
             logging.info("Structure %s scf" %(n))
             if ind:
                 optPop.append(ind)
