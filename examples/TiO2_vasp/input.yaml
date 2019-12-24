@@ -1,0 +1,35 @@
+mode: serial
+calcType: fix
+calculator: vasp
+setAlgo: bayes
+xc: PBE
+popSize: 20
+numGen: 20
+minAt: 6
+maxAt: 12
+symbols: ['Ti', 'O']
+ppLabel: ['', '_s']
+formula: [1, 2]
+dRatio: 0.3
+randFrac: 0.2
+saveGood: 1
+pressure: 0
+addSym: False
+exeCmd: gulp < input > output
+calcNum: 4
+numParallel: 2
+numCore: 6
+#queueName: x5650ib
+queueName: e52692v2ib!
+waitTime: 100
+
+### Bayesian 
+kappa: 2
+kappaLoop: 2
+scale: 0.0005
+parent_factor: 0.1
+
+### BBO
+grids: [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
+migrateFrac: 0.4
+mutateFrac: 0.4
