@@ -5,6 +5,8 @@ examples/*/*
 !examples/*/inputFold
 !examples/*/input.yaml
 !examples/*/job
+!examples/*/runpara
+!examples/*/runserial
 !examples/*/Seeds
 !examples/*/summary.py
 

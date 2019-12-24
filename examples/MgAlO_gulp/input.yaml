@@ -3,7 +3,7 @@ calcType: fix
 calculator: gulp
 #setAlgo: bayes
 #xc: PBE
-initSize: 40
+initSize: 10
 popSize: 40
 numGen: 60
 minAt: 28
@@ -16,7 +16,7 @@ formula: [4,8,16]
 #molScaleCell: True
 #maxRelaxTime: 300
 #maxRelaxStep: 0.5
-#optimizer: 'fire'
+#mainoptimizer: 'fire'
 
 
 fullEles: True
@@ -24,7 +24,7 @@ eleSize: 0
 dRatio: 0.5
 volRatio: 10
 randFrac: 0.3
-saveGood: 3
+saveGood: 1
 pressure: 100
 addSym: True
 #exeCmd: "mpiexec.hydra cp2k_shell.popt"
@@ -32,12 +32,12 @@ addSym: True
 exeCmd: gulp < input > output
 #fastcp2k: False
 calcNum: 4
-#epsArr: [2]
-#stepArr: [30]
-numParallel: 10
-numCore: 12
+#epsArr: [0.1, 0.1, 0.1, 0.1]
+#stepArr: [300, 300, 300, 300]
+numParallel: 2
+numCore: 1
 queueName: e52692v2ib!
-waitTime: 100
+waitTime: 150
 molDetector: 2
 #fixCell: True
 #setCellPar: [15, 10, 15, 90.0, 90.0, 90]
@@ -47,4 +47,4 @@ kappa: 0
 kappaLoop: 1
 scale: 0.0005
 parent_factor: 1
-
+ZernikeDiag: True

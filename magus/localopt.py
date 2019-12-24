@@ -275,7 +275,9 @@ class ABinitCalculator(Calculator):
     def cdcalcFold(self):
         os.chdir(self.parameters.workDir)
         if not os.path.exists('calcFold'):
-            os.mkdir('calcFold')
+            # os.mkdir('calcFold')
+            # logging.debug('make calcFold')
+            shutil.copytree('inputFold', 'calcFold')
         os.chdir('calcFold')
 
     def scf_serial(self,calcPop):
@@ -299,7 +301,8 @@ class ABinitCalculator(Calculator):
 
         for i in range(numParallel):
             if not os.path.exists("{}{}".format(self.prefix, i)):
-                os.mkdir("{}{}".format(self.prefix, i))
+                # os.mkdir("{}{}".format(self.prefix, i))
+                shutil.copytree("{}/inputFold".format(self.parameters.workDir), "{}{}".format(self.prefix, i))
             os.chdir("{}{}".format(self.prefix, i))
 
             tmpPop = [calcPop[j] for j in runArray[i]]
@@ -505,10 +508,10 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
     if os.path.exists('output'):
         os.remove('output')
     try:
-        for f in os.listdir(inputDir):
-            filepath = "{}/{}".format(inputDir, f)
-            if os.path.isfile(filepath):
-                shutil.copy(filepath, f)
+        # for f in os.listdir(inputDir):
+        #     filepath = "{}/{}".format(inputDir, f)
+        #     if os.path.isfile(filepath):
+        #         shutil.copy(filepath, f)
         if calcStep == 0:
             shutil.copy("goptions_scf", "input")
         else:
@@ -626,10 +629,10 @@ def calc_vasp(
     ):
 
     newStructs = []
-    logging.info('1')
+    # logging.info('1')
     for i, ind in enumerate(structs):
         initInd = ind.copy()
-        logging.info('1')
+        # logging.info('1')
         initInd.info = {}
         for j, calc in enumerate(calcs):
             # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))

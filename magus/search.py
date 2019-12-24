@@ -48,8 +48,8 @@ class Magus:
                 i+=1
             shutil.move("results", "results{}".format(i))
         os.mkdir("results")
-        if not os.path.exists("calcFold"):
-            os.mkdir("calcFold")
+        # if not os.path.exists("calcFold"):
+        #     os.mkdir("calcFold")
         self.parameters.resultsDir=os.path.join(self.parameters.workDir,'results')
         shutil.copy("allParameters.yaml", "results/allParameters.yaml")
 
