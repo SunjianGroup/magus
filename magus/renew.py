@@ -131,6 +131,7 @@ class BaseEA:
 
                 permInd.info['symbols'] = self.symbols
                 permInd.info['formula'] = parInd.info['formula']
+                permInd.info['numOfFormula'] = parInd.info['numOfFormula']
                 permInd.info['parentE'] = parentE
                 permInd.info['parDom'] = parDom
                 permPop.append(permInd)
@@ -159,6 +160,7 @@ class BaseEA:
 
                 latInd.info['symbols'] = self.symbols
                 latInd.info['formula'] = parInd.info['formula']
+                latInd.info['numOfFormula'] = parInd.info['numOfFormula']
                 latInd.info['parentE'] = parentE
                 latInd.info['parDom'] = parDom
 
@@ -193,6 +195,7 @@ class BaseEA:
 
                 slipInd.info['symbols'] = self.symbols
                 slipInd.info['formula'] = parInd.info['formula']
+                slipInd.info['numOfFormula'] = parInd.info['numOfFormula']
                 slipInd.info['parentE'] = parentE
                 slipInd.info['parDom'] = parDom
 
@@ -219,6 +222,7 @@ class BaseEA:
 
                 ripInd.info['symbols'] = self.symbols
                 ripInd.info['formula'] = parInd.info['formula']
+                ripInd.info['numOfFormula'] = parInd.info['numOfFormula']
                 ripInd.info['parentE'] = parentE
                 ripInd.info['parDom'] = parDom
 
