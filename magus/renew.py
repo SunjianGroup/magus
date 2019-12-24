@@ -18,7 +18,7 @@ from ase.units import GPa
 from ase.constraints import UnitCellFilter#, ExpCellFilter
 from sklearn import cluster
 from .utils import *
-
+from .machinelearning import LRCalculator
 
 class BaseEA:
     def __init__(self, parameters):
@@ -28,35 +28,32 @@ class BaseEA:
         self.formula = parameters.formula
         self.saveGood = parameters.saveGood
         self.addSym = parameters.addSym
-        self.calcType = parameters.calcType
 
-        # krigParm = parameters.krigParm
-        self.randFrac = parameters.randFrac
-        self.permNum = parameters.permNum
-        self.latDisps = parameters.latDisps
-        self.ripRho = parameters.ripRho
-        self.rotNum = parameters.rotNum
-        self.cutNum = parameters.cutNum
-        self.slipNum = parameters.slipNum
-        self.latNum = parameters.latNum
-        self.grids = parameters.grids
+        krigParm = parameters.krigParm
+        self.randFrac = krigParm['randFrac']
+        self.permNum = krigParm['permNum']
+        self.latDisps = krigParm['latDisps']
+        self.ripRho = krigParm['ripRho']
+        self.rotNum = krigParm['rotNum']
+        self.cutNum = krigParm['cutNum']
+        self.slipNum = krigParm['slipNum']
+        self.latNum = krigParm['latNum']
 
-        # self.kind = krigParm['kind']
-        # self.xi = krigParm['xi']
-        # self.kappaLoop = krigParm['kappaLoop']
-        # self.scaled_factor = krigParm['scale']
+        self.kind = krigParm['kind']
+        self.xi = krigParm['xi']
+        self.grids = krigParm['grids']
+        self.kappaLoop = krigParm['kappaLoop']
+        self.scaled_factor = krigParm['scale']
 
         self.parent_factor = 0
 
         self.dRatio = parameters.dRatio
         self.bondRatio = parameters.bondRatio
         self.bondRange = parameters.bondRange
-        self.molDetector = parameters.molDetector
-        self.molMode = parameters.molMode
 
         self.newLen = int((self.parameters.popSize*(1-self.parameters.randFrac)))
 
-    def heredity(self, cutNum):
+    def heredity(self, cutNum=5, mode='atom'):
         #curPop = standardize_pop(self.curPop, 1.)
         curPop = self.curPop
         symbols = self.symbols
@@ -92,19 +89,18 @@ class BaseEA:
                 ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
 
 
-                if self.calcType == 'fix':
-                    nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
-                    ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
-                    ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
-                    ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
-                    ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
+                nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
+                ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
+                ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
+                ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
+                ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
 
-                pairPop = [ind for ind in [ind1, ind2] if ind]
+                pairPop = [ind for ind in [ind1, ind2] if ind is not None]
                 hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
 
         return hrdPop
 
-    def permutate(self, permNum):
+    def permutate(self, permNum, mode='atom'):
         permPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
@@ -115,15 +111,13 @@ class BaseEA:
                 parentE = parInd.info['enthalpy']
                 parDom = parInd.info['sclDom']
                 rate = random.uniform(0.4,0.6)
-                permInd = exchage_atom(parInd, rate)
-                permInd.info = dict()
-                # if mode == 'atom':
-                #     permInd = exchage_atom(parInd, rate)
-                # elif mode == 'mol':
-                #     parMolC = MolCryst(**parInd.info['molDict'])
-                #     parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
-                #     permMolC = mol_exchage(parMolC)
-                #     permInd = permMolC.to_atoms()
+                if mode == 'atom':
+                    permInd = exchage_atom(parInd, rate)
+                elif mode == 'mol':
+                    parMolC = MolCryst(**parInd.info['molDict'])
+                    parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
+                    permMolC = mol_exchage(parMolC)
+                    permInd = permMolC.to_atoms()
 
                 # permInd = merge_atoms(permInd, self.dRatio)
                 # toFrml = [int(i) for i in parInd.info['formula']]
@@ -138,7 +132,7 @@ class BaseEA:
 
         return permPop
 
-    def latmutate(self, latNum, sigma=0.3):
+    def latmutate(self, latNum, sigma=0.3, mode='atom'):
         latPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
@@ -148,32 +142,28 @@ class BaseEA:
                 parInd = tournament(splitPop, sampleNum)
                 parentE = parInd.info['enthalpy']
                 parDom = parInd.info['sclDom']
-                latInd = gauss_mut(parInd, sigma=sigma, cellCut=0.5)
-                latInd.info = dict()
-                # if mode == 'atom':
-                #     latInd = gauss_mut(parInd, sigma=sigma, cellCut=0.5)
-                # elif mode == 'mol':
-                #     parMolC = MolCryst(**parInd.info['molDict'])
-                #     parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
-                #     latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=0, distCut=1.5)
-                #     latInd = latMolC.to_atoms()
+                if mode == 'atom':
+                    latInd = gauss_mut(parInd, sigma=sigma, cellCut=0.5)
+                elif mode == 'mol':
+                    parMolC = MolCryst(**parInd.info['molDict'])
+                    parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
+                    latMolC = mol_gauss_mut(parMolC, sigma=sigma, cellCut=0, distCut=1.5)
+                    latInd = latMolC.to_atoms()
+
+                # latInd = merge_atoms(latInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # latInd = repair_atoms(latInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 latInd.info['symbols'] = self.symbols
                 latInd.info['formula'] = parInd.info['formula']
                 latInd.info['numOfFormula'] = parInd.info['numOfFormula']
                 latInd.info['parentE'] = parentE
                 latInd.info['parDom'] = parDom
-
-                latInd = merge_atoms(latInd, self.dRatio)
-                toFrml = [int(i) for i in parInd.info['formula']]
-                latInd = repair_atoms(latInd, self.symbols, toFrml, parInd.info['numOfFormula'])
-
-                if latInd:
-                    latPop.append(latInd)
+                latPop.append(latInd)
 
         return latPop
 
-    def slipmutate(self, slipNum=5):
+    def slipmutate(self, slipNum=5, mode='atom'):
         slipPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
@@ -183,31 +173,27 @@ class BaseEA:
                 parInd = tournament(splitPop, sampleNum)
                 parentE = parInd.info['enthalpy']
                 parDom = parInd.info['sclDom']
-                slipInd = slip(parInd)
-                slipInd.info = dict()
-                # if mode == 'atom':
-                #     slipInd = slip(parInd)
-                # elif mode == 'mol':
-                #     parMolC = MolCryst(**parInd.info['molDict'])
-                #     parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
-                #     slipMolC = mol_slip(parMolC)
-                #     slipInd = slipMolC.to_atoms()
+                if mode == 'atom':
+                    slipInd = slip(parInd)
+                elif mode == 'mol':
+                    parMolC = MolCryst(**parInd.info['molDict'])
+                    parMolC.set_cell(parInd.info['molCell'], scale_atoms=False)
+                    slipMolC = mol_slip(parMolC)
+                    slipInd = slipMolC.to_atoms()
+
+                # slipInd = merge_atoms(slipInd, self.dRatio)
+                # slipInd = repair_atoms(slipInd, self.symbols, parInd.info['formula'], parInd.info['numOfFormula'])
 
                 slipInd.info['symbols'] = self.symbols
                 slipInd.info['formula'] = parInd.info['formula']
                 slipInd.info['numOfFormula'] = parInd.info['numOfFormula']
                 slipInd.info['parentE'] = parentE
                 slipInd.info['parDom'] = parDom
-
-                slipInd = merge_atoms(slipInd, self.dRatio)
-                slipInd = repair_atoms(slipInd, self.symbols, parInd.info['formula'], parInd.info['numOfFormula'])
-
-                if slipInd:
-                    slipPop.append(slipInd)
+                slipPop.append(slipInd)
 
         return slipPop
 
-    def ripmutate(self, rhos=[0.5, 0.75, 1.]):
+    def ripmutate(self, rhos=[0.5, 0.75, 1.], mode='atom'):
         ripPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
@@ -217,21 +203,19 @@ class BaseEA:
                 parInd = tournament(splitPop, sampleNum)
                 parentE = parInd.info['enthalpy']
                 parDom = parInd.info['sclDom']
-                ripInd = ripple(parInd, rho=rho)
-                ripInd.info = dict()
+                if mode == 'atom':
+                    ripInd = ripple(parInd, rho=rho)
+
+                # ripInd = merge_atoms(ripInd, self.dRatio)
+                # toFrml = [int(i) for i in parInd.info['formula']]
+                # ripInd = repair_atoms(ripInd, self.symbols, toFrml, parInd.info['numOfFormula'])
 
                 ripInd.info['symbols'] = self.symbols
                 ripInd.info['formula'] = parInd.info['formula']
                 ripInd.info['numOfFormula'] = parInd.info['numOfFormula']
                 ripInd.info['parentE'] = parentE
                 ripInd.info['parDom'] = parDom
-
-                ripInd = merge_atoms(ripInd, self.dRatio)
-                toFrml = [int(i) for i in parInd.info['formula']]
-                ripInd = repair_atoms(ripInd, self.symbols, toFrml, parInd.info['numOfFormula'])
-
-                if ripInd:
-                    ripPop.append(ripInd)
+                ripPop.append(ripInd)
 
         return ripPop
 
@@ -253,7 +237,6 @@ class BaseEA:
             self.clusters.append([ind for n, ind in enumerate(self.curPop) if self.labels[n] == i])
 
         hrdPop = self.heredity(self.cutNum)
-        # hrdPop = []
         permPop = self.permutate(self.permNum)
         latPop = self.latmutate(self.latNum)
         slipPop = self.slipmutate(self.slipNum)
@@ -265,31 +248,103 @@ class BaseEA:
         logging.debug("ripPop length: %s"%(len(ripPop)))
         tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
         tmpPop = check_dist(tmpPop, self.dRatio)
-        logging.debug("After check distance: {}".format(len(tmpPop)))
         self.tmpPop.extend(tmpPop)
         return self.tmpPop
 
     def select(self):
+        tmpLen = len(self.tmpPop)
         tmpPop = self.tmpPop[:]
         newPop = []
-        if self.newLen < len(tmpPop):
-            for _ in range(self.newLen):
-                # logging.debug("select len tmpPop {}".format(len(tmpPop)))
-                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='parDom')
-                newPop.append(newInd)
-                tmpPop.remove(newInd)
+        for _ in range(self.newLen):
+            newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='parDom')
+            newPop.append(newInd)
+            tmpPop.remove(newInd)
 
-            return newPop
-        else:
-            return tmpPop
+        return newPop
 
-class MLEA(BaseEA):
-    def __init__(self, parameters):
+class easyMLEA(BaseEA):
+    """
+    only use ML module to guess energy
+    """
+    def __init__(self, parameters, ML):
+        self.ML = ML
         return super().__init__(parameters)
 
     def select(self):
-        return super().select()
+        tmpLen = len(self.tmpPop)
+        tmpPop = self.ML.scf(self.tmpPop[:])
+        newPop = []
+        for _ in range(self.newLen):
+            newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='energy')
+            newPop.append(newInd)
+            tmpPop.remove(newInd)
+        return newPop
 
+class MLcutEA(BaseEA):
+    """
+    use ML module to help cut cell
+    """
+    def __init__(self, parameters, ML):
+        self.ML = ML
+        self.calc = LRCalculator(self.ML.reg,self.ML.cf)
+        return super().__init__(parameters)
+
+    def heredity(self, cutNum=5, mode='atom'):
+        #curPop = standardize_pop(self.curPop, 1.)
+        curPop = self.curPop
+        symbols = self.symbols
+        grids = self.grids
+        labels, goodPop = self.labels, self.goodPop
+        hrdPop = list()
+        for i in range(self.saveGood):
+            goodInd = goodPop[i]
+            splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
+            splitLen = len(splitPop)
+            sampleNum = int(splitLen/2)+1
+            logging.debug("splitlen: %s"%(splitLen))
+            if splitLen <= 1:
+                continue
+            for j in range(cutNum):
+                grid = random.choice(grids)
+                spInd = tournament(splitPop, sampleNum)
+                tranPos = spInd.get_scaled_positions() # Displacement
+                tranPos += np.array([[random.random(), random.random(), random.random()]]*len(spInd))
+                spInd.set_scaled_positions(tranPos)
+                spInd.wrap()
+
+                ind1 = cut_cell_ml([spInd, goodInd], grid, symbols, self.calc, 0.2)
+                ind2 = cut_cell_ml([goodInd, spInd], grid, symbols, self.calc, 0.2)
+                ind1 = merge_atoms(ind1, self.dRatio)
+                ind2 = merge_atoms(ind2, self.dRatio)
+
+
+                parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
+                parDom = 0.5*(sum([ind.info['sclDom'] for ind in [spInd, goodInd]]))
+                ind1.info['parentE'], ind2.info['parentE'] = parentE, parentE
+                ind1.info['parDom'], ind2.info['parDom'] = parDom, parDom
+                ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
+
+
+                nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
+                ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
+                ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
+                ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
+                ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
+
+                pairPop = [ind for ind in [ind1, ind2] if ind is not None]
+                hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
+
+        return hrdPop
+
+    def select(self):
+        tmpLen = len(self.tmpPop)
+        tmpPop = self.ML.scf(self.tmpPop[:])
+        newPop = []
+        for _ in range(self.newLen):
+            newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='energy')
+            newPop.append(newInd)
+            tmpPop.remove(newInd)
+        return newPop
 
 def cut_cell(cutPop, grid, symbols, cutDisp=0):
     """
@@ -321,6 +376,7 @@ def cut_cell(cutPop, grid, symbols, cutDisp=0):
     syblDict = dict()
     for sybl in symbols:
         syblDict[sybl] = []
+        
     for k in range(numSiv):
         imAts = [imAtom for imAtom in cutPop[k]
                 if sivCut[0][siv[k][0]] <= imAtom.a < sivCut[0][siv[k][0] + 1]
@@ -351,7 +407,80 @@ def cut_cell(cutPop, grid, symbols, cutDisp=0):
 
     return cutInd
 
+def cut_cell_ml(cutPop, grid, symbols, calc, cutDisp=0):
+    """
+    Cut cells to generate a new structure.
+    len(cutPop) = grid[0] * grid[1] * grid[2]
+    cutDisp: displacement in cut
+    """
+    k1, k2, k3 = grid
+    numSiv = k1*k2*k3
+    siv = [(x, y, z) for x in range(k1) for y in range(k2) for z in range(k3)]
+    sivCut = list()
+    for i in range(3):
+        cutPos = [(x + cutDisp*random.uniform(-0.5, 0.5))/grid[i] for x in range(grid[i])]
+        cutPos.append(1)
+        cutPos[0] = 0
+        sivCut.append(cutPos)
 
+    cutCell = np.zeros((3, 3))
+    cutVol = 0
+    for otherInd in cutPop:
+        cutCell = cutCell + otherInd.get_cell()/numSiv
+        cutVol = cutVol + otherInd.get_volume()/numSiv
+
+    cutCellPar = cell_to_cellpar(cutCell)
+    ratio = cutVol/abs(np.linalg.det(cutCell))
+    if ratio > 1:
+        cutCellPar[:3] = [length*ratio**(1/3) for length in cutCellPar[:3]]
+
+    syblDict = dict()
+    for sybl in symbols:
+        syblDict[sybl] = []
+
+    for k in range(numSiv):
+        cutInd.set_calculator(calc)
+        energies = cutInd.get_potential_energies()
+        for _ in range(10):
+            cutInd = cutPop[k]
+            tranPos = cutInd.get_scaled_positions() # Displacement
+            tranPos += np.repeat(np.random.random((1,3)),len(cutInd),0)
+            cutInd.set_scaled_positions(tranPos)
+            cutInd.wrap()
+            imAts = [imAtom for imAtom in cutInd
+                    if sivCut[0][siv[k][0]] <= imAtom.a < sivCut[0][siv[k][0] + 1]
+                    if sivCut[1][siv[k][1]] <= imAtom.b < sivCut[1][siv[k][1] + 1]
+                    if sivCut[2][siv[k][2]] <= imAtom.c < sivCut[2][siv[k][2] + 1]
+                    ]
+            E = [energies[i] for i,imAtom in enumerate(cutInd)
+                    if sivCut[0][siv[k][0]] <= imAtom.a < sivCut[0][siv[k][0] + 1]
+                    if sivCut[1][siv[k][1]] <= imAtom.b < sivCut[1][siv[k][1] + 1]
+                    if sivCut[2][siv[k][2]] <= imAtom.c < sivCut[2][siv[k][2] + 1]
+                    ]
+            
+        for atom in imAts:
+            for sybl in symbols:
+                if atom.symbol == sybl:
+                    syblDict[sybl].append((atom.a, atom.b, atom.c))
+    cutPos = []
+    strFrml = ''
+    for sybl in symbols:
+        if len(syblDict[sybl]) > 0:
+            cutPos.extend(syblDict[sybl])
+            strFrml = strFrml + sybl + str(len(syblDict[sybl]))
+    if strFrml == '':
+        raise RuntimeError('No atoms in the new cell')
+
+
+    cutInd = Atoms(strFrml,
+        cell=cutCellPar,
+        pbc = True,)
+    cutInd.set_scaled_positions(cutPos)
+
+    # formula = [len(syblDict[sybl]) for sybl in symbols]
+    # cutInd.info['formula'] = formula
+
+    return cutInd
 
 
 def exchage_atom(parInd, fracSwaps=None):
@@ -414,13 +543,13 @@ def gauss_mut(parInd, sigma=0.5, cellCut=1):
     cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
     chdInd.set_cell(cellPar, scale_atoms=True)
 
-    # for at in chdInd:
-    #     atGauss = np.array([random.gauss(0, sigma)/sigma for i in range(3)])
-    #     # atGauss = np.array([random.gauss(0, sigma)*distCut for i in range(3)])
-    #     at.position += atGauss*covalent_radii[atomic_numbers[at.symbol]]
+    for at in chdInd:
+        atGauss = np.array([random.gauss(0, sigma)/sigma for i in range(3)])
+        # atGauss = np.array([random.gauss(0, sigma)*distCut for i in range(3)])
+        at.position += atGauss*covalent_radii[atomic_numbers[at.symbol]]
 
     chdInd.wrap()
-    # chdInd.info = parInd.info.copy()
+    chdInd.info = parInd.info.copy()
     # chdInd.info['Origin'] = 'Mutate'
 
     return chdInd
@@ -579,31 +708,30 @@ def repair_atoms(ind, symbols, toFrml, numFrml=1, dRatio=1, tryNum=20):
                     # logging.debug("Fail in repairing atoms")
                     return None
     repInd = sort_elements(repInd)
-    return repInd
 
     # Still have some bugs, so check the formula before return
-    # newFrml = get_formula(repInd, symbols)
-    # if (np.array(newFrml) == toFrml).all():
-    #     return repInd
-    # else:
-    #     logging.debug("Wrong formula in repair_atoms")
-    #     return None
+    newFrml = get_formula(repInd, symbols)
+    if (np.array(newFrml) == toFrml).all():
+        return repInd
+    else:
+        logging.debug("Wrong formula in repair_atoms")
+        return None
 
 
 
-# if __name__=="__main__":
-#     from .readparm import read_parameters
-#     from .utils import EmptyClass
-#     import ase.io
-#     from .setfitness import calc_fitness
-#     a=ase.io.read('relax.traj',':')
-#     parameters = read_parameters('input.yaml')
-#     p = EmptyClass()
-#     for key, val in parameters.items():
-#         setattr(p, key, val)
-#     g=Kriging(p)
-#     calc_fitness(a)
-#     repop=g.generate(a)
-#     from .writeresults import write_dataset, write_results, write_traj
-#     write_results(repop, 'result', '.')
+if __name__=="__main__":
+    from .readparm import read_parameters
+    from .utils import EmptyClass
+    import ase.io
+    from .setfitness import calc_fitness
+    a=ase.io.read('relax.traj',':')
+    parameters = read_parameters('input.yaml')
+    p = EmptyClass()
+    for key, val in parameters.items():
+        setattr(p, key, val)
+    g=Kriging(p)
+    calc_fitness(a)
+    repop=g.generate(a)
+    from .writeresults import write_dataset, write_results, write_traj
+    write_results(repop, 'result', '.')
 

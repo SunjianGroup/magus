@@ -22,7 +22,7 @@ class Magus:
         self.Generator=BaseGenerator(parameters)
         self.Algo=BaseEA(parameters)
         if self.parameters.calculator == 'vasp':
-            self.MainCalculator=VaspCalculator(parameters)
+            self.MainCalculator = VaspCalculator(parameters)
         elif self.parameters.calculator == 'lj':
             self.MainCalculator = LJCalculator(parameters)
         elif self.parameters.calculator == 'emt':
