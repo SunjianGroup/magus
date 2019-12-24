@@ -39,6 +39,12 @@ class LRCalculator(Calculator):
         self.reg = reg
         self.cf = cf
 
+    def get_potential_energies(self, atoms=None, force_consistent=False):
+        eFps, _, _ = self.cf.get_all_fingerprints(self.atoms)
+        X=np.concatenate((np.ones((len(atoms),1)),eFps),axis=1)
+        y=self.reg.predict(X)
+        return y
+
     def calculate(self, atoms=None,properties=['energy'],system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
         X,n=[],[]
@@ -135,7 +141,6 @@ class LRmodel(MachineLearning):
                 self.w=np.concatenate((self.w,w),axis=0)
 
     def get_loss(self,images):
-
         # Evaluate energy
         X,y,w = self.get_data(images,['energy'])
         yp = self.reg.predict(X)
