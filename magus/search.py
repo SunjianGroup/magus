@@ -5,7 +5,7 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
-from .initstruct import BaseGenerator,read_seeds,VarGenerator
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
 from .readparm import read_parameters
 from .utils import EmptyClass, calc_volRatio, del_duplicate, check_dist, calc_dominators, clustering
@@ -19,7 +19,13 @@ from .machinelearning import LRmodel
 class Magus:
     def __init__(self,parameters):
         self.parameters=parameters
-        self.Generator=BaseGenerator(parameters)
+        if self.parameters.calcType == 'fix':
+            self.Generator=BaseGenerator(parameters)
+        elif self.parameters.calcType == 'var':
+            self.Generator=VarGenerator(parameters)
+        # molecule mode
+        if self.parameters.molMode:
+            self.inputMols = [Atoms(**molInfo) for molInfo in self.molList]
         self.Algo=BaseEA(parameters)
         if self.parameters.calculator == 'vasp':
             self.MainCalculator = VaspCalculator(parameters)
@@ -52,9 +58,20 @@ class Magus:
         #     os.mkdir("calcFold")
         self.parameters.resultsDir=os.path.join(self.parameters.workDir,'results')
         shutil.copy("allParameters.yaml", "results/allParameters.yaml")
-
         logging.info("===== Generation {} =====".format(self.curgen))
-        initPop = self.Generator.Generate_pop(self.parameters.initSize)
+        if not self.parameters.molMode:
+            initPop = self.Generator.Generate_pop(self.parameters.initSize)
+            if self.parameters.calcType == 'var':
+                p_=copy.deepcopy(self.parameters)
+                # Generate simple substance in variable mode
+                for sybl in self.parameters.symbols:
+                    p_.symbols=[sybl]
+                    p_.formula=np.array([[1]])
+                    p_.numFrml = list(range(1,p_.maxAt+1))
+                    g_=BaseGenerator(p_)
+                    initPop.extend(g_.Generate_pop(p_.eleSize))
+        else:
+            initPop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, self.parameters.formula, self.inputMols, self.parameters.molFormula, self.parameters.numFrml, self.parameters.spacegroup, fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
         logging.info("initPop length: {}".format(len(initPop)))
 
         write_results(initPop, self.curgen, 'init',self.parameters.resultsDir)
@@ -65,6 +82,10 @@ class Magus:
         logging.info("check distance")
         relaxPop = check_dist(relaxPop, self.parameters.dRatio)
         logging.info("check survival: {}".format(len(relaxPop)))
+        if self.parameters.chkMol:
+            logging.info("check mols")
+            relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
+            logging.info("check survival: {}".format(len(relaxPop)))
 
         self.get_fitness(relaxPop)
         for ind in relaxPop:
@@ -177,6 +198,10 @@ class Magus:
         logging.info("check distance")
         relaxPop = check_dist(relaxPop, self.parameters.dRatio)
         logging.info("check survival: {}".format(len(relaxPop)))
+        if self.parameters.chkMol:
+            logging.info("check mols")
+            relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
+            logging.info("check survival: {}".format(len(relaxPop)))
 
         self.get_fitness(relaxPop)
         for ind in relaxPop:
