@@ -132,6 +132,8 @@ class BaseEA:
                         mutInd = slip(parInd, cut=random.random())
                     elif mut == 'rip':
                         mutInd = ripple(parInd, rho=random.uniform(0.5,1.5))
+                    else:
+                        break
 
                     mutInd.info = dict()
                     mutInd.info['symbols'] = self.symbols
