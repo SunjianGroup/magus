@@ -174,114 +174,6 @@ class BaseEA:
 
         return mutPop
 
-    def permutate(self, permNum):
-        permPop = list()
-        for i in range(self.saveGood):
-            splitPop = self.clusters[i]
-            splitLen = len(splitPop)
-            sampleNum = int(splitLen/2) + 1
-            for j in range(permNum):
-                parInd = tournament(splitPop, sampleNum)
-                parentE = parInd.info['enthalpy']
-                parDom = parInd.info['sclDom']
-                rate = random.uniform(0.4,0.6)
-                permInd = exchage_atom(parInd, rate)
-                permInd.info = dict()
-
-                permInd.info['symbols'] = self.symbols
-                permInd.info['formula'] = parInd.info['formula']
-                permInd.info['numOfFormula'] = parInd.info['numOfFormula']
-                permInd.info['parentE'] = parentE
-                permInd.info['parDom'] = parDom
-
-                permInd = merge_atoms(permInd, self.dRatio)
-                toFrml = [int(i) for i in parInd.info['formula']]
-                permInd = repair_atoms(permInd, self.symbols, toFrml, parInd.info['numOfFormula'])
-                if permInd:
-                    permPop.append(permInd)
-
-        return permPop
-
-    def latmutate(self, latNum, sigma=0.3):
-        latPop = list()
-        for i in range(self.saveGood):
-            splitPop = self.clusters[i]
-            splitLen = len(splitPop)
-            sampleNum = int(0.7*splitLen) + 1
-            for j in range(latNum):
-                parInd = tournament(splitPop, sampleNum)
-                parentE = parInd.info['enthalpy']
-                parDom = parInd.info['sclDom']
-                latInd = gauss_mut(parInd, sigma=sigma, cellCut=0.5)
-                latInd.info = dict()
-
-                latInd.info['symbols'] = self.symbols
-                latInd.info['formula'] = parInd.info['formula']
-                latInd.info['numOfFormula'] = parInd.info['numOfFormula']
-                latInd.info['parentE'] = parentE
-                latInd.info['parDom'] = parDom
-
-                latInd = merge_atoms(latInd, self.dRatio)
-                toFrml = [int(i) for i in parInd.info['formula']]
-                latInd = repair_atoms(latInd, self.symbols, toFrml, parInd.info['numOfFormula'])
-                if latInd:
-                    latPop.append(latInd)
-
-        return latPop
-
-    def slipmutate(self, slipNum=5):
-        slipPop = list()
-        for i in range(self.saveGood):
-            splitPop = self.clusters[i]
-            splitLen = len(splitPop)
-            sampleNum = int(splitLen/2) + 1
-            for j in range(slipNum):
-                parInd = tournament(splitPop, sampleNum)
-                parentE = parInd.info['enthalpy']
-                parDom = parInd.info['sclDom']
-                slipInd = slip(parInd)
-                slipInd.info = dict()
-
-                slipInd.info['symbols'] = self.symbols
-                slipInd.info['formula'] = parInd.info['formula']
-                slipInd.info['numOfFormula'] = parInd.info['numOfFormula']
-                slipInd.info['parentE'] = parentE
-                slipInd.info['parDom'] = parDom
-
-                slipInd = merge_atoms(slipInd, self.dRatio)
-                slipInd = repair_atoms(slipInd, self.symbols, parInd.info['formula'], parInd.info['numOfFormula'])
-                if slipInd:
-                    slipPop.append(slipInd)
-
-        return slipPop
-
-    def ripmutate(self, rhos=[0.5, 0.75, 1.]):
-        ripPop = list()
-        for i in range(self.saveGood):
-            splitPop = self.clusters[i]
-            splitLen = len(splitPop)
-            sampleNum = int(splitLen/2) + 1
-            for rho in rhos:
-                parInd = tournament(splitPop, sampleNum)
-                parentE = parInd.info['enthalpy']
-                parDom = parInd.info['sclDom']
-                ripInd = ripple(parInd, rho=rho)
-                ripInd.info = dict()
-
-                ripInd.info['symbols'] = self.symbols
-                ripInd.info['formula'] = parInd.info['formula']
-                ripInd.info['numOfFormula'] = parInd.info['numOfFormula']
-                ripInd.info['parentE'] = parentE
-                ripInd.info['parDom'] = parDom
-
-                ripInd = merge_atoms(ripInd, self.dRatio)
-                toFrml = [int(i) for i in parInd.info['formula']]
-                ripInd = repair_atoms(ripInd, self.symbols, toFrml, parInd.info['numOfFormula'])
-                if ripInd:
-                    ripPop.append(ripInd)
-
-        return ripPop
-
     def generate(self,curPop):
         self.curPop = calc_dominators(curPop)
         self.labels, self.goodPop = clustering(self.curPop, self.parameters.saveGood)
@@ -307,15 +199,6 @@ class BaseEA:
         logging.debug("hrdPop length: {}".format(len(hrdPop)))
         mutPop = self.mutation(self.mutation)
         logging.debug("mutPop length: {}".format(len(mutPop)))
-        # permPop = self.permutate(self.permNum)
-        # latPop = self.latmutate(self.latNum)
-        # slipPop = self.slipmutate(self.slipNum)
-        # ripPop = self.ripmutate(self.ripRho)
-        # logging.debug("permPop length: %s"%(len(permPop)))
-        # logging.debug("latPop length: %s"%(len(latPop)))
-        # logging.debug("slipPop length: %s"%(len(slipPop)))
-        # logging.debug("ripPop length: %s"%(len(ripPop)))
-        # tmpPop = hrdPop + permPop + latPop + slipPop + ripPop
         tmpPop = hrdPop + mutPop
         tmpPop = check_dist(tmpPop, self.dRatio)
         if self.parameters.chkMol:
