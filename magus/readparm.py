@@ -43,6 +43,7 @@ def read_parameters(inputFile):
         'cutNum': int(parameters['popSize']/5)+1,
         'slipNum': int(parameters['popSize']/5)+1,
         'latNum': int(parameters['popSize']/5)+1,
+        'ripNum': int(parameters['popSize']/5)+1,
         'grids': [[2, 1, 1], [1, 2, 1], [1, 1, 2]],
         'bondRatio': 1.15,
         'bondRange': [1., 1.1, 1.2],

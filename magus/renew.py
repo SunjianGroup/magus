@@ -40,7 +40,15 @@ class BaseEA:
         self.cutNum = parameters.cutNum
         self.slipNum = parameters.slipNum
         self.latNum = parameters.latNum
+        self.ripNum = parameters.ripNum
         self.grids = parameters.grids
+
+        self.mutDict = {
+            'perm': self.permNum,
+            'lat': self.latNum,
+            'slip': self.slipNum,
+            'rip': self.ripNum,
+        }
 
         # self.kind = krigParm['kind']
         # self.xi = krigParm['xi']
@@ -55,7 +63,7 @@ class BaseEA:
 
         self.newLen = int((self.parameters.popSize*(1-self.parameters.randFrac)))
 
-    def heredity(self, cutNum=5, mode='atom'):
+    def heredity(self, cutNum=5):
         #curPop = standardize_pop(self.curPop, 1.)
         curPop = self.curPop
         symbols = self.symbols
@@ -102,7 +110,45 @@ class BaseEA:
 
         return hrdPop
 
-    def permutate(self, permNum, mode='atom'):
+    def mutation(self, mutDict):
+        """
+        mutDict: dict, number of structures for different mutation operators
+        """
+        mutPop = list()
+        for i in range(self.saveGood):
+            splitPop = self.clusters[i]
+            splitLen = len(splitPop)
+            sampleNum = int(splitLen/2) + 1
+            for mut, mutNum in mutDict.items():
+                for _ in range(mutNum):
+                    parInd = tournament(splitPop, sampleNum)
+                    parentE = parInd.info['enthalpy']
+                    parDom = parInd.info['sclDom']
+                    if mut == 'perm':
+                        mutInd = exchage_atom(parInd)
+                    elif mut == 'lat':
+                        mutInd = gauss_mut(parInd)
+                    elif mut == 'slip':
+                        mutInd = slip(parInd, cut=random.random())
+                    elif mut == 'rip':
+                        mutInd = ripple(parInd, rho=random.uniform(0.5,1.5))
+
+                    mutInd.info = dict()
+                    mutInd.info['symbols'] = self.symbols
+                    mutInd.info['formula'] = parInd.info['formula']
+                    mutInd.info['numOfFormula'] = parInd.info['numOfFormula']
+                    mutInd.info['parentE'] = parentE
+                    mutInd.info['parDom'] = parDom
+
+                    mutInd = merge_atoms(mutInd, self.dRatio)
+                    toFrml = [int(i) for i in parInd.info['formula']]
+                    mutInd = repair_atoms(mutInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                    if mutInd:
+                        mutPop.append(mutInd)
+
+        return mutPop
+
+    def permutate(self, permNum):
         permPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
@@ -130,7 +176,7 @@ class BaseEA:
 
         return permPop
 
-    def latmutate(self, latNum, sigma=0.3, mode='atom'):
+    def latmutate(self, latNum, sigma=0.3):
         latPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
@@ -157,7 +203,7 @@ class BaseEA:
 
         return latPop
 
-    def slipmutate(self, slipNum=5, mode='atom'):
+    def slipmutate(self, slipNum=5):
         slipPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
@@ -183,7 +229,7 @@ class BaseEA:
 
         return slipPop
 
-    def ripmutate(self, rhos=[0.5, 0.75, 1.], mode='atom'):
+    def ripmutate(self, rhos=[0.5, 0.75, 1.]):
         ripPop = list()
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
