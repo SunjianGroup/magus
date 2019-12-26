@@ -8,7 +8,7 @@ from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GU
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
 from .readparm import read_parameters
-from .utils import EmptyClass, calc_volRatio, del_duplicate, check_dist, calc_dominators, clustering
+from .utils import *
 import copy
 from .queue import JobManager
 from .setfitness import calc_fitness
@@ -25,7 +25,7 @@ class Magus:
             self.Generator=VarGenerator(parameters)
         # molecule mode
         if self.parameters.molMode:
-            self.inputMols = [Atoms(**molInfo) for molInfo in self.molList]
+            self.inputMols = [Atoms(**molInfo) for molInfo in self.parameters.molList]
         self.Algo=BaseEA(parameters)
         if self.parameters.calculator == 'vasp':
             self.MainCalculator = VaspCalculator(parameters)
@@ -40,6 +40,8 @@ class Magus:
         self.ML=LRmodel(parameters)
         self.get_fitness=calc_fitness
         self.pop=[]
+        self.goodPop=[]
+        self.keepPop=[]
         self.curgen=1
 
     def run(self):
@@ -82,12 +84,17 @@ class Magus:
         logging.info("check distance")
         relaxPop = check_dist(relaxPop, self.parameters.dRatio)
         logging.info("check survival: {}".format(len(relaxPop)))
+
+
         if self.parameters.chkMol:
             logging.info("check mols")
             relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
             logging.info("check survival: {}".format(len(relaxPop)))
 
-        self.get_fitness(relaxPop)
+        if self.parameters.calcType == 'var':
+            relaxPop = convex_hull(relaxPop)
+
+        self.get_fitness(relaxPop, mode=self.parameters.calcType)
         for ind in relaxPop:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
         write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
@@ -103,13 +110,15 @@ class Magus:
     def Onestep(self):
         self.curgen+=1
         logging.info("===== Generation {} =====".format(self.curgen))
-        relaxPop=self.pop
-        try:
-            goodPop = ase.io.read("{}/good.traj".format(self.parameters.resultsDir), format='traj', index=':')
-            keepPop = ase.io.read("{}/keep{}.traj".format(self.parameters.resultsDir, self.curgen-1), format='traj', index=':')
-        except:
-            goodPop = list()
-            keepPop = list()
+        relaxPop = self.pop
+        goodPop = self.goodPop
+        keepPop = self.keepPop
+        # try:
+        #     goodPop = ase.io.read("{}/good.traj".format(self.parameters.resultsDir), format='traj', index=':')
+        #     keepPop = ase.io.read("{}/keep{}.traj".format(self.parameters.resultsDir, self.curgen-1), format='traj', index=':')
+        # except:
+        #     goodPop = list()
+        #     keepPop = list()
 
         for Pop in [relaxPop,goodPop,keepPop]:
             self.get_fitness(Pop)
@@ -195,13 +204,20 @@ class Magus:
         else:
             relaxPop = self.MainCalculator.relax(initPop)
 
+        # save raw date before checking
+        write_results(relaxPop, self.curgen, 'raw',self.parameters.resultsDir)
+
         logging.info("check distance")
         relaxPop = check_dist(relaxPop, self.parameters.dRatio)
         logging.info("check survival: {}".format(len(relaxPop)))
+
         if self.parameters.chkMol:
             logging.info("check mols")
             relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
             logging.info("check survival: {}".format(len(relaxPop)))
+
+        if self.parameters.calcType == 'var':
+            relaxPop, goodPop, keepPop = convex_hull_pops(relaxPop, goodPop, keepPop)
 
         self.get_fitness(relaxPop)
         for ind in relaxPop:
@@ -214,7 +230,10 @@ class Magus:
             self.ML.train()
             scfPop = self.MainCalculator.scf(relaxPop)
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
+
         self.pop=copy.deepcopy(relaxPop)
+        self.goodPop=copy.deepcopy(goodPop)
+        self.keepPop=copy.deepcopy(keepPop)
 
 
 

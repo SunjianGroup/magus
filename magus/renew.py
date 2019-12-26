@@ -2,7 +2,7 @@ import random, sys, os, re, math, logging, yaml
 from collections import Counter
 import numpy as np
 import spglib
-from numpy import pi, sin, cos, tan, sqrt
+from numpy import pi, sin, cos, sqrt
 from numpy import dot
 from scipy.spatial.distance import pdist, cdist
 from sklearn.neighbors import BallTree, DistanceMetric
@@ -10,7 +10,6 @@ from sklearn.gaussian_process import kernels
 import ase.io
 from ase import Atom, Atoms
 from ase.data import atomic_numbers, covalent_radii
-from ase.phasediagram import PhaseDiagram
 from ase.neighborlist import NeighborList
 from ase.geometry import cell_to_cellpar, cellpar_to_cell
 from ase.optimize import BFGS, FIRE, BFGSLineSearch, LBFGS, LBFGSLineSearch
@@ -107,10 +106,19 @@ class BaseEA:
                 hrdInd.info['symbols'] = symbols
 
                 if self.calcType == 'fix':
-                    nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
+                    hrdLen = len(hrdInd)
+                    if self.parameters.minAt <= hrdLen <= self.parameters.maxAt :
+                        nfm = int(round(hrdLen/sum(self.formula)))
+                    else:
+                        nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
                     hrdInd.info['formula'] = self.formula
                     hrdInd.info['numOfFormula'] = nfm
                     hrdInd = repair_atoms(hrdInd, symbols, self.formula, nfm)
+                elif self.calcType == 'var':
+                    if not check_var_formula(get_formula(hrdInd, self.symbols), self.formula, self.parameters.minAt, self.parameters.maxAt):
+                        pass
+
+
 
                 if hrdInd:
                     hrdPop.append(hrdInd)
@@ -150,9 +158,9 @@ class BaseEA:
                         if mut == 'perm':
                             mutMolC = mol_exchage(parMolC)
                         elif mut == 'lat':
-                            mutMolC = mol_gauss_mut(parInd)
+                            mutMolC = mol_gauss_mut(parMolC)
                         elif mut == 'slip':
-                            mutMolC = mol_slip(parInd, cut=random.random())
+                            mutMolC = mol_slip(parMolC, cut=random.random())
                         # elif mut == 'rip': # have never implement mol_ripple
                         #     mutMolC = ripple(parInd, rho=random.uniform(0.5,1.5))
                         else:
@@ -176,13 +184,17 @@ class BaseEA:
 
     def generate(self,curPop):
         self.curPop = calc_dominators(curPop)
+        # remove ind which do not contain all symbols
+        if self.parameters.fullEles and self.parameters.calcType == 'var':
+            self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
+        # decompose atoms into modulars
+        if self.parameters.molDetector in [1,2]:
+            self.curPop = mol_dict_pop(self.curPop, self.parameters.molDetector, self.bondRange)
+
         self.labels, self.goodPop = clustering(self.curPop, self.parameters.saveGood)
+
         if self.parameters.addSym:
             self.goodPop = symmetrize_pop(self.goodPop, 1.)
-        if self.parameter.fullEles:
-            self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
-        if self.parameters.molDetector in [1,2]:
-            self.curPop = mol_dict_pop(self.curPop, self.molDetector, self.bondRange)
 
         self.curLen = len(self.curPop)
         logging.debug("curLen: {}".format(self.curLen))
@@ -197,7 +209,7 @@ class BaseEA:
 
         hrdPop = self.heredity(self.cutNum)
         logging.debug("hrdPop length: {}".format(len(hrdPop)))
-        mutPop = self.mutation(self.mutation)
+        mutPop = self.mutation(self.mutDict)
         logging.debug("mutPop length: {}".format(len(mutPop)))
         tmpPop = hrdPop + mutPop
         tmpPop = check_dist(tmpPop, self.dRatio)

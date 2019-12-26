@@ -3,12 +3,13 @@ import os, subprocess, shutil, math, random, re, logging, fractions, sys
 from collections import Counter
 import numpy as np
 import spglib
-from numpy import pi, sin, cos, tan, sqrt
+from numpy import pi, sin, cos, sqrt
 import networkx as nx
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_numbers, covalent_radii
 from ase.neighborlist import neighbor_list
+from ase.phasediagram import PhaseDiagram
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import cluster
 from scipy.optimize import root
@@ -393,6 +394,38 @@ def check_mol_pop(molPop, inputMols, bondRatio):
             chkPop.append(ind)
     return chkPop
 
+def convex_hull(Pop):
+
+    hullPop = Pop[:]
+    name = [ind.get_chemical_formula() for ind in Pop]
+    enth = [ind.info['enthalpy']*len(ind) for ind in Pop]
+    refs = zip(name, enth)
+
+    pd = PhaseDiagram(refs, verbose=False)
+    for ind in hullPop:
+        refE = pd.decompose(ind.get_chemical_formula())[0]
+        ehull = ind.info['enthalpy'] - refE/len(ind)
+        ind.info['ehull'] = ehull #if ehull > 1e-6 else 0
+
+    return hullPop
+
+def convex_hull_pops(*popArr):
+    """
+    popArr: allow for multiple pops
+    """
+    numPop = len(popArr)
+    allPop = []
+    popLens = [0]
+    for pop in popArr:
+        allPop.extend(pop)
+        popLens.append(len(pop))
+
+    hullPop = convex_hull(allPop)
+    newArr = []
+    for i in range(numPop):
+        newArr.append(hullPop[popLens[i]:popLens[i+1]])
+
+    return newArr
 
 
 def compare_structure_energy(Pop, diffE=0.01, diffV=0.05, ltol=0.1, stol=0.1, angle_tol=5, compareE=True, mode='naive'):
@@ -548,6 +581,33 @@ def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
             return False
 
     return True
+
+def check_var_formula(inFrml, setFrmls, minAt, maxAt):
+    """
+    inFrml: 1-D array (M,)
+    setFrmls: 2-D array (N,M)
+    M is the number of elements, N is the dimension of formula space.
+    """
+    if sum(inFrml) < minAt or sum(inFrml) > maxAt:
+        return False
+    # projection_matrix=np.dot(setFrmls.T,np.linalg.pinv(setFrmls.T))
+    rank = np.linalg.matrix_rank(np.concatenate((setFrmls, [inFrml])))
+    if rank == len(setFrmls):
+        return True
+    else:
+        return False
+
+def best_formula(inFrml, setFrmls, minAt, maxAt):
+    """
+    inFrml: 1-D array (M,)
+    setFrmls: 2-D array (N,M)
+    M is the number of elements, N is the dimension of formula space.
+    """
+    projMat=np.dot(setFrmls.T,np.linalg.pinv(setFrmls.T))
+    newFrml = np.rint(np.dot(projMat, inFrml)).astype(np.int)
+    if newFrml.sum() < minAt:
+        pass
+
 
 def symmetrize_atoms(atoms, symprec=1e-2):
     """
