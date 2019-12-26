@@ -99,6 +99,7 @@ class Magus:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
         write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
 
+        logging.debug("Calculating fingerprint")
         self.ML.get_fp(relaxPop)
         if self.parameters.mlRelax:
             self.ML.updatedataset(relaxPop)

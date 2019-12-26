@@ -71,7 +71,7 @@ def read_parameters(inputFile):
         'mlRelax': False,
         'ZernikeNmax': 4,
         'ZernikeNcut': 4,
-        'ZernikeDiag': False,
+        'ZernikeDiag': True,
     }
 
     for key, val in dParms.items():
