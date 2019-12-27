@@ -597,16 +597,18 @@ def check_var_formula(inFrml, setFrmls, minAt, maxAt):
     else:
         return False
 
-def best_formula(inFrml, setFrmls, minAt, maxAt):
+def best_formula(inFrml, setFrmls):
     """
     inFrml: 1-D array (M,)
     setFrmls: 2-D array (N,M)
     M is the number of elements, N is the dimension of formula space.
     """
-    projMat=np.dot(setFrmls.T,np.linalg.pinv(setFrmls.T))
-    newFrml = np.rint(np.dot(projMat, inFrml)).astype(np.int)
-    if newFrml.sum() < minAt:
-        pass
+    invF = np.linalg.pinv(setFrmls)
+    coef = np.rint(np.dot(inFrml, invF)).astype(np.int)
+    newFrml = np.dot(coef, inFrml).astype(np.int)
+    bestFrml = newFrml.tolist()
+
+    return bestFrml
 
 
 def symmetrize_atoms(atoms, symprec=1e-2):

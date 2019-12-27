@@ -155,7 +155,8 @@ class VarGenerator(BaseGenerator):
     def __init__(self,p):
         super().__init__(p)
         super().checkParameters(Requirement=['minAt','maxAt'],Default={'fullEles':True})
-        self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
+        # self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
+        self.invFrml = np.linalg.pinv(self.formula)
 
 
     def afterprocessing(self,ind):
@@ -173,7 +174,8 @@ class VarGenerator(BaseGenerator):
                 numAt = np.random.randint(self.minAt, self.maxAt+1)
                 numlist = np.random.rand(len(self.symbols))
                 numlist *= numAt/np.sum(numlist)
-                numlist = np.rint(np.dot(self.projection_matrix,numlist)).astype(np.int)
+                numlist = np.rint(numlist @ self.invFrml).astype(np.int) @ np.array(self.formula)
+                # numlist = np.rint(np.dot(self.projection_matrix,numlist)).astype(np.int)
                 if np.sum(numlist) < self.minAt or np.sum(numlist) > self.maxAt or (self.fullEles and 0 in numlist) or np.sum(numlist<0)>0:
                     continue
 

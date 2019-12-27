@@ -115,10 +115,15 @@ class BaseEA:
                     hrdInd.info['numOfFormula'] = nfm
                     hrdInd = repair_atoms(hrdInd, symbols, self.formula, nfm)
                 elif self.calcType == 'var':
-                    if not check_var_formula(get_formula(hrdInd, self.symbols), self.formula, self.parameters.minAt, self.parameters.maxAt):
-                        pass
-
-
+                    curFrml = get_formula(hrdInd, self.symbols)
+                    if not check_var_formula(curFrml, self.formula, self.parameters.minAt, self.parameters.maxAt):
+                        bestFrml = best_formula(curFrml, self.formula)
+                        if self.parameters.minAt <= bestFrml.sum() <= self.parameters.maxAt:
+                            hrdInd.info['formula'] = bestFrml
+                            hrdInd.info['numOfFormula'] = 1
+                            hrdInd = repair_atoms(hrdInd, symbols, bestFrml, 1)
+                        else:
+                            hrdInd = None
 
                 if hrdInd:
                     hrdPop.append(hrdInd)
@@ -184,6 +189,8 @@ class BaseEA:
 
     def generate(self,curPop):
         self.curPop = calc_dominators(curPop)
+        if self.parameters.addSym:
+            self.curPop = symmetrize_pop(self.curPop, self.symprec)
         # remove ind which do not contain all symbols
         if self.parameters.fullEles and self.parameters.calcType == 'var':
             self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
@@ -193,8 +200,6 @@ class BaseEA:
 
         self.labels, self.goodPop = clustering(self.curPop, self.parameters.saveGood)
 
-        if self.parameters.addSym:
-            self.goodPop = symmetrize_pop(self.goodPop, 1.)
 
         self.curLen = len(self.curPop)
         logging.debug("curLen: {}".format(self.curLen))

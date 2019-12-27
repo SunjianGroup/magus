@@ -99,12 +99,12 @@ class Magus:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
         write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
 
-        logging.debug("Calculating fingerprint")
-        self.ML.get_fp(relaxPop)
-        if self.parameters.mlRelax:
-            self.ML.updatedataset(relaxPop)
-            self.ML.train()
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop)[:4]))
+        # logging.info("Calculate fingerprint")
+        # self.ML.get_fp(relaxPop)
+        # if self.parameters.mlRelax:
+        #     self.ML.updatedataset(relaxPop)
+        #     self.ML.train()
+        #     logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop)[:4]))
         self.pop=copy.deepcopy(relaxPop)
 
 
