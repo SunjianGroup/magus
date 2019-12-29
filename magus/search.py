@@ -12,7 +12,7 @@ from .utils import *
 import copy
 from .queue import JobManager
 from .setfitness import calc_fitness
-from .renew import BaseEA
+from .renew import BaseEA, BOEA
 #ML module
 from .machinelearning import LRmodel
 
@@ -26,7 +26,10 @@ class Magus:
         # molecule mode
         if self.parameters.molMode:
             self.inputMols = [Atoms(**molInfo) for molInfo in self.parameters.molList]
-        self.Algo=BaseEA(parameters)
+        if self.parameters.setAlgo == 'ea':
+            self.Algo=BaseEA(parameters)
+        elif self.parameters.setAlgo == 'boea':
+            self.Algo = BOEA(parameters)
         if self.parameters.calculator == 'vasp':
             self.MainCalculator = VaspCalculator(parameters)
         elif self.parameters.calculator == 'lj':
@@ -66,12 +69,21 @@ class Magus:
             if self.parameters.calcType == 'var':
                 p_=copy.deepcopy(self.parameters)
                 # Generate simple substance in variable mode
-                for sybl in self.parameters.symbols:
-                    p_.symbols=[sybl]
-                    p_.formula=np.array([[1]])
+                for n, sybl in enumerate(self.parameters.symbols):
+                    p_.symbols = [sybl]
+                    p_.formula = [1]
                     p_.numFrml = list(range(1,p_.maxAt+1))
                     g_=BaseGenerator(p_)
-                    initPop.extend(g_.Generate_pop(p_.eleSize))
+                    elePop = g_.Generate_pop(p_.eleSize)
+                    eleFrml = np.zeros(len(self.parameters.symbols))
+                    eleFrml[n] = 1
+                    eleFrml = eleFrml.astype(np.int)
+                    for eleInd in elePop:
+                        eleInd.info['symbols'] = self.parameters.symbols
+                        tmpFrml = eleFrml*len(eleInd)
+                        eleInd.info['formula'] = tmpFrml.tolist()
+                        eleInd.info['numOfFormula'] = 1
+                    initPop.extend(elePop)
         else:
             initPop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, self.parameters.formula, self.inputMols, self.parameters.molFormula, self.parameters.numFrml, self.parameters.spacegroup, fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
         logging.info("initPop length: {}".format(len(initPop)))
@@ -79,7 +91,7 @@ class Magus:
         write_results(initPop, self.curgen, 'init',self.parameters.resultsDir)
 
         relaxPop=self.MainCalculator.relax(initPop)
-        write_results(relaxPop, self.curgen, 'debug', self.parameters.resultsDir)
+        write_results(relaxPop, self.curgen, 'raw', self.parameters.resultsDir)
 
         logging.info("check distance")
         relaxPop = check_dist(relaxPop, self.parameters.dRatio)
@@ -173,7 +185,7 @@ class Magus:
 
         if len(initPop) < self.parameters.popSize:
             logging.info("random structures")
-            initPop.extend(self.Generator.Generate_pop(self.parameters.initSize-len(initPop)))
+            initPop.extend(self.Generator.Generate_pop(self.parameters.popSize-len(initPop)))
 
 
 

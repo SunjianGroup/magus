@@ -18,6 +18,8 @@ from ase.constraints import UnitCellFilter#, ExpCellFilter
 from sklearn import cluster
 from .utils import *
 from .machinelearning import LRCalculator
+from .bayes import UtilityFunction, GP_fit, atoms_util
+from .machinelearning import LRmodel
 
 class BaseEA:
     def __init__(self, parameters):
@@ -118,12 +120,15 @@ class BaseEA:
                     curFrml = get_formula(hrdInd, self.symbols)
                     if not check_var_formula(curFrml, self.formula, self.parameters.minAt, self.parameters.maxAt):
                         bestFrml = best_formula(curFrml, self.formula)
-                        if self.parameters.minAt <= bestFrml.sum() <= self.parameters.maxAt:
+                        if self.parameters.minAt <= sum(bestFrml) <= self.parameters.maxAt:
                             hrdInd.info['formula'] = bestFrml
                             hrdInd.info['numOfFormula'] = 1
                             hrdInd = repair_atoms(hrdInd, symbols, bestFrml, 1)
                         else:
                             hrdInd = None
+                    else:
+                        hrdInd.info['formula'] = get_formula(hrdInd, self.symbols)
+                        hrdInd.info['numOfFormula'] = 1
 
                 if hrdInd:
                     hrdPop.append(hrdInd)
@@ -173,7 +178,7 @@ class BaseEA:
                         mutInd = mutMolC.to_atoms()
 
                     mutInd.info = dict()
-                    mutInd.info['symbols'] = self.symbols
+                    mutInd.info['symbols'] = parInd.info['symbols']
                     mutInd.info['formula'] = parInd.info['formula']
                     mutInd.info['numOfFormula'] = parInd.info['numOfFormula']
                     mutInd.info['parentE'] = parentE
@@ -181,7 +186,7 @@ class BaseEA:
 
                     mutInd = merge_atoms(mutInd, self.dRatio)
                     toFrml = [int(i) for i in parInd.info['formula']]
-                    mutInd = repair_atoms(mutInd, self.symbols, toFrml, parInd.info['numOfFormula'])
+                    mutInd = repair_atoms(mutInd, parInd.info['symbols'], toFrml, parInd.info['numOfFormula'])
                     if mutInd:
                         mutPop.append(mutInd)
 
@@ -258,6 +263,68 @@ class easyMLEA(BaseEA):
         for ind in newPop:
             ind.info['predictE'] = ind.info['enthalpy']
             del ind.info['enthalpy']
+
+        return newPop
+
+class BOEA(BaseEA):
+    """
+    Bayesian Optimization plus EA
+    """
+    def __init__(self, parameters):
+        self.ML = LRmodel(parameters)
+        return super().__init__(parameters)
+
+
+    def fit_gp(self):
+        # fps, ens = read_dataset()
+        fps = [ind.info['image_fp']/np.linalg.norm(ind.info['image_fp']) for ind in self.curPop]
+        fps = [fp.flatten().tolist() for fp in fps]
+        ens = [ind.info['energy']/len(ind) for ind in self.curPop]
+
+        fps = np.array(fps)
+        ens = np.array(ens)
+        # logging.debug("ens: {}".format(ens))
+
+        # kernel = (kernels.DotProduct(sigma_0=0))**2
+        kernel = kernels.RBF()
+
+        gpParm = {
+            'kernel': kernel,
+            'alpha': 1e-5,
+            'n_restarts_optimizer': 25,
+            'normalize_y': True
+        }
+
+        gp = GP_fit(fps, ens, gpParm)
+        logging.debug("kernel hyperparameter:\n")
+        logging.debug(gp.kernel_.get_params())
+        self.gp = gp
+        self.fps = fps
+
+    def select(self):
+        self.fit_gp()
+
+        tmpPop = self.tmpPop[:]
+        self.ML.get_fp(tmpPop)
+
+        gp = self.gp
+        for ind in tmpPop:
+            normFps = ind.info['image_fp']/np.linalg.norm(ind.info['image_fp'])
+            preEn, sigma = gp.predict(normFps.reshape(1,-1), return_std=True)
+            preEn = preEn[0]
+            sigma = sigma[0]
+            ind.info['predictE'] = preEn + self.parameters.pressure * GPa * ind.get_volume()/len(ind)
+            ind.info['sigma'] = sigma
+            ind.info['utilVal'] = ind.info['predictE'] - self.parameters.kappa * sigma
+
+        newPop = []
+        if self.newLen < len(tmpPop):
+            for _ in range(self.newLen):
+                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='utilVal')
+                newPop.append(newInd)
+                tmpPop.remove(newInd)
+        else:
+            newPop = tmpPop
 
         return newPop
 
@@ -794,6 +861,7 @@ def repair_atoms(ind, symbols, toFrml, numFrml=1, dRatio=1, tryNum=20):
     inCt = Counter(ind.get_chemical_symbols())
     toFrml = [numFrml*i for i in toFrml]
     toDict = dict(zip(symbols, toFrml))
+    # logging.debug("toDict: {}".format(toDict))
     diff = dict()
     for s in symbols:
         diff[s] = toDict[s] - inCt[s]

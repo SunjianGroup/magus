@@ -78,8 +78,9 @@ class BaseGenerator:
 
         numbers=[]
         for i in range(numType):
-            generator.AppendAtoms(int(numlist[i]), str(i), self.radius[i], False)
-            numbers.extend([atomic_numbers[self.symbols[i]]]*numlist[i])
+            if numlist[i] > 0:
+                generator.AppendAtoms(int(numlist[i]), str(i), self.radius[i], False)
+                numbers.extend([atomic_numbers[self.symbols[i]]]*numlist[i])
 
         label = generator.PreGenerate()
         if label:

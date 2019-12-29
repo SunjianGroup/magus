@@ -98,11 +98,11 @@ class LRmodel(MachineLearning):
                 X.append(np.mean(eFps,axis=0))
                 w.append(self.w_energy)
                 n.append(1.0)
-                y.append(atoms.info['energy']/len(atoms))
-                # try:
-                #     y.append(atoms.info['energy']/len(atoms))
-                # except:
-                #     y.append(0.0)
+                # y.append(atoms.info['energy']/len(atoms))
+                try:
+                    y.append(atoms.info['energy']/len(atoms))
+                except:
+                    y.append(0.0)
             if 'forces' in implemented_properties:
                 fFps = np.sum(fFps, axis=0)
                 X.extend(fFps.reshape(-1,totNd))
@@ -221,8 +221,8 @@ class LRmodel(MachineLearning):
 
     def get_fp(self,pop):
         for ind in pop:
-            properties = []
-            for s in ['energy', 'forces', 'stress']:
+            properties = ['energy']
+            for s in ['forces', 'stress']:
                 if s in ind.info:
                     properties.append(s)
             X,_,_ = self.get_data([ind], implemented_properties=properties)

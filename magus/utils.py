@@ -605,7 +605,7 @@ def best_formula(inFrml, setFrmls):
     """
     invF = np.linalg.pinv(setFrmls)
     coef = np.rint(np.dot(inFrml, invF)).astype(np.int)
-    newFrml = np.dot(coef, inFrml).astype(np.int)
+    newFrml = np.dot(coef, setFrmls).astype(np.int)
     bestFrml = newFrml.tolist()
 
     return bestFrml
