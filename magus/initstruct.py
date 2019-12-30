@@ -457,15 +457,13 @@ def build_mol_struct(
     return buildPop
 
 
-
-
-def read_seeds(parameters, seedFile='Seeds/POSCARS'):
+def read_seeds(parameters, seedFile):
     seedPop = []
-    setSym = parameters['symbols']
-    setFrml = parameters['formula']
-    minAt = parameters['minAt']
-    maxAt = parameters['maxAt']
-    calcType = parameters['calcType']
+    setSym = parameters.symbols
+    setFrml = parameters.formula
+    minAt = parameters.minAt
+    maxAt = parameters.maxAt
+    calcType = parameters.calcType
 
     if os.path.exists(seedFile):
         readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
@@ -473,8 +471,7 @@ def read_seeds(parameters, seedFile='Seeds/POSCARS'):
             logging.info("Reading Seeds ...")
 
         seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
-
-    logging.info("Read Seeds: %s"%(len(seedPop)))
+    # logging.info("Read Seeds: %s"%(len(seedPop)))
     return seedPop
 
 

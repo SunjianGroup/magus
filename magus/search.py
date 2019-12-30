@@ -88,6 +88,17 @@ class Magus:
             initPop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, self.parameters.formula, self.inputMols, self.parameters.molFormula, self.parameters.numFrml, self.parameters.spacegroup, fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
         logging.info("initPop length: {}".format(len(initPop)))
 
+        seedPop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+
+        if len(seedPop) > 0:
+            logging.info("check seeds distance")
+            seedPop = check_dist(seedPop, self.parameters.dRatio)
+            if self.parameters.chkMol:
+                logging.info("check seeds mols")
+                seedPop = check_mol_pop(seedPop, self.inputMols, self.parameters.bondRatio)
+            logging.info("read {} seeds".format(len(seedPop)))
+            initPop.extend(seedPop)
+
         write_results(initPop, self.curgen, 'init',self.parameters.resultsDir)
 
         relaxPop=self.MainCalculator.relax(initPop)
@@ -189,6 +200,16 @@ class Magus:
         ### Save Initial
         write_results(initPop,self.curgen, 'init',self.parameters.resultsDir)
 
+        seedPop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+
+        if len(seedPop) > 0:
+            logging.info("check seeds distance")
+            seedPop = check_dist(seedPop, self.parameters.dRatio)
+            if self.parameters.chkMol:
+                logging.info("check seeds mols")
+                seedPop = check_mol_pop(seedPop, self.inputMols, self.parameters.bondRatio)
+            logging.info("read {} seeds".format(len(seedPop)))
+            initPop.extend(seedPop)
 
         if self.parameters.mlRelax:
             ### mlrelax

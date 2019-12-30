@@ -325,7 +325,6 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
         setGcd = reduce(math.gcd, setFrml)
         setRd = [x/setGcd for x in setFrml]
 
-
     # if len(readPop) > 0:
     #     logging.debug("Reading Seeds ...")
     for ind in readPop:
@@ -345,6 +344,7 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
             # if minAt <= len(ind) <= maxAt or len(selfSym) < len(setSym):
             formula = [symDic[sym] for sym in setSym]
             ind.info['formula'] = formula
+            ind.info['numOfFormula'] = 1
             seedPop.append(ind)
             # else:
             #     logging.debug("ERROR in checking symbols")
@@ -361,12 +361,8 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
                     seedPop.append(ind)
                 else:
                     logging.debug("ERROR in checking formula")
-
-
-
     # logging.info("Read Seeds: %s"%(len(seedPop)))
     return seedPop
-
 
 def rand_rotMat():
     phi, theta, psi = [2*math.pi*random.uniform(-1,1) for _ in range(3)]
