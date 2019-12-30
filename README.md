@@ -148,6 +148,10 @@ mutateFrac: 0.4
 
 #### 参数介绍
 
+- mode: 运行方式
+  
+  可用值: `serial` (串行), `parallel` (并行) 
+
 - calcType: 计算类型
 
   可用值:  `fix`（定组分）,`var`（变组分）
@@ -156,7 +160,7 @@ mutateFrac: 0.4
   可用值: `vasp`, `gulp`, `cp2k`, `mopac`, `xtb`
 
 - setAlgo: 结构搜索算法
-  可用值: `bayes`(Bayesian Optimization), `bbo`(Biogeography-Based Optimization)
+  可用值(大小写均可): `EA`(Evolutionary Algorithm), `BOEA`(Bayesian Optimization)
 
 - xc: 交换关联类型
 
@@ -220,14 +224,15 @@ mutateFrac: 0.4
 - mutateFrac: 变异算子产生结构的数目
 
 #### 部分参数默认值
-
+- mode: serial
+- setAlgo: ea
 - spacegroup: list(range(1, 231))
 - eleSize: 1
 - fullEles: False
 - volRatio: 1.5
 - dRatio: 0.7
 - exeCmd: ""
-- initSize: parameters['popSize']
+- initSize: popSize
 - jobPrefix:""
 - permNum: 4
 - latDisps: list(range(1,5))
@@ -249,31 +254,15 @@ mutateFrac: 0.4
 
 
 ## 计算流程
+计算示例在`examples/`文件夹下。请复制示例到其他目录运行。任务脚本为`job`,`runserial`,`runpara`.
 
-以 **TiO**$_2$结构搜索为例：
-
-- 运行`csp-prepare`, 产生`BuildStruct`, `fpFold`, `inputFold`三个目录以及`summary.py`
-
-- 准备输入文件`input.yaml`（如上所示）和`INCAR_*`(1-5), 把`INCAR_*`放入`inputFold`/
+进行新的搜索时注意：
+- 运行`csp-prepare`可以产生`inputFold`,`Seeds`目录以及`summary.py`
 
 - 确认在`~/.bashrc`中已经加载了anaconda模块
-
-- 提交任务脚本：
-
-  ```shell
-  #BSUB -q e52692v2ib!
-  #BSUB -n 1
-  #BSUB -J test-tio2
-
-  python -m magus.parallel
-  ```
 
 - 若不想在`~/.bashrc`中加载anaconda模块，则需要在任务脚本中加入anaconda，如`module add anaconda/3`，并将`jobPrefix`也设为`module add anaconda/3`
 
 - 运行过程中的输出信息保存在`log.txt`中，所有结构信息都保存在`results`目录下
 
-
-
-## 注意事项
-- 在.bashrc中配置路径时，不要复制pdf文档中的字符，可能会有无法识别的空白字符，最好直接复制markdown文件的内容
-- 用vasp优化时，需要在INCAR文件中设置KSPACING，与USPEX不同
+- 用vasp优化时，需要在INCAR文件中设置KSPACING
