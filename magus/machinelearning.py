@@ -74,9 +74,10 @@ class LRmodel(MachineLearning):
         cutoff = self.parameters.cutoff
         elems = [atomic_numbers[element] for element in parameters.symbols]
         nmax = self.parameters.ZernikeNmax
+        lmax = self.parameters.ZernikeLmax
         ncut = self.parameters.ZernikeNcut
         diag = self.parameters.ZernikeDiag
-        self.cf = ZernikeFp(cutoff, nmax, None, ncut, elems,diag=diag)
+        self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
         self.w_energy = 30.0
         self.w_force = 1.0
         self.w_stress = 1.0

@@ -65,14 +65,16 @@ def read_parameters(inputFile):
         'gp_factor': 1,
         'updateVol': True,
         'addSym': True,
-        'symprec': 0.3,
+        'symprec': 0.5,
         'compress': False,
         'cRatio': 0.8,
         'cutoff': 4.0,
         'mlRelax': False,
         'ZernikeNmax': 4,
+        'ZernikeLmax': None,
         'ZernikeNcut': 4,
         'ZernikeDiag': True,
+        'kernelType': 'dot',
     }
 
     for key, val in dParms.items():
@@ -87,6 +89,8 @@ def read_parameters(inputFile):
     if p.calculator in ['lj', 'emt', 'xtb']:
         assert p.mode == 'serial', "The calculator only support serial mode"
     assert p.randFrac <= 1, 'randFrac should be lower than 1'
+    if p.ZernikeLmax:
+        assert p.ZernikeLmax <= p.ZernikeNmax
 
     p.setAlgo = p.setAlgo.lower()
 

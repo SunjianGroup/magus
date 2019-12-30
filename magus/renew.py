@@ -201,10 +201,12 @@ class BaseEA:
             self.curPop = list(filter(lambda x: 0 not in x.info['formula'], self.curPop))
         # decompose atoms into modulars
         if self.parameters.molDetector in [1,2]:
-            self.curPop = mol_dict_pop(self.curPop, self.parameters.molDetector, self.bondRange)
+            if self.parameters.chkMol:
+                self.curPop = mol_dict_pop(self.curPop, self.parameters.molDetector, [self.bondRatio])
+            else:
+                self.curPop = mol_dict_pop(self.curPop, self.parameters.molDetector, self.bondRange)
 
         self.labels, self.goodPop = clustering(self.curPop, self.parameters.saveGood)
-
 
         self.curLen = len(self.curPop)
         logging.debug("curLen: {}".format(self.curLen))
@@ -285,15 +287,20 @@ class BOEA(BaseEA):
         ens = np.array(ens)
         # logging.debug("ens: {}".format(ens))
 
-        # kernel = (kernels.DotProduct(sigma_0=0))**2
-        kernel = kernels.RBF()
-
         gpParm = {
-            'kernel': kernel,
             'alpha': 1e-5,
             'n_restarts_optimizer': 25,
-            'normalize_y': True
+            'normalize_y': True,
         }
+
+        if self.parameters.kernelType == 'dot':
+            kernel = (kernels.DotProduct(sigma_0=0))**2
+            gpParm['n_restarts_optimizer'] = 0
+        elif self.parameters.kernelType == 'rbf':
+            kernel = kernels.RBF()
+
+        gpParm['kernel'] = kernel
+
 
         gp = GP_fit(fps, ens, gpParm)
         logging.debug("kernel hyperparameter:\n")

@@ -91,68 +91,59 @@ class Magus:
         write_results(initPop, self.curgen, 'init',self.parameters.resultsDir)
 
         relaxPop=self.MainCalculator.relax(initPop)
+
         write_results(relaxPop, self.curgen, 'raw', self.parameters.resultsDir)
+
+        self.pop=copy.deepcopy(relaxPop)
+
+    def Onestep(self):
+        relaxPop = self.pop
+        goodPop = self.goodPop
+        keepPop = self.keepPop
 
         logging.info("check distance")
         relaxPop = check_dist(relaxPop, self.parameters.dRatio)
         logging.info("check survival: {}".format(len(relaxPop)))
-
 
         if self.parameters.chkMol:
             logging.info("check mols")
             relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
             logging.info("check survival: {}".format(len(relaxPop)))
 
-        if self.parameters.calcType == 'var':
-            relaxPop = convex_hull(relaxPop)
-
-        self.get_fitness(relaxPop, mode=self.parameters.calcType)
-        for ind in relaxPop:
-            logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
-        write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
-
-        # logging.info("Calculate fingerprint")
-        # self.ML.get_fp(relaxPop)
-        # if self.parameters.mlRelax:
-        #     self.ML.updatedataset(relaxPop)
-        #     self.ML.train()
-        #     logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop)[:4]))
-        self.pop=copy.deepcopy(relaxPop)
-
-
-    def Onestep(self):
-        self.curgen+=1
-        logging.info("===== Generation {} =====".format(self.curgen))
-        relaxPop = self.pop
-        goodPop = self.goodPop
-        keepPop = self.keepPop
-        # try:
-        #     goodPop = ase.io.read("{}/good.traj".format(self.parameters.resultsDir), format='traj', index=':')
-        #     keepPop = ase.io.read("{}/keep{}.traj".format(self.parameters.resultsDir, self.curgen-1), format='traj', index=':')
-        # except:
-        #     goodPop = list()
-        #     keepPop = list()
-
-        for Pop in [relaxPop,goodPop,keepPop]:
-            self.get_fitness(Pop)
-        logging.info('calc_fitness finish')
-
-
-        # Calculate fingerprints
-        logging.debug('calc_all_fingerprints begin')
-        self.ML.get_fp(relaxPop)
-        logging.info('calc_all_fingerprints finish')
-
         logging.info('del_duplicate relaxPop begin')
         relaxPop = del_duplicate(relaxPop, symprec=self.parameters.symprec)
         logging.info('del_duplicate relaxPop finish')
 
+        if self.parameters.calcType == 'var':
+            relaxPop, goodPop, keepPop = convex_hull_pops(relaxPop, goodPop, keepPop)
+
+
+        for Pop in [relaxPop,goodPop,keepPop]:
+            self.get_fitness(Pop, mode=self.parameters.calcType)
+        logging.info('calc_fitness finish')
+
+        for ind in relaxPop:
+            logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
+
+        # Calculate fingerprints
+        logging.debug('calc_all_fingerprints begin')
+        self.ML.get_fp(relaxPop)
+        if self.parameters.mlRelax:
+            self.ML.updatedataset(relaxPop)
+            self.ML.train()
+            scfPop = self.MainCalculator.scf(relaxPop)
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
+        logging.info('calc_all_fingerprints finish')
+        # Write relaxPop
+        write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
 
         ### save good individuals
         logging.info('goodPop')
-        goodPop = calc_dominators(relaxPop+goodPop)
+        goodPop = relaxPop+goodPop+keepPop
         goodPop = del_duplicate(goodPop, symprec=self.parameters.symprec)
+        goodPop = calc_dominators(goodPop)
         goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])
+
 
         if len(goodPop) > self.parameters.popSize:
             goodPop = goodPop[:self.parameters.popSize]
@@ -161,9 +152,9 @@ class Magus:
         logging.info('keepPop')
         labels, keepPop = clustering(goodPop, self.parameters.saveGood)
 
-        ### write results
-        # write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
+        ### write good and keep pop
         write_results(goodPop, '', 'good',self.parameters.resultsDir)
+        write_results(goodPop, self.curgen, 'savegood',self.parameters.resultsDir)
         write_results(keepPop, self.curgen, 'keep',self.parameters.resultsDir)
         shutil.copy('{}/log.txt'.format(self.parameters.workDir), '{}/results/log.txt'.format(self.parameters.workDir))
 
@@ -187,6 +178,9 @@ class Magus:
             logging.info("random structures")
             initPop.extend(self.Generator.Generate_pop(self.parameters.popSize-len(initPop)))
 
+
+        self.curgen+=1
+        logging.info("===== Generation {} =====".format(self.curgen))
 
 
         ### Initial fingerprint
@@ -219,30 +213,6 @@ class Magus:
 
         # save raw date before checking
         write_results(relaxPop, self.curgen, 'raw',self.parameters.resultsDir)
-
-        logging.info("check distance")
-        relaxPop = check_dist(relaxPop, self.parameters.dRatio)
-        logging.info("check survival: {}".format(len(relaxPop)))
-
-        if self.parameters.chkMol:
-            logging.info("check mols")
-            relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
-            logging.info("check survival: {}".format(len(relaxPop)))
-
-        if self.parameters.calcType == 'var':
-            relaxPop, goodPop, keepPop = convex_hull_pops(relaxPop, goodPop, keepPop)
-
-        self.get_fitness(relaxPop)
-        for ind in relaxPop:
-            logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
-        write_results(relaxPop, self.curgen, 'gen',self.parameters.resultsDir)
-
-        self.ML.get_fp(relaxPop)
-        if self.parameters.mlRelax:
-            self.ML.updatedataset(relaxPop)
-            self.ML.train()
-            scfPop = self.MainCalculator.scf(relaxPop)
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
 
         self.pop=copy.deepcopy(relaxPop)
         self.goodPop=copy.deepcopy(goodPop)

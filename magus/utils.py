@@ -415,15 +415,18 @@ def convex_hull_pops(*popArr):
     """
     numPop = len(popArr)
     allPop = []
-    popLens = [0]
+    popLens = []
     for pop in popArr:
         allPop.extend(pop)
         popLens.append(len(pop))
 
     hullPop = convex_hull(allPop)
     newArr = []
+    start = 0
     for i in range(numPop):
-        newArr.append(hullPop[popLens[i]:popLens[i+1]])
+        end = start + popLens[i]
+        newArr.append(hullPop[start:end])
+        start += popLens[i]
 
     return newArr
 
