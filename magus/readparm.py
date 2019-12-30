@@ -30,6 +30,7 @@ def read_parameters(inputFile):
         'spacegroup': list(range(1, 231)),
         'eleSize': 1,
         'fullEles': False,
+        'setAlgo': 'ea',
         'volRatio': 2,
         'dRatio': 0.7,
         'exeCmd': "",
@@ -38,9 +39,9 @@ def read_parameters(inputFile):
         'latDisps': list(range(1,5)),
         'ripRho': [0.5, 1, 1.5, 2],
         'molDetector': 0,
+        'cutNum': 2*int(parameters['popSize']/5)+1,
         'permNum': int(parameters['popSize']/5)+1,
         'rotNum': int(parameters['popSize']/5)+1,
-        'cutNum': int(parameters['popSize']/5)+1,
         'slipNum': int(parameters['popSize']/5)+1,
         'latNum': int(parameters['popSize']/5)+1,
         'ripNum': int(parameters['popSize']/5)+1,
@@ -64,14 +65,16 @@ def read_parameters(inputFile):
         'gp_factor': 1,
         'updateVol': True,
         'addSym': True,
-        'symprec': 0.3,
+        'symprec': 0.5,
         'compress': False,
         'cRatio': 0.8,
         'cutoff': 4.0,
         'mlRelax': False,
         'ZernikeNmax': 4,
+        'ZernikeLmax': None,
         'ZernikeNcut': 4,
-        'ZernikeDiag': False,
+        'ZernikeDiag': True,
+        'kernelType': 'dot',
     }
 
     for key, val in dParms.items():
@@ -86,6 +89,10 @@ def read_parameters(inputFile):
     if p.calculator in ['lj', 'emt', 'xtb']:
         assert p.mode == 'serial', "The calculator only support serial mode"
     assert p.randFrac <= 1, 'randFrac should be lower than 1'
+    if p.ZernikeLmax:
+        assert p.ZernikeLmax <= p.ZernikeNmax
+
+    p.setAlgo = p.setAlgo.lower()
 
     expandSpg = []
     for item in p.spacegroup:
@@ -139,8 +146,6 @@ def read_parameters(inputFile):
         tmpFrml = np.array(p.formula)
 
     assert np.linalg.matrix_rank(tmpFrml) <= tmpFrml.shape[1], "Please check input formula"
-    p.invFrml = np.linalg.inv(np.dot(tmpFrml, tmpFrml.T))
-    p.invFrml = p.invFrml.tolist()
 
     # check epsArr, stepArr for ASE optimization, e.g. CP2K
     if 'epsArr' in parameters.keys():
@@ -151,28 +156,29 @@ def read_parameters(inputFile):
 
 
     ############ Krig Parameters #######
-    p.krigParm = dict()
-    p.krigParm['randFrac'] = p.randFrac
-    p.krigParm['permNum'] = p.permNum
-    p.krigParm['rotNum'] = p.rotNum
-    p.krigParm['cutNum'] = p.cutNum
-    p.krigParm['slipNum'] = p.slipNum
-    p.krigParm['latNum'] = p.latNum
-    p.krigParm['latDisps'] = p.latDisps
-    p.krigParm['ripRho'] = p.ripRho
-    p.krigParm['grids'] = p.grids
-    p.krigParm['kind'] = 'lcb'
-    p.krigParm['kappa'] = p.kappa
-    p.krigParm['kappaLoop'] = p.kappaLoop
-    p.krigParm['xi'] = 0
-    p.krigParm['scale'] = p.scale
-    p.krigParm['parent_factor'] = p.parent_factor
-    p.krigParm['gp_factor'] = p.gp_factor
+    # p.krigParm = dict()
+    # p.krigParm['randFrac'] = p.randFrac
+    # p.krigParm['permNum'] = p.permNum
+    # p.krigParm['rotNum'] = p.rotNum
+    # p.krigParm['cutNum'] = p.cutNum
+    # p.krigParm['slipNum'] = p.slipNum
+    # p.krigParm['latNum'] = p.latNum
+    # p.krigParm['latDisps'] = p.latDisps
+    # p.krigParm['ripRho'] = p.ripRho
+    # p.krigParm['grids'] = p.grids
+    # p.krigParm['kind'] = 'lcb'
+    # p.krigParm['kappa'] = p.kappa
+    # p.krigParm['kappaLoop'] = p.kappaLoop
+    # p.krigParm['xi'] = 0
+    # p.krigParm['scale'] = p.scale
+    # p.krigParm['parent_factor'] = p.parent_factor
+    # p.krigParm['gp_factor'] = p.gp_factor
 
     ##############################
     parmList = [
                 'calcType',
                 'calculator',
+                'setAlgo',
                 'spacegroup',
                 'popSize',
                 'numGen',
@@ -180,7 +186,6 @@ def read_parameters(inputFile):
                 'formula',
                 #'ppLabel',
                 'numFrml',
-                'invFrml',
                 'minAt',
                 'maxAt',
                 'workDir',
@@ -188,7 +193,6 @@ def read_parameters(inputFile):
                 'calcNum',
                 'numParallel',
                 # 'pickPareto',
-                'krigParm',
                 'saveGood',
                 'queueName',
                 'numCore',

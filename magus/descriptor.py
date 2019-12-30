@@ -80,4 +80,3 @@ class ZernikeFp(CalculateFingerprints):
         sFps = sFps[:,[0,1,2,1,0,0],[0,1,2,2,2,1],:]
         sFps = np.zeros_like(sFps)      #test
         return eFps, fFps , sFps
-

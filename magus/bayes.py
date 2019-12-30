@@ -69,11 +69,12 @@ def GP_fit(x0, y0, gp_params=None, alpha=1e-5):
     if gp_params is not None:
         model = GaussianProcessRegressor(**gp_params)
     else:
-        kernel = kernels.Matern()
+        kernel = kernels.DotProduct(sigma_0=0)
+        kernel = kernels.Exponentiation(kernel, 2)
         model = GaussianProcessRegressor(kernel=kernel,
                                          alpha=alpha,
                                          n_restarts_optimizer=25,
-                                         normalize_y=True)
+                                         normalize_y=False)
     model.fit(xp, yp)
 
     return model

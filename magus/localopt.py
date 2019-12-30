@@ -493,9 +493,9 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
             for i in range(1, calcNum + 1):
                 logging.info("Structure %s Step %s" %(n, i))
                 ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
-                shutil.copy('output', "gulp_out-{}-{}".format(n, i))
             if ind:
                 optPop.append(ind)
+                shutil.copy('output', "gulp_out-{}-{}".format(n, i))
             else:
                 logging.info("fail in localopt")
     logging.info('\n')
@@ -561,7 +561,7 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         enthalpy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
         enthalpy = float(enthalpy)
         volume = optInd.get_volume()
-        energy = enthalpy + pressure * GPa * volume
+        energy = enthalpy - pressure * GPa * volume
         optInd.info['energy'] = energy
         optInd.info['enthalpy'] = round(enthalpy/len(optInd), 3)
 

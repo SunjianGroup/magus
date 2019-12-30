@@ -17,7 +17,14 @@ class BaseGenerator:
         self.checkParameters(Requirement,Default)
         self.radius = p.raidus if hasattr(p,'radius') else [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
 
-        self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*np.array(self.formula))*self.volRatio/sum(self.formula)
+        formula = np.array(self.formula)
+        frmlDim = len(formula.shape)
+        if frmlDim == 1:
+            meanFrml = formula
+        elif frmlDim > 1:
+            meanFrml = np.mean(formula, axis=0)
+        self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*meanFrml)*self.volRatio/(meanFrml.sum())
+        # self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*np.array(self.formula))*self.volRatio/sum(self.formula)
         self.minVolume = p.minVolume if hasattr(p,'minVolume') else self.meanVolume*0.5
         self.maxVolume = p.maxVolume if hasattr(p,'maxVolume') else self.meanVolume*1.5
         """
@@ -53,7 +60,7 @@ class BaseGenerator:
 
     def Generate_ind(self,spg,numlist):
         spg=int(spg)
-        numType = len(self.formula)
+        numType = len(numlist)
         generator = GenerateNew.Info()
         generator.spg = spg
         generator.spgnumber = 1
@@ -71,8 +78,9 @@ class BaseGenerator:
 
         numbers=[]
         for i in range(numType):
-            generator.AppendAtoms(int(numlist[i]), str(i), self.radius[i], False)
-            numbers.extend([atomic_numbers[self.symbols[i]]]*numlist[i])
+            if numlist[i] > 0:
+                generator.AppendAtoms(int(numlist[i]), str(i), self.radius[i], False)
+                numbers.extend([atomic_numbers[self.symbols[i]]]*numlist[i])
 
         label = generator.PreGenerate()
         if label:
@@ -155,12 +163,13 @@ class VarGenerator(BaseGenerator):
     def __init__(self,p):
         super().__init__(p)
         super().checkParameters(Requirement=['minAt','maxAt'],Default={'fullEles':True})
-        self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
+        # self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
+        self.invFrml = np.linalg.pinv(self.formula)
 
 
-    def afterprocessing(self,ind):
+    def afterprocessing(self,ind,numlist):
         ind.info['symbols'] = self.symbols
-        ind.info['formula'] = self.formula
+        ind.info['formula'] = numlist
         ind.info['numOfFormula'] = 1
         ind.info['parentE'] = 0
         ind.info['Origin'] = 'random'
@@ -173,7 +182,8 @@ class VarGenerator(BaseGenerator):
                 numAt = np.random.randint(self.minAt, self.maxAt+1)
                 numlist = np.random.rand(len(self.symbols))
                 numlist *= numAt/np.sum(numlist)
-                numlist = np.rint(np.dot(self.projection_matrix,numlist)).astype(np.int)
+                numlist = np.dot(np.rint(np.dot(numlist,self.invFrml)).astype(np.int),self.formula)
+                # numlist = np.rint(np.dot(self.projection_matrix,numlist)).astype(np.int)
                 if np.sum(numlist) < self.minAt or np.sum(numlist) > self.maxAt or (self.fullEles and 0 in numlist) or np.sum(numlist<0)>0:
                     continue
 
@@ -181,7 +191,7 @@ class VarGenerator(BaseGenerator):
 
                 label,ind = self.Generate_ind(spg,numlist)
                 if label:
-                    self.afterprocessing(ind)
+                    self.afterprocessing(ind,numlist)
                     buildPop.append(ind)
                     break
                 else:
