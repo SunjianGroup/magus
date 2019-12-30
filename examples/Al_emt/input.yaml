@@ -1,6 +1,4 @@
 calcType: fix
-setAlgo: bayes
-
 initSize: 30
 popSize: 30
 numGen: 60
