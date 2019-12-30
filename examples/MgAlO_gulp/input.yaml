@@ -1,9 +1,9 @@
 mode: serial
 calcType: fix
 calculator: gulp
-#setAlgo: bayes
+setAlgo: BOEA
 #xc: PBE
-initSize: 10
+initSize: 40
 popSize: 40
 numGen: 60
 minAt: 28
@@ -22,9 +22,9 @@ formula: [4,8,16]
 fullEles: True
 eleSize: 0
 dRatio: 0.5
-volRatio: 10
-randFrac: 0.3
-saveGood: 1
+volRatio: 2
+randFrac: 0.4
+saveGood: 2
 pressure: 100
 addSym: True
 #exeCmd: "mpiexec.hydra cp2k_shell.popt"
@@ -38,13 +38,11 @@ numParallel: 2
 numCore: 1
 queueName: e52692v2ib!
 waitTime: 150
-molDetector: 2
+molDetector: 0
 #fixCell: True
 #setCellPar: [15, 10, 15, 90.0, 90.0, 90]
 
 ### Bayesian
-kappa: 0
-kappaLoop: 1
-scale: 0.0005
-parent_factor: 1
+kappa: 1
 ZernikeDiag: True
+

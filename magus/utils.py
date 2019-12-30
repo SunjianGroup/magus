@@ -426,7 +426,7 @@ def convex_hull_pops(*popArr):
     for i in range(numPop):
         end = start + popLens[i]
         newArr.append(hullPop[start:end])
-        start += popLens[i]
+        start = end
 
     return newArr
 

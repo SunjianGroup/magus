@@ -1,0 +1,13 @@
+time 240
+space
+1
+maxcyc 300
+library ./ReaxFF.lib
+lennard epsilon
+Zn  Zn  0.0150 1.00 0.0 8.0
+Zn  O   0.0150 1.00 0.0 8.0
+Zn  H   0.0150 0.80 0.0 8.0
+H  H    0.0150 0.60 0.0 8.0
+O  O    0.0150 0.80 0.0 8.0
+H  O    0.0150 0.80 0.0 8.0
+
