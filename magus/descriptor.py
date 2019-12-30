@@ -80,32 +80,3 @@ class ZernikeFp(CalculateFingerprints):
         sFps = sFps[:,[0,1,2,1,0,0],[0,1,2,2,2,1],:]
         sFps = np.zeros_like(sFps)      #test
         return eFps, fFps , sFps
-
-    def get_simple_fingerprints(self,atoms):
-        """
-        Only calculate energy fingerprints
-        """
-
-        Nat = len(atoms)
-        totNd = self.Nd * self.numEles
-        self.part.totNd=totNd
-        self.part.Nat=Nat
-
-        nl = neighbor_list('ijdD', atoms, self.cutoff)
-        sortNl = [[] for _ in range(Nat)]
-        rij = np.zeros((Nat , Nat , 3))
-        for i,j,d,D in zip(*nl):                                 #All numbers must be double here
-            sortNl[i].extend([i*1.0, j*1.0, d, D[0],D[1],D[2],atoms.numbers[j]])
-            rij[i][j]=D
-
-        eFps = np.zeros((Nat, totNd))
-
-        for i in range(Nat):
-            cenEleInd = self.eleDic[atoms.numbers[i]]
-            self.part.SetNeighbors(np.array(sortNl[i]))
-            self.part.get_fingerprints(i, cenEleInd)
-            eFps[i] = self.part.GeteFp()                           #returns list of length totNd
-
-
-        return eFps
-
