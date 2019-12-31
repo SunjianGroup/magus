@@ -27,6 +27,15 @@
 #### 注意事项
 2019.9.3 唐楼集群的`anaconda/3`有问题，请用`anaconda/3-5.0.1`。
 
+- 克隆库到本地:
+  ```shell
+  git clone git@git.nju.edu.cn:gaaooh/magus.git
+  ```
+  或者下载压缩包。
+  
+  假设Magus的路径为`/your/path/magus`.
+
+
 - 加载`Anaconda`:
 
   ```shell
