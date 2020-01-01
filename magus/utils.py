@@ -118,6 +118,13 @@ class MolCryst:
     def get_volume(self):
         return np.linalg.det(self.cell)
 
+    def get_mols(self):
+        mols = []
+        for n, indices in enumerate(self.partition):
+            mol = Atoms(numbers=self.numbers[indices], positions=self.rltPos[n])
+            mols.append(mol)
+        return mols
+
     def set_cell(self, cell, scale_atoms=False, scale_centers=True):
         self.cell = np.array(cell)
         if scale_atoms:

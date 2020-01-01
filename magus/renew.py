@@ -51,6 +51,7 @@ class BaseEA:
             'lat': self.latNum,
             'slip': self.slipNum,
             'rip': self.ripNum,
+            'rot': self.rotNum,
         }
 
         # self.kind = krigParm['kind']
@@ -171,6 +172,11 @@ class BaseEA:
                             mutMolC = mol_gauss_mut(parMolC)
                         elif mut == 'slip':
                             mutMolC = mol_slip(parMolC, cut=random.random())
+                        elif mut == 'rot':
+                            partLens = [len(p) for p in parMolC.partition]
+                            if max(partLens) == 1:
+                                continue
+                            mutMolC = mol_rotation(parMolC)
                         # elif mut == 'rip': # have never implement mol_ripple
                         #     mutMolC = ripple(parInd, rho=random.uniform(0.5,1.5))
                         else:
@@ -323,6 +329,8 @@ class BOEA(BaseEA):
             ind.info['predictE'] = preEn + self.parameters.pressure * GPa * ind.get_volume()/len(ind)
             ind.info['sigma'] = sigma
             ind.info['utilVal'] = ind.info['predictE'] - self.parameters.kappa * sigma
+
+        # tmpPop = [ind for ind in tmpPop if ind.info['sigma'] > 5e-3]
 
         newPop = []
         if self.newLen < len(tmpPop):
@@ -790,7 +798,7 @@ def mol_cut_cell(parInd1, parInd2, axis=0):
         rltPos = ind.get_rltPos()
         numbers = ind.get_numbers()
         for i in range(ind.numMols):
-            if 0.5*n < sclCenters[i, axis] < 0.5*(n+1):
+            if 0.5*n <= sclCenters[i, axis] < 0.5*(n+1):
                 indices = ind.partition[i]
                 molNums = numbers[indices].tolist()
                 numList.extend(molNums)
@@ -906,6 +914,8 @@ def repair_atoms(ind, symbols, toFrml, numFrml=1, dRatio=1, tryNum=20):
             for _ in range(addNum):
                 for _ in range(tryNum):
                     # select a center atoms
+                    if len(repInd) == 0:
+                        return None
                     centerAt = repInd[random.randint(0,len(repInd)-1)]
                     basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[s]]
                     # random position in spherical coordination
