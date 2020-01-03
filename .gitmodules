@@ -1,0 +1,3 @@
+[submodule "lrpot"]
+	path = lrpot
+	url = https://git.nju.edu.cn/bigd4/lrpot
