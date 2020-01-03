@@ -1,12 +1,14 @@
 # User defined
 test/
 .vscode
-/examples/*/*
-!/examples/*/inputFold
-!/examples/*/input.yaml
-!/examples/*/job
-!/examples/*/Seeds
-!/examples/*/summary.py
+examples/*/*
+!examples/*/inputFold
+!examples/*/input.yaml
+!examples/*/job
+!examples/*/runpara
+!examples/*/runserial
+!examples/*/Seeds
+!examples/*/summary.py
 
 
 # Byte-compiled / optimized / DLL files

@@ -275,7 +275,9 @@ class ABinitCalculator(Calculator):
     def cdcalcFold(self):
         os.chdir(self.parameters.workDir)
         if not os.path.exists('calcFold'):
-            os.mkdir('calcFold')
+            # os.mkdir('calcFold')
+            # logging.debug('make calcFold')
+            shutil.copytree('inputFold', 'calcFold')
         os.chdir('calcFold')
 
     def scf_serial(self,calcPop):
@@ -299,7 +301,8 @@ class ABinitCalculator(Calculator):
 
         for i in range(numParallel):
             if not os.path.exists("{}{}".format(self.prefix, i)):
-                os.mkdir("{}{}".format(self.prefix, i))
+                # os.mkdir("{}{}".format(self.prefix, i))
+                shutil.copytree("{}/inputFold".format(self.parameters.workDir), "{}{}".format(self.prefix, i))
             os.chdir("{}{}".format(self.prefix, i))
 
             tmpPop = [calcPop[j] for j in runArray[i]]
@@ -351,6 +354,7 @@ class VaspCalculator(ABinitCalculator):
         calc.read_incar('INCAR_scf')
         calc.set(xc=self.parameters.xc,setups=dict(zip(self.parameters.symbols, self.parameters.ppLabel)),pstress=self.parameters.pressure*10)
         scfPop = calc_vasp([calc], calcPop)
+        os.chdir(self.parameters.workDir)
         return scfPop
 
     def relax_serial(self,calcPop):
@@ -363,6 +367,7 @@ class VaspCalculator(ABinitCalculator):
             calc.set(xc=self.parameters.xc,setups=dict(zip(self.parameters.symbols, self.parameters.ppLabel)),pstress=self.parameters.pressure*10)
             calcs.append(calc)
         relaxPop = calc_vasp(calcs, calcPop)
+        os.chdir(self.parameters.workDir)
         return relaxPop
 
     def scfjob(self,index):
@@ -412,6 +417,7 @@ class GULPCalculator(ABinitCalculator):
 
         scfPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
         write_traj('optPop.traj', scfPop)
+        os.chdir(self.parameters.workDir)
         return scfPop
 
     def relax_serial(self,calcPop):
@@ -424,6 +430,7 @@ class GULPCalculator(ABinitCalculator):
 
         relaxPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
         write_traj('optPop.traj', relaxPop)
+        os.chdir(self.parameters.workDir)
         return relaxPop
 
     def scfjob(self,index):
@@ -450,7 +457,7 @@ class GULPCalculator(ABinitCalculator):
 
     def relaxjob(self,index):
         calcDic = {
-            'calcNum': 0,
+            'calcNum': self.parameters.calcNum,
             'pressure': self.parameters.pressure,
             'exeCmd': self.parameters.exeCmd,
             'inputDir': "{}/inputFold".format(self.parameters.workDir),
@@ -476,7 +483,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
     optPop = []
     for n, ind in enumerate(calcPop):
         if calcNum == 0:
-            ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
+            ind = calc_gulp_once(0, ind, pressure, exeCmd, inputDir)
             logging.info("Structure %s scf" %(n))
             if ind:
                 optPop.append(ind)
@@ -486,9 +493,9 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
             for i in range(1, calcNum + 1):
                 logging.info("Structure %s Step %s" %(n, i))
                 ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
-                shutil.copy('output', "gulp_out-{}-{}".format(n, i))
             if ind:
                 optPop.append(ind)
+                shutil.copy('output', "gulp_out-{}-{}".format(n, i))
             else:
                 logging.info("fail in localopt")
     logging.info('\n')
@@ -501,10 +508,10 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
     if os.path.exists('output'):
         os.remove('output')
     try:
-        for f in os.listdir(inputDir):
-            filepath = "{}/{}".format(inputDir, f)
-            if os.path.isfile(filepath):
-                shutil.copy(filepath, f)
+        # for f in os.listdir(inputDir):
+        #     filepath = "{}/{}".format(inputDir, f)
+        #     if os.path.isfile(filepath):
+        #         shutil.copy(filepath, f)
         if calcStep == 0:
             shutil.copy("goptions_scf", "input")
         else:
@@ -554,7 +561,7 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         enthalpy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
         enthalpy = float(enthalpy)
         volume = optInd.get_volume()
-        energy = enthalpy + pressure * GPa * volume
+        energy = enthalpy - pressure * GPa * volume
         optInd.info['energy'] = energy
         optInd.info['enthalpy'] = round(enthalpy/len(optInd), 3)
 
@@ -622,10 +629,10 @@ def calc_vasp(
     ):
 
     newStructs = []
-    logging.info('1')
+    # logging.info('1')
     for i, ind in enumerate(structs):
         initInd = ind.copy()
-        logging.info('1')
+        # logging.info('1')
         initInd.info = {}
         for j, calc in enumerate(calcs):
             # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))

@@ -39,6 +39,12 @@ class LRCalculator(Calculator):
         self.reg = reg
         self.cf = cf
 
+    def get_potential_energies(self, atoms=None, force_consistent=False):
+        eFps, _, _ = self.cf.get_all_fingerprints(self.atoms)
+        X=np.concatenate((np.ones((len(atoms),1)),eFps),axis=1)
+        y=self.reg.predict(X)
+        return y
+
     def calculate(self, atoms=None,properties=['energy'],system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
         X,n=[],[]
@@ -67,9 +73,11 @@ class LRmodel(MachineLearning):
         self.parameters=parameters
         cutoff = self.parameters.cutoff
         elems = [atomic_numbers[element] for element in parameters.symbols]
-        nmax = 8
-        ncut = 4
-        self.cf = ZernikeFp(cutoff, nmax, None, ncut, elems,diag=False)
+        nmax = self.parameters.ZernikeNmax
+        lmax = self.parameters.ZernikeLmax
+        ncut = self.parameters.ZernikeNcut
+        diag = self.parameters.ZernikeDiag
+        self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
         self.w_energy = 30.0
         self.w_force = 1.0
         self.w_stress = 1.0
@@ -91,6 +99,7 @@ class LRmodel(MachineLearning):
                 X.append(np.mean(eFps,axis=0))
                 w.append(self.w_energy)
                 n.append(1.0)
+                # y.append(atoms.info['energy']/len(atoms))
                 try:
                     y.append(atoms.info['energy']/len(atoms))
                 except:
@@ -133,7 +142,6 @@ class LRmodel(MachineLearning):
                 self.w=np.concatenate((self.w,w),axis=0)
 
     def get_loss(self,images):
-
         # Evaluate energy
         X,y,w = self.get_data(images,['energy'])
         yp = self.reg.predict(X)
@@ -214,6 +222,10 @@ class LRmodel(MachineLearning):
 
     def get_fp(self,pop):
         for ind in pop:
-            X,_,_ = self.get_data([ind])
+            properties = ['energy']
+            for s in ['forces', 'stress']:
+                if s in ind.info:
+                    properties.append(s)
+            X,_,_ = self.get_data([ind], implemented_properties=properties)
             ind.info['image_fp']=X[0,1:]
 

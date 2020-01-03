@@ -1,4 +1,4 @@
-#BSUB -J new-gulp
+#BSUB -J new-ZnOH
 #BSUB -n 1
 #BSUB -e err
 #BSUB -o out
