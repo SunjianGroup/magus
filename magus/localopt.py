@@ -8,6 +8,9 @@ from ase.calculators.lj import LennardJones
 from ase.calculators.emt import EMT
 from ase.calculators.vasp import Vasp
 from ase.calculators.gulp import GULP, Conditions
+from ase.calculators.lammpslib import LAMMPSlib
+from ase.calculators.lammpsrun import LAMMPS
+from ase.calculators.lj import LennardJones
 from ase.spacegroup import crystal
 # from parameters import parameters
 from .writeresults import write_traj
@@ -16,11 +19,11 @@ from ase.units import GPa, eV, Ang
 try:
     from xtb import GFN0, GFN1
     from ase.constraints import ExpCellFilter
+    from quippy.potential import Potential as QUIP
 except:
     pass
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from ase.calculators.lj import LennardJones
 from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
@@ -80,16 +83,16 @@ class ASECalculator(Calculator):
                     continue
 
             else:
-                if label:
-                    # save energy, forces, stress for trainning potential
-                    ind.info['energy'] = ind.get_potential_energy()
-                    ind.info['forces'] = ind.get_forces()
-                    ind.info['stress'] = ind.get_stress()
-                    enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
-                    ind.info['enthalpy'] = round(enthalpy, 3)
+                #if label:
+                # save energy, forces, stress for trainning potential
+                ind.info['energy'] = ind.get_potential_energy()
+                ind.info['forces'] = ind.get_forces()
+                ind.info['stress'] = ind.get_stress()
+                enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
+                ind.info['enthalpy'] = round(enthalpy, 3)
 
-                    ind.set_calculator(None)
-                    relaxPop.append(ind)
+                ind.set_calculator(None)
+                relaxPop.append(ind)
         os.chdir(self.parameters.workDir)
         return relaxPop
 
@@ -138,6 +141,37 @@ class EMTCalculator(ASECalculator):
 
     def scf(self, calcPop):
         return super(EMTCalculator, self).scf(calcPop)
+
+class LAMMPSCalculator(ASECalculator):
+    # still have bugs
+    def __init__(self,parameters):
+        calcs = []
+        for i in range(1, parameters.calcNum + 1):
+            with open("{}/inputFold/lammps_{}".format(parameters.workDir, i)) as f:
+                cmds = f.readlines()
+            calcs.append(LAMMPSlib(lmpcmds=cmds, log_file='lammps.log'))
+            # calcs.append(LAMMPS(parameters=cmds))
+        return super(LAMMPSCalculator, self).__init__(parameters,calcs)
+
+    def relax(self, calcPop):
+        return super(LAMMPSCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(LAMMPSCalculator, self).scf(calcPop)
+
+class QUIPCalculator(ASECalculator):
+    def __init__(self,parameters):
+        calcs = []
+        for i in range(1, parameters.calcNum + 1):
+            params = yaml.load(open("{}/inputFold/quip_{}.yaml".format(parameters.workDir, i)))
+            calc = QUIP(**params)
+            calcs.append(calc)
+        return super(QUIPCalculator, self).__init__(parameters,calcs)
+    def relax(self, calcPop):
+        return super(QUIPCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(QUIPCalculator, self).scf(calcPop)
 
 class XTBCalculator(ASECalculator):
     def __init__(self,parameters):

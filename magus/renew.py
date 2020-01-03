@@ -78,7 +78,7 @@ class BaseEA:
             goodInd = goodPop[i]
             splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
             splitLen = len(splitPop)
-            sampleNum = int(splitLen/2)+1
+            sampleNum = int(splitLen/4)+1
             logging.debug("splitlen: %s"%(splitLen))
             if splitLen <= 1:
                 continue
@@ -146,7 +146,7 @@ class BaseEA:
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
             splitLen = len(splitPop)
-            sampleNum = int(splitLen/2) + 1
+            sampleNum = int(splitLen/4) + 1
             for mut, mutNum in mutDict.items():
                 for _ in range(mutNum):
                     parInd = tournament(splitPop, sampleNum)
@@ -241,7 +241,7 @@ class BaseEA:
         newPop = []
         if self.newLen < len(tmpPop):
             for _ in range(self.newLen):
-                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='parDom')
+                newInd = tournament(tmpPop, int(0.25*len(tmpPop))+1, keyword='parDom')
                 newPop.append(newInd)
                 tmpPop.remove(newInd)
 

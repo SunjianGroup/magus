@@ -85,7 +85,7 @@ def read_parameters(inputFile):
     # Check parameters
     assert p.mode in ['serial', 'parallel'], "Undefined mode"
     assert p.calcType in ['fix', 'var'], "Undefined calcType"
-    assert p.calculator in ['lj', 'emt', 'vasp', 'gulp', 'xtb', 'cp2k'], "Undefined calculator"
+    assert p.calculator in ['lj', 'emt', 'vasp', 'gulp', 'xtb', 'cp2k', 'lammps', 'quip'], "Undefined calculator"
     if p.calculator in ['lj', 'emt', 'xtb']:
         assert p.mode == 'serial', "The calculator only support serial mode"
     assert p.randFrac <= 1, 'randFrac should be lower than 1'
