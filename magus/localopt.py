@@ -63,8 +63,10 @@ class ASECalculator(Calculator):
                 # ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
                 if self.parameters.mainoptimizer == 'cg':
                     gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-                elif self.parameters.mainoptimizer == 'BFGS':
+                elif self.parameters.mainoptimizer == 'bfgs':
                     gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
+                elif self.parameters.mainoptimizer == 'lbfgs':
+                    gopt = LBFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
                 elif self.parameters.mainoptimizer == 'fire':
                     gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=self.parameters.maxRelaxStep)
 

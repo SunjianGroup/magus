@@ -107,6 +107,7 @@ class BaseEA:
                 hrdInd.info['parentE'] = parentE
                 hrdInd.info['parDom'] = parDom
                 hrdInd.info['symbols'] = symbols
+                hrdInd.info['origin'] = 'cut'
 
                 if self.calcType == 'fix':
                     hrdLen = len(hrdInd)
@@ -172,13 +173,13 @@ class BaseEA:
                             mutMolC = mol_gauss_mut(parMolC)
                         elif mut == 'slip':
                             mutMolC = mol_slip(parMolC, cut=random.random())
+                        elif mut == 'rip':
+                            mutMolC = mol_ripple(parMolC, rho=random.uniform(0.5,1.5))
                         elif mut == 'rot':
                             partLens = [len(p) for p in parMolC.partition]
                             if max(partLens) == 1:
                                 continue
                             mutMolC = mol_rotation(parMolC)
-                        # elif mut == 'rip': # have never implement mol_ripple
-                        #     mutMolC = ripple(parInd, rho=random.uniform(0.5,1.5))
                         else:
                             break
                         mutInd = mutMolC.to_atoms()
@@ -189,6 +190,7 @@ class BaseEA:
                     mutInd.info['numOfFormula'] = parInd.info['numOfFormula']
                     mutInd.info['parentE'] = parentE
                     mutInd.info['parDom'] = parDom
+                    mutInd.info['origin'] = mut
 
                     mutInd = merge_atoms(mutInd, self.dRatio)
                     toFrml = [int(i) for i in parInd.info['formula']]
@@ -582,7 +584,6 @@ def exchage_atom(parInd, fracSwaps=None):
         chdPos[j], chdPos[k] = chdPos[k], chdPos[j]
 
     chdInd.set_scaled_positions(np.array(chdPos))
-    # chdInd.info['Origin'] = "Exchange"
     return chdInd
 
 def gauss_mut(parInd, sigma=0.5, cellCut=1):
@@ -614,7 +615,6 @@ def gauss_mut(parInd, sigma=0.5, cellCut=1):
 
     chdInd.wrap()
     chdInd.info = parInd.info.copy()
-    # chdInd.info['Origin'] = 'Mutate'
 
     return chdInd
 
@@ -719,8 +719,6 @@ def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=0):
     # chdInd.update_sclCenters_and_rltSclPos(sclCenters=chdCenters)
         # at.position += atGauss*covalent_radii[atomic_numbers[at.symbol]]
 
-    chdInd.info = parInd.info.copy()
-    # chdInd.info['Origin'] = 'Mutate'
 
     return chdInd
 
@@ -811,6 +809,23 @@ def mol_cut_cell(parInd1, parInd2, axis=0):
     cutInd = Atoms(numbers=numList, positions=posList, cell=cutCell, pbc=True)
 
     return cutInd
+
+def mol_ripple(parInd, rho=0.3, mu=2, eta=1):
+    '''
+    from XtalOpt
+    '''
+    chdInd = parInd.copy()
+    sclCenters = parInd.get_sclCenters()
+    axis = list(range(3))
+    random.shuffle(axis)
+
+    for i in range(len(sclCenters)):
+        sclCenters[i, axis[0]] += rho * cos(2*pi*mu*sclCenters[i, axis[1]] +
+        random.uniform(0, 2*pi))*cos(2*pi*eta*sclCenters[i, axis[2]] + random.uniform(0, 2*pi))
+
+    chdInd.update_sclCenters_and_rltSclPos(sclCenters=sclCenters)
+    return chdInd
+
 
 
 def tournament(pop, num, keyword='dominators'):
