@@ -39,14 +39,17 @@ class LRCalculator(Calculator):
         self.reg = reg
         self.cf = cf
 
-    def get_potential_energies(self, atoms=None, force_consistent=False):
+    def get_potential_energies(self, atoms=None):
+        if atoms is not None:
+            self.atoms = atoms.copy()
         eFps, _, _ = self.cf.get_all_fingerprints(self.atoms)
-        X=np.concatenate((np.ones((len(atoms),1)),eFps),axis=1)
+        X=np.concatenate((np.ones((len(self.atoms),1)),eFps),axis=1)
         y=self.reg.predict(X)
         return y
 
     def calculate(self, atoms=None,properties=['energy'],system_changes=all_changes):
-        Calculator.calculate(self, atoms, properties, system_changes)
+        if atoms is not None:
+            self.atoms = atoms.copy()
         X,n=[],[]
 
         eFps, fFps, sFps = self.cf.get_all_fingerprints(self.atoms)
@@ -55,7 +58,7 @@ class LRCalculator(Calculator):
         X.append(np.mean(eFps,axis=0))
         X.extend(fFps.reshape(-1,eFps.shape[1]))
         X.extend(sFps.reshape(-1,eFps.shape[1]))
-        n.extend([1.0]+[0.0]*len(atoms)*3+[0.0]*6)
+        n.extend([1.0]+[0.0]*len(self.atoms)*3+[0.0]*6)
         X=np.array(X)
         n=np.array(n)
         X=np.concatenate((n.reshape(-1,1),X),axis=1)
