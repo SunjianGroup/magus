@@ -23,6 +23,10 @@ from .machinelearning import LRmodel, LRCalculator
 import itertools
 from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 from ase.build import make_supercell
+
+"""
+TODO to create a class offspringCreator?
+"""
 class BaseEA:
     def __init__(self, parameters):
 
@@ -994,228 +998,67 @@ def repair_atoms(ind, symbols, toFrml, numFrml=1, dRatio=1, tryNum=20):
     # else:
     #     logging.debug("Wrong formula in repair_atoms")
     #     return None
-
+"""
+TODO add use_tags:   
+Whether to use the atomic tags to preserve molecular identity.
+"""
 from ase.ga.offspring_creator import OffspringCreator, CombinationMutation
-class SoftMutation(OffspringCreator):
-    """
-    Mutates the structure by displacing it along the lowest (nonzero)
-    frequency modes found by vibrational analysis, as in:
 
-    * `Lyakhov, Oganov, Valle, Comp. Phys. Comm. 181 (2010) 1623-1632`__
 
-      __ https://dx.doi.org/10.1016/j.cpc.2010.06.007
+def atoms_too_close(atoms, bl, use_tags=False):
+    """ Checks if any atoms in a are too close, as defined by
+        the distances in the bl dictionary.
 
-    As in the reference above, the next-lowest mode is used if the
-    structure has already been softmutated along the current-lowest
-    mode.
+        use_tags: whether to use the Atoms tags to disable distance
+                  checking within a set of atoms with the same tag.
 
-    Parameters:
+        Note: if certain atoms are constrained and use_tags is True,
+        this method may return unexpected results in case the
+        contraints prevent same-tag atoms to be gathered together in
+        the minimum-image-convention. In such cases, one should
+        (1) release the relevant constraints,
+        (2) apply the gather_atoms_by_tag function, and
+        (3) re-apply the constraints, before using the
+            atoms_too_close function. """
+    a = atoms.copy()
+    if use_tags:
+        gather_atoms_by_tag(a)
 
-    blmin: dict
-           The closest allowed interatomic distances on the form:
-           {(Z, Z*): dist, ...}, where Z and Z* are atomic numbers.
+    pbc = a.get_pbc()
+    cell = a.get_cell()
+    num = a.get_atomic_numbers()
+    pos = a.get_positions()
+    tags = a.get_tags()
+    unique_types = sorted(list(set(num)))
 
-    bounds: list
-            Lower and upper limits (in Angstrom) for the largest
-            atomic displacement in the structure. For a given mode,
-            the algorithm starts at zero amplitude and increases
-            it until either blmin is violated or the largest
-            displacement exceeds the provided upper bound).
-            If the largest displacement in the resulting structure
-            is lower than the provided lower bound, the mutant is
-            considered too similar to the parent and None is
-            returned.
-
-    rcut: float
-          Cutoff radius in Angstrom for the pairwise harmonic
-          potentials.
-
-    used_modes_file: str or None
-                     Name of json dump file where previously used
-                     modes will be stored (and read). If None,
-                     no such file will be used. Default is to use
-                     the filename 'used_modes.json'.
-
-    use_tags: boolean
-              Whether to use the atomic tags to preserve molecular identity.
-    """
-
-    def __init__(self, blmin, bounds=[0.5, 2.0], rcut=10.,
-                 used_modes_file='used_modes.json', use_tags=False,
-                 verbose=False):
-        OffspringCreator.__init__(self, verbose)
-        self.blmin = blmin
-        self.bounds = bounds
-        self.calc = calculator
-        self.rcut = rcut
-        self.used_modes_file = used_modes_file
-        self.use_tags = use_tags
-        self.descriptor = 'SoftMutation'
-
-        self.used_modes = {}
-        if self.used_modes_file is not None:
-            try:
-                self.read_used_modes(self.used_modes_file)
-            except IOError:
-                # file doesn't exist (yet)
-                pass
-
-    def _get_hessian(self, atoms, dx):
-        """
-        Returns the Hessian matrix d2E/dxi/dxj using a first-order
-        central difference scheme with displacements dx.
-        """
-        N = len(atoms)
-        pos = atoms.get_positions()
-        hessian = np.zeros((3 * N, 3 * N))
-
-        for i in range(3 * N):
-            row = np.zeros(3 * N)
-            for direction in [-1, 1]:
-                disp = np.zeros(3)
-                disp[i % 3] = direction * dx
-                pos_disp = np.copy(pos)
-                pos_disp[i // 3] += disp
-                atoms.set_positions(pos_disp)
-                f = atoms.get_forces()
-                row += -1 * direction * f.flatten()
-
-            row /= (2. * dx)
-            hessian[i] = row
-
-        hessian += np.copy(hessian).T
-        hessian *= 0.5
-        atoms.set_positions(pos)
-
-        return hessian
-
-    def _calculate_normal_modes(self, atoms, dx=0.02, massweighing=False):
-        """Performs the vibrational analysis."""
-        hessian = self._get_hessian(atoms, dx)
-        if massweighing:
-            m = np.array([np.repeat(atoms.get_masses()**-0.5, 3)])
-            hessian *= (m * m.T)
-
-        eigvals, eigvecs = np.linalg.eigh(hessian)
-        modes = {eigval: eigvecs[:, i] for i, eigval in enumerate(eigvals)}
-        return modes
-
-    def animate_mode(self, atoms, mode, nim=30, amplitude=1.0):
-        """Returns an Atoms object showing an animation of the mode."""
-        pos = atoms.get_positions()
-        mode = mode.reshape(np.shape(pos))
-        animation = []
-        for i in range(nim):
-            newpos = pos + amplitude * mode * np.sin(i * 2 * np.pi / nim)
-            image = atoms.copy()
-            image.positions = newpos
-            animation.append(image)
-        return animation
-
-    def read_used_modes(self, filename):
-        """ Read used modes from json file. """
-        with open(filename, 'r') as f:
-            modes = json.load(f)
-            self.used_modes = {int(k): modes[k] for k in modes}
-        return
-
-    def write_used_modes(self, filename):
-        """ Dump used modes to json file. """
-        with open(filename, 'w') as f:
-            json.dump(self.used_modes, f)
-        return
-
-    def get_new_individual(self, parents):
-        f = parents[0]
-
-        indi = self.mutate(f)
-        if indi is None:
-            return indi, 'mutation: soft'
-
-        indi = self.initialize_individual(f, indi)
-        indi.info['data']['parents'] = [f.info['confid']]
-
-        return self.finalize_individual(indi), 'mutation: soft'
-
-    def mutate(self, atoms):
-        """ Does the actual mutation. """
-        a = atoms.copy()
-
-        if inspect.isclass(self.calc):
-            assert issubclass(self.calc, PairwiseHarmonicPotential)
-            calc = self.calc(atoms, rcut=self.rcut)
+    neighbours = []
+    for i in range(3):
+        if pbc[i]:
+            neighbours.append([-1, 0, 1])
         else:
-            calc = self.calc
-        a.set_calculator(calc)
+            neighbours.append([0])
 
-        if self.use_tags:
-            a = TagFilter(a)
+    for nx, ny, nz in itertools.product(*neighbours):
+        displacement = np.dot(cell.T, np.array([nx, ny, nz]).T)
+        pos_new = pos + displacement
+        distances = cdist(pos, pos_new)
 
-        pos = a.get_positions()
-        modes = self._calculate_normal_modes(a)
-
-        # Select the mode along which we want to move the atoms;
-        # The first 3 translational modes as well as previously
-        # applied modes are discarded.
-
-        keys = np.array(sorted(modes))
-        index = 3
-        confid = atoms.info['confid']
-        if confid in self.used_modes:
-            while index in self.used_modes[confid]:
-                index += 1
-            self.used_modes[confid].append(index)
-        else:
-            self.used_modes[confid] = [index]
-
-        if self.used_modes_file is not None:
-            self.write_used_modes(self.used_modes_file)
-
-        key = keys[index]
-        mode = modes[key].reshape(np.shape(pos))
-
-        # Find a suitable amplitude for translation along the mode;
-        # at every trial amplitude both positive and negative
-        # directions are tried.
-
-        mutant = atoms.copy()
-        amplitude = 0.
-        increment = 0.1
-        direction = 1
-        largest_norm = np.max(np.apply_along_axis(np.linalg.norm, 1, mode))
-
-        def expand(atoms, positions):
-            if isinstance(atoms, TagFilter):
-                a.set_positions(positions)
-                return a.atoms.get_positions()
+        if nx == 0 and ny == 0 and nz == 0:
+            if use_tags and len(a) > 1:
+                x = np.array([tags]).T
+                distances += 1e2 * (cdist(x, x) == 0)
             else:
-                return positions
+                distances += 1e2 * np.identity(len(a))
 
-        while amplitude * largest_norm < self.bounds[1]:
-            pos_new = pos + direction * amplitude * mode
-            pos_new = expand(a, pos_new)
-            mutant.set_positions(pos_new)
-            mutant.wrap()
-            too_close = atoms_too_close(mutant, self.blmin,
-                                        use_tags=self.use_tags)
-            if too_close:
-                amplitude -= increment
-                pos_new = pos + direction * amplitude * mode
-                pos_new = expand(a, pos_new)
-                mutant.set_positions(pos_new)
-                mutant.wrap()
-                break
+        iterator = itertools.combinations_with_replacement(unique_types, 2)
+        for type1, type2 in iterator:
+            x1 = np.where(num == type1)
+            x2 = np.where(num == type2)
+            if np.min(distances[x1].T[x2]) < bl[(type1, type2)]:
+                return True
 
-            if direction == 1:
-                direction = -1
-            else:
-                direction = 1
-                amplitude += increment
+    return False
 
-        if amplitude * largest_norm < self.bounds[0]:
-            mutant = None
-
-        return mutant
 
 # if __name__=="__main__":
 #     from .readparm import read_parameters
