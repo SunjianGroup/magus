@@ -1,6 +1,7 @@
 # User defined
 test/
 .vscode
+.vs
 examples/*/*
 !examples/*/inputFold
 !examples/*/input.yaml

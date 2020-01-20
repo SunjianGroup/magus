@@ -19,6 +19,11 @@ class ZernikeFp(CalculateFingerprints):
             lmax = nmax
         assert lmax <= nmax
         self.cutoff=cutoff
+        self.nmax = nmax
+        self.lmax = lmax
+        self.ncut = ncut
+        self.elems = elems
+        self.diag = diag
         # parameters of elements
         self.norm = norm
         if not eleParm:
