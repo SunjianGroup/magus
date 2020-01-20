@@ -3,144 +3,8 @@ Base module for all operators that create offspring.
 steal from ase.ga
 """
 import numpy as np
-from random import random
 from ase import Atoms
-from .population import check_dist_individual
-class OffspringCreator:
-    """Base class for all procreation operators
-
-    Parameters:
-
-    verbose: Be verbose and print some stuff
-
-    """
-
-    def __init__(self, verbose=False, num_muts=1):
-        self.descriptor = 'OffspringCreator'
-        self.verbose = verbose
-        self.min_inputs = 0
-        self.num_muts = num_muts
-
-    def get_min_inputs(self):
-        """Returns the number of inputs required for a mutation,
-        this is to know how many candidates should be selected
-        from the population."""
-        return self.min_inputs
-
-    def get_new_individual(self, parents):
-        """Function that returns a new individual.
-        Overwrite in subclass."""
-        raise NotImplementedError
-
-    def finalize_individual(self, indi):
-        #Call this function just before returning the new individual
-        
-        #indi.info['key_value_pairs']['origin'] = self.descriptor
-
-        return indi
-        
-
-
-    @classmethod
-    def initialize_individual(cls, parent, indi=None):
-        #TODO
-        if indi is None:
-            indi = Atoms(pbc=parent.get_pbc(), cell=parent.get_cell())
-        else:
-            indi = indi.copy()
-        return indi
-        """Initializes a new individual that inherits some parameters
-        from the parent, and initializes the info dictionary.
-        If the new individual already has more structure it can be
-        supplied in the parameter indi."""
-        """
-        if indi is None:
-            indi = Atoms(pbc=parent.get_pbc(), cell=parent.get_cell())
-        else:
-            indi = indi.copy()
-        # key_value_pairs for numbers and strings
-        indi.info['key_value_pairs'] = {'extinct': 0}
-        # data for lists and the like
-        indi.info['data'] = {}
-
-        return indi
-        """
-
-class OperationSelector(object):
-    """Class used to randomly select a procreation operation
-    from a list of operations.
-
-    Parameters:
-
-    probabilities: A list of probabilities with which the different
-        mutations should be selected. The norm of this list
-        does not need to be 1.
-
-    oplist: The list of operations to select from.
-    """
-
-    def __init__(self, probabilities, oplist):
-        assert len(probabilities) == len(oplist)
-        self.oplist = oplist
-        self.rho = np.cumsum(probabilities)
-
-    def __get_index__(self):
-        v = random() * self.rho[-1]
-        for i in range(len(self.rho)):
-            if self.rho[i] > v:
-                return i
-
-    def get_new_individual(self, candidate_list):
-        """Choose operator and use it on the candidate. """
-        to_use = self.__get_index__()
-        return self.oplist[to_use].get_new_individual(candidate_list)
-
-    def get_operator(self):
-        """Choose operator and return it."""
-        to_use = self.__get_index__()
-        return self.oplist[to_use]
-
-class CombinationMutation(OffspringCreator):
-    """Combine two or more mutations into one operation.
-
-    Parameters:
-
-    mutations: Operator instances
-        Supply two or more mutations that will applied one after the other
-        as one mutation operation. The order of the supplied mutations prevail
-        when applying the mutations.
-
-    """
-
-    def __init__(self, *mutations, verbose=False):
-        super(CombinationMutation, self).__init__(verbose=verbose)
-        self.descriptor = 'CombinationMutation'
-
-        # Check that a combination mutation makes sense
-        msg = "Too few operators supplied to a CombinationMutation"
-        assert len(mutations) > 1, msg
-
-        self.operators = mutations
-
-    def get_new_individual(self, parents):
-        f = parents[0]
-
-        indi = self.mutate(f)
-        if indi is None:
-            return indi, 'mutation: {}'.format(self.descriptor)
-
-        indi = self.initialize_individual(f, indi)
-        indi.info['data']['parents'] = [f.info['confid']]
-
-        return (self.finalize_individual(indi),
-                'mutation: {}'.format(self.descriptor))
-
-    def mutate(self, atoms):
-        """Perform the mutations one at a time."""
-        for op in self.operators:
-            if atoms is not None:
-                atoms = op.mutate(atoms)
-        return atoms
+from .renew import match_lattice
 
 class SoftMutation:
     """
@@ -270,7 +134,98 @@ class SoftMutation:
         if newind is None:
             return ind
 
-        indi = self.initialize_individual(f, indi)
         indi.info['parents'] = [ind.info['confid']]
 
         return indi
+
+class CutAndSplicePairing:
+    """ A cut and splice operator for bulk structures.
+
+    For more information, see also:
+
+    * `Glass, Oganov, Hansen, Comp. Phys. Comm. 175 (2006) 713-720`__
+
+      __ https://doi.org/10.1016/j.cpc.2006.07.020
+
+    * `Lonie, Zurek, Comp. Phys. Comm. 182 (2011) 372-387`__
+
+      __ https://doi.org/10.1016/j.cpc.2010.07.048
+    """
+    def __init__(self, verbose=False):
+        self.descriptor = 'CutAndSplicePairing'
+
+    def get_new_individual(self,parents):
+        """ The method called by the user that
+        returns the paired structure. """
+        f, m = parents
+
+        indi = self.cross(f, m)
+
+        if indi is None:
+            return indi
+        indi.info['parents'] = [f.info['confid'],m.info['confid']]
+
+        return indi
+
+    def cross(self, ind1, ind2,tryNum = 10):
+        #TODO standardize_pop
+        for _ in range(tryNum):
+            indi = self.cut_cell(ind1,ind2)
+            indi.merge_atoms()
+            if indi.repair_atoms():
+                break
+
+    def cut_cell(self, ind1, ind2, cutDisp=0):
+        """cut two cells to get a new cell
+        
+        Arguments:
+            atoms1 {atoms} -- atoms1 to be cut
+            atoms2 {atoms} -- atoms2 to be cut
+        
+        Keyword Arguments:
+            cutDisp {int} -- dispalacement in cut (default: {0})
+        
+        Raises:
+            RuntimeError: no atoms in new cell
+        
+        Returns:
+            atoms -- generated atoms
+        """
+        atoms1,atoms2,ratio1,ratio2 = match_lattice(ind1.atoms,ind2.atoms)
+        cutCell = (atoms1.get_cell()+atoms2.get_cell())*0.5
+        cutCell[2] = (atoms1.get_cell()[2]/ratio1+atoms2.get_cell()[2]/ratio2)*0.5
+        cutVol = (atoms1.get_volume()/ratio1+atoms2.get_volume()/ratio2)*0.5
+        cutCellPar = cell_to_cellpar(cutCell)
+        ratio = cutVol/abs(np.linalg.det(cutCell))
+        if ratio > 1:
+            cutCellPar[:3] = [length*ratio**(1/3) for length in cutCellPar[:3]]
+
+        cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
+        scaled_positions = []
+        cutPos = 0.5+cutDisp*np.random.uniform(-0.5, 0.5)
+        for atom in atoms1:
+            if 0 <= atom.c < cutPos/ratio1:
+                cutAtoms.append(atom)
+                scaled_positions.append([atom.a,atom.b,atom.c])
+        for atom in atoms2:
+            if 0 <= atom.c < (1-cutPos)/ratio2:
+                cutAtoms.append(atom)
+                scaled_positions.append([atom.a,atom.b,atom.c+cutPos/ratio1])
+
+        cutAtoms.set_scaled_positions(scaled_positions)
+        if len(cutAtoms) == 0:
+            raise RuntimeError('No atoms in the new cell')
+        cutInd = ind1.new(cutAtoms)
+        cutInd.parents = [ind1 ,ind2]
+        return cutInd
+
+
+
+if __name__ == '__main__':
+    from population import Individual
+    from readparm import read_parameters
+    from util import EmptyClass
+    parameters = read_parameters('../test/input.yaml')
+    p = EmptyClass()
+    for key, val in parameters.items():
+        setattr(p, key, val)
