@@ -28,16 +28,46 @@ class Population:
     def cluster(self):
         pass
 
+class Individual:
+    def __init__(self,atoms,parameters):
+        self.atoms = atoms
+        self.parameters = parameters
+        self.info = dict()
+    
+    def new(self,atoms):
+        newatoms = atoms.copy()
+        parameters = self.parameters()
+        return Individual(newatoms,parameters)
 
-def check_dist_individual(ind,threshold,minLen,maxLen):
-    """
-    The distance between the atoms should be larger than
-    threshold * sumR(the sum of the covalent radii of the two
-    corresponding atoms).
-    """
-    cellPar = ind.get_cell_lengths_and_angles()
-    if (minLen < cellPar).all() and (cellPar < maxLen).all():
-        a = ind.copy()
+    def check_cellpar(self,atoms=None):
+        """
+        check if cellpar reasonable
+        """
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+
+        minLen = self.parameters.minLen
+        maxLen = self.parameters.maxLen
+        cellPar = a.get_cell_lengths_and_angles()
+        if (minLen < cellPar).all() and (cellPar < maxLen).all():
+            return True
+        else:
+            return False
+
+    def check_distance(self,atoms=None):
+        """
+        The distance between the atoms should be larger than
+        threshold * sumR(the sum of the covalent radii of the two
+        corresponding atoms).
+        """
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+
+        threshold = self.parameters.threshold  
         cell = a.get_cell()
         nums = a.get_atomic_numbers()
         unique_types = sorted(list(set(nums)))
@@ -57,4 +87,11 @@ def check_dist_individual(ind,threshold,minLen,maxLen):
                 x2 = np.where(nums == type2)
                 if np.min(distances[x1].T[x2]) < (covalent_radii[type1]+covalent_radii[type2])*threshold:
                     return False
-    return True
+        return True
+
+    def check(self,atoms=None):
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        return self.check_cellpar(a) and self.check_distance(a)

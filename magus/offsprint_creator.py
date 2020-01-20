@@ -5,7 +5,7 @@ steal from ase.ga
 import numpy as np
 from random import random
 from ase import Atoms
-
+from .population import check_dist_individual
 class OffspringCreator:
     """Base class for all procreation operators
 
@@ -214,9 +214,9 @@ class SoftMutation:
         modes = {eigval: eigvecs[:, i] for i, eigval in enumerate(eigvals)}
         return modes
 
-    def mutate(self, atoms):
+    def mutate(self, ind):
         """ Does the actual mutation. """
-        a = atoms.copy()
+        a = ind.atoms.copy()
         a.set_calculator(self.calc)
 
         pos = a.get_positions()
@@ -236,7 +236,7 @@ class SoftMutation:
         # at every trial amplitude both positive and negative
         # directions are tried.
 
-        mutant = atoms.copy()
+        mutant = ind.atoms.copy()
         amplitude = 0.
         increment = 0.1
         direction = 1
@@ -246,7 +246,7 @@ class SoftMutation:
             pos_new = pos + direction * amplitude * mode
             mutant.set_positions(pos_new)
             mutant.wrap()
-            too_close = check_dist_individual(mutant,threshold,minLen,maxLen)
+            too_close = ind.check_distance(mutant)
             if too_close:
                 amplitude -= increment
                 pos_new = pos + direction * amplitude * mode
@@ -261,17 +261,16 @@ class SoftMutation:
                 amplitude += increment
 
         if amplitude * largest_norm < self.bounds[0]:
-            mutant = None
+            return None
 
-        return mutant
+        return ind.new(mutant)
 
     def get_new_individual(self, ind):
-
         newind = self.mutate(ind)
         if newind is None:
-            return ind, 'mutation: soft'
+            return ind
 
         indi = self.initialize_individual(f, indi)
-        indi.info['data']['parents'] = [f.info['confid']]
+        indi.info['parents'] = [ind.info['confid']]
 
-        return self.finalize_individual(indi), 'mutation: soft'
+        return indi
