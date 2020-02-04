@@ -215,6 +215,9 @@ class Magus:
                 ind.set_cell(self.parameters.setCellPar, scale_atoms=True)
             initPop = check_dist(initPop, self.parameters.dRatio)
 
+        # save tmpPop
+        if p.savetmp:
+            write_results(self.Algo.tmpPop, self.curgen, 'tmp',self.parameters.resultsDir)
         ### Save Initial
         write_results(initPop,self.curgen, 'init',self.parameters.resultsDir)
 

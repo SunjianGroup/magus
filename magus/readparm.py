@@ -75,6 +75,8 @@ def read_parameters(inputFile):
         'ZernikeNcut': 4,
         'ZernikeDiag': True,
         'kernelType': 'dot',
+        'savetmp': False,
+        'tourRatio': 0.25,
     }
 
     for key, val in dParms.items():
