@@ -493,7 +493,7 @@ def compare_structure_energy(Pop, diffE=0.01, diffV=0.05, ltol=0.1, stol=0.1, an
             # remove one of them
             if i not in rmIndices and j not in rmIndices:
                 if compareE:
-                    rmIndices.append(i if s0.info['enthalpy'] < s1.info['enthalpy'] else j)
+                    rmIndices.append(i if s0.info['enthalpy'] > s1.info['enthalpy'] else j)
                 else:
                     rmIndices.append(random.choice([i,j]))
 
