@@ -1,6 +1,13 @@
 import numpy as np
 from scipy.spatial.distance import cdist, pdist
 import itertools
+import ase.io
+from ase.data import covalent_radii,atomic_numbers
+from ase.neighborlist import neighbor_list
+from ase.atom import Atom
+from .utils import check_new_atom_dist,sort_elements
+import logging
+
 class Population:
     """
     a class of atoms population
@@ -32,6 +39,8 @@ class Individual:
     def __init__(self,atoms,parameters):
         self.atoms = atoms
         self.parameters = parameters
+        self.formula = parameters.formula
+        self.symbols = parameters.symbols
         self.info = dict()
         #TODO add more comparators
         from ase.ga.standard_comparators import AtomsComparator
@@ -40,9 +49,18 @@ class Individual:
     def __eq__(self, obj):
         return self.comparator.looks_like(self.atoms,obj.atoms)
 
+    def save(self, filename):
+        if self.atoms:
+            atoms = self.atoms.copy()
+            atoms.set_calculator(None)
+            atoms.info = self.info
+            ase.io.write(filename,atoms)
+        else:
+            logging.debug('None')
+
     def new(self,atoms):
         newatoms = atoms.copy()
-        parameters = self.parameters()
+        parameters = self.parameters
         return Individual(newatoms,parameters)
 
     def check_cellpar(self,atoms=None):
@@ -73,7 +91,7 @@ class Individual:
         else:
             a = atoms.copy()
 
-        threshold = self.parameters.threshold  
+        threshold = self.parameters.dRatio  
         cell = a.get_cell()
         nums = a.get_atomic_numbers()
         unique_types = sorted(list(set(nums)))
@@ -109,13 +127,13 @@ class Individual:
         """
         atoms = self.atoms
         cutoffs = [tolerance * covalent_radii[num] for num in atoms.get_atomic_numbers()]
-        i,j = neighbor_list("ij", atoms, cutoffs)
+        nl = neighbor_list("ij", atoms, cutoffs)
         indices = list(range(len(atoms)))
         exclude = []
 
         for i, j in zip(*nl):
             if i not in exclude and not j in exclude:
-                exclude.append(random.choice([i,j]))
+                exclude.append(np.random.choice([i,j]))
 
         if len(exclude) > 0:
             save = [index for index in indices if index not in exclude]
@@ -135,7 +153,7 @@ class Individual:
             numFrml = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in self.parents])))
         self.info['formula'] = self.formula
         self.info['numOfFormula'] = numFrml
-        targetFrml = {s:numFrml*i for s,i in zip(self.symbol,self.formula)}
+        targetFrml = {s:numFrml*i for s,i in zip(self.symbols,self.formula)}
         return targetFrml
 
     def repair_atoms(self):
@@ -155,36 +173,38 @@ class Individual:
                 toadd[s] = targetFrml[s] - syms.count(s)
             elif syms.count(s) > targetFrml[s]:
                 toremove[s] = syms.count(s) - targetFrml[s]
-
+        logging.debug('sysm:{}\ntarget:{}\ntoadd:{}\ntoremove:{}'.format(syms,targetFrml,toadd,toremove))
         repatoms = atoms.copy()
         #remove before add
         while toremove:
-            del_symbol = np.random.choice(list(toremove.keys))
-            del_index = random.sample([atom.index for atom in repatoms if atom.symbol==del_symbol])
+            del_symbol = np.random.choice(list(toremove.keys()))
+            del_index = np.random.choice([atom.index for atom in repatoms if atom.symbol==del_symbol])
             if toadd:
                 #if some symbols need to add, change symbol directly
-                add_symbol = np.random.choice(list(toadd.keys))
+                add_symbol = np.random.choice(list(toadd.keys()))
                 repatoms[del_index].symbol = add_symbol
                 toadd[add_symbol] -= 1
                 if toadd[add_symbol] == 0:
                     toadd.pop(add_symbol)
             else:
+                logging.debug('del:{}'.format(del_index))
                 del repatoms[del_index]
+                logging.debug('atoms number:{}'.format(len(repatoms)))
             toremove[del_symbol] -= 1
             if toremove[del_symbol] == 0:
                 toremove.pop(del_symbol)
         
         while toadd:
-            add_symbol = np.random.choice(list(toadd.keys))
+            add_symbol = np.random.choice(list(toadd.keys()))
             for _ in range(self.repairtryNum):
                 # select a center atoms
                 centerAt = repatoms[np.random.randint(0,len(repatoms)-1)]
                 basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[s]]
                 # random position in spherical coordination
-                radius = basicR * (dRatio + random.uniform(0,0.3))
-                theta = random.uniform(0,math.pi)
-                phi = random.uniform(0,2*math.pi)
-                pos = centerAt.position + radius*np.array([sin(theta)*cos(phi), sin(theta)*sin(phi),cos(theta)])
+                radius = basicR * (dRatio + np.random.uniform(0,0.3))
+                theta = np.random.uniform(0,np.pi)
+                phi = np.random.uniform(0,2*np.pi)
+                pos = centerAt.position + radius*np.array([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi),np.cos(theta)])
                 if check_new_atom_dist(repatoms, pos, add_symbol, dRatio):
                     addAt = Atom(symbol=add_symbol, position=pos)
                     repatoms.append(addAt)

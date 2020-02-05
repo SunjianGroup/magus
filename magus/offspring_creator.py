@@ -6,7 +6,7 @@ import numpy as np
 from ase import Atoms
 from .renew import match_lattice
 from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
-
+import logging
 class SoftMutation:
     """
     Mutates the structure by displacing it along the lowest (nonzero)
@@ -96,6 +96,7 @@ class SoftMutation:
 
         key = keys[index]
         mode = modes[key].reshape(np.shape(pos))
+        logging.debug('mode:{}'.format(mode))
 
         # Find a suitable amplitude for translation along the mode;
         # at every trial amplitude both positive and negative
@@ -133,11 +134,12 @@ class SoftMutation:
     def get_new_individual(self, ind):
         newind = self.mutate(ind)
         if newind is None:
+            logging.debug('fail generate')
             return ind
 
-        indi.info['parents'] = [ind.info['confid']]
+        newind.info['parents'] = [ind.info['confid']]
 
-        return indi
+        return newind
 
 class CutAndSplicePairing:
     """ A cut and splice operator for bulk structures.
@@ -172,9 +174,17 @@ class CutAndSplicePairing:
         #TODO standardize_pop
         for _ in range(tryNum):
             indi = self.cut_cell(ind1,ind2)
+            indi.save('cut_{}.cif'.format(_))
+            if indi.atoms is None:
+                logging.debug('fail cut')
             indi.merge_atoms()
             if indi.repair_atoms():
-                break
+                indi.save('repair_{}.cif'.format(_))
+                break                
+        else:
+            logging.debug('fail repair')
+            return None
+        return indi
 
     def cut_cell(self, ind1, ind2, cutDisp=0):
         """cut two cells to get a new cell
@@ -193,6 +203,8 @@ class CutAndSplicePairing:
             atoms -- generated atoms
         """
         atoms1,atoms2,ratio1,ratio2 = match_lattice(ind1.atoms,ind2.atoms)
+        ase.io.write('atoms1.cif',atoms1)
+        ase.io.write('atoms2.cif',atoms2)
         cutCell = (atoms1.get_cell()+atoms2.get_cell())*0.5
         cutCell[2] = (atoms1.get_cell()[2]/ratio1+atoms2.get_cell()[2]/ratio2)*0.5
         cutVol = (atoms1.get_volume()/ratio1+atoms2.get_volume()/ratio2)*0.5
@@ -223,10 +235,39 @@ class CutAndSplicePairing:
 
 
 if __name__ == '__main__':
-    from population import Individual
-    from readparm import read_parameters
-    from util import EmptyClass
-    parameters = read_parameters('../test/input.yaml')
+    from .population import Individual
+    from .readparm import read_parameters
+    from .utils import EmptyClass
+    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
+    import ase.io 
+    import numpy as np
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
+    args = parser.parse_args()
+    if args.debug:
+        logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+        logging.info('Debug mode')
+    else:
+        logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
+    parameters = read_parameters('input.yaml')
     p = EmptyClass()
     for key, val in parameters.items():
         setattr(p, key, val)
+    
+    pop = ase.io.read('good.traj',':')
+    ind1 = Individual(pop[0],p)
+    ind1.info['numOfFormula'] = 12
+    ind2 = ind1.new(pop[1])
+    ind2.info['numOfFormula'] = 12
+    ind1.info['confid'] = 1
+    ind2.info['confid'] = 2
+    calc = LennardJones()
+    s = SoftMutation(calc)
+    c = CutAndSplicePairing()
+    ind3 = c.get_new_individual([ind1,ind2])
+    ase.io.write('0.cif',ind1.atoms)
+    ase.io.write('1.cif',ind2.atoms)
+    ase.io.write('2.cif',ind3.atoms)

@@ -457,6 +457,8 @@ def match_lattice(atoms1,atoms2):
         atoms,atoms,float,float -- two best matched atoms in z direction
     """
     def match_fitness(a1,b1,a2,b2):
+        #za lao shi you shu zhi cuo wu
+        a1,b1,a2,b2 = np.round([a1,b1,a2,b2],3)
         a1x = np.linalg.norm(a1)
         a2x = np.linalg.norm(a2)
         if a1x*a2x ==0:
@@ -490,6 +492,8 @@ def match_lattice(atoms1,atoms2):
         
     cell1,cell2 = atoms1.cell[:],atoms2.cell[:]
     hklrange = [(1,0,0),(0,1,0),(0,0,1),(1,-1,0),(1,1,0),(1,0,-1),(1,0,1),(0,1,-1),(0,1,1),(2,0,0),(0,2,0),(0,0,2)]
+    #TODO ba cut cell jian qie ti ji bu fen gei gai le 
+    hklrange = [(1,0,0),(0,1,0),(0,0,1)]
     hklrange = [np.array(_) for _ in hklrange]
     minfitness = 1000
     for hkl1,hkl2 in itertools.permutations(hklrange,2):
