@@ -603,7 +603,7 @@ def gauss_mut(parInd, sigma=0.5, cellCut=1):
         [latGauss[1]/2, 1+latGauss[3], latGauss[4]/2],
         [latGauss[2]/2, latGauss[4]/2, 1+latGauss[5]]
         ])
-    chdCell = chdCell*strain
+    chdCell = np.dot(chdCell,strain)
     cellPar = cell_to_cellpar(chdCell)
     ratio = parVol/abs(np.linalg.det(chdCell))
     cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
@@ -705,7 +705,7 @@ def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=0):
         [latGauss[1]/2, 1+latGauss[3], latGauss[4]/2],
         [latGauss[2]/2, latGauss[4]/2, 1+latGauss[5]]
         ])
-    chdCell = chdCell*strain
+    chdCell = np.dot(chdCell,strain)
     cellPar = cell_to_cellpar(chdCell)
     ratio = parVol/abs(np.linalg.det(chdCell))
     cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]

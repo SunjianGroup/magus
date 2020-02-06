@@ -27,10 +27,21 @@ class EmptyClass:
 
 class MolCryst:
     def __init__(self, numbers, cell, sclPos, partition, offSets=None, sclCenters=None, rltSclPos=None, info=dict()):
+        """
+        numbers: atomic numbers for all atoms in the structure, same to ase.Atoms.numbers
+        cell: cell of the structure, a 3x3 matrix
+        sclPos: scaled positions for all atoms, same to ase.Atoms.scaled_positions
+        partition: atom indices for every molecule, like [[0,1], [2,3,4]], which means atoms 0,1 belong to one molecule and atoms 3,4,5 belong to another molecule.
+        offSets: cell offsets for every atom, a Nx3 integer matrix
+        sclCenters: centers of molecules, in fractional coordination
+        rltSclPos: positions of atoms relative to molecule centers, in fractional coodination
+        To define a molecule crystal correctly, you must set offSets OR sclCenters and rltSclPos.
+        """
         self.info = info
+        self.partition = tuple([list(p) for p in partition])
         if offSets is not None:
             self.numbers, self.cell, self.sclPos, self.offSets = list(map(np.array, [numbers, cell, sclPos, offSets]))
-            self.partition = tuple(partition)
+            # self.partition = tuple(partition)
             assert len(numbers) == len(sclPos) == len(offSets)
             numAts = len(numbers)
             indSet = set(list(reduce(lambda x, y: x+y, partition)))
@@ -44,12 +55,13 @@ class MolCryst:
             self.rltSclPos = rltSclPos
             self.rltPos = [np.dot(pos, self.cell) for pos in rltSclPos]
 
-
-
         elif sclCenters is not None and rltSclPos is not None:
-            self.numbers, self.cell, self.sclPos = list(map(np.array, [numbers, cell, sclPos]))
-            self.partition = tuple(partition)
-            assert len(numbers) == len(sclPos)
+            # self.numbers, self.cell, self.sclPos = list(map(np.array, [numbers, cell, sclPos]))
+            # self.partition = tuple(partition)
+            # assert len(numbers) == len(sclPos)
+            self.numbers, self.cell = list(map(np.array, [numbers, cell]))
+            # sclPos should be calculated from sclCenters and rltSclPos
+            self.sclPos = np.zeros((len(numbers), 3))
             numAts = len(numbers)
             indSet = set(list(reduce(lambda x, y: x+y, partition)))
             assert indSet == set(range(numAts))
@@ -58,6 +70,7 @@ class MolCryst:
             self.centers = np.dot(self.sclCenters, self.cell)
             self.rltSclPos = rltSclPos
             self.rltPos = [np.dot(pos, self.cell) for pos in rltSclPos]
+            self.update()
 
 
         else:
@@ -88,7 +101,6 @@ class MolCryst:
             rmax = max(np.linalg.norm(pos, axis=1))
             radius.append(rmax)
         return radius
-
 
     def copy(self):
         return MolCryst(self.numbers, self.cell, self.sclPos, self.partition, sclCenters=self.sclCenters, rltSclPos=self.rltSclPos, info=self.info.copy())
