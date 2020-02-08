@@ -7,14 +7,25 @@ from ase.neighborlist import neighbor_list
 from ase.atom import Atom
 from .utils import check_new_atom_dist,sort_elements
 import logging
-
+from sklearn import cluster
+from .descriptor import ZernikeFp
 class Population:
     """
     a class of atoms population
+    TODO __iter__
     """
-    def __init__(self,pop,parameters):
+    def __init__(self,pop,parameters,name='temp'):
         self.pop = pop
+        self.name = name
+        for i,ind in enumerate(pop):
+            ind.info['identity'] = [self.name, i]
         self.parameters = parameters
+    
+    def __len__(self):
+        return len(self.pop)
+
+    def append(self,ind):
+        self.pop.append(ind)
 
     def get_all_fitness(self):
         pass
@@ -32,8 +43,15 @@ class Population:
     def symmetrize_pop(self):
         pass
 
-    def cluster(self):
-        pass
+    def clustering(self, numClusters):
+        """
+        clustering by fingerprints
+        """
+        if numClusters >= len(self.pop):
+            return np.arange(len(self.pop))
+
+        fpMat = np.array([ind.fingerprint for ind in self.pop])
+        return cluster.KMeans(n_clusters=numClusters).fit_predict(fpMat)
 
 class Individual:
     def __init__(self,atoms,parameters):
@@ -41,11 +59,22 @@ class Individual:
         self.parameters = parameters
         self.formula = parameters.formula
         self.symbols = parameters.symbols
-        self.info = dict()
+        self.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
+
         #TODO add more comparators
         from ase.ga.standard_comparators import AtomsComparator
         self.comparator = AtomsComparator()
-    
+
+        #fingerprint
+        cutoff = self.parameters.cutoff
+        elems = [atomic_numbers[element] for element in parameters.symbols]
+        nmax = self.parameters.ZernikeNmax
+        lmax = self.parameters.ZernikeLmax
+        ncut = self.parameters.ZernikeNcut
+        diag = self.parameters.ZernikeDiag
+        self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
+
+
     def __eq__(self, obj):
         return self.comparator.looks_like(self.atoms,obj.atoms)
 
@@ -62,6 +91,19 @@ class Individual:
         newatoms = atoms.copy()
         parameters = self.parameters
         return Individual(newatoms,parameters)
+
+    @property
+    def fingerprint(self):
+        if 'fingerprint' not in self.info:
+            Efps = self.cf.get_all_fingerprints(self.atoms)[0]
+            self.info['fingerprint'] = np.mean(Efps,axis=0)
+        return self.info['fingerprint']
+
+    @property
+    def fitness(self):
+        if 'fitness' not in self.info:
+            self.info['fitness'] = self.info['energy']
+        return self.info['fitness']
 
     def check_cellpar(self,atoms=None):
         """
