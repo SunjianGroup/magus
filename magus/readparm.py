@@ -76,7 +76,7 @@ def read_parameters(inputFile):
         'ZernikeDiag': True,
         'kernelType': 'dot',
         'savetmp': False,
-        'tourRatio': 0.25,
+        'tourRatio': 0.1,
     }
 
     for key, val in dParms.items():

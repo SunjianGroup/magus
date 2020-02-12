@@ -598,6 +598,9 @@ def gauss_mut(parInd, sigma=0.5, cellCut=1):
 
     chdCell = chdInd.get_cell()
     latGauss = [random.gauss(0, sigma)*cellCut for i in range(6)]
+    for i in range(6):
+        if latGauss[i] >= 1 or latGauss[i] <= -1:
+            latGauss[i] = sigma
     strain = np.array([
         [1+latGauss[0], latGauss[1]/2, latGauss[2]/2],
         [latGauss[1]/2, 1+latGauss[3], latGauss[4]/2],
@@ -700,6 +703,9 @@ def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=0):
 
     chdCell = chdInd.get_cell()
     latGauss = [random.gauss(0, sigma)*cellCut for i in range(6)]
+    for i in range(6):
+        if latGauss[i] >= 1 or latGauss[i] <= -1:
+            latGauss[i] = sigma
     strain = np.array([
         [1+latGauss[0], latGauss[1]/2, latGauss[2]/2],
         [latGauss[1]/2, 1+latGauss[3], latGauss[4]/2],
