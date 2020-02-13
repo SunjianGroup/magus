@@ -8,8 +8,19 @@ import yaml
 import logging
 from functools import reduce
 import numpy as np
-from .utils import EmptyClass, get_formula
 
+from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
+from .writeresults import write_dataset, write_results, write_traj
+from .readparm import read_parameters
+from .utils import *
+
+from .queue import JobManager
+from .setfitness import calc_fitness
+from .renew import BaseEA, BOEA
+#ML module
+from .machinelearning import LRmodel
+from .offspring_creator import *
 ###############################
 
 
@@ -212,6 +223,37 @@ def read_parameters(inputFile):
 
     return parameters
 
+def get_atoms_generator(parameters):
+    if parameters.calcType == 'fix':
+        return BaseGenerator(parameters)
+    elif parameters.calcType == 'var':
+        return VarGenerator(parameters)
+
+def get_pop_generator(parameters):
+    cutandsplice = CutAndSplicePairing()
+    perm = PermMutation()
+    lattice = LatticeMutation()
+    ripple = RippleMutation()
+    slip = SlipMutation()
+
+    numlist = [cutNum,permNum,latNum,ripNum,slipNum]
+    oplist = [cutandsplice,perm,lattice,ripple,slip]
+    
+    popgen = PopGenerator(numlist,oplist,p)
+    return popgen
+
+def get_calculator(parameters):
+    if parameters.calculator == 'vasp':
+        MainCalculator = VaspCalculator(parameters)
+    elif parameters.calculator == 'lj':
+        MainCalculator = LJCalculator(parameters)
+    elif parameters.calculator == 'emt':
+        MainCalculator = EMTCalculator(parameters)
+    elif parameters.calculator == 'gulp':
+        MainCalculator = GULPCalculator(parameters)
+    elif parameters.calculator == 'xtb':
+        MainCalculator = XTBCalculator(parameters)
+    return MainCalculator
 
 if __name__ == '__main__':
     parm = read_parameters('input.yaml')

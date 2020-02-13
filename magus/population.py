@@ -21,6 +21,12 @@ class Population:
             ind.info['identity'] = [self.name, i]
         self.parameters = parameters
     
+    def save(self,filename):
+        pop = []
+        for ind in self.pop:
+            pop.append(ind.atoms)
+        ase.io.write(filename,pop)
+
     def __len__(self):
         return len(self.pop)
 
@@ -59,7 +65,9 @@ class Individual:
         self.parameters = parameters
         self.formula = parameters.formula
         self.symbols = parameters.symbols
+        self.repairtryNum = parameters.repairtryNum
         self.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
+        
 
         #TODO add more comparators
         from ase.ga.standard_comparators import AtomsComparator
@@ -102,13 +110,16 @@ class Individual:
     @property
     def fitness(self):
         if 'fitness' not in self.info:
+            self.info['energy'] = self.atoms.info['energy']
             self.info['fitness'] = self.info['energy']
         return self.info['fitness']
 
     def check_cellpar(self,atoms=None):
         """
         check if cellpar reasonable
+        TODO bond
         """
+        return True
         if atoms is None:
             a = self.atoms.copy()
         else:
@@ -187,16 +198,22 @@ class Individual:
 
     def get_targetFrml(self):
         #TODO initial self.formula
-        atoms = self.atoms
-        Natoms = len(atoms)
-        if self.parameters.minAt <= Natoms <= self.parameters.maxAt :
-            numFrml = int(round(Natoms/sum(self.formula)))
-        else:
-            numFrml = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in self.parents])))
-        self.info['formula'] = self.formula
-        self.info['numOfFormula'] = numFrml
-        targetFrml = {s:numFrml*i for s,i in zip(self.symbols,self.formula)}
-        return targetFrml
+        #TODO var
+        if self.parameters.calcType == 'fix':
+            atoms = self.atoms
+            Natoms = len(atoms)
+            if self.parameters.minAt <= Natoms <= self.parameters.maxAt :
+                numFrml = int(round(Natoms/sum(self.formula)))
+            else:
+                numFrml = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in self.parents])))
+            self.info['formula'] = self.formula
+            self.info['numOfFormula'] = numFrml
+            targetFrml = {s:numFrml*i for s,i in zip(self.symbols,self.formula)}
+            return targetFrml
+        elif self.parameters.calcType == 'var':
+            symbols = self.atoms.get_chemical_symbols()
+            curFrml = {s:symbols.conut(s) for s in np.unique(symbols)}
+
 
     def repair_atoms(self):
         """

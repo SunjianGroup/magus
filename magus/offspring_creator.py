@@ -8,6 +8,7 @@ from .renew import match_lattice
 from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 import logging
 from .population import Population
+from ase.data import covalent_radii
 
 class OffspringCreator:
     def __init__(self,tryNum=10):
@@ -28,6 +29,9 @@ class Mutation(OffspringCreator):
     def get_new_individual(self,ind):
         for _ in range(self.tryNum):
             newind = self.mutate(ind)
+            if newind is None:
+                continue
+            newind.parents = [ind]
             newind.merge_atoms()
             if newind.repair_atoms():
                 break                
@@ -52,6 +56,9 @@ class Crossover(OffspringCreator):
         f,m = parents
         for _ in range(self.tryNum):
             newind = self.cross(f,m)
+            if newind is None:
+                continue
+            newind.parents = [f,m]
             newind.merge_atoms()
             if newind.repair_atoms():
                 break                
@@ -60,7 +67,7 @@ class Crossover(OffspringCreator):
             return None
 
         newind.info['parents'] = [f.info['identity'],m.info['identity']]
-        newind.info['parfitness'] = 0.5*(f.info['fitness']+m.info['identity'])
+        newind.info['parfitness'] = 0.5*(f.info['fitness']+m.info['fitness'])
         return newind
 class SoftMutation(Mutation):
     """
@@ -151,7 +158,6 @@ class SoftMutation(Mutation):
 
         key = keys[index]
         mode = modes[key].reshape(np.shape(pos))
-        logging.debug('mode:{}'.format(mode))
 
         # Find a suitable amplitude for translation along the mode;
         # at every trial amplitude both positive and negative
@@ -201,7 +207,7 @@ class PermMutation(Mutation):
         maxSwaps = int(fracSwaps*len(atoms))
         if maxSwaps == 0:
             maxSwaps = 1
-        numSwaps = random.randint(1, maxSwaps)
+        numSwaps = np.random.randint(1, maxSwaps)
         
         symbols = atoms.get_chemical_symbols()
         symList = list(set(symbols))
@@ -271,11 +277,11 @@ class SlipMutation(Mutation):
         atoms = ind.atoms.copy()
         pos = atoms.get_scaled_positions()
         axis = list(range(3))
-        random.shuffle(axis)
+        np.random.shuffle(axis)
 
         z = np.where(pos[:,axis[0]] > cut)
-        pos[z,axis[1]] += np.random.uniform(self.randRange)
-        pos[z,axis[2]] += np.random.uniform(self.randRange)
+        pos[z,axis[1]] += np.random.uniform(*self.randRange)
+        pos[z,axis[2]] += np.random.uniform(*self.randRange)
         atoms.set_scaled_positions(pos)
         return ind.new(atoms)
 
@@ -294,7 +300,7 @@ class RippleMutation(Mutation):
         atoms = ind.atoms.copy()
         pos = atoms.get_scaled_positions()
         axis = list(range(3))
-        random.shuffle(axis)
+        np.random.shuffle(axis)
 
         pos[:, axis[0]] += self.rho*\
             np.cos(2*np.pi*self.mu*pos[:,axis[1]] + np.random.uniform(0,2*np.pi,len(atoms)))*\
@@ -359,20 +365,27 @@ class PopGenerator:
         self.numlist = numlist
         self.parameters = parameters
 
-    def get_pairs(self, pop, numClusters,crossNum):
+    def get_pairs(self, pop, crossNum ,clusterNum, tryNum=50):
         pairs = []
-        labels = pop.clustering(numClusters)
-        Nlabel = len(np.unique(labels))
-        for i in range(Nlabel):
-            subpop = pop[np.where(labels == i)]
+        labels = pop.clustering(clusterNum)
+        fail = 0
+        while len(pairs) < crossNum and fail < tryNum:
+            label = np.random.choice(np.unique(labels))
+            subpop = [ind for j,ind in enumerate(pop.pop) if labels[j] == label]
+            if len(subpop) < 2:
+                fail+=1
+                continue
             fit = np.array([ind.fitness for ind in subpop])
             p = fit/np.sum(fit)
-            for _ in range(max(crossNum//Nlabel,1)):
-                pairs.append(tuple(np.random.choice(subpop,2,False,p=p)))       
+            pair = tuple(np.random.choice(subpop,2,False,p=p))
+            if pair in pairs:
+                fail+=1
+                continue
+            pairs.append(pair)     
         return pairs
     
     def get_inds(self,pop,mutateNum):
-        fit = np.array([ind.fitness for ind in pop])
+        fit = np.array([ind.fitness for ind in pop.pop])
         p = fit/np.sum(fit)
         return np.random.choice(pop.pop,mutateNum,False,p=p)
 
@@ -382,14 +395,19 @@ class PopGenerator:
 
         newpop = Population([],pop.parameters) 
         for op,num in zip(self.oplist,self.numlist):
-            if self.optype = 'Mutation':
+            if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(pop,num)
                 for ind in mutate_inds:
-                    newpop.append(op.get_new_individual(ind))
-            elif self.optype = 'Crossover':
-                cross_pairs = self.get_pairs(pop,saveGood,num)
+                    logging.debug('name:{}'.format(op.descriptor))
+                    newind = op.get_new_individual(ind)
+                    if newind:
+                        newpop.append(newind)
+            elif op.optype == 'Crossover':
+                cross_pairs = self.get_pairs(pop,num,saveGood)
                 for parents in cross_pairs:
-                    newpop.append(op.get_new_individual(parents))
+                    newind = op.get_new_individual(parents)
+                    if newind:
+                        newpop.append(newind)
         newpop.check()
         return newpop
 
@@ -402,9 +420,11 @@ class PopGenerator:
         else:
             return pop
 
-    def next_pop(pop):
-        newpop = self.generate(pop)
-        return self.select(newpop)
+    def next_pop(self,pop):
+        saveGood = self.parameters.saveGood
+        popSize = self.parameters.popSize
+        newpop = self.generate(pop,saveGood)
+        return self.select(newpop,popSize)
 
 
 
@@ -448,4 +468,5 @@ if __name__ == '__main__':
     oplist = [soft,cutandsplice,perm,lattice,ripple,slip]
     numlist = [10,10,10,10,10,10]
     popgen = PopGenerator(numlist,oplist,p)
-    newpop = popgen.next_pop()
+    newpop = popgen.next_pop(pop)
+    newpop.save('new.traj')
