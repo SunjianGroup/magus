@@ -81,21 +81,36 @@ class MolCryst:
         self.molNums = [self.numbers[p].tolist() for p in self.partition]
 
     def get_center_and_rltSclPos(self, indices):
+        """
+        Return centers and scaled relative positions for each molecule
+        """
         molPos = self.dispPos[indices]
         center = molPos.mean(0)
         rltPos = molPos - center
         return center, rltPos
 
     def get_sclCenters(self):
+        """
+        Return scaled relative positions for each molecule
+        """
         return self.sclCenters[:]
 
     def get_centers(self):
+        """
+        Return centers for each molecule
+        """
         return self.centers[:]
 
     def get_rltPos(self):
+        """
+        Return relative positions for each molecule
+        """
         return self.rltPos[:]
 
     def get_radius(self):
+        """
+        Return radius for each molecule
+        """
         radius = []
         for pos in self.rltPos:
             rmax = max(np.linalg.norm(pos, axis=1))
@@ -103,9 +118,15 @@ class MolCryst:
         return radius
 
     def copy(self):
+        """
+        Return a copy of current object
+        """
         return MolCryst(self.numbers, self.cell, self.sclPos, self.partition, sclCenters=self.sclCenters, rltSclPos=self.rltSclPos, info=self.info.copy())
 
     def to_dict(self, infoCopy=True):
+        """
+        Return a dictionary containing all properties of the current molecular crystal
+        """
         molDict = {
             'numbers': self.numbers,
             'cell': self.cell,
@@ -119,18 +140,33 @@ class MolCryst:
         return molDict
 
     def get_cell(self):
+        """
+        Return the cell 
+        """
         return self.cell[:]
 
     def get_numbers(self):
+        """
+        Return atomic numbers
+        """
         return self.numbers[:]
 
     def get_scaled_positions(self):
+        """
+        Return scaled positions of all atoms
+        """
         return self.sclPos[:]
 
     def get_volume(self):
+        """
+        Return the cell volume
+        """
         return np.linalg.det(self.cell)
 
     def get_mols(self):
+        """
+        Return all the molecules as a list of ASE's Atoms objects
+        """
         mols = []
         for n, indices in enumerate(self.partition):
             mol = Atoms(numbers=self.numbers[indices], positions=self.rltPos[n])
@@ -138,6 +174,11 @@ class MolCryst:
         return mols
 
     def set_cell(self, cell, scale_atoms=False, scale_centers=True):
+        """
+        Set the cell 
+        scale_atoms: scale all atoms (may change relative positions) or not
+        scale_center: scale molecule centers (do not change relative positions) or not
+        """
         self.cell = np.array(cell)
         if scale_atoms:
             self.centers = np.dot(self.sclCenters, self.cell)
@@ -148,9 +189,15 @@ class MolCryst:
             self.update_centers_and_rltPos(self.centers, self.rltPos)
 
     def to_atoms(self):
+        """
+        Return the molecular crystal as an ASE's Atoms object
+        """
         return Atoms(numbers=self.numbers, scaled_positions=self.sclPos, cell=self.cell, pbc=1, info=self.info.copy())
 
     def update_centers_and_rltPos(self, centers=None, rltPos=None):
+        """
+        Set centers and relative positions in Cartesian coodination
+        """
         invCell = np.linalg.inv(self.cell)
         if centers is not None:
             self.centers = np.array(centers)
@@ -161,6 +208,9 @@ class MolCryst:
         self.update()
 
     def update_sclCenters_and_rltSclPos(self, sclCenters=None, rltSclPos=None):
+        """
+        Set centers and relative positions in fractional coodination
+        """
 
         if sclCenters is not None:
             self.sclCenters = np.array(sclCenters)
@@ -171,6 +221,9 @@ class MolCryst:
         self.update()
 
     def update(self):
+        """
+        Update centers and relative positions
+        """
         molNum = len(self.partition)
         posList = [self.sclCenters[i]+self.rltSclPos[i] for i in range(molNum)]
         tmpSclPos = reduce(lambda x,y: np.concatenate((x,y), axis=0), posList)

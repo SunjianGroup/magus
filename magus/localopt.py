@@ -33,7 +33,7 @@ from .queue import JobManager
 
 class RelaxVasp(Vasp):
     """
-    We slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
+    Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
     """
     def read_convergence(self):
         """Method that checks whether a calculation has converged."""
@@ -243,7 +243,8 @@ class XTBCalculator(ASECalculator):
 
 class ASEGULPCalculator(ASECalculator):
     """
-    Still have bugs
+    GULP Calculator based on ASE's GULP Calculator
+    Still have bugs.
     """
     def __init__(self,parameters):
         calcs = []
