@@ -1,6 +1,8 @@
 # User defined
+#magus/test.py
 test/
 .vscode
+.vs
 examples/*/*
 !examples/*/inputFold
 !examples/*/input.yaml

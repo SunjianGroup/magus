@@ -19,8 +19,14 @@ from sklearn import cluster
 from .utils import *
 from .machinelearning import LRCalculator
 from .bayes import UtilityFunction, GP_fit, atoms_util
-from .machinelearning import LRmodel
+from .machinelearning import LRmodel, LRCalculator
+import itertools
+from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
+from ase.build import make_supercell
 
+"""
+TODO to create a class offspringCreator?
+"""
 class BaseEA:
     def __init__(self, parameters):
 
@@ -252,6 +258,7 @@ class BaseEA:
         else:
             return tmpPop
 
+<<<<<<< magus/renew.py
 class easyMLEA(BaseEA):
     """
     only use ML module to guess energy
@@ -277,6 +284,8 @@ class easyMLEA(BaseEA):
 
         return newPop
 
+=======
+>>>>>>> magus/renew.py
 class BOEA(BaseEA):
     """
     Bayesian Optimization plus EA
@@ -346,8 +355,32 @@ class BOEA(BaseEA):
 
         return newPop
 
+class easyMLEA(BaseEA):
+    """
+    only use ML module to guess energy
+    """
+    def __init__(self, parameters, ML):
+        self.ML = ML
+        return super().__init__(parameters)
 
-class MLcutEA(BaseEA):
+    def select(self):
+        tmpPop = self.tmpPop[:]
+        newPop = []
+        if self.newLen < len(tmpPop):
+            for _ in range(self.newLen):
+                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='enthalpy')
+                newPop.append(newInd)
+                tmpPop.remove(newInd)
+        else:
+            newPop = tmpPop
+        # remove the enthalpy key
+        for ind in newPop:
+            ind.info['predictE'] = ind.info['enthalpy']
+            del ind.info['enthalpy']
+
+        return newPop
+
+class MLcutEA(easyMLEA):
     """
     use ML module to help cut cell
     """
@@ -356,13 +389,12 @@ class MLcutEA(BaseEA):
         self.calc = LRCalculator(self.ML.reg,self.ML.cf)
         return super().__init__(parameters)
 
-    def heredity(self, cutNum=5, mode='atom'):
+    def displace(self, cutNum=5):
         #curPop = standardize_pop(self.curPop, 1.)
         curPop = self.curPop
         symbols = self.symbols
-        grids = self.grids
-        labels, goodPop = self.labels, self.goodPop
         hrdPop = list()
+<<<<<<< magus/renew.py
         for i in range(self.saveGood):
             goodInd = goodPop[i]
             splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
@@ -400,7 +432,56 @@ class MLcutEA(BaseEA):
 
                 pairPop = [ind for ind in [ind1, ind2] if ind is not None]
                 hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
+=======
+        r = 3  #radius of the ball to be displaced
+        core_enenrgies = {}
+        for i,ind in enumerate(curPop):
+            energies = np.array(self.calc.get_potential_energies(ind))
+            nl = NeighborList(cutoffs=[r*len(ind)], skin=0, self_interaction=True, bothways=True)
+            nl.update(ind)
+            ind.info['core_enenrgies']=[]
+            for j in range(len(ind)):
+                core_enenrgies[(i,j)] = np.mean(energies[(nl.get_neighbors(j)[0],)])
+                ind.info['core_enenrgies'].append(core_enenrgies[(i,j)])
 
+        for ind in curPop:
+            tmp = np.array(ind.info['core_energies'])
+            tmp = tmp - np.mean(tmp)
+            i = np.random.choice(range(len(ind)),p=np.e**tmp/np.sum(np.e**tmp))
+            tmp = np.array(list(core_enenrgies.values()))
+            tmp = tmp - np.mean(tmp)
+            _, j = np.random.choice(list(core_enenrgies.keys()),p=np.e**tmp/np.sum(np.e**tmp))
+            ind2 = curPop[_]
+            hrdInd = replaceball(ind,i,ind2,j,r)
+            hrdInd = merge_atoms(hrdInd, self.dRatio)
+            hrdInd.info['symbols'] = symbols
+
+            if self.calcType == 'fix':
+                hrdLen = len(hrdInd)
+                if self.parameters.minAt <= hrdLen <= self.parameters.maxAt :
+                    nfm = int(round(hrdLen/sum(self.formula)))
+                else:
+                    nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
+                hrdInd.info['formula'] = self.formula
+                hrdInd.info['numOfFormula'] = nfm
+                hrdInd = repair_atoms(hrdInd, symbols, self.formula, nfm)
+            elif self.calcType == 'var':
+                curFrml = get_formula(hrdInd, self.symbols)
+                if not check_var_formula(curFrml, self.formula, self.parameters.minAt, self.parameters.maxAt):
+                    bestFrml = best_formula(curFrml, self.formula)
+                    if self.parameters.minAt <= sum(bestFrml) <= self.parameters.maxAt:
+                        hrdInd.info['formula'] = bestFrml
+                        hrdInd.info['numOfFormula'] = 1
+                        hrdInd = repair_atoms(hrdInd, symbols, bestFrml, 1)
+                    else:
+                        hrdInd = None
+                else:
+                    hrdInd.info['formula'] = get_formula(hrdInd, self.symbols)
+                    hrdInd.info['numOfFormula'] = 1
+>>>>>>> magus/renew.py
+
+            if hrdInd:
+                hrdPop.append(hrdInd)
         return hrdPop
 
     def select(self):
@@ -412,6 +493,143 @@ class MLcutEA(BaseEA):
             newPop.append(newInd)
             tmpPop.remove(newInd)
         return newPop
+
+"""
+TODO rotate the replace ball
+how to rotate the ball to make energy lower
+"""
+def replace_ball(atoms1,i,atoms2,j,cutR):
+    """replace some atoms in a ball
+    
+    Arguments:
+        atoms1 {atoms} -- [structure to be replaced]
+        i {int} -- [atom index of the centre of ball]
+        atoms2 {atoms} -- [structure to replace]
+        j {int} -- [atom index of the centre of ball]
+        cutR {float} -- [radius of the ball]
+    """
+    newatoms = Atoms(pbc=atoms1.pbc, cell=atoms1.cell)
+
+    nl = NeighborList(cutoffs=[cutR/2]*len(atoms1), skin=0, self_interaction=True, bothways=True)
+    nl.update(atoms1)
+    indices, _ = nl.get_neighbors(i)
+    for index,atom in enumerate(atoms1):
+        if index not in indices:
+            newatoms.append(atom)
+ 
+    nl = NeighborList(cutoffs=[cutR/2]*len(atoms2), skin=0, self_interaction=True, bothways=True)
+    nl.update(atoms2)
+    indices, _ = nl.get_neighbors(j)
+    atoms2.positions += atoms1.positions[i]-atoms2.positions[j]
+    newatoms.extend(atoms2[indices])
+    return newatoms 
+
+
+def match_lattice(atoms1,atoms2):
+    """lattice matching , 10.1016/j.scib.2019.02.009
+    
+    Arguments:
+        atoms1 {atoms} -- atoms1
+        atoms2 {atoms} -- atoms2
+    
+    Returns:
+        atoms,atoms,float,float -- two best matched atoms in z direction
+    """
+    def match_fitness(a1,b1,a2,b2):
+        #za lao shi you shu zhi cuo wu
+        a1,b1,a2,b2 = np.round([a1,b1,a2,b2],3)
+        a1x = np.linalg.norm(a1)
+        a2x = np.linalg.norm(a2)
+        if a1x*a2x ==0:
+            return 1000
+        b1x = a1@b1/a1x
+        b2x = a2@b2/a2x
+        b1y = np.sqrt(b1@b1 - b1x**2)
+        b2y = np.sqrt(b2@b2 - b2x**2)
+        if b1y*b2y == 0:
+            return 1000
+        exx = (a2x-a1x)/a1x
+        eyy = (b2y-b1y)/b1y
+        exy = b2x/b1y-a2x/a1x*b1x/b1y
+        return np.abs(exx)+np.abs(eyy)+np.abs(exy)
+    
+    def to_matrix(hkl1,hkl2):
+        hklrange = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
+        hklrange = [np.array(_) for _ in hklrange]
+        for hkl3 in hklrange:
+            M = np.array([hkl1,hkl2,hkl3])
+            if np.linalg.det(M)>0:
+                break
+        return M
+
+    def standard_cell(atoms):
+        newcell = cellpar_to_cell(cell_to_cellpar(atoms.cell))
+        T = np.linalg.inv(atoms.cell)@newcell
+        atoms.positions = atoms.positions@T
+        atoms.cell = newcell
+        return atoms
+        
+    cell1,cell2 = atoms1.cell[:],atoms2.cell[:]
+    hklrange = [(1,0,0),(0,1,0),(0,0,1),(1,-1,0),(1,1,0),(1,0,-1),(1,0,1),(0,1,-1),(0,1,1),(2,0,0),(0,2,0),(0,0,2)]
+    #TODO ba cut cell jian qie ti ji bu fen gei gai le 
+    hklrange = [(1,0,0),(0,1,0),(0,0,1)]
+    hklrange = [np.array(_) for _ in hklrange]
+    minfitness = 1000
+    for hkl1,hkl2 in itertools.permutations(hklrange,2):
+        for hkl3,hkl4 in itertools.permutations(hklrange,2):
+            a1,b1,a2,b2 = hkl1@cell1,hkl2@cell1,hkl3@cell2,hkl4@cell2
+            fitness = match_fitness(a1,b1,a2,b2)
+            if fitness<minfitness:
+                minfitness = fitness
+                bestfit = hkl1,hkl2,hkl3,hkl4
+    newatoms1 = standard_cell(make_supercell(atoms1,to_matrix(bestfit[0],bestfit[1])))
+    newatoms2 = standard_cell(make_supercell(atoms2,to_matrix(bestfit[2],bestfit[3])))
+    ratio1 = newatoms1.get_volume()/atoms1.get_volume()
+    ratio2 = newatoms2.get_volume()/atoms2.get_volume()
+    return newatoms1,newatoms2,ratio1,ratio2
+
+
+def cut_cell_new(atoms1, atoms2, cutDisp=0):
+    """cut two cells to get a new cell
+    
+    Arguments:
+        atoms1 {atoms} -- atoms1 to be cut
+        atoms2 {atoms} -- atoms2 to be cut
+    
+    Keyword Arguments:
+        cutDisp {int} -- dispalacement in cut (default: {0})
+    
+    Raises:
+        RuntimeError: no atoms in new cell
+    
+    Returns:
+        atoms -- generated atoms
+    """
+    atoms1,atoms2,ratio1,ratio2 = match_lattice(atoms1,atoms2)
+    cutCell = (atoms1.get_cell()+atoms2.get_cell())*0.5
+    cutCell[2] = (atoms1.get_cell()[2]/ratio1+atoms2.get_cell()[2]/ratio2)*0.5
+    cutVol = (atoms1.get_volume()/ratio1+atoms2.get_volume()/ratio2)*0.5
+    cutCellPar = cell_to_cellpar(cutCell)
+    ratio = cutVol/abs(np.linalg.det(cutCell))
+    if ratio > 1:
+        cutCellPar[:3] = [length*ratio**(1/3) for length in cutCellPar[:3]]
+
+    cutInd = Atoms(cell=cutCellPar,pbc = True,)
+    scaled_positions = []
+    cutPos = 0.5+cutDisp*np.random.uniform(-0.5, 0.5)
+    for atom in atoms1:
+        if 0 <= atom.c < cutPos/ratio1:
+            cutInd.append(atom)
+            scaled_positions.append([atom.a,atom.b,atom.c])
+    for atom in atoms2:
+        if 0 <= atom.c < (1-cutPos)/ratio2:
+            cutInd.append(atom)
+            scaled_positions.append([atom.a,atom.b,atom.c+cutPos/ratio1])
+
+    cutInd.set_scaled_positions(scaled_positions)
+    if len(cutInd) == 0:
+        raise RuntimeError('No atoms in the new cell')
+    return cutInd
 
 def cut_cell(cutPop, grid, symbols, cutDisp=0):
     """
@@ -473,82 +691,6 @@ def cut_cell(cutPop, grid, symbols, cutDisp=0):
     # cutInd.info['formula'] = formula
 
     return cutInd
-
-def cut_cell_ml(cutPop, grid, symbols, calc, cutDisp=0):
-    """
-    Cut cells to generate a new structure.
-    len(cutPop) = grid[0] * grid[1] * grid[2]
-    cutDisp: displacement in cut
-    """
-    k1, k2, k3 = grid
-    numSiv = k1*k2*k3
-    siv = [(x, y, z) for x in range(k1) for y in range(k2) for z in range(k3)]
-    sivCut = list()
-    for i in range(3):
-        cutPos = [(x + cutDisp*random.uniform(-0.5, 0.5))/grid[i] for x in range(grid[i])]
-        cutPos.append(1)
-        cutPos[0] = 0
-        sivCut.append(cutPos)
-
-    cutCell = np.zeros((3, 3))
-    cutVol = 0
-    for otherInd in cutPop:
-        cutCell = cutCell + otherInd.get_cell()/numSiv
-        cutVol = cutVol + otherInd.get_volume()/numSiv
-
-    cutCellPar = cell_to_cellpar(cutCell)
-    ratio = cutVol/abs(np.linalg.det(cutCell))
-    if ratio > 1:
-        cutCellPar[:3] = [length*ratio**(1/3) for length in cutCellPar[:3]]
-
-    syblDict = dict()
-    for sybl in symbols:
-        syblDict[sybl] = []
-
-    for k in range(numSiv):
-        cutInd.set_calculator(calc)
-        energies = cutInd.get_potential_energies()
-        for _ in range(10):
-            cutInd = cutPop[k]
-            tranPos = cutInd.get_scaled_positions() # Displacement
-            tranPos += np.repeat(np.random.random((1,3)),len(cutInd),0)
-            cutInd.set_scaled_positions(tranPos)
-            cutInd.wrap()
-            imAts = [imAtom for imAtom in cutInd
-                    if sivCut[0][siv[k][0]] <= imAtom.a < sivCut[0][siv[k][0] + 1]
-                    if sivCut[1][siv[k][1]] <= imAtom.b < sivCut[1][siv[k][1] + 1]
-                    if sivCut[2][siv[k][2]] <= imAtom.c < sivCut[2][siv[k][2] + 1]
-                    ]
-            E = [energies[i] for i,imAtom in enumerate(cutInd)
-                    if sivCut[0][siv[k][0]] <= imAtom.a < sivCut[0][siv[k][0] + 1]
-                    if sivCut[1][siv[k][1]] <= imAtom.b < sivCut[1][siv[k][1] + 1]
-                    if sivCut[2][siv[k][2]] <= imAtom.c < sivCut[2][siv[k][2] + 1]
-                    ]
-
-        for atom in imAts:
-            for sybl in symbols:
-                if atom.symbol == sybl:
-                    syblDict[sybl].append((atom.a, atom.b, atom.c))
-    cutPos = []
-    strFrml = ''
-    for sybl in symbols:
-        if len(syblDict[sybl]) > 0:
-            cutPos.extend(syblDict[sybl])
-            strFrml = strFrml + sybl + str(len(syblDict[sybl]))
-    if strFrml == '':
-        raise RuntimeError('No atoms in the new cell')
-
-
-    cutInd = Atoms(strFrml,
-        cell=cutCellPar,
-        pbc = True,)
-    cutInd.set_scaled_positions(cutPos)
-
-    # formula = [len(syblDict[sybl]) for sybl in symbols]
-    # cutInd.info['formula'] = formula
-
-    return cutInd
-
 
 def exchage_atom(parInd, fracSwaps=None):
     if not fracSwaps:
@@ -657,7 +799,6 @@ def ripple(parInd, rho=0.3, mu=2, eta=1):
     chdInd.set_scaled_positions(pos)
     return chdInd
 
-
 def mol_dict_pop(pop, molDetector=1, coefRange=[1.1,], scale_cell=False):
     logging.debug("mol_dict_pop():")
     logging.debug("coef range: {}".format(coefRange))
@@ -759,7 +900,6 @@ def mol_exchage(parInd):
 
     return chdInd
 
-
 def mol_slip(parInd, cut=0.5, randRange=[0.2, 0.8]):
 
     chdInd = parInd.copy()
@@ -817,6 +957,7 @@ def mol_cut_cell(parInd1, parInd2, axis=0):
 
     return cutInd
 
+<<<<<<< magus/renew.py
 def mol_ripple(parInd, rho=0.3, mu=2, eta=1):
     '''
     from XtalOpt
@@ -835,6 +976,8 @@ def mol_ripple(parInd, rho=0.3, mu=2, eta=1):
 
 
 
+=======
+>>>>>>> magus/renew.py
 def tournament(pop, num, keyword='dominators'):
     smpPop = random.sample(pop, num)
     best = smpPop[0]
@@ -843,8 +986,6 @@ def tournament(pop, num, keyword='dominators'):
             best = ind
 
     return best
-
-
 
 def merge_atoms(atoms, tolerance=0.3,):
     """
@@ -965,7 +1106,66 @@ def repair_atoms(ind, symbols, toFrml, numFrml=1, dRatio=1, tryNum=20):
     # else:
     #     logging.debug("Wrong formula in repair_atoms")
     #     return None
+"""
+TODO add use_tags:   
+Whether to use the atomic tags to preserve molecular identity.
+"""
+from ase.ga.offspring_creator import OffspringCreator, CombinationMutation
 
+
+def atoms_too_close(atoms, bl, use_tags=False):
+    """ Checks if any atoms in a are too close, as defined by
+        the distances in the bl dictionary.
+
+        use_tags: whether to use the Atoms tags to disable distance
+                  checking within a set of atoms with the same tag.
+
+        Note: if certain atoms are constrained and use_tags is True,
+        this method may return unexpected results in case the
+        contraints prevent same-tag atoms to be gathered together in
+        the minimum-image-convention. In such cases, one should
+        (1) release the relevant constraints,
+        (2) apply the gather_atoms_by_tag function, and
+        (3) re-apply the constraints, before using the
+            atoms_too_close function. """
+    a = atoms.copy()
+    if use_tags:
+        gather_atoms_by_tag(a)
+
+    pbc = a.get_pbc()
+    cell = a.get_cell()
+    num = a.get_atomic_numbers()
+    pos = a.get_positions()
+    tags = a.get_tags()
+    unique_types = sorted(list(set(num)))
+
+    neighbours = []
+    for i in range(3):
+        if pbc[i]:
+            neighbours.append([-1, 0, 1])
+        else:
+            neighbours.append([0])
+
+    for nx, ny, nz in itertools.product(*neighbours):
+        displacement = np.dot(cell.T, np.array([nx, ny, nz]).T)
+        pos_new = pos + displacement
+        distances = cdist(pos, pos_new)
+
+        if nx == 0 and ny == 0 and nz == 0:
+            if use_tags and len(a) > 1:
+                x = np.array([tags]).T
+                distances += 1e2 * (cdist(x, x) == 0)
+            else:
+                distances += 1e2 * np.identity(len(a))
+
+        iterator = itertools.combinations_with_replacement(unique_types, 2)
+        for type1, type2 in iterator:
+            x1 = np.where(num == type1)
+            x2 = np.where(num == type2)
+            if np.min(distances[x1].T[x2]) < bl[(type1, type2)]:
+                return True
+
+    return False
 
 
 # if __name__=="__main__":

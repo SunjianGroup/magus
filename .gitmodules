@@ -1,0 +1,6 @@
+[submodule "lrpot"]
+	path = lrpot
+	url = git@git.nju.edu.cn:bigd4/lrpot.git
+[submodule "generatenew"]
+	path = generatenew
+	url = git@git.nju.edu.cn:HanYu/generatenew.git

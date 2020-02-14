@@ -39,14 +39,37 @@ class LRCalculator(Calculator):
         self.reg = reg
         self.cf = cf
 
-    def get_potential_energies(self, atoms=None, force_consistent=False):
+    def load_calculator(self,filename):
+        with open(filename) as f:
+            data = yaml.load(f)
+        self.reg = LinearRegression()
+        self.reg.coef_=data['coef_']
+        self.reg.intercept_ = data['intercept_']
+        cutoff = data['cutoff']
+        nmax = data['nmax']
+        lmax = data['lmax']
+        ncut = data['ncut']
+        diag = data['diag']
+        self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
+
+    def save_calculator(self,filename):
+        data={'coef_':self.reg.coef_,'intercept_':self.reg.intercept_,
+            'cutoff':self.cf.cutoff,'nmax':self.cf.nmax,'lmax':self.cf.lmax,
+            'ncut':self.cf.ncut,'elems':self.cf.elems,'diag':self.cf.diag}
+        with open(filename,'w') as f:
+            yaml.dump(data,f)   
+
+    def get_potential_energies(self, atoms=None):
+        if atoms is not None:
+            self.atoms = atoms.copy()
         eFps, _, _ = self.cf.get_all_fingerprints(self.atoms)
-        X=np.concatenate((np.ones((len(atoms),1)),eFps),axis=1)
+        X=np.concatenate((np.ones((len(self.atoms),1)),eFps),axis=1)
         y=self.reg.predict(X)
         return y
 
     def calculate(self, atoms=None,properties=['energy'],system_changes=all_changes):
-        Calculator.calculate(self, atoms, properties, system_changes)
+        if atoms is not None:
+            self.atoms = atoms.copy()
         X,n=[],[]
 
         eFps, fFps, sFps = self.cf.get_all_fingerprints(self.atoms)
@@ -55,7 +78,7 @@ class LRCalculator(Calculator):
         X.append(np.mean(eFps,axis=0))
         X.extend(fFps.reshape(-1,eFps.shape[1]))
         X.extend(sFps.reshape(-1,eFps.shape[1]))
-        n.extend([1.0]+[0.0]*len(atoms)*3+[0.0]*6)
+        n.extend([1.0]+[0.0]*len(self.atoms)*3+[0.0]*6)
         X=np.array(X)
         n=np.array(n)
         X=np.concatenate((n.reshape(-1,1),X),axis=1)
@@ -84,10 +107,15 @@ class LRmodel(MachineLearning):
         self.X = None
         #self.optimizer=optimizers[parameters.mloptimizer]
         self.dataset = []
+        self.mlDir = '{}/MLFold'.format(self.parameters.workDir)
+        if not os.path.exists(self.mlDir):
+            os.mkdir(self.mlDir)
 
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
         self.reg = LinearRegression().fit(self.X, self.y, self.w)
+        calc = LRCalculator(self.reg,self.cf)
+        calc.save_calculator('{}/mlparameters'.format(self.mlDir))
         logging.info('training end')
 
     def get_data(self,images,implemented_properties = ['energy', 'forces']):
@@ -164,6 +192,7 @@ class LRmodel(MachineLearning):
 
     def relax(self,structs):
         calc = LRCalculator(self.reg,self.cf)
+        
         newStructs = []
         structs_=copy.deepcopy(structs)
         for i,ind in enumerate(structs_):
