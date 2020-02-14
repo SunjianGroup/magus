@@ -451,7 +451,7 @@ class MLcutEA(easyMLEA):
                 else:
                     hrdInd.info['formula'] = get_formula(hrdInd, self.symbols)
                     hrdInd.info['numOfFormula'] = 1
->>>>>>> magus/renew.py
+#>>>>>>> magus/renew.py
 
             if hrdInd:
                 hrdPop.append(hrdInd)

@@ -12,7 +12,7 @@ import numpy as np
 from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
-#from .utils import *
+from .utils import *
 
 #from .setfitness import calc_fitness
 #from .renew import BaseEA, BOEA
