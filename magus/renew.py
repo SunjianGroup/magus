@@ -258,7 +258,6 @@ class BaseEA:
         else:
             return tmpPop
 
-<<<<<<< magus/renew.py
 class easyMLEA(BaseEA):
     """
     only use ML module to guess energy
@@ -284,8 +283,6 @@ class easyMLEA(BaseEA):
 
         return newPop
 
-=======
->>>>>>> magus/renew.py
 class BOEA(BaseEA):
     """
     Bayesian Optimization plus EA
@@ -355,30 +352,6 @@ class BOEA(BaseEA):
 
         return newPop
 
-class easyMLEA(BaseEA):
-    """
-    only use ML module to guess energy
-    """
-    def __init__(self, parameters, ML):
-        self.ML = ML
-        return super().__init__(parameters)
-
-    def select(self):
-        tmpPop = self.tmpPop[:]
-        newPop = []
-        if self.newLen < len(tmpPop):
-            for _ in range(self.newLen):
-                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='enthalpy')
-                newPop.append(newInd)
-                tmpPop.remove(newInd)
-        else:
-            newPop = tmpPop
-        # remove the enthalpy key
-        for ind in newPop:
-            ind.info['predictE'] = ind.info['enthalpy']
-            del ind.info['enthalpy']
-
-        return newPop
 
 class MLcutEA(easyMLEA):
     """
@@ -394,45 +367,45 @@ class MLcutEA(easyMLEA):
         curPop = self.curPop
         symbols = self.symbols
         hrdPop = list()
-<<<<<<< magus/renew.py
-        for i in range(self.saveGood):
-            goodInd = goodPop[i]
-            splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
-            splitLen = len(splitPop)
-            sampleNum = int(self.parameters.tourRatio*splitLen) + 1
-            logging.debug("splitlen: %s"%(splitLen))
-            if splitLen <= 1:
-                continue
-            for j in range(cutNum):
-                grid = random.choice(grids)
-                spInd = tournament(splitPop, sampleNum)
-                tranPos = spInd.get_scaled_positions() # Displacement
-                tranPos += np.array([[random.random(), random.random(), random.random()]]*len(spInd))
-                spInd.set_scaled_positions(tranPos)
-                spInd.wrap()
-
-                ind1 = cut_cell_ml([spInd, goodInd], grid, symbols, self.calc, 0.2)
-                ind2 = cut_cell_ml([goodInd, spInd], grid, symbols, self.calc, 0.2)
-                ind1 = merge_atoms(ind1, self.dRatio)
-                ind2 = merge_atoms(ind2, self.dRatio)
-
-
-                parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
-                parDom = 0.5*(sum([ind.info['sclDom'] for ind in [spInd, goodInd]]))
-                ind1.info['parentE'], ind2.info['parentE'] = parentE, parentE
-                ind1.info['parDom'], ind2.info['parDom'] = parDom, parDom
-                ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
-
-
-                nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
-                ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
-                ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
-                ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
-                ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
-
-                pairPop = [ind for ind in [ind1, ind2] if ind is not None]
-                hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
-=======
+#<<<<<<< magus/renew.py
+#        for i in range(self.saveGood):
+#            goodInd = goodPop[i]
+#            splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
+#            splitLen = len(splitPop)
+#            sampleNum = int(self.parameters.tourRatio*splitLen) + 1
+#            logging.debug("splitlen: %s"%(splitLen))
+#            if splitLen <= 1:
+#                continue
+#            for j in range(cutNum):
+#                grid = random.choice(grids)
+#                spInd = tournament(splitPop, sampleNum)
+#                tranPos = spInd.get_scaled_positions() # Displacement
+#                tranPos += np.array([[random.random(), random.random(), random.random()]]*len(spInd))
+#                spInd.set_scaled_positions(tranPos)
+#                spInd.wrap()
+#
+#                ind1 = cut_cell_ml([spInd, goodInd], grid, symbols, self.calc, 0.2)
+#                ind2 = cut_cell_ml([goodInd, spInd], grid, symbols, self.calc, 0.2)
+#                ind1 = merge_atoms(ind1, self.dRatio)
+#                ind2 = merge_atoms(ind2, self.dRatio)
+#
+#
+#                parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
+#                parDom = 0.5*(sum([ind.info['sclDom'] for ind in [spInd, goodInd]]))
+#                ind1.info['parentE'], ind2.info['parentE'] = parentE, parentE
+#                ind1.info['parDom'], ind2.info['parDom'] = parDom, parDom
+#                ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
+#
+#
+#                nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
+#                ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
+#                ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
+#                ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
+#                ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
+#
+#                pairPop = [ind for ind in [ind1, ind2] if ind is not None]
+#                hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
+#=======
         r = 3  #radius of the ball to be displaced
         core_enenrgies = {}
         for i,ind in enumerate(curPop):
@@ -957,7 +930,6 @@ def mol_cut_cell(parInd1, parInd2, axis=0):
 
     return cutInd
 
-<<<<<<< magus/renew.py
 def mol_ripple(parInd, rho=0.3, mu=2, eta=1):
     '''
     from XtalOpt
@@ -976,8 +948,8 @@ def mol_ripple(parInd, rho=0.3, mu=2, eta=1):
 
 
 
-=======
->>>>>>> magus/renew.py
+#=======
+#>>>>>>> magus/renew.py
 def tournament(pop, num, keyword='dominators'):
     smpPop = random.sample(pop, num)
     best = smpPop[0]

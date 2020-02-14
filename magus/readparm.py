@@ -12,15 +12,13 @@ import numpy as np
 from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
-from .readparm import read_parameters
-from .utils import *
+#from .utils import *
 
-from .queue import JobManager
-from .setfitness import calc_fitness
-from .renew import BaseEA, BOEA
+#from .setfitness import calc_fitness
+#from .renew import BaseEA, BOEA
 #ML module
-from .machinelearning import LRmodel
-from .offspring_creator import *
+#from .machinelearning import LRmodel
+#from .offspring_creator import *
 ###############################
 
 
