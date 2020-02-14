@@ -232,6 +232,12 @@ class MolCryst:
 
 
 def atoms2molcryst(atoms, coef=1.1):
+    """
+    Convert crystal to molecular crystal
+    atoms: (ASE.Atoms) the input crystal structure 
+    coef: (float) the criterion for connecting two atoms
+    Return: MolCryst
+    """
     QG = quotient_graph(atoms, coef)
     graphs = nx.connected_component_subgraphs(QG)
     partition = []
@@ -274,6 +280,12 @@ def atoms2molcryst(atoms, coef=1.1):
     return molC
 
 def atoms2communities(atoms, coef=1.1):
+    """
+    Split crystal to communities 
+    atoms: (ASE.Atoms) the input crystal structure 
+    coef: (float) the criterion for connecting two atoms
+    Return: MolCryst
+    """
     QG = quotient_graph(atoms, coef)
     graphs = nx.connected_component_subgraphs(QG)
     partition = []
@@ -301,7 +313,6 @@ def atoms2communities(atoms, coef=1.1):
     sclPos=atoms.get_scaled_positions(), partition=partition, offSets=offSets, info=atoms.info.copy())
 
     return molC
-
 
 def symbols_and_formula(atoms):
 
@@ -437,6 +448,10 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
     return seedPop
 
 def rand_rotMat():
+    """
+    Get random rotation matrix
+    Return: a 3x3 matrix
+    """
     phi, theta, psi = [2*math.pi*random.uniform(-1,1) for _ in range(3)]
     rot1 = np.array([[cos(phi),-1*sin(phi),0],[sin(phi),cos(phi),0],[0,0,1]])
     rot2 = np.array([[cos(theta), 0, -1*sin(theta)],[0,1,0],[sin(theta), 0, cos(theta)]])
@@ -446,6 +461,12 @@ def rand_rotMat():
     return rotMat
 
 def check_mol_ind(molInd, inputNums, bondRatio):
+    """
+    Check if the crystal is molecular crystal. Here we only check the atomic numbers of each molecule, do not check the inner connectivity of molecules.
+    molInd: (ASE.Atoms) input crystal
+    inputNums: atomic numbers for all molecules
+    bondRatio: the criterion for connecting atoms
+    """
     molc = atoms2molcryst(molInd, bondRatio)
     molNums = molInd.get_atomic_numbers()
     counters = [Counter(nums) for nums in inputNums]
