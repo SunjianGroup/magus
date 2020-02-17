@@ -16,7 +16,11 @@ from .renew import BaseEA, BOEA
 #ML module
 from .machinelearning import LRmodel
 from .offspring_creator import PopGenerator
-
+"""
+Pop:class,poplulation
+pop:list,a list of atoms
+Population:Population(pop) --> Pop
+"""
 class Magus:
     def __init__(self,parameters):
         self.parameters = parameters
@@ -26,10 +30,11 @@ class Magus:
         self.Population = get_population(parameters)
         self.ML=LRmodel(parameters)
         self.get_fitness = calc_fitness
-        self.pop=[]
+        self.initPops = []
+        self.relaxPops = []
         self.goodPop=[]
         self.keepPop=[]
-        self.curgen=1
+        self.curgen=0
 
     def run(self):
         self.Initialize()
@@ -43,13 +48,12 @@ class Magus:
                 i+=1
             shutil.move("results", "results{}".format(i))
         os.mkdir("results")
-        # if not os.path.exists("calcFold"):
-        #     os.mkdir("calcFold")
-        self.parameters.resultsDir=os.path.join(self.parameters.workDir,'results')
+
         shutil.copy("allParameters.yaml", "results/allParameters.yaml")
         logging.info("===== Generation {} =====".format(self.curgen))
         if not self.parameters.molMode:
-            initPop = self.Generator.Generate_pop(self.parameters.initSize)
+            initpop = self.Generator.Generate_pop(self.parameters.initSize)
+            initPop = self.Population(initpop,'initpop',self.curgen)
             if self.parameters.calcType == 'var':
                 p_=copy.deepcopy(self.parameters)
                 # Generate simple substance in variable mode
@@ -71,36 +75,29 @@ class Magus:
         else:
             initPop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, self.parameters.formula, self.inputMols, self.parameters.molFormula, self.parameters.numFrml, self.parameters.spacegroup, fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
         logging.info("initPop length: {}".format(len(initPop)))
-
-        write_results(initPop, self.curgen, 'init',self.parameters.resultsDir)
-
-        relaxPop=self.MainCalculator.relax(initPop)
-
-        write_results(relaxPop, self.curgen, 'raw', self.parameters.resultsDir)
-
-        self.pop=copy.deepcopy(relaxPop)
+        initPop.save('init')
+        self.initPops.append(initPop)
+        relaxpop = self.MainCalculator.relax(initPop.frames)
+        relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
+        relaxPop.save('raw')
+        self.relaxPops.append(relaxPop)
 
     def Onestep(self):
-        relaxPop = self.pop
-        goodPop = self.goodPop
-        keepPop = self.keepPop
+        relaxPop = self.relaxPops[-1]
+        goodPop = self.goodPops
+        keepPop = self.keepPops
 
-        logging.info("check distance")
-        relaxPop = check_dist(relaxPop, self.parameters.dRatio)
-        logging.info("check survival: {}".format(len(relaxPop)))
-
+        relaxPop.check()
+        
         if self.parameters.chkMol:
             logging.info("check mols")
             relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
             logging.info("check survival: {}".format(len(relaxPop)))
 
-        logging.info('del_duplicate relaxPop begin')
-        relaxPop = del_duplicate(relaxPop, symprec=self.parameters.symprec)
-        logging.info('del_duplicate relaxPop finish')
+        relaxPop.del_duplicate()
 
         if self.parameters.calcType == 'var':
             relaxPop, goodPop, keepPop = convex_hull_pops(relaxPop, goodPop, keepPop)
-
 
         for Pop in [relaxPop,goodPop,keepPop]:
             self.get_fitness(Pop, mode=self.parameters.calcType)
@@ -119,48 +116,39 @@ class Magus:
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
         logging.info('calc_all_fingerprints finish')
         # Write relaxPop
-        write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
+        relaxPop.save('gen')
 
         ### save good individuals
         logging.info('goodPop')
-        goodPop = relaxPop+goodPop+keepPop
-        goodPop = del_duplicate(goodPop, symprec=self.parameters.symprec)
-        goodPop = calc_dominators(goodPop)
-        goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])
-
-
-        if len(goodPop) > self.parameters.popSize:
-            goodPop = goodPop[:self.parameters.popSize]
+        goodPop = relaxPop + goodPop + keepPop
+        goodPop.del_duplicate()
+        goodPop.select(self.parameters.popSize)
 
         ### keep best
         logging.info('keepPop')
-        labels, keepPop = clustering(goodPop, self.parameters.saveGood)
-
+        _, keeppop = goodPop.clustering(self.parameters.saveGood)
+        keepPop = self.Population(keeppop,'keeppop',self.curgen)
         ### write good and keep pop
-        write_results(goodPop, '', 'good',self.parameters.resultsDir)
-        write_results(goodPop, self.curgen, 'savegood',self.parameters.resultsDir)
-        write_results(keepPop, self.curgen, 'keep',self.parameters.resultsDir)
+        goodPop.save('good','')
+        goodPop.save('savegood')
+        keepPop.save('keep')
         shutil.copy('{}/log.txt'.format(self.parameters.workDir), '{}/results/log.txt'.format(self.parameters.workDir))
 
-        ### write dataset
-        write_dataset(relaxPop)
-
-        curPop = del_duplicate(relaxPop + keepPop, symprec=self.parameters.symprec)
+        curPop = relaxPop + keepPop
+        curPop.del_duplicate()
 
         # renew volRatio
-        volRatio = sum([calc_volRatio(ats) for ats in relaxPop])/len(relaxPop)
+        volRatio = relaxPop.get_volRatio()
         self.Generator.updatevolRatio(0.5*(volRatio + self.Generator.volRatio))
-        logging.debug("volRatio: {}".format(self.Generator.volRatio))
 
-        self.Algo.generate(curPop)
-        initPop=self.Algo.select()
+        initpop = self.Algo.next_pop(curPop)
         ### Initail check
         # initPop = check_dist(initPop, self.parameters.dRatio)
-        logging.debug("Generated by Algo: {}".format(len(initPop)))
+        logging.debug("Generated by Algo: {}".format(len(initpop)))
 
-        if len(initPop) < self.parameters.popSize:
+        if len(initpop) < self.parameters.popSize:
             logging.info("random structures")
-            initPop.extend(self.Generator.Generate_pop(self.parameters.popSize-len(initPop)))
+            initpop.extend(self.Generator.Generate_pop(self.parameters.popSize-len(initpop)))
 
 
         self.curgen+=1
@@ -171,8 +159,8 @@ class Magus:
         # self.ML.get_fp(initPop)
 
         ### Save Initial
-        write_results(initPop,self.curgen, 'init',self.parameters.resultsDir)
-
+        initPop = self.Population(initpop,'initpop',self.curgen)
+        initPop.save()
 
         if self.parameters.mlRelax:
             ### mlrelax
@@ -193,16 +181,15 @@ class Magus:
                 relaxPop = self.MainCalculator.relax(initPop)
                 logging.info('Turn to main calculator')
         else:
-            relaxPop = self.MainCalculator.relax(initPop)
+            relaxpop = self.MainCalculator.relax(initPop.frames)
+            relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
 
         # save raw date before checking
-        write_results(relaxPop, self.curgen, 'raw',self.parameters.resultsDir)
+        relaxPop.save('raw')
 
-        self.pop=copy.deepcopy(relaxPop)
+        self.relaxPops.append(relaxPop)
         self.goodPop=copy.deepcopy(goodPop)
         self.keepPop=copy.deepcopy(keepPop)
-
-
 
 
 parser = argparse.ArgumentParser()

@@ -37,6 +37,7 @@ class BaseGenerator:
         self.minVolume *= volRatio/self.volRatio
         self.maxVolume *= volRatio/self.volRatio
         self.volRatio=volRatio
+        logging.debug("new volRatio: {}".format(self.volRatio))
 
     def checkParameters(self,Requirement=[],Default={}):
         for key in Requirement:

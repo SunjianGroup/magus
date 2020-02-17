@@ -9,41 +9,90 @@ from .utils import check_new_atom_dist,sort_elements
 import logging
 from sklearn import cluster
 from .descriptor import ZernikeFp
+import copy
 class Population:
     """
     a class of atoms population
     TODO __iter__
     """
     def __init__(self,pop,parameters,name='temp'):
-        self.pop = pop
-        self.name = name
-        for i,ind in enumerate(pop):
-            ind.info['identity'] = [self.name, i]
         self.parameters = parameters
-    
-    def save(self,filename):
-        pop = []
-        for ind in self.pop:
-            pop.append(ind.atoms)
-        ase.io.write(filename,pop)
+        self.Individual = Individual(parameters)
+
+    def __call__(self,pop,name='temp',gen=None):
+        newpop = self.__class__(self.parameters)
+        if pop[0].__class__.__name__ == 'Atoms':
+            pop = [self.Individual(ind) for ind in pop]
+        newpop.pop = pop
+        newpop.name = name
+        newpop.gen = gen
+        for i,ind in enumerate(pop):
+            ind.info['identity'] = [name, i]
+        return newpop
 
     def __len__(self):
         return len(self.pop)
 
+    def __add__(self,other):
+        newPop = self.copy()
+        for ind in other:
+            newPop.append(ind)
+        return newPop
+
     def append(self,ind):
-        self.pop.append(ind)
+        for ind_ in self.pop:
+            if ind == ind_:
+                return False
+        else:
+            self.pop.append(ind)
+            return True
+
+    def copy(self):
+        newpop = copy.deepcopy(self.pop)
+        return self(newpop,name=self.name,gen=self.gen)
+
+    def save(self,filename=None,gen=None,savedir=None):
+        filename = self.name if filename is None
+        gen = self.gen if gen is None
+        savedir = self.parameters.resultsDir if savedir is None
+        if not os.path.exists(savedir):
+            os.mkdir(savedir)
+        pop = []
+        for ind in self.pop:
+            atoms = ind.atoms.copy()
+            pop.append(atoms)
+        ase.io.write("{}/{}{}.traj".format(savedir,name,gen),pop,format='traj')
+
+    @property
+    def frames(self):
+        pop = []
+        for ind in self.pop:
+            atoms = ind.atoms.copy()
+            pop.append(atoms)
+        return pop
 
     def get_all_fitness(self):
         pass
 
     def del_duplicate(self):
-        pass
+        logging.info('del_duplicate {} begin'.format(self.name))
+        newpop = []
+        for ind1 in self.pop:
+            for ind2 in newpop:
+                if ind1==ind2:
+                    break
+            else:
+                newpop.append(ind1)
+        logging.info('del_duplicate {} finish'.format(self.name))
+        self.pop = newpop
 
     def check(self):
+        logging.info("check distance")
         checkPop = []
         for ind in self.pop:
             if ind.check():
                 checkPop.append(ind)
+        logging.info("check survival: {}".format(len(relaxPop)))
         self.pop = checkPop
 
     def symmetrize_pop(self):
@@ -52,22 +101,38 @@ class Population:
     def clustering(self, numClusters):
         """
         clustering by fingerprints
+        TODO may not be a class method
         """
         if numClusters >= len(self.pop):
-            return np.arange(len(self.pop))
+            return np.arange(len(self.pop)),self.pop
 
         fpMat = np.array([ind.fingerprint for ind in self.pop])
-        return cluster.KMeans(n_clusters=numClusters).fit_predict(fpMat)
+        labels = cluster.KMeans(n_clusters=numClusters).fit_predict(fpMat)
+        goodpop = [None]*numClusters
+        for label, ind in zip(labels, self.pop):
+            curBest = goodpop[label]
+            if curBest:
+                if ind.fitness > curBest.fitness:
+                    goodpop[label] = ind
+            else:
+                goodpop[label] = ind
+        return labels, goodpop
 
+    def get_volRatio(self):
+        volRatios = [ind.get_volRatio() for ind in self.pop]
+        return np.mean(volRatios)
+
+    def select(self,n):
+        if len(self) > n:
+            self.pop = sorted(self.pop, key=lambda x:x.fitness, reverse=True)[:n]
+        
 class Individual:
-    def __init__(self,atoms,parameters):
-        self.atoms = atoms
+    def __init__(self,parameters):
         self.parameters = parameters
         self.formula = parameters.formula
         self.symbols = parameters.symbols
         self.repairtryNum = parameters.repairtryNum
         self.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
-        
 
         #TODO add more comparators
         from ase.ga.standard_comparators import AtomsComparator
@@ -82,6 +147,10 @@ class Individual:
         diag = self.parameters.ZernikeDiag
         self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
 
+    def __call__(self,atoms):
+        newind = self.__class__(self.parameters)
+        newind.atoms = atoms
+        return newind
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self.atoms,obj.atoms)
@@ -94,11 +163,6 @@ class Individual:
             ase.io.write(filename,atoms)
         else:
             logging.debug('None')
-
-    def new(self,atoms):
-        newatoms = atoms.copy()
-        parameters = self.parameters
-        return Individual(newatoms,parameters)
 
     @property
     def fingerprint(self):
@@ -114,6 +178,17 @@ class Individual:
             self.info['fitness'] = self.info['energy']
         return self.info['fitness']
 
+    def get_ball_volume(self):
+        ballVol = 0
+        for num in atoms.get_atomic_numbers():
+            ballVol += 4*math.pi/3*(covalent_radii[num])**3
+        self.ball_volume = ballVol
+        return ballVol
+
+    def get_volRatio(atoms):
+        self.volRatio = atoms.get_volume()/self.get_ball_volume()
+        return self.volRatio
+        
     def check_cellpar(self,atoms=None):
         """
         check if cellpar reasonable

@@ -18,6 +18,7 @@ from .utils import *
 from .queue import JobManager
 from .setfitness import calc_fitness
 from .renew import BaseEA, BOEA
+from .population import Population
 #ML module
 from .machinelearning import LRmodel
 from .offspring_creator import *
@@ -31,7 +32,8 @@ def read_parameters(inputFile):
     # parameters = yaml.load(open(inputFile), Loader=yaml.FullLoader)
     p = EmptyClass()
     p.workDir = os.getcwd()
-
+    p.resultsDir = os.path.join(p.workDir,'results')
+    
     for key, val in parameters.items():
         setattr(p, key, val)
 
@@ -236,7 +238,7 @@ def get_pop_generator(parameters):
     ripple = RippleMutation()
     slip = SlipMutation()
 
-    numlist = [cutNum,permNum,latNum,ripNum,slipNum]
+    numlist = [parameters.cutNum,parameters.permNum,parameters.latNum,parameters.ripNum,parameters.slipNum]
     oplist = [cutandsplice,perm,lattice,ripple,slip]
     
     popgen = PopGenerator(numlist,oplist,p)
@@ -254,6 +256,9 @@ def get_calculator(parameters):
     elif parameters.calculator == 'xtb':
         MainCalculator = XTBCalculator(parameters)
     return MainCalculator
+
+def get_population(parameters):
+    return Population(parameters)
 
 if __name__ == '__main__':
     parm = read_parameters('input.yaml')
