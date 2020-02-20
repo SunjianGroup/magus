@@ -1,4 +1,5 @@
 import numpy as np
+import os
 from scipy.spatial.distance import cdist, pdist
 import itertools
 import ase.io
@@ -10,19 +11,20 @@ import logging
 from sklearn import cluster
 from .descriptor import ZernikeFp
 import copy
+from .setfitness import set_fit_calcs
 class Population:
     """
     a class of atoms population
     TODO __iter__
     """
-    def __init__(self,pop,parameters,name='temp'):
+    def __init__(self,parameters):
         self.parameters = parameters
         self.Individual = Individual(parameters)
+        self.fit_calcs = set_fit_calcs(parameters)
 
     def __call__(self,pop,name='temp',gen=None):
         newpop = self.__class__(self.parameters)
-        if pop[0].__class__.__name__ == 'Atoms':
-            pop = [self.Individual(ind) for ind in pop]
+        pop = [self.Individual(ind) if ind.__class__.__name__ == 'Atoms' else ind for ind in pop]
         newpop.pop = pop
         newpop.name = name
         newpop.gen = gen
@@ -35,33 +37,40 @@ class Population:
 
     def __add__(self,other):
         newPop = self.copy()
-        for ind in other:
+        for ind in other.pop:
             newPop.append(ind)
         return newPop
 
     def append(self,ind):
+        if ind.__class__.__name__ == 'Atoms':
+            ind = self.Individual(ind)
         for ind_ in self.pop:
             if ind == ind_:
                 return False
         else:
             self.pop.append(ind)
             return True
+    
+    def extend(self,pop):
+        for ind in pop:
+            self.append(ind)
 
     def copy(self):
-        newpop = copy.deepcopy(self.pop)
+        newpop = [ind.copy() for ind in self.pop]
         return self(newpop,name=self.name,gen=self.gen)
 
     def save(self,filename=None,gen=None,savedir=None):
-        filename = self.name if filename is None
-        gen = self.gen if gen is None
-        savedir = self.parameters.resultsDir if savedir is None
+        filename = self.name if filename is None else filename
+        gen = self.gen if gen is None else gen
+        savedir = self.parameters.resultsDir if savedir is None else savedir
         if not os.path.exists(savedir):
             os.mkdir(savedir)
         pop = []
         for ind in self.pop:
             atoms = ind.atoms.copy()
             pop.append(atoms)
-        ase.io.write("{}/{}{}.traj".format(savedir,name,gen),pop,format='traj')
+        ase.io.write("{}/{}{}.traj".format(savedir,filename,gen),pop,format='traj')
+        logging.debug("save {}{}.traj".format(filename,gen))
 
     @property
     def frames(self):
@@ -71,8 +80,25 @@ class Population:
             pop.append(atoms)
         return pop
 
-    def get_all_fitness(self):
-        pass
+    def calc_dominators(self):
+        self.calc_fitness()
+        domLen = len(self.pop)
+        for ind1 in self.pop:
+            dominators = -1 #number of individuals that dominate the current ind
+            for ind2 in self.pop:
+                for key in ind1.info['fitness']:
+                    if ind1.info['fitness'][key] > ind2.info['fitness'][key]:
+                        break
+                else:
+                    dominators += 1
+
+            ind1.info['dominators'] = dominators
+            ind1.info['MOGArank'] = dominators + 1
+            ind1.info['sclDom'] = (dominators)/domLen
+
+    def calc_fitness(self):
+        for fit_calc in self.fit_calcs:
+            fit_calc(self.pop)
 
     def del_duplicate(self):
         logging.info('del_duplicate {} begin'.format(self.name))
@@ -88,12 +114,12 @@ class Population:
 
     def check(self):
         logging.info("check distance")
-        checkPop = []
+        checkpop = []
         for ind in self.pop:
             if ind.check():
-                checkPop.append(ind)
-        logging.info("check survival: {}".format(len(relaxPop)))
-        self.pop = checkPop
+                checkpop.append(ind)
+        logging.info("check survival: {}".format(len(checkpop)))
+        self.pop = checkpop
 
     def symmetrize_pop(self):
         pass
@@ -103,16 +129,17 @@ class Population:
         clustering by fingerprints
         TODO may not be a class method
         """
-        if numClusters >= len(self.pop):
-            return np.arange(len(self.pop)),self.pop
+        pop = [ind.copy() for ind in self.pop]
+        if numClusters >= len(pop):
+            return np.arange(len(pop)),pop
 
-        fpMat = np.array([ind.fingerprint for ind in self.pop])
+        fpMat = np.array([ind.fingerprint for ind in pop])
         labels = cluster.KMeans(n_clusters=numClusters).fit_predict(fpMat)
         goodpop = [None]*numClusters
-        for label, ind in zip(labels, self.pop):
+        for label, ind in zip(labels, pop):
             curBest = goodpop[label]
             if curBest:
-                if ind.fitness > curBest.fitness:
+                if ind.info['dominators'] < curBest.info['dominators']:
                     goodpop[label] = ind
             else:
                 goodpop[label] = ind
@@ -124,7 +151,7 @@ class Population:
 
     def select(self,n):
         if len(self) > n:
-            self.pop = sorted(self.pop, key=lambda x:x.fitness, reverse=True)[:n]
+            self.pop = sorted(self.pop, key=lambda x:x.info['dominators'])[:n]
         
 class Individual:
     def __init__(self,parameters):
@@ -132,7 +159,6 @@ class Individual:
         self.formula = parameters.formula
         self.symbols = parameters.symbols
         self.repairtryNum = parameters.repairtryNum
-        self.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
 
         #TODO add more comparators
         from ase.ga.standard_comparators import AtomsComparator
@@ -150,10 +176,18 @@ class Individual:
     def __call__(self,atoms):
         newind = self.__class__(self.parameters)
         newind.atoms = atoms
+        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
+        newind.info['fitness'] = {}
         return newind
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self.atoms,obj.atoms)
+
+    def copy(self):
+        newind = self.__class__(self.parameters)
+        newind.atoms = self.atoms.copy()
+        newind.info = copy.deepcopy(self.info)
+        return newind
 
     def save(self, filename):
         if self.atoms:
@@ -171,22 +205,15 @@ class Individual:
             self.info['fingerprint'] = np.mean(Efps,axis=0)
         return self.info['fingerprint']
 
-    @property
-    def fitness(self):
-        if 'fitness' not in self.info:
-            self.info['energy'] = self.atoms.info['energy']
-            self.info['fitness'] = self.info['energy']
-        return self.info['fitness']
-
     def get_ball_volume(self):
         ballVol = 0
-        for num in atoms.get_atomic_numbers():
-            ballVol += 4*math.pi/3*(covalent_radii[num])**3
+        for num in self.atoms.get_atomic_numbers():
+            ballVol += 4*np.pi/3*(covalent_radii[num])**3
         self.ball_volume = ballVol
         return ballVol
 
-    def get_volRatio(atoms):
-        self.volRatio = atoms.get_volume()/self.get_ball_volume()
+    def get_volRatio(self):
+        self.volRatio = self.atoms.get_volume()/self.get_ball_volume()
         return self.volRatio
         
     def check_cellpar(self,atoms=None):
@@ -307,7 +334,6 @@ class Individual:
                 toadd[s] = targetFrml[s] - syms.count(s)
             elif syms.count(s) > targetFrml[s]:
                 toremove[s] = syms.count(s) - targetFrml[s]
-        logging.debug('sysm:{}\ntarget:{}\ntoadd:{}\ntoremove:{}'.format(syms,targetFrml,toadd,toremove))
         repatoms = atoms.copy()
         #remove before add
         while toremove:
@@ -321,9 +347,7 @@ class Individual:
                 if toadd[add_symbol] == 0:
                     toadd.pop(add_symbol)
             else:
-                logging.debug('del:{}'.format(del_index))
                 del repatoms[del_index]
-                logging.debug('atoms number:{}'.format(len(repatoms)))
             toremove[del_symbol] -= 1
             if toremove[del_symbol] == 0:
                 toremove.pop(del_symbol)
@@ -350,3 +374,6 @@ class Individual:
         self.atoms = sort_elements(repatoms)
         return True
 
+class VarInd(Individual):
+    def __init__(self, parameters):
+        return super(VarInd, self).__init__(parameters)

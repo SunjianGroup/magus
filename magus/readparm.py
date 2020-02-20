@@ -12,11 +12,9 @@ import numpy as np
 from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
-from .readparm import read_parameters
 from .utils import *
 
 from .queue import JobManager
-from .setfitness import calc_fitness
 from .renew import BaseEA, BOEA
 from .population import Population
 #ML module
@@ -41,6 +39,7 @@ def read_parameters(inputFile):
     dParms = {
         'mode': 'serial',
         'spacegroup': list(range(1, 231)),
+        'repairtryNum': 10,
         'eleSize': 1,
         'fullEles': False,
         'setAlgo': 'ea',
@@ -166,28 +165,6 @@ def read_parameters(inputFile):
     if 'stepArr' in parameters.keys():
         assert len(p.stepArr) == p.calcNum
 
-
-
-    ############ Krig Parameters #######
-    # p.krigParm = dict()
-    # p.krigParm['randFrac'] = p.randFrac
-    # p.krigParm['permNum'] = p.permNum
-    # p.krigParm['rotNum'] = p.rotNum
-    # p.krigParm['cutNum'] = p.cutNum
-    # p.krigParm['slipNum'] = p.slipNum
-    # p.krigParm['latNum'] = p.latNum
-    # p.krigParm['latDisps'] = p.latDisps
-    # p.krigParm['ripRho'] = p.ripRho
-    # p.krigParm['grids'] = p.grids
-    # p.krigParm['kind'] = 'lcb'
-    # p.krigParm['kappa'] = p.kappa
-    # p.krigParm['kappaLoop'] = p.kappaLoop
-    # p.krigParm['xi'] = 0
-    # p.krigParm['scale'] = p.scale
-    # p.krigParm['parent_factor'] = p.parent_factor
-    # p.krigParm['gp_factor'] = p.gp_factor
-
-    ##############################
     parmList = [
                 'calcType',
                 'calculator',
@@ -202,6 +179,7 @@ def read_parameters(inputFile):
                 'minAt',
                 'maxAt',
                 'workDir',
+                'resultsDir',
                 'pressure',
                 'calcNum',
                 'numParallel',
@@ -241,7 +219,7 @@ def get_pop_generator(parameters):
     numlist = [parameters.cutNum,parameters.permNum,parameters.latNum,parameters.ripNum,parameters.slipNum]
     oplist = [cutandsplice,perm,lattice,ripple,slip]
     
-    popgen = PopGenerator(numlist,oplist,p)
+    popgen = PopGenerator(numlist,oplist,parameters)
     return popgen
 
 def get_calculator(parameters):

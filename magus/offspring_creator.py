@@ -40,7 +40,7 @@ class Mutation(OffspringCreator):
             return None
 
         newind.info['parents'] = [ind.info['identity']]
-        newind.info['parfitness'] = ind.fitness
+        newind.info['pardom'] = ind.info['dominators']
 
         return newind
 
@@ -67,7 +67,7 @@ class Crossover(OffspringCreator):
             return None
 
         newind.info['parents'] = [f.info['identity'],m.info['identity']]
-        newind.info['parfitness'] = 0.5*(f.info['fitness']+m.info['fitness'])
+        newind.info['pardom'] = 0.5*(f.info['dominators']+m.info['dominators'])
         return newind
 class SoftMutation(Mutation):
     """
@@ -190,7 +190,7 @@ class SoftMutation(Mutation):
         if amplitude * largest_norm < self.bounds[0]:
             return None
 
-        return ind.new(mutant)
+        return ind(mutant)
 
 class PermMutation(Mutation):
     def __init__(self, fracSwaps=0.5,tryNum=10):
@@ -225,7 +225,7 @@ class PermMutation(Mutation):
             indices.remove(i)  
             indices.remove(j)             
 
-        return ind.new(atoms)
+        return ind(atoms)
 
 class LatticeMutation(Mutation):
     def __init__(self, sigma=0.5, cellCut=1,tryNum=10):
@@ -260,7 +260,7 @@ class LatticeMutation(Mutation):
 
         atoms.wrap()
 
-        return ind.new(atoms)
+        return ind(atoms)
 
 class SlipMutation(Mutation):
     #TODO sha wan yi?
@@ -283,7 +283,7 @@ class SlipMutation(Mutation):
         pos[z,axis[1]] += np.random.uniform(*self.randRange)
         pos[z,axis[2]] += np.random.uniform(*self.randRange)
         atoms.set_scaled_positions(pos)
-        return ind.new(atoms)
+        return ind(atoms)
 
 class RippleMutation(Mutation):
     #TODO sha wan yi?
@@ -307,7 +307,7 @@ class RippleMutation(Mutation):
             np.cos(2*np.pi*self.eta*pos[:,axis[2]] + np.random.uniform(0,2*np.pi,len(atoms)))
 
         atoms.set_scaled_positions(pos)
-        return ind.new(atoms)
+        return ind(atoms)
 class CutAndSplicePairing(Crossover):
     """ A cut and splice operator for bulk structures.
 
@@ -355,7 +355,7 @@ class CutAndSplicePairing(Crossover):
         cutAtoms.set_scaled_positions(scaled_positions)
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
-        cutInd = ind1.new(cutAtoms)
+        cutInd = ind1(cutAtoms)
         cutInd.parents = [ind1 ,ind2]
         return cutInd
 
@@ -365,18 +365,20 @@ class PopGenerator:
         self.numlist = numlist
         self.parameters = parameters
 
-    def get_pairs(self, pop, crossNum ,clusterNum, tryNum=50):
+    def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
         pairs = []
-        labels = pop.clustering(clusterNum)
+        labels = Pop.clustering(clusterNum)
         fail = 0
         while len(pairs) < crossNum and fail < tryNum:
             label = np.random.choice(np.unique(labels))
-            subpop = [ind for j,ind in enumerate(pop.pop) if labels[j] == label]
+            subpop = [ind for j,ind in enumerate(Pop.pop) if labels[j] == label]
             if len(subpop) < 2:
                 fail+=1
                 continue
-            fit = np.array([ind.fitness for ind in subpop])
-            p = fit/np.sum(fit)
+            
+            dom = np.array([ind.info['dominators'] for ind in subpop])
+            edom = np.e**(-k*dom)
+            p = edom/np.sum(edom)
             pair = tuple(np.random.choice(subpop,2,False,p=p))
             if pair in pairs:
                 fail+=1
@@ -384,47 +386,50 @@ class PopGenerator:
             pairs.append(pair)     
         return pairs
     
-    def get_inds(self,pop,mutateNum):
-        fit = np.array([ind.fitness for ind in pop.pop])
-        p = fit/np.sum(fit)
-        return np.random.choice(pop.pop,mutateNum,False,p=p)
+    def get_inds(self,Pop,mutateNum,k=0.3):
+        dom = np.array([ind.info['dominators'] for ind in Pop.pop])
+        edom = np.e**(-k*dom)
+        p = edom/np.sum(edom)
+        mutateNum = min(mutateNum,len(Pop))
+        return np.random.choice(Pop.pop,mutateNum,False,p=p)
 
-    def generate(self,pop,saveGood):
-        assert len(pop) >= saveGood, \
+    def generate(self,Pop,saveGood):
+        assert len(Pop) >= saveGood, \
             "saveGood should be shorter than length of curPop!"
-
-        newpop = Population([],pop.parameters) 
+        Pop.calc_dominators()
+        newPop = Pop([],'initpop',Pop.gen+1) 
         for op,num in zip(self.oplist,self.numlist):
             if op.optype == 'Mutation':
-                mutate_inds = self.get_inds(pop,num)
+                mutate_inds = self.get_inds(Pop,num)
                 for ind in mutate_inds:
                     logging.debug('name:{}'.format(op.descriptor))
                     newind = op.get_new_individual(ind)
                     if newind:
-                        newpop.append(newind)
+                        newPop.append(newind)
             elif op.optype == 'Crossover':
-                cross_pairs = self.get_pairs(pop,num,saveGood)
+                cross_pairs = self.get_pairs(Pop,num,saveGood)
                 for parents in cross_pairs:
                     newind = op.get_new_individual(parents)
                     if newind:
-                        newpop.append(newind)
-        newpop.check()
-        return newpop
+                        newPop.append(newind)
+        newPop.check()
+        return newPop
 
-    def select(self,pop,num):
-        if num < len(pop):
-            parfit = np.array([ind.info['parfitness'] for ind in pop.pop])
-            p = parfit/np.sum(parfit)
-            pop.pop = np.random.choice(pop.pop,num,False,p=p)
-            return pop
+    def select(self,Pop,num,k=0.3):
+        if num < len(Pop):
+            pardom = np.array([ind.info['pardom'] for ind in Pop.pop])
+            edom = np.e**(-k*pardom)
+            p = edom/np.sum(edom)
+            Pop.pop = np.random.choice(Pop.pop,num,False,p=p)
+            return Pop
         else:
-            return pop
+            return Pop
 
-    def next_pop(self,pop):
+    def next_Pop(self,Pop):
         saveGood = self.parameters.saveGood
         popSize = self.parameters.popSize
-        newpop = self.generate(pop,saveGood)
-        return self.select(newpop,popSize)
+        newPop = self.generate(Pop,saveGood)
+        return self.select(newPop,popSize)
 
 
 

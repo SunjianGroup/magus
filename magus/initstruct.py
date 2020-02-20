@@ -163,7 +163,9 @@ class MoleculeGenerator(BaseGenerator):
 class VarGenerator(BaseGenerator):
     def __init__(self,p):
         super().__init__(p)
-        super().checkParameters(Requirement=['minAt','maxAt'],Default={'fullEles':True})
+        Requirement=['minAt','maxAt']
+        Default={'fullEles':True,'eleSize':1}
+        self.checkParameters(Requirement,Default)
         # self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
         self.invFrml = np.linalg.pinv(self.formula)
 
@@ -176,7 +178,7 @@ class VarGenerator(BaseGenerator):
         ind.info['Origin'] = 'random'
         return ind
 
-    def Generate_pop(self,popSize):
+    def Generate_pop(self,popSize,initpop=False):
         buildPop = []
         for i in range(popSize):
             for j in range(self.maxtryNum):
@@ -197,6 +199,24 @@ class VarGenerator(BaseGenerator):
                     break
                 else:
                     continue
+
+        # Generate simple substance in variable mode
+        if initpop:
+            for n,symbol in enumerate(self.symbols):
+                for i in range(self.eleSize):
+                    for j in range(self.maxtryNum):
+                        numAt = np.random.randint(self.minAt, self.maxAt+1)
+                        numlist = np.zeros(len(self.symbols))
+                        numlist[n] = numAt
+                        spg = np.random.choice(self.spgs)
+
+                        label,ind = self.Generate_ind(spg,numlist)
+                        if label:
+                            self.afterprocessing(ind,numlist)
+                            buildPop.append(ind)
+                            break
+                        else:
+                            continue
         return buildPop
 
 def equivalent_sites_rots(spg, scaled_positions, symprec=1e-3):
