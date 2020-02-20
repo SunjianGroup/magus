@@ -6,12 +6,19 @@ import ase.io
 from ase.data import covalent_radii,atomic_numbers
 from ase.neighborlist import neighbor_list
 from ase.atom import Atom
-from .utils import check_new_atom_dist,sort_elements
+from .utils import *
 import logging
 from sklearn import cluster
 from .descriptor import ZernikeFp
 import copy
 from .setfitness import set_fit_calcs
+
+def set_ind(parameters):
+    if parameters.calcType == 'fix':
+        return FixInd(parameters)
+    if parameters.calcType == 'var':
+        return VarInd(parameters)
+
 class Population:
     """
     a class of atoms population
@@ -19,7 +26,7 @@ class Population:
     """
     def __init__(self,parameters):
         self.parameters = parameters
-        self.Individual = Individual(parameters)
+        self.Individual = set_ind(parameters)
         self.fit_calcs = set_fit_calcs(parameters)
 
     def __call__(self,pop,name='temp',gen=None):
@@ -156,9 +163,9 @@ class Population:
 class Individual:
     def __init__(self,parameters):
         self.parameters = parameters
-        self.formula = parameters.formula
-        self.symbols = parameters.symbols
-        self.repairtryNum = parameters.repairtryNum
+        Requirement=['formula','symbols']
+        Default={'repairtryNum':10}
+        checkParameters(self,parameters,Requirement,Default)
 
         #TODO add more comparators
         from ase.ga.standard_comparators import AtomsComparator
@@ -166,19 +173,12 @@ class Individual:
 
         #fingerprint
         cutoff = self.parameters.cutoff
-        elems = [atomic_numbers[element] for element in parameters.symbols]
         nmax = self.parameters.ZernikeNmax
         lmax = self.parameters.ZernikeLmax
         ncut = self.parameters.ZernikeNcut
         diag = self.parameters.ZernikeDiag
+        elems = [atomic_numbers[element] for element in parameters.symbols]
         self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
-
-    def __call__(self,atoms):
-        newind = self.__class__(self.parameters)
-        newind.atoms = atoms
-        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
-        newind.info['fitness'] = {}
-        return newind
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self.atoms,obj.atoms)
@@ -275,6 +275,12 @@ class Individual:
             a = atoms.copy()
         return self.check_cellpar(a) and self.check_distance(a)
 
+    def sort(self):
+        indices = []
+        for s in self.symbols:
+            indices.extend([i for i,atom in enumerate(atoms) if self.atom.symbol==s])
+        self.atoms = self.atoms[indices]
+
     def merge_atoms(self, tolerance=0.3,):
         """
         TODO threshold
@@ -298,36 +304,22 @@ class Individual:
             mAts = atoms
         self.atoms = mAts
 
-    def get_targetFrml(self):
-        #TODO initial self.formula
-        #TODO var
-        if self.parameters.calcType == 'fix':
-            atoms = self.atoms
-            Natoms = len(atoms)
-            if self.parameters.minAt <= Natoms <= self.parameters.maxAt :
-                numFrml = int(round(Natoms/sum(self.formula)))
-            else:
-                numFrml = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in self.parents])))
-            self.info['formula'] = self.formula
-            self.info['numOfFormula'] = numFrml
-            targetFrml = {s:numFrml*i for s,i in zip(self.symbols,self.formula)}
-            return targetFrml
-        elif self.parameters.calcType == 'var':
-            symbols = self.atoms.get_chemical_symbols()
-            curFrml = {s:symbols.conut(s) for s in np.unique(symbols)}
-
-
     def repair_atoms(self):
         """
         sybls: a list of symbols
         toFrml: a list of formula after repair
         """
-
+        if not self.needrepair:
+            self.sort()
+            return True
         atoms = self.atoms
         dRatio = self.parameters.dRatio
         syms = atoms.get_chemical_symbols()
         #nowFrml = Counter(atoms.get_chemical_symbols())
         targetFrml = self.get_targetFrml()
+        if not targetFrml:
+            self.atoms = None
+            return False
         toadd, toremove = {} , {}
         for s in targetFrml:
             if syms.count(s) < targetFrml[s]:
@@ -371,9 +363,77 @@ class Individual:
                 self.atoms = None
                 return False
                 
-        self.atoms = sort_elements(repatoms)
+        self.sort()
         return True
+
+
+class FixInd(Individual):
+    def __call__(self,atoms):
+        newind = self.__class__(self.parameters)
+        newind.atoms = atoms
+        newind.sort()
+        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
+        newind.info['fitness'] = {}
+        return newind
+
+    def needrepair(self):
+        #check if atoms need repair
+        Natoms = len(self.atoms)
+        if Natoms < self.minAt or Natoms > self.maxAt:
+            return False
+
+        symbols = self.atoms.get_chemical_symbols()
+        formula = np.array([symbols.count(s) for s in self.symbols])
+        numFrml = int(round(Natoms/sum(self.formula)))
+        targetFrml = numFrml*np.array(self.formula)
+        return np.all(targetFrml == formula)
+
+    def get_targetFrml(self):
+        #TODO initial self.formula
+        atoms = self.atoms
+        Natoms = len(atoms)
+        if self.parameters.minAt <= Natoms <= self.parameters.maxAt :
+            numFrml = int(round(Natoms/sum(self.formula)))
+        else:
+            numFrml = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in self.parents])))
+        self.info['formula'] = self.formula
+        self.info['numOfFormula'] = numFrml
+        targetFrml = {s:numFrml*i for s,i in zip(self.symbols,self.formula)}
+        return targetFrml
 
 class VarInd(Individual):
     def __init__(self, parameters):
-        return super(VarInd, self).__init__(parameters)
+        super().__init__(parameters)
+        self.rank = np.linalg.matrix_rank(self.formula)
+        self.invF = np.linalg.pinv(self.formula)
+
+    def __call__(self,atoms):
+        newind = self.__class__(self.parameters)
+        newind.atoms = atoms
+        newind.info = {'numOfFormula':1}
+        newind.info['fitness'] = {}
+        return newind
+
+    def needrepair(self):
+        #check if atoms need repair
+        Natoms = len(self.atoms)
+        if Natoms < self.minAt or Natoms > self.maxAt:
+            return False
+        symbols = self.atoms.get_chemical_symbols()
+        formula = [symbols.count(s) for s in self.symbols]
+        rank = np.linalg.matrix_rank(np.concatenate((self.formula, [formula])))
+        return rank == self.rank
+    
+    def get_targetFrml(self):
+        #TODO initial self.formula
+        #TODO var
+        symbols = self.atoms.get_chemical_symbols()
+        formula = [symbols.count(s) for s in self.symbols]
+        coef = np.rint(np.dot(formula, invF)).astype(np.int)
+        newFrml = np.dot(coef, self.formula).astype(np.int)
+        bestFrml = newFrml.tolist()
+        if self.parameters.minAt <= sum(bestFrml) <= self.parameters.maxAt:
+            targetFrml = {s:i for s,i in zip(self.symbols,bestFrml)}
+        else:
+            targetFrml = None
+        return targetFrml

@@ -10,11 +10,11 @@ import copy
 from .utils import *
 
 class BaseGenerator:
-    def __init__(self,p):
-        self.p=p
+    def __init__(self,parameters):
+        self.parameters=parameters
         Requirement=['symbols','formula','numFrml']
         Default={'threshold':1.0,'maxAttempts':50,'method':2,'volRatio':1.5,'spgs':np.arange(1,231),'maxtryNum':100}
-        self.checkParameters(Requirement,Default)
+        checkParameters(self,parameters,Requirement,Default)
         self.radius = p.raidus if hasattr(p,'radius') else [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
 
         formula = np.array(self.formula)
@@ -38,18 +38,6 @@ class BaseGenerator:
         self.maxVolume *= volRatio/self.volRatio
         self.volRatio=volRatio
         logging.debug("new volRatio: {}".format(self.volRatio))
-
-    def checkParameters(self,Requirement=[],Default={}):
-        for key in Requirement:
-            if not hasattr(self.p, key):
-                raise Exception("Mei you '{}' wo suan ni ma?".format(key))
-            setattr(self,key,getattr(self.p,key))
-
-        for key in Default.keys():
-            if not hasattr(self.p,key):
-                setattr(self,key,Default[key])
-            else:
-                setattr(self,key,getattr(self.p,key))
 
     def getVolumeandLattice(self,numlist):
         minVolume = self.minVolume*np.sum(numlist)
@@ -161,19 +149,19 @@ class MoleculeGenerator(BaseGenerator):
 
 
 class VarGenerator(BaseGenerator):
-    def __init__(self,p):
-        super().__init__(p)
+    def __init__(self,parameters):
+        super().__init__(parameters)
         Requirement=['minAt','maxAt']
         Default={'fullEles':True,'eleSize':1}
-        self.checkParameters(Requirement,Default)
+        checkParameters(self,parameters,Requirement,Default)
         # self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
         self.invFrml = np.linalg.pinv(self.formula)
 
 
-    def afterprocessing(self,ind,numlist):
+    def afterprocessing(self,ind,numlist,nfm):
         ind.info['symbols'] = self.symbols
         ind.info['formula'] = numlist
-        ind.info['numOfFormula'] = 1
+        ind.info['numOfFormula'] = nfm
         ind.info['parentE'] = 0
         ind.info['Origin'] = 'random'
         return ind
@@ -185,7 +173,8 @@ class VarGenerator(BaseGenerator):
                 numAt = np.random.randint(self.minAt, self.maxAt+1)
                 numlist = np.random.rand(len(self.symbols))
                 numlist *= numAt/np.sum(numlist)
-                numlist = np.dot(np.rint(np.dot(numlist,self.invFrml)).astype(np.int),self.formula)
+                nfm = np.rint(np.dot(numlist,self.invFrml)).astype(np.int)
+                numlist = np.dot(nfm,self.formula)
                 # numlist = np.rint(np.dot(self.projection_matrix,numlist)).astype(np.int)
                 if np.sum(numlist) < self.minAt or np.sum(numlist) > self.maxAt or (self.fullEles and 0 in numlist) or np.sum(numlist<0)>0:
                     continue
@@ -194,7 +183,7 @@ class VarGenerator(BaseGenerator):
 
                 label,ind = self.Generate_ind(spg,numlist)
                 if label:
-                    self.afterprocessing(ind,numlist)
+                    self.afterprocessing(ind,numlist,nfm)
                     buildPop.append(ind)
                     break
                 else:
@@ -212,7 +201,7 @@ class VarGenerator(BaseGenerator):
 
                         label,ind = self.Generate_ind(spg,numlist)
                         if label:
-                            self.afterprocessing(ind,numlist)
+                            self.afterprocessing(ind,numlist,nfm)
                             buildPop.append(ind)
                             break
                         else:

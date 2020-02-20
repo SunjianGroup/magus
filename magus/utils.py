@@ -828,3 +828,16 @@ def clustering(inPop, numClusters, label=False):
         else:
             goodPop[label] = ind
     return labels, goodPop
+
+def checkParameters(instance,parameters,Requirement=[],Default={}):
+    name = instance.__class__.__name__
+    for key in Requirement:
+        if not hasattr(parameters, key):
+            raise Exception("Mei you '{}' wo suan ni ma {}?".format(key,name))
+        setattr(instance,key,getattr(parameters,key))
+
+    for key in Default.keys():
+        if not hasattr(parameters,key):
+            setattr(instance,key,Default[key])
+        else:
+            setattr(instance,key,getattr(parameters,key))
