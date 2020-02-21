@@ -11,11 +11,14 @@ from .utils import *
 
 class BaseGenerator:
     def __init__(self,parameters):
+        #TODO volume range should be calculate in getVolumeandLattice
         self.parameters=parameters
+        p = parameters
         Requirement=['symbols','formula','numFrml']
         Default={'threshold':1.0,'maxAttempts':50,'method':2,'volRatio':1.5,'spgs':np.arange(1,231),'maxtryNum':100}
         checkParameters(self,parameters,Requirement,Default)
-        self.radius = p.raidus if hasattr(p,'radius') else [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
+        radius = [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
+        checkParameters(self,parameters,[],{'radius':radius})
 
         formula = np.array(self.formula)
         frmlDim = len(formula.shape)
@@ -23,14 +26,11 @@ class BaseGenerator:
             meanFrml = formula
         elif frmlDim > 1:
             meanFrml = np.mean(formula, axis=0)
+
         self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*meanFrml)*self.volRatio/(meanFrml.sum())
         # self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*np.array(self.formula))*self.volRatio/sum(self.formula)
         self.minVolume = p.minVolume if hasattr(p,'minVolume') else self.meanVolume*0.5
         self.maxVolume = p.maxVolume if hasattr(p,'maxVolume') else self.meanVolume*1.5
-        """
-        self.minLen=p.minLen if hasattr(p,'minLen') else [2*np.max(self.radius)]*3
-        self.maxLen=p.maxLen if hasattr(p,'maxLen') else [(self.maxVolume*np.max(self.numFrml))**(1./3)]*3
-        """
 
     def updatevolRatio(self,volRatio):
         self.meanVolume *= volRatio/self.volRatio
@@ -92,7 +92,7 @@ class BaseGenerator:
         ind.info['Origin'] = 'random'
         return ind
 
-    def Generate_pop(self,popSize):
+    def Generate_pop(self,popSize,initpop=False):
         buildPop = []
         tryNum=0
         while tryNum<self.maxtryNum and popSize > len(buildPop):

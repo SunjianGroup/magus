@@ -25,6 +25,7 @@ def var_fitness(pop):
         ehull = ind.atoms.info['enthalpy'] - refE/len(ind.atoms)
         ind.atoms.info['ehull'] = ehull #if ehull > 1e-6 else 0
         ind.info['ehull'] = ehull
+        ind.info['enthalpy'] = ind.atoms.info['enthalpy']
         ind.info['fitness']['ehull'] = -ehull
 
 def set_fit_calcs(parameters):

@@ -278,7 +278,7 @@ class Individual:
     def sort(self):
         indices = []
         for s in self.symbols:
-            indices.extend([i for i,atom in enumerate(atoms) if self.atom.symbol==s])
+            indices.extend([i for i,atom in enumerate(self.atoms) if atom.symbol==s])
         self.atoms = self.atoms[indices]
 
     def merge_atoms(self, tolerance=0.3,):
@@ -406,6 +406,7 @@ class VarInd(Individual):
         super().__init__(parameters)
         self.rank = np.linalg.matrix_rank(self.formula)
         self.invF = np.linalg.pinv(self.formula)
+        checkParameters(self,parameters,[],{'fullEles':False})
 
     def __call__(self,atoms):
         newind = self.__class__(self.parameters)
@@ -429,7 +430,7 @@ class VarInd(Individual):
         #TODO var
         symbols = self.atoms.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.symbols]
-        coef = np.rint(np.dot(formula, invF)).astype(np.int)
+        coef = np.rint(np.dot(formula, self.invF)).astype(np.int)
         newFrml = np.dot(coef, self.formula).astype(np.int)
         bestFrml = newFrml.tolist()
         if self.parameters.minAt <= sum(bestFrml) <= self.parameters.maxAt:
@@ -437,3 +438,19 @@ class VarInd(Individual):
         else:
             targetFrml = None
         return targetFrml
+
+    def check_full(self,atoms=None):
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        symbols = a.get_chemical_symbols()
+        formula = [symbols.count(s) for s in self.symbols]
+        return not self.fullEles or 0 not in formula 
+
+    def check(self, atoms=None):
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        return super().check(atoms=a) and self.check_full(atoms=a)
