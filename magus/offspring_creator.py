@@ -3,13 +3,13 @@ Base module for all operators that create offspring.
 steal from ase.ga
 """
 import numpy as np
-from ase import Atoms
-from .renew import match_lattice
-from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 import logging
-from .population import Population
+from ase import Atoms
+from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
+from ase.neighborlist import NeighborList
 from ase.data import covalent_radii
-
+from .population import Population
+from .renew import match_lattice
 class OffspringCreator:
     def __init__(self,tryNum=10):
         self.tryNum = tryNum
@@ -359,6 +359,38 @@ class CutAndSplicePairing(Crossover):
         cutInd.parents = [ind1 ,ind2]
         return cutInd
 
+class ReplaceBallPairing(Crossover):
+    """
+    TODO rotate the replace ball
+    how to rotate the ball to make energy lower
+    """
+    def __init__(self, cutrange=[1,2]):
+        self.cutrange = cutrange
+        super().__init__()
+
+    def cross(self, ind1, ind2):
+        """replace some atoms in a ball
+        """
+        cutR = np.random.uniform(*self.cutrange)
+        atoms1,atoms2 = ind1.atoms.copy(),ind2.atoms.copy()
+        i,j = np.random.randint(len(atoms1)),np.random.randint(len(atoms2))
+        newatoms = Atoms(pbc=atoms1.pbc, cell=atoms1.cell)
+
+        nl = NeighborList(cutoffs=[cutR/2]*len(atoms1), skin=0, self_interaction=True, bothways=True)
+        nl.update(atoms1)
+        indices, _ = nl.get_neighbors(i)
+        for index,atom in enumerate(atoms1):
+            if index not in indices:
+                newatoms.append(atom)
+    
+        nl = NeighborList(cutoffs=[cutR/2]*len(atoms2), skin=0, self_interaction=True, bothways=True)
+        nl.update(atoms2)
+        indices, _ = nl.get_neighbors(j)
+        atoms2.positions += atoms1.positions[i]-atoms2.positions[j]
+        newatoms.extend(atoms2[indices])
+        cutInd = ind1(newatoms)
+        cutInd.parents = [ind1 ,ind2]
+        return newatoms 
 class PopGenerator:
     def __init__(self,numlist,oplist,parameters):
         self.oplist = oplist
