@@ -57,6 +57,7 @@ class BaseEA:
             'lat': self.latNum,
             'slip': self.slipNum,
             'rip': self.ripNum,
+            'rot': self.rotNum,
         }
 
         # self.kind = krigParm['kind']
@@ -83,7 +84,8 @@ class BaseEA:
             goodInd = goodPop[i]
             splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
             splitLen = len(splitPop)
-            sampleNum = int(splitLen/2)+1
+            # sampleNum = int(splitLen/4)+1
+            sampleNum = int(self.parameters.tourRatio*splitLen) + 1
             logging.debug("splitlen: %s"%(splitLen))
             if splitLen <= 1:
                 continue
@@ -112,6 +114,7 @@ class BaseEA:
                 hrdInd.info['parentE'] = parentE
                 hrdInd.info['parDom'] = parDom
                 hrdInd.info['symbols'] = symbols
+                hrdInd.info['origin'] = 'cut'
 
                 if self.calcType == 'fix':
                     hrdLen = len(hrdInd)
@@ -151,7 +154,7 @@ class BaseEA:
         for i in range(self.saveGood):
             splitPop = self.clusters[i]
             splitLen = len(splitPop)
-            sampleNum = int(splitLen/2) + 1
+            sampleNum = int(self.parameters.tourRatio*splitLen) + 1
             for mut, mutNum in mutDict.items():
                 for _ in range(mutNum):
                     parInd = tournament(splitPop, sampleNum)
@@ -177,8 +180,13 @@ class BaseEA:
                             mutMolC = mol_gauss_mut(parMolC)
                         elif mut == 'slip':
                             mutMolC = mol_slip(parMolC, cut=random.random())
-                        # elif mut == 'rip': # have never implement mol_ripple
-                        #     mutMolC = ripple(parInd, rho=random.uniform(0.5,1.5))
+                        elif mut == 'rip':
+                            mutMolC = mol_ripple(parMolC, rho=random.uniform(0.5,1.5))
+                        elif mut == 'rot':
+                            partLens = [len(p) for p in parMolC.partition]
+                            if max(partLens) == 1:
+                                continue
+                            mutMolC = mol_rotation(parMolC)
                         else:
                             break
                         mutInd = mutMolC.to_atoms()
@@ -189,6 +197,7 @@ class BaseEA:
                     mutInd.info['numOfFormula'] = parInd.info['numOfFormula']
                     mutInd.info['parentE'] = parentE
                     mutInd.info['parDom'] = parDom
+                    mutInd.info['origin'] = mut
 
                     mutInd = merge_atoms(mutInd, self.dRatio)
                     toFrml = [int(i) for i in parInd.info['formula']]
@@ -241,13 +250,38 @@ class BaseEA:
         newPop = []
         if self.newLen < len(tmpPop):
             for _ in range(self.newLen):
-                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='parDom')
+                newInd = tournament(tmpPop, int(self.parameters.tourRatio*len(tmpPop)) + 1, keyword='parDom')
                 newPop.append(newInd)
                 tmpPop.remove(newInd)
 
             return newPop
         else:
             return tmpPop
+
+class easyMLEA(BaseEA):
+    """
+    only use ML module to guess energy
+    """
+    def __init__(self, parameters, ML):
+        self.ML = ML
+        return super().__init__(parameters)
+
+    def select(self):
+        tmpPop = self.tmpPop[:]
+        newPop = []
+        if self.newLen < len(tmpPop):
+            for _ in range(self.newLen):
+                newInd = tournament(tmpPop, int(self.parameters.tourRatio*len(tmpPop)) + 1, keyword='enthalpy')
+                newPop.append(newInd)
+                tmpPop.remove(newInd)
+        else:
+            newPop = tmpPop
+        # remove the enthalpy key
+        for ind in newPop:
+            ind.info['predictE'] = ind.info['enthalpy']
+            del ind.info['enthalpy']
+
+        return newPop
 
 class BOEA(BaseEA):
     """
@@ -305,10 +339,12 @@ class BOEA(BaseEA):
             ind.info['sigma'] = sigma
             ind.info['utilVal'] = ind.info['predictE'] - self.parameters.kappa * sigma
 
+        # tmpPop = [ind for ind in tmpPop if ind.info['sigma'] > 5e-3]
+
         newPop = []
         if self.newLen < len(tmpPop):
             for _ in range(self.newLen):
-                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='utilVal')
+                newInd = tournament(tmpPop, int(self.parameters.tourRatio*len(tmpPop)) + 1, keyword='utilVal')
                 newPop.append(newInd)
                 tmpPop.remove(newInd)
         else:
@@ -316,30 +352,6 @@ class BOEA(BaseEA):
 
         return newPop
 
-class easyMLEA(BaseEA):
-    """
-    only use ML module to guess energy
-    """
-    def __init__(self, parameters, ML):
-        self.ML = ML
-        return super().__init__(parameters)
-
-    def select(self):
-        tmpPop = self.tmpPop[:]
-        newPop = []
-        if self.newLen < len(tmpPop):
-            for _ in range(self.newLen):
-                newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='enthalpy')
-                newPop.append(newInd)
-                tmpPop.remove(newInd)
-        else:
-            newPop = tmpPop
-        # remove the enthalpy key
-        for ind in newPop:
-            ind.info['predictE'] = ind.info['enthalpy']
-            del ind.info['enthalpy']
-
-        return newPop
 
 class MLcutEA(easyMLEA):
     """
@@ -355,6 +367,45 @@ class MLcutEA(easyMLEA):
         curPop = self.curPop
         symbols = self.symbols
         hrdPop = list()
+#<<<<<<< magus/renew.py
+#        for i in range(self.saveGood):
+#            goodInd = goodPop[i]
+#            splitPop = [ind for ind in self.clusters[i] if ind.info['dominators'] > goodInd.info['dominators']]
+#            splitLen = len(splitPop)
+#            sampleNum = int(self.parameters.tourRatio*splitLen) + 1
+#            logging.debug("splitlen: %s"%(splitLen))
+#            if splitLen <= 1:
+#                continue
+#            for j in range(cutNum):
+#                grid = random.choice(grids)
+#                spInd = tournament(splitPop, sampleNum)
+#                tranPos = spInd.get_scaled_positions() # Displacement
+#                tranPos += np.array([[random.random(), random.random(), random.random()]]*len(spInd))
+#                spInd.set_scaled_positions(tranPos)
+#                spInd.wrap()
+#
+#                ind1 = cut_cell_ml([spInd, goodInd], grid, symbols, self.calc, 0.2)
+#                ind2 = cut_cell_ml([goodInd, spInd], grid, symbols, self.calc, 0.2)
+#                ind1 = merge_atoms(ind1, self.dRatio)
+#                ind2 = merge_atoms(ind2, self.dRatio)
+#
+#
+#                parentE = 0.5*(sum([ind.info['enthalpy'] for ind in [spInd, goodInd]]))
+#                parDom = 0.5*(sum([ind.info['sclDom'] for ind in [spInd, goodInd]]))
+#                ind1.info['parentE'], ind2.info['parentE'] = parentE, parentE
+#                ind1.info['parDom'], ind2.info['parDom'] = parDom, parDom
+#                ind1.info['symbols'], ind2.info['symbols'] = symbols, symbols
+#
+#
+#                nfm = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in [spInd, goodInd]])))
+#                ind1 = repair_atoms(ind1, symbols, self.formula, nfm)
+#                ind2 = repair_atoms(ind2, symbols, self.formula, nfm)
+#                ind1.info['formula'], ind2.info['formula'] = self.formula, self.formula
+#                ind1.info['numOfFormula'], ind2.info['numOfFormula'] = nfm, nfm
+#
+#                pairPop = [ind for ind in [ind1, ind2] if ind is not None]
+#                hrdPop.extend(del_duplicate(pairPop, compareE=False, report=False))
+#=======
         r = 3  #radius of the ball to be displaced
         core_enenrgies = {}
         for i,ind in enumerate(curPop):
@@ -400,6 +451,7 @@ class MLcutEA(easyMLEA):
                 else:
                     hrdInd.info['formula'] = get_formula(hrdInd, self.symbols)
                     hrdInd.info['numOfFormula'] = 1
+#>>>>>>> magus/renew.py
 
             if hrdInd:
                 hrdPop.append(hrdInd)
@@ -410,7 +462,7 @@ class MLcutEA(easyMLEA):
         tmpPop = self.ML.scf(self.tmpPop[:])
         newPop = []
         for _ in range(self.newLen):
-            newInd = tournament(tmpPop, int(0.5*len(tmpPop))+1, keyword='energy')
+            newInd = tournament(tmpPop, int(self.parameters.tourRatio*len(tmpPop)) + 1, keyword='energy')
             newPop.append(newInd)
             tmpPop.remove(newInd)
         return newPop
@@ -648,7 +700,6 @@ def exchage_atom(parInd, fracSwaps=None):
         chdPos[j], chdPos[k] = chdPos[k], chdPos[j]
 
     chdInd.set_scaled_positions(np.array(chdPos))
-    # chdInd.info['Origin'] = "Exchange"
     return chdInd
 
 def gauss_mut(parInd, sigma=0.5, cellCut=1):
@@ -662,12 +713,15 @@ def gauss_mut(parInd, sigma=0.5, cellCut=1):
 
     chdCell = chdInd.get_cell()
     latGauss = [random.gauss(0, sigma)*cellCut for i in range(6)]
+    for i in range(6):
+        if latGauss[i] >= 1 or latGauss[i] <= -1:
+            latGauss[i] = sigma
     strain = np.array([
         [1+latGauss[0], latGauss[1]/2, latGauss[2]/2],
         [latGauss[1]/2, 1+latGauss[3], latGauss[4]/2],
         [latGauss[2]/2, latGauss[4]/2, 1+latGauss[5]]
         ])
-    chdCell = chdCell*strain
+    chdCell = np.dot(chdCell,strain)
     cellPar = cell_to_cellpar(chdCell)
     ratio = parVol/abs(np.linalg.det(chdCell))
     cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
@@ -680,7 +734,6 @@ def gauss_mut(parInd, sigma=0.5, cellCut=1):
 
     chdInd.wrap()
     chdInd.info = parInd.info.copy()
-    # chdInd.info['Origin'] = 'Mutate'
 
     return chdInd
 
@@ -764,12 +817,15 @@ def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=0):
 
     chdCell = chdInd.get_cell()
     latGauss = [random.gauss(0, sigma)*cellCut for i in range(6)]
+    for i in range(6):
+        if latGauss[i] >= 1 or latGauss[i] <= -1:
+            latGauss[i] = sigma
     strain = np.array([
         [1+latGauss[0], latGauss[1]/2, latGauss[2]/2],
         [latGauss[1]/2, 1+latGauss[3], latGauss[4]/2],
         [latGauss[2]/2, latGauss[4]/2, 1+latGauss[5]]
         ])
-    chdCell = chdCell*strain
+    chdCell = np.dot(chdCell,strain)
     cellPar = cell_to_cellpar(chdCell)
     ratio = parVol/abs(np.linalg.det(chdCell))
     cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
@@ -784,8 +840,6 @@ def mol_gauss_mut(parInd, sigma=0.5, cellCut=1, distCut=0):
     # chdInd.update_sclCenters_and_rltSclPos(sclCenters=chdCenters)
         # at.position += atGauss*covalent_radii[atomic_numbers[at.symbol]]
 
-    chdInd.info = parInd.info.copy()
-    # chdInd.info['Origin'] = 'Mutate'
 
     return chdInd
 
@@ -862,7 +916,7 @@ def mol_cut_cell(parInd1, parInd2, axis=0):
         rltPos = ind.get_rltPos()
         numbers = ind.get_numbers()
         for i in range(ind.numMols):
-            if 0.5*n < sclCenters[i, axis] < 0.5*(n+1):
+            if 0.5*n <= sclCenters[i, axis] < 0.5*(n+1):
                 indices = ind.partition[i]
                 molNums = numbers[indices].tolist()
                 numList.extend(molNums)
@@ -876,6 +930,26 @@ def mol_cut_cell(parInd1, parInd2, axis=0):
 
     return cutInd
 
+def mol_ripple(parInd, rho=0.3, mu=2, eta=1):
+    '''
+    from XtalOpt
+    '''
+    chdInd = parInd.copy()
+    sclCenters = parInd.get_sclCenters()
+    axis = list(range(3))
+    random.shuffle(axis)
+
+    for i in range(len(sclCenters)):
+        sclCenters[i, axis[0]] += rho * cos(2*pi*mu*sclCenters[i, axis[1]] +
+        random.uniform(0, 2*pi))*cos(2*pi*eta*sclCenters[i, axis[2]] + random.uniform(0, 2*pi))
+
+    chdInd.update_sclCenters_and_rltSclPos(sclCenters=sclCenters)
+    return chdInd
+
+
+
+#=======
+#>>>>>>> magus/renew.py
 def tournament(pop, num, keyword='dominators'):
     smpPop = random.sample(pop, num)
     best = smpPop[0]
@@ -975,6 +1049,8 @@ def repair_atoms(ind, symbols, toFrml, numFrml=1, dRatio=1, tryNum=20):
             for _ in range(addNum):
                 for _ in range(tryNum):
                     # select a center atoms
+                    if len(repInd) == 0:
+                        return None
                     centerAt = repInd[random.randint(0,len(repInd)-1)]
                     basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[s]]
                     # random position in spherical coordination

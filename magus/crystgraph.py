@@ -9,7 +9,11 @@ import numpy as np
 import sys, itertools
 
 def quotient_graph(atoms, coefficient=1.1):
-    """Return crystal quotient graph of the atoms."""
+    """Return crystal quotient graph of the atoms.
+    toms: (ASE.Atoms) the input crystal structure 
+    coef: (float) the criterion for connecting two atoms. If d_{AB} < coef*（r_A + r_B), atoms A and B are regarded as connected. r_A and r_B are covalent radius of A,B.
+    Return: networkx.MultiGraph
+    """
     cutoffs = [covalent_radii[number]*coefficient for number in atoms.get_atomic_numbers()]
     # print("cutoffs: %s" %(cutoffs))
     G = nx.MultiGraph()
@@ -23,7 +27,7 @@ def quotient_graph(atoms, coefficient=1.1):
     return G
 
 def quotient_graph_old(atoms, coefficient=1.1, ):
-    """Return crystal quotient graph of the atoms."""
+    """Return crystal quotient graph of the atoms.(Old version)"""
     cutoffs = [covalent_radii[number]*coefficient for number in atoms.get_atomic_numbers()]
     # print("cutoffs: %s" %(cutoffs))
 
@@ -50,7 +54,11 @@ def quotient_graph_old(atoms, coefficient=1.1, ):
     return G
 
 def cycle_sums(G):
-    """Return the cycle sums of the crystal quotient graph G."""
+    """
+    Return the cycle sums of the crystal quotient graph G.
+    G: networkx.MultiGraph
+    Return: a (Nx3) matrix
+    """
     SG = nx.Graph(G) # Simple graph, maybe with loop.
     cycBasis = nx.cycle_basis(SG)
     # print(cycBasis)
@@ -98,9 +106,19 @@ def cycle_sums(G):
     return np.array(cycleSums)
 
 def graph_dim(G):
+    """
+    Return the dimensionality of the crystal quotient graph G.
+    G: networkx.MultiGraph
+    Return: int
+    """
     return np.linalg.matrix_rank(cycle_sums(G))
 
 def getMut_3D(cycSums):
+    """
+    Return the self-penetration multiplicities of the 3D crystal quotient graph G.
+    G: networkx.MultiGraph
+    Return: int
+    """
     assert np.linalg.matrix_rank(cycSums) == 3
     csArr = cycSums.tolist()
 
@@ -127,6 +145,11 @@ def getMut_3D(cycSums):
     return minDet
 
 def find_communities(QG):
+    """
+    Find communitis of crystal quotient graph QG using Girva_Newman algorithm.
+    QG: networkx.MultiGraph
+    Return: a list of networkx.MultiGraph
+    """
     tmpG = remove_selfloops(QG)
     comp=nx.algorithms.community.girvan_newman(tmpG)
     for c in comp:
@@ -140,6 +163,11 @@ def find_communities(QG):
     return partition
 
 def find_communities2(QG, maxStep=100):
+    """
+    Find communitis of crystal quotient graph QG using Girva_Newman algorithm, different from find_communities.
+    QG: networkx.MultiGraph
+    Return: a list of networkx.MultiGraph
+    """
     tmpG = remove_selfloops(QG)
     partition = []
     for i in range(maxStep):

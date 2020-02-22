@@ -6,7 +6,7 @@ import logging
 from .writeresults import write_traj
 from .readvasp import *
 from .utils import *
-from .localopt import calc_vasp
+from .localopt import calc_vasp, RelaxVasp
 
 
 
@@ -22,7 +22,7 @@ if  __name__ == "__main__":
     else:
         incars = ['INCAR_{}'.format(i) for i in range(1, calcNum+1)]
     for incar in incars:
-        calc = Vasp()
+        calc = RelaxVasp()
         calc.read_incar(incar)
         calc.set(xc=xc)
         calc.set(setups=vaspSetup)

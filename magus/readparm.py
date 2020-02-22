@@ -18,8 +18,8 @@ from .queue import JobManager
 from .renew import BaseEA, BOEA
 from .population import Population
 #ML module
-from .machinelearning import LRmodel
-from .offspring_creator import *
+#from .machinelearning import LRmodel
+#from .offspring_creator import *
 ###############################
 
 
@@ -51,12 +51,12 @@ def read_parameters(inputFile):
         'latDisps': list(range(1,5)),
         'ripRho': [0.5, 1, 1.5, 2],
         'molDetector': 0,
-        'cutNum': 2*int(parameters['popSize']/5)+1,
-        'permNum': int(parameters['popSize']/5)+1,
-        'rotNum': int(parameters['popSize']/5)+1,
-        'slipNum': int(parameters['popSize']/5)+1,
-        'latNum': int(parameters['popSize']/5)+1,
-        'ripNum': int(parameters['popSize']/5)+1,
+        'cutNum': 2*int(parameters['popSize']/3)+1,
+        'permNum': int(parameters['popSize']/3)+1,
+        'rotNum': int(parameters['popSize']/3)+1,
+        'slipNum': int(parameters['popSize']/3)+1,
+        'latNum': int(parameters['popSize']/3)+1,
+        'ripNum': int(parameters['popSize']/3)+1,
         'grids': [[2, 1, 1], [1, 2, 1], [1, 1, 2]],
         'bondRatio': 1.15,
         'bondRange': [1., 1.1, 1.2],
@@ -76,8 +76,8 @@ def read_parameters(inputFile):
         'goodehull': 0.1,
         'gp_factor': 1,
         'updateVol': True,
-        'addSym': True,
-        'symprec': 0.5,
+        'addSym': False,
+        'symprec': 0.2,
         'compress': False,
         'cRatio': 0.8,
         'cutoff': 4.0,
@@ -87,6 +87,8 @@ def read_parameters(inputFile):
         'ZernikeNcut': 4,
         'ZernikeDiag': True,
         'kernelType': 'dot',
+        'savetmp': False,
+        'tourRatio': 0.1,
     }
 
     for key, val in dParms.items():
@@ -97,7 +99,7 @@ def read_parameters(inputFile):
     # Check parameters
     assert p.mode in ['serial', 'parallel'], "Undefined mode"
     assert p.calcType in ['fix', 'var'], "Undefined calcType"
-    assert p.calculator in ['lj', 'emt', 'vasp', 'gulp', 'xtb', 'cp2k'], "Undefined calculator"
+    assert p.calculator in ['lj', 'emt', 'vasp', 'gulp', 'xtb', 'cp2k', 'lammps', 'quip'], "Undefined calculator"
     if p.calculator in ['lj', 'emt', 'xtb']:
         assert p.mode == 'serial', "The calculator only support serial mode"
     assert p.randFrac <= 1, 'randFrac should be lower than 1'

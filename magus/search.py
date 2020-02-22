@@ -4,7 +4,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
+from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator,LAMMPSCalculator,QUIPCalculator
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
 from .readparm import read_parameters
@@ -40,6 +40,10 @@ class Magus:
             self.MainCalculator = GULPCalculator(parameters)
         elif self.parameters.calculator == 'xtb':
             self.MainCalculator = XTBCalculator(parameters)
+        elif self.parameters.calculator == 'quip':
+            self.MainCalculator = QUIPCalculator(parameters)
+        elif self.parameters.calculator == 'lammps':
+            self.MainCalculator = LAMMPSCalculator(parameters)
         self.ML=LRmodel(parameters)
         self.get_fitness=calc_fitness
         self.pop=[]
@@ -86,7 +90,25 @@ class Magus:
                     initPop.extend(elePop)
         else:
             initPop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, self.parameters.formula, self.inputMols, self.parameters.molFormula, self.parameters.numFrml, self.parameters.spacegroup, fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
+
+        # fix cell
+        if self.parameters.fixCell:
+            logging.info("Fix cell parameters")
+            for ind in initPop:
+                ind.set_cell(self.parameters.setCellPar, scale_atoms=True)
+            initPop = check_dist(initPop, self.parameters.dRatio)
         logging.info("initPop length: {}".format(len(initPop)))
+
+        seedPop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+
+        if len(seedPop) > 0:
+            logging.info("check seeds distance")
+            seedPop = check_dist(seedPop, self.parameters.dRatio)
+            if self.parameters.chkMol:
+                logging.info("check seeds mols")
+                seedPop = check_mol_pop(seedPop, self.inputMols, self.parameters.bondRatio)
+            logging.info("read {} seeds".format(len(seedPop)))
+            initPop.extend(seedPop)
 
         write_results(initPop, self.curgen, 'init',self.parameters.resultsDir)
 
@@ -186,9 +208,29 @@ class Magus:
         ### Initial fingerprint
         # self.ML.get_fp(initPop)
 
+        # fix cell
+        if self.parameters.fixCell:
+            logging.info("Fix cell parameters")
+            for ind in initPop:
+                ind.set_cell(self.parameters.setCellPar, scale_atoms=True)
+            initPop = check_dist(initPop, self.parameters.dRatio)
+
+        # save tmpPop
+        if p.savetmp:
+            write_results(self.Algo.tmpPop, self.curgen, 'tmp',self.parameters.resultsDir)
         ### Save Initial
         write_results(initPop,self.curgen, 'init',self.parameters.resultsDir)
 
+        seedPop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+
+        if len(seedPop) > 0:
+            logging.info("check seeds distance")
+            seedPop = check_dist(seedPop, self.parameters.dRatio)
+            if self.parameters.chkMol:
+                logging.info("check seeds mols")
+                seedPop = check_mol_pop(seedPop, self.inputMols, self.parameters.bondRatio)
+            logging.info("read {} seeds".format(len(seedPop)))
+            initPop.extend(seedPop)
 
         if self.parameters.mlRelax:
             ### mlrelax

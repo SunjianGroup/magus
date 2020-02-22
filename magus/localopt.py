@@ -8,6 +8,9 @@ from ase.calculators.lj import LennardJones
 from ase.calculators.emt import EMT
 from ase.calculators.vasp import Vasp
 from ase.calculators.gulp import GULP, Conditions
+from ase.calculators.lammpslib import LAMMPSlib
+from ase.calculators.lammpsrun import LAMMPS
+from ase.calculators.lj import LennardJones
 from ase.spacegroup import crystal
 # from parameters import parameters
 from .writeresults import write_traj
@@ -16,17 +19,65 @@ from ase.units import GPa, eV, Ang
 try:
     from xtb import GFN0, GFN1
     from ase.constraints import ExpCellFilter
+    from quippy.potential import Potential as QUIP
 except:
     pass
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from ase.calculators.lj import LennardJones
 from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from .queue import JobManager
 # from .runvasp import calc_vasp
 # from .rungulp import calc_gulp
+
+class RelaxVasp(Vasp):
+    """
+    Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
+    """
+    def read_convergence(self):
+        """Method that checks whether a calculation has converged."""
+        converged = None
+        # First check electronic convergence
+        for line in open('OUTCAR', 'r'):
+            if 0:  # vasp always prints that!
+                if line.rfind('aborting loop') > -1:  # scf failed
+                    raise RuntimeError(line.strip())
+                    break
+            if line.rfind('EDIFF  ') > -1:
+                ediff = float(line.split()[2])
+            if line.rfind('total energy-change') > -1:
+                # I saw this in an atomic oxygen calculation. it
+                # breaks this code, so I am checking for it here.
+                if 'MIXING' in line:
+                    continue
+                split = line.split(':')
+                a = float(split[1].split('(')[0])
+                b = split[1].split('(')[1][0:-2]
+                # sometimes this line looks like (second number wrong format!):
+                # energy-change (2. order) :-0.2141803E-08  ( 0.2737684-111)
+                # we are checking still the first number so
+                # let's "fix" the format for the second one
+                if 'e' not in b.lower():
+                    # replace last occurrence of - (assumed exponent) with -e
+                    bsplit = b.split('-')
+                    bsplit[-1] = 'e' + bsplit[-1]
+                    b = '-'.join(bsplit).replace('-e', 'e-')
+                b = float(b)
+                if [abs(a), abs(b)] < [ediff, ediff]:
+                    converged = True
+                else:
+                    converged = False
+                    continue
+        # Then if ibrion in [1,2,3] check whether ionic relaxation
+        # condition been fulfilled
+        # if ((self.int_params['ibrion'] in [1, 2, 3] and
+        #      self.int_params['nsw'] not in [0])):
+        #     if not self.read_relaxed():
+        #         converged = False
+        #     else:
+        #         converged = True
+        return converged
 
 class Calculator:
     def __init__(self):
@@ -60,8 +111,10 @@ class ASECalculator(Calculator):
                 # ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
                 if self.parameters.mainoptimizer == 'cg':
                     gopt = SciPyFminCG(ucf, logfile='aseOpt.log',)
-                elif self.parameters.mainoptimizer == 'BFGS':
+                elif self.parameters.mainoptimizer == 'bfgs':
                     gopt = BFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
+                elif self.parameters.mainoptimizer == 'lbfgs':
+                    gopt = LBFGS(ucf, logfile='aseOpt.log', maxstep=self.parameters.maxRelaxStep)
                 elif self.parameters.mainoptimizer == 'fire':
                     gopt = FIRE(ucf, logfile='aseOpt.log', maxmove=self.parameters.maxRelaxStep)
 
@@ -80,16 +133,16 @@ class ASECalculator(Calculator):
                     continue
 
             else:
-                if label:
-                    # save energy, forces, stress for trainning potential
-                    ind.info['energy'] = ind.get_potential_energy()
-                    ind.info['forces'] = ind.get_forces()
-                    ind.info['stress'] = ind.get_stress()
-                    enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
-                    ind.info['enthalpy'] = round(enthalpy, 3)
+                #if label:
+                # save energy, forces, stress for trainning potential
+                ind.info['energy'] = ind.get_potential_energy()
+                ind.info['forces'] = ind.get_forces()
+                ind.info['stress'] = ind.get_stress()
+                enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
+                ind.info['enthalpy'] = round(enthalpy, 3)
 
-                    ind.set_calculator(None)
-                    relaxPop.append(ind)
+                ind.set_calculator(None)
+                relaxPop.append(ind)
         os.chdir(self.parameters.workDir)
         return relaxPop
 
@@ -139,6 +192,37 @@ class EMTCalculator(ASECalculator):
     def scf(self, calcPop):
         return super(EMTCalculator, self).scf(calcPop)
 
+class LAMMPSCalculator(ASECalculator):
+    # still have bugs
+    def __init__(self,parameters):
+        calcs = []
+        for i in range(1, parameters.calcNum + 1):
+            with open("{}/inputFold/lammps_{}".format(parameters.workDir, i)) as f:
+                cmds = f.readlines()
+            calcs.append(LAMMPSlib(lmpcmds=cmds, log_file='lammps.log'))
+            # calcs.append(LAMMPS(parameters=cmds))
+        return super(LAMMPSCalculator, self).__init__(parameters,calcs)
+
+    def relax(self, calcPop):
+        return super(LAMMPSCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(LAMMPSCalculator, self).scf(calcPop)
+
+class QUIPCalculator(ASECalculator):
+    def __init__(self,parameters):
+        calcs = []
+        for i in range(1, parameters.calcNum + 1):
+            params = yaml.load(open("{}/inputFold/quip_{}.yaml".format(parameters.workDir, i)))
+            calc = QUIP(**params)
+            calcs.append(calc)
+        return super(QUIPCalculator, self).__init__(parameters,calcs)
+    def relax(self, calcPop):
+        return super(QUIPCalculator, self).relax(calcPop)
+
+    def scf(self, calcPop):
+        return super(QUIPCalculator, self).scf(calcPop)
+
 class XTBCalculator(ASECalculator):
     def __init__(self,parameters):
         calcs = []
@@ -159,7 +243,8 @@ class XTBCalculator(ASECalculator):
 
 class ASEGULPCalculator(ASECalculator):
     """
-    Still have bugs
+    GULP Calculator based on ASE's GULP Calculator
+    Still have bugs.
     """
     def __init__(self,parameters):
         calcs = []
@@ -350,7 +435,7 @@ class VaspCalculator(ABinitCalculator):
 
     def scf_serial(self,calcPop):
         self.cdcalcFold()
-        calc = Vasp()
+        calc = RelaxVasp()
         calc.read_incar('INCAR_scf')
         calc.set(xc=self.parameters.xc,setups=dict(zip(self.parameters.symbols, self.parameters.ppLabel)),pstress=self.parameters.pressure*10)
         scfPop = calc_vasp([calc], calcPop)
@@ -362,7 +447,7 @@ class VaspCalculator(ABinitCalculator):
         incars = ['INCAR_{}'.format(i) for i in range(1, self.parameters.calcNum+1)]
         calcs = []
         for incar in incars:
-            calc = Vasp()
+            calc = RelaxVasp()
             calc.read_incar(incar)
             calc.set(xc=self.parameters.xc,setups=dict(zip(self.parameters.symbols, self.parameters.ppLabel)),pstress=self.parameters.pressure*10)
             calcs.append(calc)

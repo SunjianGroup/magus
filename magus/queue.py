@@ -8,7 +8,7 @@ class JobManager:
     def __init__(self):
         self.jobs=[]
         self.history=[]
-    
+
     def bsub(self,command):
         job=dict()
         jobid=subprocess.check_output(command, shell=True).split()[1][1: -1]
@@ -18,8 +18,10 @@ class JobManager:
         job['workDir']=os.getcwd()
         job['subtime']=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.jobs.append(job)
-    
+
     def checkjobs(self):
+        logging.debug("Checking jobs...")
+        logging.debug(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         for job in self.jobs:
             try:
                 stat = subprocess.check_output("bjobs %s | grep %s | awk '{print $3}'"% (job['id'], job['id']), shell=True)
@@ -28,7 +30,7 @@ class JobManager:
                 s = sys.exc_info()
                 logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
                 stat = ''
-            # logging.debug(jobID, stat)
+            # logging.debug(job['id'], stat)
             if stat == 'DONE' or stat == '':
                 job['state'] = 'DONE'
             elif stat == 'PEND':

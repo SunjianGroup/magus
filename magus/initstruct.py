@@ -89,13 +89,13 @@ class BaseGenerator:
         ind.info['formula'] = self.formula
         ind.info['numOfFormula'] = nfm
         ind.info['parentE'] = 0
-        ind.info['Origin'] = 'random'
+        ind.info['origin'] = 'random'
         return ind
 
     def Generate_pop(self,popSize,initpop=False):
         buildPop = []
         tryNum=0
-        while tryNum<self.maxtryNum and popSize > len(buildPop):
+        while tryNum<self.maxtryNum*popSize and popSize > len(buildPop):
             nfm = np.random.choice(self.numFrml)
             spg = np.random.choice(self.spgs)
             numlist=np.array(self.formula)*nfm
@@ -108,7 +108,7 @@ class BaseGenerator:
 
         # Allow P1 structure
         if popSize > len(buildPop):
-            for i in range(popSize - len(buildPop)):
+            for _ in range(popSize - len(buildPop)):
                 nfm = np.random.choice(self.numFrml)
                 spg = np.random.choice(self.spgs)
                 numlist=np.array(self.formula)*nfm
@@ -163,7 +163,7 @@ class VarGenerator(BaseGenerator):
         ind.info['formula'] = numlist
         ind.info['numOfFormula'] = nfm
         ind.info['parentE'] = 0
-        ind.info['Origin'] = 'random'
+        ind.info['origin'] = 'random'
         return ind
 
     def Generate_pop(self,popSize,initpop=False):
@@ -381,7 +381,7 @@ def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, smallRadi
         meanVol += vol * molFormula[i]
 
     minVol = 0.5*meanVol
-    maxVol = 1.5*meanVol
+    maxVol = 3*meanVol
 
     molPop = []
     for _ in range(numStruct):
@@ -420,7 +420,7 @@ def build_mol_struct(
             ind.info['numOfFormula'] = nfm
             ind.info['molFormula'] = molFormula
             ind.info['parentE'] = 0
-            ind.info['Origin'] = 'random'
+            ind.info['origin'] = 'random'
         buildPop.extend(randomPop)
 
     buildPop = check_mol_pop(buildPop, inputMols, bondRatio)
@@ -440,7 +440,7 @@ def build_mol_struct(
                 randomPop[-1].info['formula'] = formula
                 randomPop[-1].info['molFormula'] = molFormula
                 randomPop[-1].info['parentE'] = 0
-                randomPop[-1].info['Origin'] = 'random'
+                randomPop[-1].info['origin'] = 'random'
         randomPop = check_mol_pop(randomPop, inputMols, bondRatio)
         buildPop.extend(randomPop)
 
@@ -461,21 +461,19 @@ def build_mol_struct(
                 randomPop[-1].info['formula'] = formula
                 randomPop[-1].info['molFormula'] = molFormula
                 randomPop[-1].info['parentE'] = 0
-                randomPop[-1].info['Origin'] = 'random'
+                randomPop[-1].info['origin'] = 'random'
         buildPop.extend(randomPop)
 
     return buildPop
 
 
-
-
-def read_seeds(parameters, seedFile='Seeds/POSCARS'):
+def read_seeds(parameters, seedFile):
     seedPop = []
-    setSym = parameters['symbols']
-    setFrml = parameters['formula']
-    minAt = parameters['minAt']
-    maxAt = parameters['maxAt']
-    calcType = parameters['calcType']
+    setSym = parameters.symbols
+    setFrml = parameters.formula
+    minAt = parameters.minAt
+    maxAt = parameters.maxAt
+    calcType = parameters.calcType
 
     if os.path.exists(seedFile):
         readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
@@ -483,8 +481,9 @@ def read_seeds(parameters, seedFile='Seeds/POSCARS'):
             logging.info("Reading Seeds ...")
 
         seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
-
-    logging.info("Read Seeds: %s"%(len(seedPop)))
+        for ind in seedPop:
+            ind.info['origin'] = 'seed'
+    # logging.info("Read Seeds: %s"%(len(seedPop)))
     return seedPop
 
 

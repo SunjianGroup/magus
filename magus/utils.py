@@ -27,10 +27,21 @@ class EmptyClass:
 
 class MolCryst:
     def __init__(self, numbers, cell, sclPos, partition, offSets=None, sclCenters=None, rltSclPos=None, info=dict()):
+        """
+        numbers: atomic numbers for all atoms in the structure, same to ase.Atoms.numbers
+        cell: cell of the structure, a 3x3 matrix
+        sclPos: scaled positions for all atoms, same to ase.Atoms.scaled_positions
+        partition: atom indices for every molecule, like [[0,1], [2,3,4]], which means atoms 0,1 belong to one molecule and atoms 3,4,5 belong to another molecule.
+        offSets: cell offsets for every atom, a Nx3 integer matrix
+        sclCenters: centers of molecules, in fractional coordination
+        rltSclPos: positions of atoms relative to molecule centers, in fractional coodination
+        To define a molecule crystal correctly, you must set offSets OR sclCenters and rltSclPos.
+        """
         self.info = info
+        self.partition = tuple([list(p) for p in partition])
         if offSets is not None:
             self.numbers, self.cell, self.sclPos, self.offSets = list(map(np.array, [numbers, cell, sclPos, offSets]))
-            self.partition = tuple(partition)
+            # self.partition = tuple(partition)
             assert len(numbers) == len(sclPos) == len(offSets)
             numAts = len(numbers)
             indSet = set(list(reduce(lambda x, y: x+y, partition)))
@@ -44,12 +55,13 @@ class MolCryst:
             self.rltSclPos = rltSclPos
             self.rltPos = [np.dot(pos, self.cell) for pos in rltSclPos]
 
-
-
         elif sclCenters is not None and rltSclPos is not None:
-            self.numbers, self.cell, self.sclPos = list(map(np.array, [numbers, cell, sclPos]))
-            self.partition = tuple(partition)
-            assert len(numbers) == len(sclPos)
+            # self.numbers, self.cell, self.sclPos = list(map(np.array, [numbers, cell, sclPos]))
+            # self.partition = tuple(partition)
+            # assert len(numbers) == len(sclPos)
+            self.numbers, self.cell = list(map(np.array, [numbers, cell]))
+            # sclPos should be calculated from sclCenters and rltSclPos
+            self.sclPos = np.zeros((len(numbers), 3))
             numAts = len(numbers)
             indSet = set(list(reduce(lambda x, y: x+y, partition)))
             assert indSet == set(range(numAts))
@@ -58,6 +70,7 @@ class MolCryst:
             self.centers = np.dot(self.sclCenters, self.cell)
             self.rltSclPos = rltSclPos
             self.rltPos = [np.dot(pos, self.cell) for pos in rltSclPos]
+            self.update()
 
 
         else:
@@ -68,32 +81,52 @@ class MolCryst:
         self.molNums = [self.numbers[p].tolist() for p in self.partition]
 
     def get_center_and_rltSclPos(self, indices):
+        """
+        Return centers and scaled relative positions for each molecule
+        """
         molPos = self.dispPos[indices]
         center = molPos.mean(0)
         rltPos = molPos - center
         return center, rltPos
 
     def get_sclCenters(self):
+        """
+        Return scaled relative positions for each molecule
+        """
         return self.sclCenters[:]
 
     def get_centers(self):
+        """
+        Return centers for each molecule
+        """
         return self.centers[:]
 
     def get_rltPos(self):
+        """
+        Return relative positions for each molecule
+        """
         return self.rltPos[:]
 
     def get_radius(self):
+        """
+        Return radius for each molecule
+        """
         radius = []
         for pos in self.rltPos:
             rmax = max(np.linalg.norm(pos, axis=1))
             radius.append(rmax)
         return radius
 
-
     def copy(self):
+        """
+        Return a copy of current object
+        """
         return MolCryst(self.numbers, self.cell, self.sclPos, self.partition, sclCenters=self.sclCenters, rltSclPos=self.rltSclPos, info=self.info.copy())
 
     def to_dict(self, infoCopy=True):
+        """
+        Return a dictionary containing all properties of the current molecular crystal
+        """
         molDict = {
             'numbers': self.numbers,
             'cell': self.cell,
@@ -107,18 +140,45 @@ class MolCryst:
         return molDict
 
     def get_cell(self):
+        """
+        Return the cell 
+        """
         return self.cell[:]
 
     def get_numbers(self):
+        """
+        Return atomic numbers
+        """
         return self.numbers[:]
 
     def get_scaled_positions(self):
+        """
+        Return scaled positions of all atoms
+        """
         return self.sclPos[:]
 
     def get_volume(self):
+        """
+        Return the cell volume
+        """
         return np.linalg.det(self.cell)
 
+    def get_mols(self):
+        """
+        Return all the molecules as a list of ASE's Atoms objects
+        """
+        mols = []
+        for n, indices in enumerate(self.partition):
+            mol = Atoms(numbers=self.numbers[indices], positions=self.rltPos[n])
+            mols.append(mol)
+        return mols
+
     def set_cell(self, cell, scale_atoms=False, scale_centers=True):
+        """
+        Set the cell 
+        scale_atoms: scale all atoms (may change relative positions) or not
+        scale_center: scale molecule centers (do not change relative positions) or not
+        """
         self.cell = np.array(cell)
         if scale_atoms:
             self.centers = np.dot(self.sclCenters, self.cell)
@@ -129,9 +189,15 @@ class MolCryst:
             self.update_centers_and_rltPos(self.centers, self.rltPos)
 
     def to_atoms(self):
+        """
+        Return the molecular crystal as an ASE's Atoms object
+        """
         return Atoms(numbers=self.numbers, scaled_positions=self.sclPos, cell=self.cell, pbc=1, info=self.info.copy())
 
     def update_centers_and_rltPos(self, centers=None, rltPos=None):
+        """
+        Set centers and relative positions in Cartesian coodination
+        """
         invCell = np.linalg.inv(self.cell)
         if centers is not None:
             self.centers = np.array(centers)
@@ -142,6 +208,9 @@ class MolCryst:
         self.update()
 
     def update_sclCenters_and_rltSclPos(self, sclCenters=None, rltSclPos=None):
+        """
+        Set centers and relative positions in fractional coodination
+        """
 
         if sclCenters is not None:
             self.sclCenters = np.array(sclCenters)
@@ -152,6 +221,9 @@ class MolCryst:
         self.update()
 
     def update(self):
+        """
+        Update centers and relative positions
+        """
         molNum = len(self.partition)
         posList = [self.sclCenters[i]+self.rltSclPos[i] for i in range(molNum)]
         tmpSclPos = reduce(lambda x,y: np.concatenate((x,y), axis=0), posList)
@@ -160,6 +232,12 @@ class MolCryst:
 
 
 def atoms2molcryst(atoms, coef=1.1):
+    """
+    Convert crystal to molecular crystal
+    atoms: (ASE.Atoms) the input crystal structure 
+    coef: (float) the criterion for connecting two atoms
+    Return: MolCryst
+    """
     QG = quotient_graph(atoms, coef)
     graphs = nx.connected_component_subgraphs(QG)
     partition = []
@@ -202,6 +280,12 @@ def atoms2molcryst(atoms, coef=1.1):
     return molC
 
 def atoms2communities(atoms, coef=1.1):
+    """
+    Split crystal to communities 
+    atoms: (ASE.Atoms) the input crystal structure 
+    coef: (float) the criterion for connecting two atoms
+    Return: MolCryst
+    """
     QG = quotient_graph(atoms, coef)
     graphs = nx.connected_component_subgraphs(QG)
     partition = []
@@ -229,7 +313,6 @@ def atoms2communities(atoms, coef=1.1):
     sclPos=atoms.get_scaled_positions(), partition=partition, offSets=offSets, info=atoms.info.copy())
 
     return molC
-
 
 def symbols_and_formula(atoms):
 
@@ -325,7 +408,6 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
         setGcd = reduce(math.gcd, setFrml)
         setRd = [x/setGcd for x in setFrml]
 
-
     # if len(readPop) > 0:
     #     logging.debug("Reading Seeds ...")
     for ind in readPop:
@@ -345,6 +427,7 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
             # if minAt <= len(ind) <= maxAt or len(selfSym) < len(setSym):
             formula = [symDic[sym] for sym in setSym]
             ind.info['formula'] = formula
+            ind.info['numOfFormula'] = 1
             seedPop.append(ind)
             # else:
             #     logging.debug("ERROR in checking symbols")
@@ -361,14 +444,14 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
                     seedPop.append(ind)
                 else:
                     logging.debug("ERROR in checking formula")
-
-
-
     # logging.info("Read Seeds: %s"%(len(seedPop)))
     return seedPop
 
-
 def rand_rotMat():
+    """
+    Get random rotation matrix
+    Return: a 3x3 matrix
+    """
     phi, theta, psi = [2*math.pi*random.uniform(-1,1) for _ in range(3)]
     rot1 = np.array([[cos(phi),-1*sin(phi),0],[sin(phi),cos(phi),0],[0,0,1]])
     rot2 = np.array([[cos(theta), 0, -1*sin(theta)],[0,1,0],[sin(theta), 0, cos(theta)]])
@@ -378,6 +461,12 @@ def rand_rotMat():
     return rotMat
 
 def check_mol_ind(molInd, inputNums, bondRatio):
+    """
+    Check if the crystal is molecular crystal. Here we only check the atomic numbers of each molecule, do not check the inner connectivity of molecules.
+    molInd: (ASE.Atoms) input crystal
+    inputNums: atomic numbers for all molecules
+    bondRatio: the criterion for connecting atoms
+    """
     molc = atoms2molcryst(molInd, bondRatio)
     molNums = molInd.get_atomic_numbers()
     counters = [Counter(nums) for nums in inputNums]
@@ -490,7 +579,7 @@ def compare_structure_energy(Pop, diffE=0.01, diffV=0.05, ltol=0.1, stol=0.1, an
             # remove one of them
             if i not in rmIndices and j not in rmIndices:
                 if compareE:
-                    rmIndices.append(i if s0.info['enthalpy'] < s1.info['enthalpy'] else j)
+                    rmIndices.append(i if s0.info['enthalpy'] > s1.info['enthalpy'] else j)
                 else:
                     rmIndices.append(random.choice([i,j]))
 
