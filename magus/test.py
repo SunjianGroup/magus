@@ -1,20 +1,15 @@
 import random, logging, os, sys, shutil, time, json
 import argparse
+import copy
 import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
-from .writeresults import write_dataset, write_results, write_traj
+from .initstruct import read_seeds,build_mol_struct
 from .readparm import *
 from .utils import *
-import copy
-from .queue import JobManager
-from .renew import BaseEA, BOEA
-#ML module
 from .machinelearning import LRmodel
-from .offspring_creator import PopGenerator
+
 """
 Pop:class,poplulation
 pop:list,a list of atoms
@@ -53,7 +48,15 @@ class Magus:
         else:
             initPop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, self.parameters.formula, self.inputMols, self.parameters.molFormula, self.parameters.numFrml, self.parameters.spacegroup, fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
         logging.info("initPop length: {}".format(len(initPop)))
+
+        #read seeds
+        seedpop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+        seedPop = self.Population(seedpop,'seedpop',self.curgen)
+        seedPop.check()
+        initPop.extend(seedPop)
+
         initPop.save('init')
+
         self.initPops.append(initPop)
         relaxpop = self.MainCalculator.relax(initPop.frames)
         relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
@@ -107,6 +110,9 @@ class Magus:
         curPop = relaxPop + keepPop
         curPop.del_duplicate()
 
+        self.curgen+=1
+        logging.info("===== Generation {} =====".format(self.curgen))
+
         # renew volRatio
         volRatio = relaxPop.get_volRatio()
         self.Generator.updatevolRatio(0.5*(volRatio + self.Generator.volRatio))
@@ -117,9 +123,13 @@ class Magus:
             logging.info("random structures:{}".format(self.parameters.popSize-len(initPop)))
             addpop = self.Generator.Generate_pop(self.parameters.popSize-len(initPop))
             initPop.extend(addpop)
-    
-        self.curgen+=1
-        logging.info("===== Generation {} =====".format(self.curgen))
+
+        #read seeds
+        seedpop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+        seedPop = self.Population(seedpop,'seedpop',self.curgen)
+        seedPop.check()
+        initPop.extend(seedPop)
+
         ### Save Initial
         initPop.save()
 

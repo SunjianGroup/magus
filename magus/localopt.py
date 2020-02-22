@@ -31,6 +31,8 @@ from .queue import JobManager
 # from .runvasp import calc_vasp
 # from .rungulp import calc_gulp
 
+__all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
+    'EMTCalculator','GULPCalculator','LAMMPSCalculator','QUIPCalculator']
 class RelaxVasp(Vasp):
     """
     Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.

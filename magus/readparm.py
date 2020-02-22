@@ -9,7 +9,7 @@ import logging
 from functools import reduce
 import numpy as np
 
-from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator
+from .localopt import *
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
@@ -235,6 +235,11 @@ def get_calculator(parameters):
         MainCalculator = GULPCalculator(parameters)
     elif parameters.calculator == 'xtb':
         MainCalculator = XTBCalculator(parameters)
+    elif parameters.calculator == 'quip':
+        MainCalculator = QUIPCalculator(parameters)
+    elif parameters.calculator == 'lammps':
+        MainCalculator = LAMMPSCalculator(parameters)
+
     return MainCalculator
 
 def get_population(parameters):

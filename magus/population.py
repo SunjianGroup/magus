@@ -366,7 +366,6 @@ class Individual:
         self.sort()
         return True
 
-
 class FixInd(Individual):
     def __call__(self,atoms):
         newind = self.__class__(self.parameters)
