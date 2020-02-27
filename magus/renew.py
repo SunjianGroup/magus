@@ -10,7 +10,7 @@ from sklearn.gaussian_process import kernels
 import ase.io
 from ase import Atom, Atoms
 from ase.data import atomic_numbers, covalent_radii
-from ase.neighborlist import NeighborList
+from ase.neighborlist import NeighborList, neighbor_list
 from ase.geometry import cell_to_cellpar, cellpar_to_cell
 from ase.optimize import BFGS, FIRE, BFGSLineSearch, LBFGS, LBFGSLineSearch
 from ase.units import GPa
@@ -965,7 +965,7 @@ def merge_atoms(atoms, tolerance=0.3,):
     """
 
     cutoffs = [tolerance * covalent_radii[num] for num in atoms.get_atomic_numbers()]
-    nl = neighbor_list("ij", atoms, cutoffs)
+    nl = neighbor_list("ij", atoms, cutoffs, max_nbins=1e3)
     indices = list(range(len(atoms)))
     exclude = []
 
