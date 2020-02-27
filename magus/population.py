@@ -388,7 +388,6 @@ class FixInd(Individual):
         return np.all(targetFrml == formula)
 
     def get_targetFrml(self):
-        #TODO initial self.formula
         atoms = self.atoms
         Natoms = len(atoms)
         if self.parameters.minAt <= Natoms <= self.parameters.maxAt :
@@ -425,8 +424,6 @@ class VarInd(Individual):
         return rank == self.rank
     
     def get_targetFrml(self):
-        #TODO initial self.formula
-        #TODO var
         symbols = self.atoms.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.symbols]
         coef = np.rint(np.dot(formula, self.invF)).astype(np.int)

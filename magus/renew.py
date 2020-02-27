@@ -24,9 +24,6 @@ import itertools
 from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 from ase.build import make_supercell
 
-"""
-TODO to create a class offspringCreator?
-"""
 class BaseEA:
     def __init__(self, parameters):
 

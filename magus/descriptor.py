@@ -50,38 +50,27 @@ class ZernikeFp(CalculateFingerprints):
         Nat = len(atoms)
         totNd = self.Nd * self.numEles
         self.part.totNd=totNd
-        self.part.Nat=Nat
+        self.part.SetNat(Nat)
 
         nl = neighbor_list('ijdD', atoms, self.cutoff)
         sortNl = [[] for _ in range(Nat)]
-        rij = np.zeros((Nat , Nat , 3))
         for i,j,d,D in zip(*nl):                                 #All numbers must be double here
             sortNl[i].extend([i*1.0, j*1.0, d, D[0],D[1],D[2],atoms.numbers[j]])
-            rij[i][j]=D
+
+        for ith in range(Nat):
+            self.part.SetNeighbors(ith, np.array(sortNl[ith])) 
+        #Finish the loop above before starting the loop below
 
 
         eFps = np.zeros((Nat, totNd))
         fFps = np.zeros((Nat, Nat, 3 ,totNd))
-        sFps = np.zeros((Nat, Nat, Nat ,3 ,totNd))
+        sFps = np.zeros((Nat, 3, 3 ,totNd))
 
         for i in range(Nat):
             cenEleInd = self.eleDic[atoms.numbers[i]]
-            self.part.SetNeighbors(np.array(sortNl[i]))
             self.part.get_fingerprints(i, cenEleInd)
-            eFps[i] = self.part.GeteFp()                           #returns list of length totNd
-            sFps[i] = self.part.GetfFps()
-            fFps[i] = np.sum(sFps[i], axis=1)                           #returns array of Nat*3*totNd
-        """
-        #normalization
-        if self.norm:
-            Enorm_coff = np.linalg.norm(eFps,axis=1)
-            Fnorm_coff = np.sum(fFps*eFps[:,np.newaxis,np.newaxis,:],axis=3)/np.reshape(Enorm_coff**2,(-1,1,1))
-            eFps = eFps/np.reshape(Enorm_coff,(-1,1))
-            fFps = fFps/np.reshape(Enorm_coff,(-1,1,1,1))-Fnorm_coff[:,:,:,np.newaxis]*eFps[:,np.newaxis,np.newaxis,:]
-        """
-        #stress fp
+            eFps[i] = self.part.GeteFp()                           #returns list of length totNd                         #returns array of Nat*3*totNd
+            fFps[i] = np.array(self.part.GetfFps()).reshape(Nat,3,totNd)    #returns list of length Nat*3*totNd
+            sFps[i] = np.array(self.part.GetsFps()).reshape(3,3,totNd) #returns list of length (3,3,totNd)
 
-        sFps = np.sum(sFps[:,:,:,:,np.newaxis,:]*rij[np.newaxis,:,:,np.newaxis,:,np.newaxis],axis=(1,2))
-        sFps = sFps[:,[0,1,2,1,0,0],[0,1,2,2,2,1],:]
-        sFps = np.zeros_like(sFps)      #test
         return eFps, fFps , sFps

@@ -11,37 +11,21 @@ from .utils import *
 
 class BaseGenerator:
     def __init__(self,parameters):
-        #TODO volume range should be calculate in getVolumeandLattice
         self.parameters=parameters
-        p = parameters
         Requirement=['symbols','formula','numFrml']
         Default={'threshold':1.0,'maxAttempts':50,'method':2,'volRatio':1.5,'spgs':np.arange(1,231),'maxtryNum':100}
         checkParameters(self,parameters,Requirement,Default)
         radius = [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
         checkParameters(self,parameters,[],{'radius':radius})
 
-        formula = np.array(self.formula)
-        frmlDim = len(formula.shape)
-        if frmlDim == 1:
-            meanFrml = formula
-        elif frmlDim > 1:
-            meanFrml = np.mean(formula, axis=0)
-
-        self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*meanFrml)*self.volRatio/(meanFrml.sum())
-        # self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*np.array(self.formula))*self.volRatio/sum(self.formula)
-        self.minVolume = p.minVolume if hasattr(p,'minVolume') else self.meanVolume*0.5
-        self.maxVolume = p.maxVolume if hasattr(p,'maxVolume') else self.meanVolume*1.5
-
     def updatevolRatio(self,volRatio):
-        self.meanVolume *= volRatio/self.volRatio
-        self.minVolume *= volRatio/self.volRatio
-        self.maxVolume *= volRatio/self.volRatio
         self.volRatio=volRatio
         logging.debug("new volRatio: {}".format(self.volRatio))
 
     def getVolumeandLattice(self,numlist):
-        minVolume = self.minVolume*np.sum(numlist)
-        maxVolume = self.maxVolume*np.sum(numlist)
+        Volume = np.sum(4*np.pi/3*np.array(self.radius)**3*np.array(numlist))*self.volRatio
+        minVolume = Volume*0.5
+        maxVolume = Volume*1.5
         minLattice= [2*np.max(self.radius)]*3+[60]*3
         # maxLattice= [maxVolume/2/np.max(self.radius)]*3+[120]*3
         maxLattice= [maxVolume**(1./3)]*3+[120]*3

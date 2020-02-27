@@ -263,7 +263,6 @@ class LatticeMutation(Mutation):
         return ind(atoms)
 
 class SlipMutation(Mutation):
-    #TODO sha wan yi?
     def __init__(self, cut=0.5, randRange=[0.5, 2],tryNum=10):
         self.cut = cut
         self.randRange = randRange
@@ -286,7 +285,6 @@ class SlipMutation(Mutation):
         return ind(atoms)
 
 class RippleMutation(Mutation):
-    #TODO sha wan yi?
     def __init__(self, rho=0.3, mu=2, eta=1,tryNum=10):
         self.rho = rho
         self.mu = mu
