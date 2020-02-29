@@ -83,48 +83,14 @@ class Magus:
         self.keepPop = self.Population([],'keeppop',self.curgen)
 
     def Onestep(self):
-                relaxPop = self.relaxPops[-1]
+        curPop = self.curPop
         goodPop = self.goodPop
         keepPop = self.keepPop
-
-        relaxPop.check()
-        
-        if self.parameters.chkMol:
-            logging.info("check mols")
-            relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
-            logging.info("check survival: {}".format(len(relaxPop)))
-
-        relaxPop.del_duplicate()
-        relaxPop.calc_dominators()
-        for ind in relaxPop.pop:
-            logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
-                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
-
-        
-        # Write relaxPop
-        relaxPop.save('gen')
-
-        ### save good individuals
-        logging.info('construct goodPop')
-        goodPop = relaxPop + goodPop + keepPop
-        goodPop.del_duplicate()
-        goodPop.select(self.parameters.popSize)
-        goodPop.save('good','')
-        goodPop.save('savegood')
-
-        ### keep best
-        logging.info('construct keepPop')
-        _, keeppop = goodPop.clustering(self.parameters.saveGood)
-        keepPop = self.Population(keeppop,'keeppop',self.curgen)
-        keepPop.save('keep')
-        
-        curPop = relaxPop + keepPop
-        curPop.del_duplicate()
         self.curgen+=1
         logging.info("===== Generation {} =====".format(self.curgen))
-
+        #######  get next Pop  #######
         # renew volRatio
-        volRatio = relaxPop.get_volRatio()
+        volRatio = curPop.get_volRatio()
         self.Generator.updatevolRatio(0.5*(volRatio + self.Generator.volRatio))
 
         initPop = self.Algo.next_Pop(curPop)
@@ -140,26 +106,28 @@ class Magus:
         seedPop.check()
         initPop.extend(seedPop)
 
-        ### Save Initial
+        # Save Initial
         initPop.save()
 
+        #######  relax  #######
         if self.parameters.mlRelax:
-            ### mlrelax
             for _ in range(10):
-                relaxPop = self.ML.relax(initPop)
-                relaxPop = check_dist(relaxPop, self.parameters.dRatio)
-                scfPop = self.MainCalculator.scf(relaxPop)
-                loss = self.ML.get_loss(scfPop)
+                relaxpop = self.ML.relax(initPop.frames)
+                relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
+                relaxPop.check()
+                scfpop = self.MainCalculator.scf(relaxPop.frames)
+                loss = self.ML.get_loss(scfpop)
                 if loss[1]>0.8:
                     logging.info('ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
                     break
                 logging.info('QAQ ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
-                self.ML.updatedataset(scfPop)
+                self.ML.updatedataset(scfpop)
                 write_results(self.ML.dataset,'','dataset',self.parameters.resultsDir)
                 self.ML.train()
 
             else:
-                relaxPop = self.MainCalculator.relax(initPop)
+                relaxpop = self.MainCalculator.relax(initPop.frames)
+                relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
                 logging.info('Turn to main calculator')
         else:
             relaxpop = self.MainCalculator.relax(initPop.frames)
@@ -167,11 +135,39 @@ class Magus:
 
         # save raw date before checking
         relaxPop.save('raw')
+        relaxPop.check()
+        if self.parameters.chkMol:
+            logging.info("check mols")
+            relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
+            logging.info("check survival: {}".format(len(relaxPop)))
+        relaxPop.del_duplicate()
+        relaxPop.calc_dominators()
+        for ind in relaxPop.pop:
+            logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
 
-        self.relaxPops.append(relaxPop)
-        self.goodPop=goodPop
-        self.keepPop=keepPop
+        # Write relaxPop
+        relaxPop.save('gen')
 
+        #######  goodPop and keepPop  #######
+        logging.info('construct goodPop')
+        goodPop = relaxPop + goodPop + keepPop
+        goodPop.del_duplicate()
+        goodPop.select(self.parameters.popSize)
+        goodPop.save('good','')
+        goodPop.save('savegood')
+
+        # keep best
+        logging.info('construct keepPop')
+        _, keeppop = goodPop.clustering(self.parameters.saveGood)
+        keepPop = self.Population(keeppop,'keeppop',self.curgen)
+        keepPop.save('keep')
+        
+        curPop = relaxPop + keepPop
+        curPop.del_duplicate()
+        self.curPop = curPop
+        self.goodPop = goodPop
+        self.keepPop = keepPop
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)

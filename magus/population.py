@@ -22,7 +22,6 @@ def set_ind(parameters):
 class Population:
     """
     a class of atoms population
-    TODO __iter__
     """
     def __init__(self,parameters):
         self.parameters = parameters
