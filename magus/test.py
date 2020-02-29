@@ -60,14 +60,30 @@ class Magus:
         self.initPops.append(initPop)
         relaxpop = self.MainCalculator.relax(initPop.frames)
         relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-        relaxPop.save('raw')
-        self.relaxPops.append(relaxPop)
+        relaxPop.check()
+        
+        if self.parameters.chkMol:
+            logging.info("check mols")
+            relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
+            logging.info("check survival: {}".format(len(relaxPop)))
 
+        relaxPop.del_duplicate()
+        relaxPop.calc_dominators()
+        relaxPop.save('raw')
+
+        if self.parameters.mlRelax:
+            self.ML.updatedataset(relaxPop.frames)
+            self.ML.train()
+            scfpop = self.MainCalculator.scf(relaxPop.frames)
+            scfPop = self.Population(scfpop,'scfpop',self.curgen)
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
+
+        self.relaxPops.append(relaxPop)
         self.goodPop = self.Population([],'goodpop',self.curgen)
         self.keepPop = self.Population([],'keeppop',self.curgen)
 
     def Onestep(self):
-        relaxPop = self.relaxPops[-1]
+                relaxPop = self.relaxPops[-1]
         goodPop = self.goodPop
         keepPop = self.keepPop
 
@@ -84,12 +100,7 @@ class Magus:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
 
-        if self.parameters.mlRelax:
-            self.ML.updatedataset(relaxPop)
-            self.ML.train()
-            scfPop = self.MainCalculator.scf(relaxPop)
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
-
+        
         # Write relaxPop
         relaxPop.save('gen')
 
@@ -109,7 +120,6 @@ class Magus:
         
         curPop = relaxPop + keepPop
         curPop.del_duplicate()
-
         self.curgen+=1
         logging.info("===== Generation {} =====".format(self.curgen))
 

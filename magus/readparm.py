@@ -19,7 +19,7 @@ from .renew import BaseEA, BOEA
 from .population import Population
 #ML module
 #from .machinelearning import LRmodel
-#from .offspring_creator import *
+from .offspring_creator import *
 ###############################
 
 

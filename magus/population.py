@@ -29,6 +29,13 @@ class Population:
         self.Individual = set_ind(parameters)
         self.fit_calcs = set_fit_calcs(parameters)
 
+    def __iter__(self):
+        for i in self.pop:
+            yield i
+            
+    def __getitem__(self,i):
+        return self.pop[i]
+
     def __call__(self,pop,name='temp',gen=None):
         newpop = self.__class__(self.parameters)
         pop = [self.Individual(ind) if ind.__class__.__name__ == 'Atoms' else ind for ind in pop]
