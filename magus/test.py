@@ -23,8 +23,6 @@ class Magus:
         self.MainCalculator = get_calculator(parameters)
         self.Population = get_population(parameters)
         self.ML=LRmodel(parameters)
-        self.initPops = []
-        self.relaxPops = []
         self.curgen=0
 
     def run(self):
@@ -57,7 +55,6 @@ class Magus:
 
         initPop.save('init')
 
-        self.initPops.append(initPop)
         relaxpop = self.MainCalculator.relax(initPop.frames)
         relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
         relaxPop.check()
@@ -78,7 +75,7 @@ class Magus:
             scfPop = self.Population(scfpop,'scfpop',self.curgen)
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
 
-        self.relaxPops.append(relaxPop)
+        self.curPop = relaxPop
         self.goodPop = self.Population([],'goodpop',self.curgen)
         self.keepPop = self.Population([],'keeppop',self.curgen)
 
