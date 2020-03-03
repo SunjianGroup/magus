@@ -73,7 +73,7 @@ class Magus:
             self.ML.train()
             scfpop = self.MainCalculator.scf(relaxPop.frames)
             scfPop = self.Population(scfpop,'scfpop',self.curgen)
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
         self.curPop = relaxPop
         self.goodPop = self.Population([],'goodpop',self.curgen)

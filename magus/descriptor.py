@@ -72,5 +72,6 @@ class ZernikeFp(CalculateFingerprints):
             eFps[i] = self.part.GeteFp()                           #returns list of length totNd                         #returns array of Nat*3*totNd
             fFps[i] = np.array(self.part.GetfFps()).reshape(Nat,3,totNd)    #returns list of length Nat*3*totNd
             sFps[i] = np.array(self.part.GetsFps()).reshape(3,3,totNd) #returns list of length (3,3,totNd)
-
+        sFps = sFps[:,[0,1,2,1,0,0],[0,1,2,2,2,1],:]
+        sFps = np.zeros_like(sFps)
         return eFps, fFps , sFps

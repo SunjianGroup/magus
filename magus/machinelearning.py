@@ -10,7 +10,7 @@ from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.data import atomic_numbers
 from .utils import del_duplicate
 import copy
-
+import yaml
 class MachineLearning:
     def __init__(self):
         pass
