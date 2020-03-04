@@ -10,6 +10,7 @@ from ase.neighborlist import NeighborList
 from ase.data import covalent_radii
 from .population import Population
 from .renew import match_lattice
+from .temp import Molfilter
 class OffspringCreator:
     def __init__(self,tryNum=10):
         self.tryNum = tryNum
@@ -328,8 +329,6 @@ class CutAndSplicePairing(Crossover):
         cut two cells to get a new cell
         """
         atoms1,atoms2,ratio1,ratio2 = match_lattice(ind1.atoms,ind2.atoms)
-        ase.io.write('atoms1.cif',atoms1)
-        ase.io.write('atoms2.cif',atoms2)
         cutCell = (atoms1.get_cell()+atoms2.get_cell())*0.5
         cutCell[2] = (atoms1.get_cell()[2]/ratio1+atoms2.get_cell()[2]/ratio2)*0.5
         cutVol = (atoms1.get_volume()/ratio1+atoms2.get_volume()/ratio2)*0.5
@@ -339,20 +338,31 @@ class CutAndSplicePairing(Crossover):
             cutCellPar[:3] = [length*ratio**(1/3) for length in cutCellPar[:3]]
 
         cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
+
+        ########  mol test  ########
+        atoms1 = Molfilter(atoms1)
+        atoms2 = Molfilter(atoms2)
+        cutAtoms =  Molfilter(cutAtoms)
+
+
         scaled_positions = []
-        cutPos = 0.5+self.cutDisp*np.random.uniform(-0.5, 0.5)
-        for atom in atoms1:
-            if 0 <= atom.c < cutPos/ratio1:
-                cutAtoms.append(atom)
-                scaled_positions.append([atom.a,atom.b,atom.c])
-        for atom in atoms2:
-            if 0 <= atom.c < (1-cutPos)/ratio2:
-                cutAtoms.append(atom)
-                scaled_positions.append([atom.a,atom.b,atom.c+cutPos/ratio1])
+        cutPos = [0, 0.5+self.cutDisp*np.random.uniform(-0.5, 0.5), 1]
+
+        for n, atoms in enumerate([atoms1, atoms2]):
+            spositions = atoms.get_scaled_positions()
+            numbers = ind.get_numbers()
+            for i,atom in enumerate(atoms):
+                if cutPos[n] <= spositions[i, 2] < cutPos[n+1]:
+                    cutAtoms.append(atom)
+                    scaled_positions.append(spositions[i])
 
         cutAtoms.set_scaled_positions(scaled_positions)
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
+
+        ########  mol test  ########
+        cutAtoms =  cutAtoms.to_atoms()
+
         cutInd = ind1(cutAtoms)
         cutInd.parents = [ind1 ,ind2]
         return cutInd

@@ -1,0 +1,127 @@
+from ase.geometry.dimensionality import analyze_dimensionality
+from ase.geometry.dimensionality.isolation import traverse_graph
+from ase.ga.utilities import gather_atoms_by_tag
+from ase.atoms import Atoms
+import numpy as np
+
+class Atomset:
+    def __init__(self,positions,symbols):
+        self.symbols = symbols
+        self.center = np.mean(positions,axis=0)
+        self.relative_positions = positions - self.center
+    
+    @property
+    def positions(self):
+        return self.center + self.relative_positions
+
+class Molfilter:
+    def __init__(self, atoms):
+        self.atoms = atoms
+        self.mols = []
+        self.tags = isolate_components(atoms)
+        self.atoms.set_tags(self.tags)
+        gather_atoms_by_tag(self.atoms)
+        self.unique_tags = np.unique(self.tags)
+        self.n = len(self.unique_tags)
+
+        pos = atoms.get_positions()
+        sym = atoms.get_chemical_symbols()
+        for tag in list(set(tags)):
+            indices = np.where(tags == tag)[0]
+            self.mols.append(Atomset(pos[indices],sym[indices]))
+        
+    def get_positions(self):
+        cop_pos = [mol.center for mol in self.mols]
+        return cop_pos
+
+    def set_positions(self, positions, **kwargs):
+        for i,mol in enumerate(self.mols):
+            mol.center = positions[i]
+
+    def get_scaled_positions(self):
+        cop_pos = self.get_positions()
+        scl_pos = self.atoms.cell(cop_pos)
+        return scl_pos
+
+    def set_scaled_positions(self, scaled_positions):
+        positions = np.dot(scaled_positions,self.cell)
+        self.set_positions(set_positions)
+
+    def get_forces(self, *args, **kwargs):
+        f = self.atoms.get_forces()
+        forces = np.zeros((self.n, 3))
+        for i in range(self.n):
+            indices = np.where(self.tags == self.unique_tags[i])
+            forces[i] = np.sum(f[indices], axis=0)
+        return forces
+
+    def get_masses(self):
+        m = self.atoms.get_masses()
+        masses = np.zeros(self.n)
+        for i in range(self.n):
+            indices = np.where(self.tags == self.unique_tags[i])
+            masses[i] = np.sum(m[indices])
+        return masses
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        for mol in self.mols:
+            yield mol
+    
+    def append(self,mol):
+        self.mols.append(mol)
+    
+    def to_atoms(self):
+        atoms = Atoms(pbc=self.atoms.pbc,cell=self.atoms.cell)
+        positions = []
+        symbols = []
+        for mol in self.mols:
+            symbols.extend(mol.symbols)
+            positions.extend(mol.positions)
+        atoms.set_chemical_symbols(symbols)
+        atoms.set_positions(positions)
+        return atoms
+        
+#TODO steal from ase, need to change
+def isolate_components(atoms, kcutoff=None):
+    if kcutoff is None:
+        intervals = analyze_dimensionality(atoms, method='RDA')
+        m = intervals[0]
+        if m.b == float("inf"):
+            kcutoff = m.a + 0.1
+        else:
+            kcutoff = max((m.a + m.b) / 2, m.b - 0.1)
+    data = {}
+    components, all_visited, ranks = traverse_graph(atoms, kcutoff)
+
+    for k, v in all_visited.items():
+        if v is None:
+            continue
+        v = sorted(list(v))
+        key = tuple(np.unique([c for c, offset in v]))
+        for c in key:
+            components[np.where(components == c)] = key[0]
+            all_visited[c] = None
+
+    return components
+
+
+if __name__ == '__main__':
+    from magus.population import Individual
+    from magus.offspring_creator import CutAndSplicePairing
+    from ase.io import read,write
+    from magus.utils import EmptyClass
+    from magus.readparm import read_parameters
+    parameters = read_parameters('input.yaml')
+    p = EmptyClass()
+    for key, val in parameters.items():
+        setattr(p, key, val)
+    cutandsplice = CutAndSplicePairing()
+    a = read('H2O.cif')
+    ind = Individual(p)
+    ind1 = ind(a)
+    ind2 = ind(a)
+    ind = cutandsplice.cross(ind1,ind2)
+    write('new.cif',ind.atoms)

@@ -374,7 +374,14 @@ class Individual:
 
 class FixInd(Individual):
     def __call__(self,atoms):
-        newind = self.__class__(self.parameters)
+        newind = self.__new__(self.__class__)
+        newind.parameters = self.parameters
+        Requirement=['formula','symbols']
+        Default={'repairtryNum':10}
+        checkParameters(newind,self.parameters,Requirement,Default)
+        newind.comparator = self.comparator
+        newind.cf = self.cf
+
         newind.atoms = atoms
         newind.sort()
         newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
@@ -413,7 +420,15 @@ class VarInd(Individual):
         checkParameters(self,parameters,[],{'fullEles':False})
 
     def __call__(self,atoms):
-        newind = self.__class__(self.parameters)
+        newind = self.__new__(self.__class__)
+        newind.parameters = self.parameters
+        Requirement=['formula','symbols']
+        Default={'repairtryNum':10,'fullEles':False}
+        checkParameters(newind,self.parameters,Requirement,Default)
+        newind.rank = self.rank
+        newind.invF = self.invF
+        newind.comparator = self.comparator
+        newind.cf = self.cf
         newind.atoms = atoms
         newind.info = {'numOfFormula':1}
         newind.info['fitness'] = {}
