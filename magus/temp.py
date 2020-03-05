@@ -18,20 +18,24 @@ class Molfilter:
     def __init__(self, atoms):
         self.atoms = atoms
         self.mols = []
-        self.tags = isolate_components(atoms)
-        self.atoms.set_tags(self.tags)
-        gather_atoms_by_tag(self.atoms)
-        self.unique_tags = np.unique(self.tags)
-        self.n = len(self.unique_tags)
+        if len(atoms)>0:
+            tags = isolate_components(atoms)
+            self.tags = tags
+            self.atoms.set_tags(tags)
+            gather_atoms_by_tag(self.atoms)
+            self.unique_tags = np.unique(tags)
 
-        pos = atoms.get_positions()
-        sym = atoms.get_chemical_symbols()
-        for tag in list(set(tags)):
-            indices = np.where(tags == tag)[0]
-            self.mols.append(Atomset(pos[indices],sym[indices]))
+            positions = atoms.get_positions()
+            symbols = atoms.get_chemical_symbols()
+            for tag in self.unique_tags:
+                indices = np.where(tags == tag)[0]
+                pos = [positions[i] for i in indices]
+                sym = [symbols[i] for i in indices]
+                self.mols.append(Atomset(pos,sym))
+        self.n = len(self.mols)
         
     def get_positions(self):
-        cop_pos = [mol.center for mol in self.mols]
+        cop_pos = np.array([mol.center for mol in self.mols])
         return cop_pos
 
     def set_positions(self, positions, **kwargs):
@@ -40,12 +44,12 @@ class Molfilter:
 
     def get_scaled_positions(self):
         cop_pos = self.get_positions()
-        scl_pos = self.atoms.cell(cop_pos)
+        scl_pos = self.atoms.cell.scaled_positions(cop_pos)
         return scl_pos
 
     def set_scaled_positions(self, scaled_positions):
-        positions = np.dot(scaled_positions,self.cell)
-        self.set_positions(set_positions)
+        positions = np.dot(scaled_positions,self.atoms.cell)
+        self.set_positions(positions)
 
     def get_forces(self, *args, **kwargs):
         f = self.atoms.get_forces()
@@ -64,7 +68,7 @@ class Molfilter:
         return masses
 
     def __len__(self):
-        return self.n
+        return len(self.mols)
 
     def __iter__(self):
         for mol in self.mols:
@@ -74,18 +78,16 @@ class Molfilter:
         self.mols.append(mol)
     
     def to_atoms(self):
-        atoms = Atoms(pbc=self.atoms.pbc,cell=self.atoms.cell)
         positions = []
         symbols = []
         for mol in self.mols:
             symbols.extend(mol.symbols)
             positions.extend(mol.positions)
-        atoms.set_chemical_symbols(symbols)
-        atoms.set_positions(positions)
+        atoms = Atoms(symbols=symbols,positions=positions,pbc=self.atoms.pbc,cell=self.atoms.cell)
         return atoms
         
 #TODO steal from ase, need to change
-def isolate_components(atoms, kcutoff=None):
+def isolate_components(atoms, kcutoff=None): 
     if kcutoff is None:
         intervals = analyze_dimensionality(atoms, method='RDA')
         m = intervals[0]

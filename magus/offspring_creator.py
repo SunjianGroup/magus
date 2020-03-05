@@ -11,6 +11,7 @@ from ase.data import covalent_radii
 from .population import Population
 from .renew import match_lattice
 from .temp import Molfilter
+import ase.io
 class OffspringCreator:
     def __init__(self,tryNum=10):
         self.tryNum = tryNum
@@ -329,6 +330,8 @@ class CutAndSplicePairing(Crossover):
         cut two cells to get a new cell
         """
         atoms1,atoms2,ratio1,ratio2 = match_lattice(ind1.atoms,ind2.atoms)
+        ase.io.write('atoms1.cif',atoms1)
+        ase.io.write('atoms2.cif',atoms2)
         cutCell = (atoms1.get_cell()+atoms2.get_cell())*0.5
         cutCell[2] = (atoms1.get_cell()[2]/ratio1+atoms2.get_cell()[2]/ratio2)*0.5
         cutVol = (atoms1.get_volume()/ratio1+atoms2.get_volume()/ratio2)*0.5
@@ -350,12 +353,10 @@ class CutAndSplicePairing(Crossover):
 
         for n, atoms in enumerate([atoms1, atoms2]):
             spositions = atoms.get_scaled_positions()
-            numbers = ind.get_numbers()
             for i,atom in enumerate(atoms):
                 if cutPos[n] <= spositions[i, 2] < cutPos[n+1]:
                     cutAtoms.append(atom)
                     scaled_positions.append(spositions[i])
-
         cutAtoms.set_scaled_positions(scaled_positions)
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
