@@ -10,7 +10,7 @@ from ase.neighborlist import NeighborList
 from ase.data import covalent_radii
 from .population import Population
 from .renew import match_lattice
-from .temp import Molfilter
+from .molecule import Molfilter
 import ase.io
 class OffspringCreator:
     def __init__(self,tryNum=10):
@@ -205,7 +205,10 @@ class PermMutation(Mutation):
     def mutate(self, ind):
         fracSwaps = self.fracSwaps
         atoms = ind.atoms.copy()
-        
+
+        if ind.is_mol:
+            atoms = Molfilter(atoms)
+
         maxSwaps = int(fracSwaps*len(atoms))
         if maxSwaps == 0:
             maxSwaps = 1
@@ -223,7 +226,7 @@ class PermMutation(Mutation):
             s1, s2 = np.random.choice(symList, 2)
             i = np.random.choice([index for index in indices if atoms[index].symbol==s1])
             j = np.random.choice([index for index in indices if atoms[index].symbol==s2])
-            atoms[i].symbol,atoms[j].symbol = s2,s1 
+            atoms[i].position,atoms[j].position = atoms[j].position,atoms[i].position
             indices.remove(i)  
             indices.remove(j)             
 
@@ -255,14 +258,19 @@ class LatticeMutation(Mutation):
         ratio = atoms.get_volume()/np.abs(np.linalg.det(newCell))
         cellPar = cell_to_cellpar(newCell)
         cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
+
+        if ind.is_mol:
+            atoms = Molfilter(atoms)
+
         atoms.set_cell(cellPar, scale_atoms=True)
-
-        atoms.positions += np.random.normal(0,sigma,[len(atoms),3])/sigma\
-            *covalent_radii[atoms.get_atomic_numbers()][:,np.newaxis]
-
-        atoms.wrap()
+        positions = atoms.get_positions()
+        atGauss = np.random.normal(0,sigma,[len(atoms),3])/sigma
+        radius = covalent_radii[atoms.get_atomic_numbers()][:,np.newaxis]
+        positions += atGasuss * radius
+        atoms.set_positions(positions)
 
         return ind(atoms)
+
 
 class SlipMutation(Mutation):
     def __init__(self, cut=0.5, randRange=[0.5, 2],tryNum=10):
@@ -276,14 +284,20 @@ class SlipMutation(Mutation):
         '''
         cut = self.cut
         atoms = ind.atoms.copy()
-        pos = atoms.get_scaled_positions()
+
+        if ind.is_mol:
+            atoms = Molfilter(atoms)
+
+
+        scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
         np.random.shuffle(axis)
 
-        z = np.where(pos[:,axis[0]] > cut)
-        pos[z,axis[1]] += np.random.uniform(*self.randRange)
-        pos[z,axis[2]] += np.random.uniform(*self.randRange)
+        z = np.where(scl_pos[:,axis[0]] > cut)
+        scl_pos[z,axis[1]] += np.random.uniform(*self.randRange)
+        scl_pos[z,axis[2]] += np.random.uniform(*self.randRange)
         atoms.set_scaled_positions(pos)
+
         return ind(atoms)
 
 class RippleMutation(Mutation):
@@ -298,16 +312,23 @@ class RippleMutation(Mutation):
         from XtalOpt
         '''
         atoms = ind.atoms.copy()
-        pos = atoms.get_scaled_positions()
+
+        if ind.is_mol:
+            atoms = Molfilter(atoms)
+
+        scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
         np.random.shuffle(axis)
 
-        pos[:, axis[0]] += self.rho*\
-            np.cos(2*np.pi*self.mu*pos[:,axis[1]] + np.random.uniform(0,2*np.pi,len(atoms)))*\
-            np.cos(2*np.pi*self.eta*pos[:,axis[2]] + np.random.uniform(0,2*np.pi,len(atoms)))
+        scl_pos[:, axis[0]] += self.rho*\
+            np.cos(2*np.pi*self.mu*scl_pos[:,axis[1]] + np.random.uniform(0,2*np.pi,len(atoms)))*\
+            np.cos(2*np.pi*self.eta*scl_pos[:,axis[2]] + np.random.uniform(0,2*np.pi,len(atoms)))
 
         atoms.set_scaled_positions(pos)
+
         return ind(atoms)
+
+
 class CutAndSplicePairing(Crossover):
     """ A cut and splice operator for bulk structures.
 
@@ -342,10 +363,10 @@ class CutAndSplicePairing(Crossover):
 
         cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
 
-        ########  mol test  ########
-        atoms1 = Molfilter(atoms1)
-        atoms2 = Molfilter(atoms2)
-        cutAtoms =  Molfilter(cutAtoms)
+        if ind1.is_mol:
+            atoms1 = Molfilter(atoms1)
+            atoms2 = Molfilter(atoms2)
+            cutAtoms =  Molfilter(cutAtoms)
 
 
         scaled_positions = []
@@ -361,8 +382,8 @@ class CutAndSplicePairing(Crossover):
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
 
-        ########  mol test  ########
-        cutAtoms =  cutAtoms.to_atoms()
+        if ind.is_mol:
+            cutAtoms =  cutAtoms.to_atoms()
 
         cutInd = ind1(cutAtoms)
         cutInd.parents = [ind1 ,ind2]

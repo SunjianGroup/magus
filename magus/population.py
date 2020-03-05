@@ -12,6 +12,7 @@ from sklearn import cluster
 from .descriptor import ZernikeFp
 import copy
 from .setfitness import set_fit_calcs
+from .molecule import Molfilter
 
 def set_ind(parameters):
     if parameters.calcType == 'fix':
@@ -170,7 +171,7 @@ class Individual:
     def __init__(self,parameters):
         self.parameters = parameters
         Requirement=['formula','symbols']
-        Default={'repairtryNum':10}
+        Default={'repairtryNum':10,'is_mol':False,'chkMol':False}
         checkParameters(self,parameters,Requirement,Default)
 
         #TODO add more comparators
@@ -185,6 +186,23 @@ class Individual:
         diag = self.parameters.ZernikeDiag
         elems = [atomic_numbers[element] for element in parameters.symbols]
         self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
+
+        if self.is_mol:
+            self.inputMols = [Atoms(**molInfo) for molInfo in self.parameters.molList]
+        else:
+            self.inputMols = []
+        self.inputFormulas = []
+        for mol in self.inputMols:
+            s = []
+            symbols = mol.get_chemical_symbols()
+            unique_symbols = sorted(np.unique(self.symbols))
+            for symbol in unique_symbols:
+                s.append(symbol)
+                n = self.symbols.count(symbol)
+                if n > 1:
+                    s.append(str(n))
+            s = ''.join(s)
+            self.inputFormulas.append(s)
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self.atoms,obj.atoms)
@@ -274,12 +292,26 @@ class Individual:
                     return False
         return True
 
+    def check_mol(self,atoms=None):
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+
+        atoms = MolFilter(atoms)
+        for atom in atoms:
+            if atom.symbol not in self.inputFormulas:
+                return False
+        return True
+
     def check(self,atoms=None):
         if atoms is None:
             a = self.atoms.copy()
         else:
             a = atoms.copy()
-        return self.check_cellpar(a) and self.check_distance(a)
+        check_cellpar = self.check_cellpar(a) 
+        check_distance = self.check_distance(a)
+        check_mol = self.check_mol(a) if self.chkMol else True
 
     def sort(self):
         indices = []
@@ -377,11 +409,15 @@ class FixInd(Individual):
         newind = self.__new__(self.__class__)
         newind.parameters = self.parameters
         Requirement=['formula','symbols']
-        Default={'repairtryNum':10}
+        Default={'repairtryNum':10,'is_mol':False,'chkMol':False}
         checkParameters(newind,self.parameters,Requirement,Default)
         newind.comparator = self.comparator
         newind.cf = self.cf
+        newind.inputMols = self.inputMols
+        newind.inputFormulas = self.inputFormulas
 
+        if atoms.__class__.__name__ == 'Molfilter':
+            atoms = atoms.to_atoms()
         newind.atoms = atoms
         newind.sort()
         newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.formula)))}
@@ -423,12 +459,17 @@ class VarInd(Individual):
         newind = self.__new__(self.__class__)
         newind.parameters = self.parameters
         Requirement=['formula','symbols']
-        Default={'repairtryNum':10,'fullEles':False}
+        Default={'repairtryNum':10,'fullEles':False,'is_mol':False,'chkMol':False}
         checkParameters(newind,self.parameters,Requirement,Default)
         newind.rank = self.rank
         newind.invF = self.invF
         newind.comparator = self.comparator
         newind.cf = self.cf
+        newind.inputMols = self.inputMols
+        newind.inputFormulas = self.inputFormulas
+
+        if atoms.__class__.__name__ == 'Molfilter':
+            atoms = atoms.to_atoms()
         newind.atoms = atoms
         newind.info = {'numOfFormula':1}
         newind.info['fitness'] = {}

@@ -2,17 +2,36 @@ from ase.geometry.dimensionality import analyze_dimensionality
 from ase.geometry.dimensionality.isolation import traverse_graph
 from ase.ga.utilities import gather_atoms_by_tag
 from ase.atoms import Atoms
+from ase.data import atomic_numbers,covalent_radii
 import numpy as np
 
 class Atomset:
     def __init__(self,positions,symbols):
         self.symbols = symbols
-        self.center = np.mean(positions,axis=0)
-        self.relative_positions = positions - self.center
+        self.position = np.mean(positions,axis=0)
+        self.relative_positions = positions - self.position
     
     @property
     def positions(self):
-        return self.center + self.relative_positions
+        return self.position + self.relative_positions
+    
+    @property
+    def symbol(self):
+        s = []
+        unique_symbols = sorted(np.unique(self.symbols))
+        for symbol in unique_symbols:
+            s.append(symbol)
+            n = self.symbols.count(symbol)
+            if n > 1:
+                s.append(str(n))
+        s = ''.join(s)
+        return s
+
+    @property
+    def number(self):
+        numbers = [atomic_numbers[symbol] for symbol in self.symbols]
+        radius = [covalent_radii[number] for number in numbers]
+        return numbers[np.argmax(radius)]
 
 class Molfilter:
     def __init__(self, atoms):
@@ -35,12 +54,12 @@ class Molfilter:
         self.n = len(self.mols)
         
     def get_positions(self):
-        cop_pos = np.array([mol.center for mol in self.mols])
+        cop_pos = np.array([mol.position for mol in self.mols])
         return cop_pos
 
     def set_positions(self, positions, **kwargs):
         for i,mol in enumerate(self.mols):
-            mol.center = positions[i]
+            mol.position = positions[i]
 
     def get_scaled_positions(self):
         cop_pos = self.get_positions()
@@ -50,6 +69,16 @@ class Molfilter:
     def set_scaled_positions(self, scaled_positions):
         positions = np.dot(scaled_positions,self.atoms.cell)
         self.set_positions(positions)
+
+    def set_cell(self, cell):
+        cell = np.array(cell)
+        scl_pos = self.get_scaled_positions()
+        new_pos = np.dot(scl_pos, cell)
+        self.atoms.set_cell(cell)
+        self.set_positions(new_pos)
+
+    def get_atomic_numbers(self)：
+        return np.array([mol.number for mol in self.mols])
 
     def get_forces(self, *args, **kwargs):
         f = self.atoms.get_forces()
@@ -73,6 +102,9 @@ class Molfilter:
     def __iter__(self):
         for mol in self.mols:
             yield mol
+
+    def __getitem__(self,i):
+        return self.mols[i]
     
     def append(self,mol):
         self.mols.append(mol)
