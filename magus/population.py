@@ -26,6 +26,9 @@ class Population:
     """
     def __init__(self,parameters):
         self.parameters = parameters
+        Requirement=['resultsDir']
+        Default={}
+        checkParameters(self,parameters,Requirement,Default)
         self.Individual = set_ind(parameters)
         self.fit_calcs = set_fit_calcs(parameters)
 
@@ -76,7 +79,7 @@ class Population:
     def save(self,filename=None,gen=None,savedir=None):
         filename = self.name if filename is None else filename
         gen = self.gen if gen is None else gen
-        savedir = self.parameters.resultsDir if savedir is None else savedir
+        savedir = self.resultsDir if savedir is None else savedir
         if not os.path.exists(savedir):
             os.mkdir(savedir)
         pop = []
@@ -170,8 +173,9 @@ class Population:
 class Individual:
     def __init__(self,parameters):
         self.parameters = parameters
-        Requirement=['formula','symbols']
-        Default={'repairtryNum':10,'is_mol':False,'chkMol':False}
+        Requirement=['formula','symbols','minAt','maxAt']
+        Default={'repairtryNum':10,'is_mol':False,'chkMol':False,
+            'minLattice':None,'maxLattice':None,'dRatio':0.7}
         checkParameters(self,parameters,Requirement,Default)
 
         #TODO add more comparators
@@ -179,15 +183,10 @@ class Individual:
         self.comparator = AtomsComparator()
 
         #fingerprint
-        cutoff = self.parameters.cutoff
-        nmax = self.parameters.ZernikeNmax
-        lmax = self.parameters.ZernikeLmax
-        ncut = self.parameters.ZernikeNcut
-        diag = self.parameters.ZernikeDiag
-        elems = [atomic_numbers[element] for element in parameters.symbols]
-        self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
+        self.cf = ZernikeFp(parameters)
 
         if self.is_mol:
+            assert hasattr(parameters,'molList')
             self.inputMols = [Atoms(**molInfo) for molInfo in self.parameters.molList]
         else:
             self.inputMols = []
@@ -208,8 +207,8 @@ class Individual:
         return self.comparator.looks_like(self.atoms,obj.atoms)
 
     def copy(self):
-        newind = self.__class__(self.parameters)
-        newind.atoms = self.atoms.copy()
+        atoms = self.atoms.copy()
+        newind = self(atoms)
         newind.info = copy.deepcopy(self.info)
         return newind
 
@@ -250,9 +249,11 @@ class Individual:
             a = self.atoms.copy()
         else:
             a = atoms.copy()
+        if not self.minLattice:
 
-        minLen = self.parameters.minLen
-        maxLen = self.parameters.maxLen
+        minLen = self.minLattice if self.minLattice else [0,0,0,30,30,30]
+        maxLen = self.maxLattice if self.maxLattice else [100,100,100,150,150,150]
+        minLen,maxLen = np.array([minLen,maxLen])
         cellPar = a.get_cell_lengths_and_angles()
         if (minLen < cellPar).all() and (cellPar < maxLen).all():
             return True
@@ -270,7 +271,7 @@ class Individual:
         else:
             a = atoms.copy()
 
-        threshold = self.parameters.dRatio  
+        threshold = self.dRatio  
         cell = a.get_cell()
         nums = a.get_atomic_numbers()
         unique_types = sorted(list(set(nums)))
@@ -351,7 +352,7 @@ class Individual:
             self.sort()
             return True
         atoms = self.atoms
-        dRatio = self.parameters.dRatio
+        dRatio = self.dRatio
         syms = atoms.get_chemical_symbols()
         #nowFrml = Counter(atoms.get_chemical_symbols())
         targetFrml = self.get_targetFrml()
@@ -439,7 +440,7 @@ class FixInd(Individual):
     def get_targetFrml(self):
         atoms = self.atoms
         Natoms = len(atoms)
-        if self.parameters.minAt <= Natoms <= self.parameters.maxAt :
+        if self.minAt <= Natoms <= self.maxAt :
             numFrml = int(round(Natoms/sum(self.formula)))
         else:
             numFrml = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in self.parents])))
@@ -491,7 +492,7 @@ class VarInd(Individual):
         coef = np.rint(np.dot(formula, self.invF)).astype(np.int)
         newFrml = np.dot(coef, self.formula).astype(np.int)
         bestFrml = newFrml.tolist()
-        if self.parameters.minAt <= sum(bestFrml) <= self.parameters.maxAt:
+        if self.minAt <= sum(bestFrml) <= self.maxAt:
             targetFrml = {s:i for s,i in zip(self.symbols,bestFrml)}
         else:
             targetFrml = None

@@ -29,7 +29,7 @@ from .descriptor import ZernikeFp
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error
 from ase.calculators.calculator import Calculator, all_changes
-
+from .localopt import ASECalculator
 class LRCalculator(Calculator):
     implemented_properties = ['energy', 'forces', 'stress']
     nolabel = True
@@ -89,18 +89,11 @@ class LRCalculator(Calculator):
         self.results['forces'] = y[1:-6].reshape((len(self.atoms),3))
         self.results['stress'] = y[-6:]/self.atoms.get_volume()/2
 
-
 optimizers={'BFGS':BFGS,'FIRE':FIRE}
-class LRmodel(MachineLearning):
+class LRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
         self.parameters=parameters
-        cutoff = self.parameters.cutoff
-        elems = [atomic_numbers[element] for element in parameters.symbols]
-        nmax = self.parameters.ZernikeNmax
-        lmax = self.parameters.ZernikeLmax
-        ncut = self.parameters.ZernikeNcut
-        diag = self.parameters.ZernikeDiag
-        self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
+        self.cf = ZernikeFp(parameters)
         self.w_energy = 30.0
         self.w_force = 1.0
         self.w_stress = 1.0
@@ -110,6 +103,7 @@ class LRmodel(MachineLearning):
         self.mlDir = '{}/MLFold'.format(self.parameters.workDir)
         if not os.path.exists(self.mlDir):
             os.mkdir(self.mlDir)
+        ASECalculator.__init__(self,parameters)
 
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
@@ -190,65 +184,6 @@ class LRmodel(MachineLearning):
         #np.savez('stress',y=y,yp=yp)
         return mae_energies, r2_energies, mae_forces, r2_forces ,mae_stresses ,r2_stresses
 
-    def relax(self,structs):
-        calc = LRCalculator(self.reg,self.cf)
-        
-        newStructs = []
-        structs_=copy.deepcopy(structs)
-        for i,ind in enumerate(structs_):
-            ind.set_calculator(calc)
-            logging.info("Structure {}".format(i))
-            for j in range(self.parameters.mlrelaxNum):
-                ucf = ExpCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
-                # ucf = UnitCellFilter(ind, scalar_pressure=self.parameters.pressure*GPa)
-                logfile = "{}/calcFold/MLrelax.log".format(self.parameters.workDir)
-                if self.parameters.mloptimizer == 'cg':
-                    gopt = SciPyFminCG(ucf, logfile=logfile,)
-                elif self.parameters.mloptimizer == 'BFGS':
-                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.parameters.maxRelaxStep)
-                elif self.parameters.mloptimizer == 'fire':
-                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.parameters.maxRelaxStep)
-
-                try:
-                    label=gopt.run(fmax=self.parameters.mlepsArr[j], steps=self.parameters.mlstepArr[j])
-                except Converged:
-                    pass
-                except TimeoutError:
-                    logging.info("Timeout")
-                    break
-                except:
-                    logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-                    logging.info("ML relax fail")
-                    break
-            else:
-                if label:
-                    ind.info['energy'] = ind.get_potential_energy()
-                    ind.info['forces'] = ind.get_forces()
-                    ind.info['stress'] = ind.get_stress()
-                    enthalpy = (ind.info['energy'] + self.parameters.pressure * ind.get_volume() * GPa)/len(ind)
-                    ind.info['enthalpy'] = round(enthalpy, 3)
-                    ind.set_calculator(None)
-                    newStructs.append(ind)
-        return newStructs
-
-    def scf(self,calcPop):
-        calc = LRCalculator(self.reg,self.cf)
-        scfPop = []
-        for ind in calcPop:
-            atoms=copy.deepcopy(ind)
-            atoms.set_calculator(calc)
-            try:
-                atoms.info['energy'] = atoms.get_potential_energy()
-                atoms.info['forces'] = atoms.get_forces()
-                atoms.info['stress'] = atoms.get_stress()
-                enthalpy = (atoms.info['energy'] + self.parameters.pressure * atoms.get_volume() * GPa)/len(atoms)
-                atoms.info['enthalpy'] = round(enthalpy, 3)
-                atoms.set_calculator(None)
-                scfPop.append(atoms)
-            except:
-                pass
-        return scfPop
-
     def get_fp(self,pop):
         for ind in pop:
             properties = ['energy']
@@ -258,3 +193,11 @@ class LRmodel(MachineLearning):
             X,_,_ = self.get_data([ind], implemented_properties=properties)
             ind.info['image_fp']=X[0,1:]
 
+    def relax(self,calcPop):
+        calcs = [LRCalculator(self.reg,self.cf)]
+        return super().relax(calcPop,calcs)
+        
+
+    def scf(self,calcPop):
+        calcs = [LRCalculator(self.reg,self.cf)]
+        return super().scf(calcPop,calcs)

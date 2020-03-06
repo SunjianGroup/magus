@@ -4,6 +4,7 @@ from ase.neighborlist import NeighborList, neighbor_list, NewPrimitiveNeighborLi
 from ase.data import atomic_numbers
 from ase import io
 from . import lrpot
+from .utils import checkParameters
 ##############################################################################
 
 class CalculateFingerprints:
@@ -14,30 +15,29 @@ class CalculateFingerprints:
         pass
 
 class ZernikeFp(CalculateFingerprints):
-    def __init__(self, cutoff, nmax, lmax, ncut, elems, diag=False, norm=False ,eleParm=None):
-        if not lmax:
-            lmax = nmax
-        assert lmax <= nmax
-        self.cutoff=cutoff
-        self.nmax = nmax
-        self.lmax = lmax
-        self.ncut = ncut
-        self.elems = elems
-        self.diag = diag
+    def __init__(self, parameters):
+        
+        Requirement = ['symbols']
+        Default = {'cutoff': 4.0,'nmax': 4,'lmax':None,'ncut':4,'diag':True,'eleParm':None}
+        checkParameters(self,parameters,Requirement,Default)
+        self.elems = [atomic_numbers[element] for element in self.symbols]
+        if not self.lmax:
+            self.lmax = self.nmax
+        assert self.lmax <= self.nmax
+       
         # parameters of elements
-        self.norm = norm
-        if not eleParm:
-            eleParm = list(range(100))
+        if not self.eleParm:
+            self.eleParm = list(range(100))
 
-        self.elems = elems
         eleDic = {}
-        for i, ele in enumerate(elems):
+        for i, ele in enumerate(self.elems):
             eleDic[ele] = i
         self.eleDic = eleDic
 
-        self.numEles = len(elems)
+        self.numEles = len(self.elems)
 
-        self.part=lrpot.CalculateFingerprints_part(cutoff, nmax, lmax, ncut, diag)
+        self.part=lrpot.CalculateFingerprints_part(\
+            self.cutoff, self.nmax, self.lmax, self.ncut, self.diag)
 
         self.Nd=self.part.Nd
         self.totNd = self.Nd * self.numEles

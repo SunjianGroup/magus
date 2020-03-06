@@ -3,7 +3,7 @@ from . import GenerateNew
 from ase.data import atomic_numbers, covalent_radii
 from ase import Atoms
 from ase.spacegroup import Spacegroup
-from ase.geometry import cellpar_to_cell
+from ase.geometry import cellpar_to_cell,cell_to_cellpar
 from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
@@ -12,12 +12,18 @@ from .utils import *
 class BaseGenerator:
     def __init__(self,parameters):
         self.parameters=parameters
-        Requirement=['symbols','formula','numFrml']
-        Default={'threshold':1.0,'maxAttempts':50,'method':2,'volRatio':1.5,'spgs':np.arange(1,231),'maxtryNum':100}
+        Requirement=['symbols','formula','minAt','maxAt']
+        Default={'threshold':1.0,'maxAttempts':50,'method':2,
+        'volRatio':1.5,'spgs':np.arange(1,231),'maxtryNum':100,
+        'minLattice':None,'maxLattice':None}
         checkParameters(self,parameters,Requirement,Default)
         radius = [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
         checkParameters(self,parameters,[],{'radius':radius})
 
+        minFrml = int(np.ceil(self.minAt/sum(self.formula)))
+        maxFrml = int(self.maxAt/sum(self.formula))
+        self.numFrml = list(range(minFrml, maxFrml + 1))
+        
     def updatevolRatio(self,volRatio):
         self.volRatio=volRatio
         logging.debug("new volRatio: {}".format(self.volRatio))
@@ -29,6 +35,12 @@ class BaseGenerator:
         minLattice= [2*np.max(self.radius)]*3+[60]*3
         # maxLattice= [maxVolume/2/np.max(self.radius)]*3+[120]*3
         maxLattice= [maxVolume**(1./3)]*3+[120]*3
+        if self.minLattice:
+            minLattice = self.minLattice
+            minVolume = np.linalg.det(cellpar_to_cell(minLattice))
+        if self.maxLattice:
+            maxLattice = self.maxLattice
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice)) 
         return minVolume,maxVolume,minLattice,maxLattice
 
     def Generate_ind(self,spg,numlist):

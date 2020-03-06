@@ -168,9 +168,5 @@ else:
     logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
 
 parameters = read_parameters('input.yaml')
-p = EmptyClass()
-for key, val in parameters.items():
-    setattr(p, key, val)
-
-m=Magus(p)
+m=Magus(parameters)
 m.run()
