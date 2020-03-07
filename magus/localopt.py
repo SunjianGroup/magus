@@ -83,10 +83,11 @@ class RelaxVasp(Vasp):
 
 class Calculator:
     def __init__(self,parameters):
-        self.parameters=parameters
+        if not hasattr(self,p):
+            self.p = EmptyClass()
         Requirement = ['workDir']
         Default = {'pressure':0}
-        checkParameters(self,parameters,Requirement,Default)
+        checkParameters(self.p,parameters,Requirement,Default)
 
     def relax(self,calcPop):
         pass
@@ -99,15 +100,15 @@ class ASECalculator(Calculator):
         super().__init__(parameters)
         Requirement = ['epsArr','stepArr','calcNum']
         Default = {'optimizer':'bfgs','maxRelaxStep':0.1}
-        checkParameters(self,parameters,Requirement,Default)
-        assert len(self.epsArr) == self.calcNum
-        assert len(self.stepArr) == self.calcNum
+        checkParameters(self.p,parameters,Requirement,Default)
+        assert len(self.p.epsArr) == self.p.calcNum
+        assert len(self.p.stepArr) == self.p.calcNum
 
     def relax(self, calcPop ,calcs):
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         if not os.path.exists('calcFold'):
             # os.mkdir('calcFold')
-            shutil.copytree("{}/inputFold".format(self.workDir), "calcFold")
+            shutil.copytree("{}/inputFold".format(self.p.workDir), "calcFold")
         os.chdir('calcFold')
         logfile = 'aserelax.log'
         relaxPop = []
@@ -116,19 +117,19 @@ class ASECalculator(Calculator):
             for j, calc in enumerate(calcs):
                 ind.set_calculator(calc)
                 logging.info("Structure {} Step {}".format(i, j))
-                ucf = ExpCellFilter(ind, scalar_pressure=self.pressure*GPa)
-                # ucf = UnitCellFilter(ind, scalar_pressure=self.pressure*GPa)
-                if self.optimizer == 'cg':
+                ucf = ExpCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
+                # ucf = UnitCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
+                if self.p.optimizer == 'cg':
                     gopt = SciPyFminCG(ucf, logfile=logfile,)
-                elif self.optimizer == 'bfgs':
-                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.maxRelaxStep)
-                elif self.optimizer == 'lbfgs':
-                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.maxRelaxStep)
-                elif self.optimizer == 'fire':
-                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.maxRelaxStep)
+                elif self.p.optimizer == 'bfgs':
+                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep)
+                elif self.p.optimizer == 'lbfgs':
+                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep)
+                elif self.p.optimizer == 'fire':
+                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep)
 
                 try:
-                    label=gopt.run(fmax=self.epsArr[j], steps=self.stepArr[j])
+                    label=gopt.run(fmax=self.p.epsArr[j], steps=self.p.stepArr[j])
                 except Converged:
                     pass
                 except TimeoutError:
@@ -147,19 +148,19 @@ class ASECalculator(Calculator):
                 ind.info['energy'] = ind.get_potential_energy()
                 ind.info['forces'] = ind.get_forces()
                 ind.info['stress'] = ind.get_stress()
-                enthalpy = (ind.info['energy'] + self.pressure * ind.get_volume() * GPa)/len(ind)
+                enthalpy = (ind.info['energy'] + self.p.pressure * ind.get_volume() * GPa)/len(ind)
                 ind.info['enthalpy'] = round(enthalpy, 3)
 
                 ind.set_calculator(None)
                 relaxPop.append(ind)
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         return relaxPop
 
     def scf(self, calcPop, calcs):
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         if not os.path.exists('calcFold'):
             # os.mkdir('calcFold')
-            shutil.copytree("{}/inputFold".format(self.workDir), "calcFold")
+            shutil.copytree("{}/inputFold".format(self.p.workDir), "calcFold")
         os.chdir('calcFold')
 
         scfPop = []
@@ -170,13 +171,13 @@ class ASECalculator(Calculator):
                 atoms.info['energy'] = atoms.get_potential_energy()
                 atoms.info['forces'] = atoms.get_forces()
                 atoms.info['stress'] = atoms.get_stress()
-                enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa)/len(atoms)
+                enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa)/len(atoms)
                 atoms.info['enthalpy'] = round(enthalpy, 3)
                 atoms.set_calculator(None)
                 scfPop.append(atoms)
             except:
                 pass
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         return scfPop
 
 class LJCalculator(ASECalculator):
@@ -277,14 +278,14 @@ class ABinitCalculator(Calculator):
         super().__init__(parameters)
         Requirement = ['mode']
         Default = {}
-        checkParameters(self,parameters,Requirement,Default)
-        if self.mode == 'serial':
+        checkParameters(self.p,parameters,Requirement,Default)
+        if self.p.mode == 'serial':
             self.scf = self.scf_serial
             self.relax = self.relax_serial
-        elif self.mode == 'parallel':
+        elif self.p.mode == 'parallel':
             Requirement = ['queueName','numCore','numParallel']
             Default = {'jobPrefix':'','waitTime':200}
-            checkParameters(self,parameters,Requirement,Default)
+            checkParameters(self.p,parameters,Requirement,Default)
             self.J=JobManager()
             self.scf = self.scf_parallel
             self.relax = self.relax_parallel
@@ -293,7 +294,7 @@ class ABinitCalculator(Calculator):
             raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
 
     def cdcalcFold(self):
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         if not os.path.exists('calcFold'):
             # os.mkdir('calcFold')
             # logging.debug('make calcFold')
@@ -307,7 +308,7 @@ class ABinitCalculator(Calculator):
         pass
 
     def paralleljob(self,calcPop,runjob):
-        numParallel = self.numParallel
+        numParallel = self.p.numParallel
         popLen = len(calcPop)
         eachLen = popLen//numParallel
         remainder = popLen%numParallel
@@ -322,7 +323,7 @@ class ABinitCalculator(Calculator):
         for i in range(numParallel):
             if not os.path.exists("{}{}".format(self.prefix, i)):
                 # os.mkdir("{}{}".format(self.prefix, i))
-                shutil.copytree("{}/inputFold".format(self.workDir), "{}{}".format(self.prefix, i))
+                shutil.copytree("{}/inputFold".format(self.p.workDir), "{}{}".format(self.prefix, i))
             os.chdir("{}{}".format(self.prefix, i))
 
             tmpPop = [calcPop[j] for j in runArray[i]]
@@ -330,10 +331,10 @@ class ABinitCalculator(Calculator):
 
             runjob(index=i)
 
-            os.chdir("%s/calcFold" %(self.workDir))
+            os.chdir("%s/calcFold" %(self.p.workDir))
 
-        self.J.WaitJobsDone(self.waitTime)
-        os.chdir(self.workDir)
+        self.J.WaitJobsDone(self.p.waitTime)
+        os.chdir(self.p.workDir)
 
     def scf_parallel(self,calcPop):
         self.cdcalcFold()
@@ -367,63 +368,63 @@ class ABinitCalculator(Calculator):
 class VaspCalculator(ABinitCalculator):
     def __init__(self,parameters,prefix='calcVasp'):
         super().__init__(parameters,prefix)
-        Requirement = ['symbols','workDir']
+        Requirement = ['symbols']
         Default = {'xc':'PBE'}
         checkParameters(self,parameters,Requirement,Default)
         if not hasattr(parameters, 'ppLabel'):
-            parameters.ppLabel = ['' for _ in parameters.symbols]
-        self.setup = dict(zip(self.symbols, parameters.ppLabel))
+            self.p.ppLabel = ['' for _ in parameters.symbols]
+        self.p.setup = dict(zip(self.p.symbols, self.p.ppLabel))
 
     def scf_serial(self,calcPop):
         self.cdcalcFold()
         calc = RelaxVasp()
         calc.read_incar('INCAR_scf')
-        calc.set(xc=self.xc,setups=self.setup,pstress=self.pressure*10)
+        calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10)
         scfPop = calc_vasp([calc], calcPop)
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         return scfPop
 
     def relax_serial(self,calcPop):
         self.cdcalcFold()
-        incars = ['INCAR_{}'.format(i) for i in range(1, self.calcNum+1)]
+        incars = ['INCAR_{}'.format(i) for i in range(1, self.p.calcNum+1)]
         calcs = []
         for incar in incars:
             calc = RelaxVasp()
             calc.read_incar(incar)
-            calc.set(xc=self.xc,setups=self.setup,pstress=self.pressure*10)
+            calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10)
             calcs.append(calc)
         relaxPop = calc_vasp(calcs, calcPop)
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         return relaxPop
 
     def scfjob(self,index):
-        shutil.copy("{}/inputFold/INCAR_scf".format(self.workDir),'INCAR_scf')
+        shutil.copy("{}/inputFold/INCAR_scf".format(self.p.workDir),'INCAR_scf')
         with open('vaspSetup.yaml', 'w') as setupF:
-            setupF.write(yaml.dump(self.setup))
+            setupF.write(yaml.dump(self.p.setup))
 
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Vasp_%s\n"% (self.queueName, self.numCore, index))
-        f.write("{}\n".format(self.jobPrefix))
-        f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.xc, self.pressure))
+                "#BSUB -J Vasp_%s\n"% (self.p.queueName, self.p.numCore, index))
+        f.write("{}\n".format(self.p.jobPrefix))
+        f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh')
 
     def relaxjob(self,index):
         with open('vaspSetup.yaml', 'w') as setupF:
-            setupF.write(yaml.dump(self.setup))
+            setupF.write(yaml.dump(self.p.setup))
 
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Vasp_%s\n"% (self.queueName, self.numCore, index))
-        f.write("{}\n".format(self.jobPrefix))
-        f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.calcNum, self.xc, self.pressure))
+                "#BSUB -J Vasp_%s\n"% (self.p.queueName, self.p.numCore, index))
+        f.write("{}\n".format(self.p.jobPrefix))
+        f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh')
 
@@ -438,34 +439,34 @@ class GULPCalculator(ABinitCalculator):
         self.cdcalcFold()
 
         calcNum = 0
-        exeCmd = self.exeCmd
-        pressure = self.pressure
-        inputDir = "{}/inputFold".format(self.workDir)
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
 
         scfPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
         write_traj('optPop.traj', scfPop)
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         return scfPop
 
     def relax_serial(self,calcPop):
         self.cdcalcFold()
 
-        calcNum = self.calcNum
-        exeCmd = self.exeCmd
-        pressure = self.pressure
-        inputDir = "{}/inputFold".format(self.workDir)
+        calcNum = self.p.calcNum
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
 
         relaxPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
         write_traj('optPop.traj', relaxPop)
-        os.chdir(self.workDir)
+        os.chdir(self.p.workDir)
         return relaxPop
 
     def scfjob(self,index):
         calcDic = {
             'calcNum': 0,
-            'pressure': self.pressure,
-            'exeCmd': self.exeCmd,
-            'inputDir': "{}/inputFold".format(self.workDir),
+            'pressure': self.p.pressure,
+            'exeCmd': self.p.exeCmd,
+            'inputDir': "{}/inputFold".format(self.p.workDir),
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
@@ -475,8 +476,8 @@ class GULPCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Gulp_%s\n"% (self.queueName, self.numCore, index))
-        f.write("{}\n".format(self.jobPrefix))
+                "#BSUB -J Gulp_%s\n"% (self.p.queueName, self.p.numCore, index))
+        f.write("{}\n".format(self.p.jobPrefix))
         f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
 
@@ -484,10 +485,10 @@ class GULPCalculator(ABinitCalculator):
 
     def relaxjob(self,index):
         calcDic = {
-            'calcNum': self.calcNum,
-            'pressure': self.pressure,
-            'exeCmd': self.exeCmd,
-            'inputDir': "{}/inputFold".format(self.workDir),
+            'calcNum': self.p.calcNum,
+            'pressure': self.p.pressure,
+            'exeCmd': self.p.exeCmd,
+            'inputDir': "{}/inputFold".format(self.p.workDir),
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
@@ -497,8 +498,8 @@ class GULPCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Gulp_%s\n"% (self.queueName, self.numCore, index))
-        f.write("{}\n".format(self.jobPrefix))
+                "#BSUB -J Gulp_%s\n"% (self.p.queueName, self.p.numCore, index))
+        f.write("{}\n".format(self.p.jobPrefix))
         f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
 

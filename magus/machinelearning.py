@@ -92,28 +92,31 @@ class LRCalculator(Calculator):
 optimizers={'BFGS':BFGS,'FIRE':FIRE}
 class LRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
-        self.parameters=parameters
-        self.cf = ZernikeFp(parameters)
-        self.w_energy = 30.0
-        self.w_force = 1.0
-        self.w_stress = 1.0
-        self.X = None
-        #self.optimizer=optimizers[parameters.mloptimizer]
-        self.dataset = []
-        self.mlDir = '{}/MLFold'.format(self.parameters.workDir)
-        if not os.path.exists(self.mlDir):
-            os.mkdir(self.mlDir)
+        self.p = Emptyclass()
+        
+        Requirement = []
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':1.0,
+            'mlDir': '{}/MLFold'.format(parameters.workDir)}
+        checkParameters(self.p,parameters,Requirement,Default)
+
         p = EmptyClass()
         for key, val in parameters.mlcalculator.items():
             setattr(p, key, val)
         p.workDir = parameters.workDir
         ASECalculator.__init__(self,p)
 
+        self.X = None
+        self.cf = ZernikeFp(parameters)
+        self.dataset = []
+
+        if not os.path.exists(self.p.mlDir):
+            os.mkdir(self.p.mlDir)
+
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
         self.reg = LinearRegression().fit(self.X, self.y, self.w)
         calc = LRCalculator(self.reg,self.cf)
-        calc.save_calculator('{}/mlparameters'.format(self.mlDir))
+        calc.save_calculator('{}/mlparameters'.format(self.p.mlDir))
         logging.info('training end')
 
     def get_data(self,images,implemented_properties = ['energy', 'forces']):
@@ -123,7 +126,7 @@ class LRmodel(MachineLearning,ASECalculator):
             totNd = eFps.shape[1]
             if 'energy' in implemented_properties:
                 X.append(np.mean(eFps,axis=0))
-                w.append(self.w_energy)
+                w.append(self.p.w_energy)
                 n.append(1.0)
                 # y.append(atoms.info['energy']/len(atoms))
                 try:
@@ -133,13 +136,13 @@ class LRmodel(MachineLearning,ASECalculator):
             if 'forces' in implemented_properties:
                 fFps = np.sum(fFps, axis=0)
                 X.extend(fFps.reshape(-1,totNd))
-                w.extend([self.w_force]*len(atoms)*3)
+                w.extend([self.p.w_force]*len(atoms)*3)
                 n.extend([0.0]*len(atoms)*3)
                 y.extend(atoms.info['forces'].reshape(-1))
             if 'stress' in implemented_properties:
                 sFps = np.sum(sFps, axis=0)
                 X.extend(sFps.reshape(-1,totNd))
-                w.extend([self.w_stress]*6)
+                w.extend([self.p.w_stress]*6)
                 n.extend([0.0]*6)
                 y.extend(atoms.info['stress'].reshape(-1))
         X=np.array(X)

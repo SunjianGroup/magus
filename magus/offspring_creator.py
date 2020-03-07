@@ -12,6 +12,7 @@ from .population import Population
 from .renew import match_lattice
 from .molecule import Molfilter
 import ase.io
+from .utils import *
 class OffspringCreator:
     def __init__(self,tryNum=10):
         self.tryNum = tryNum
@@ -425,7 +426,10 @@ class PopGenerator:
     def __init__(self,numlist,oplist,parameters):
         self.oplist = oplist
         self.numlist = numlist
-        self.parameters = parameters
+        self.p = EmptyClass()
+        Requirement = ['popSize','saveGood']
+        Default = {}
+        checkParameters(self.p,parameters,Requirement,Default)
 
     def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
         pairs = []
@@ -488,8 +492,8 @@ class PopGenerator:
             return Pop
 
     def next_Pop(self,Pop):
-        saveGood = self.parameters.saveGood
-        popSize = self.parameters.popSize
+        saveGood = self.p.saveGood
+        popSize = self.p.popSize
         newPop = self.generate(Pop,saveGood)
         return self.select(newPop,popSize)
 
