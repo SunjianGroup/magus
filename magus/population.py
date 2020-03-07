@@ -249,7 +249,6 @@ class Individual:
             a = self.atoms.copy()
         else:
             a = atoms.copy()
-        if not self.minLattice:
 
         minLen = self.minLattice if self.minLattice else [0,0,0,30,30,30]
         maxLen = self.maxLattice if self.maxLattice else [100,100,100,150,150,150]

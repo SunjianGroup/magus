@@ -23,7 +23,8 @@ class Magus:
         self.Algo = get_pop_generator(parameters)
         self.MainCalculator = get_calculator(parameters)
         self.Population = get_population(parameters)
-        self.ML=LRmodel(parameters)
+        if self.parameters.mlRelax:
+            self.ML=LRmodel(parameters)
         self.curgen=0
 
     def run(self):

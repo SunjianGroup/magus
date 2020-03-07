@@ -30,9 +30,9 @@ from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from .queue import JobManager
 # from .runvasp import calc_vasp
 # from .rungulp import calc_gulp
-from .machinelearning import LRCalculator
+
 __all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
-    'EMTCalculator','GULPCalculator','LAMMPSCalculator','QUIPCalculator']
+    'EMTCalculator','GULPCalculator','LAMMPSCalculator','QUIPCalculator','ASECalculator']
 class RelaxVasp(Vasp):
     """
     Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
@@ -97,13 +97,13 @@ class Calculator:
 class ASECalculator(Calculator):
     def __init__(self,parameters):
         super().__init__(parameters)
-        Requirement = ['optimizer','maxRelaxStep','epsArr','stepArr']
-        Default = {}
+        Requirement = ['epsArr','stepArr','calcNum']
+        Default = {'optimizer':'bfgs','maxRelaxStep':0.1}
         checkParameters(self,parameters,Requirement,Default)
         assert len(self.epsArr) == self.calcNum
         assert len(self.stepArr) == self.calcNum
 
-    def relax(self, calcPop):
+    def relax(self, calcPop ,calcs):
         os.chdir(self.workDir)
         if not os.path.exists('calcFold'):
             # os.mkdir('calcFold')

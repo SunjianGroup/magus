@@ -42,7 +42,7 @@ class ZernikeFp(CalculateFingerprints):
         self.Nd=self.part.Nd
         self.totNd = self.Nd * self.numEles
 
-        self.part.SeteleParm(1.0*np.array(eleParm)) #All numbers must be double here
+        self.part.SeteleParm(1.0*np.array(self.eleParm)) #All numbers must be double here
 
 
     def get_all_fingerprints(self,atoms):

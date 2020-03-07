@@ -77,7 +77,7 @@ class Molfilter:
         self.atoms.set_cell(cell)
         self.set_positions(new_pos)
 
-    def get_atomic_numbers(self)：
+    def get_atomic_numbers(self):
         return np.array([mol.number for mol in self.mols])
 
     def get_forces(self, *args, **kwargs):

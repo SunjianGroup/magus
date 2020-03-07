@@ -8,7 +8,7 @@ from ase.constraints import UnitCellFilter,ExpCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.data import atomic_numbers
-from .utils import del_duplicate
+from .utils import *
 import copy
 import yaml
 class MachineLearning:
@@ -103,7 +103,11 @@ class LRmodel(MachineLearning,ASECalculator):
         self.mlDir = '{}/MLFold'.format(self.parameters.workDir)
         if not os.path.exists(self.mlDir):
             os.mkdir(self.mlDir)
-        ASECalculator.__init__(self,parameters)
+        p = EmptyClass()
+        for key, val in parameters.mlcalculator.items():
+            setattr(p, key, val)
+        p.workDir = parameters.workDir
+        ASECalculator.__init__(self,p)
 
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))

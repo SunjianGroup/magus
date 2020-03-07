@@ -23,7 +23,7 @@ from .offspring_creator import *
 ###############################
 
 
-def read_all_parameters(inputFile):
+def read_parameters(inputFile):
     with open(inputFile) as f:
         p_dict = yaml.load(f)
     p = EmptyClass()
@@ -33,13 +33,14 @@ def read_all_parameters(inputFile):
     for key, val in p_dict.items():
         setattr(p, key, val)
 
-    Requirement = ['calcType','calculator','popSize','numGen','saveGood']
-    Default = {'spacegroup':np.arange(1,231),'initSize':p.popSize,'molMode':False}
-    checkParameters(p,p,Requirement,{})
+    Requirement = ['calcType','maincalculator','popSize','numGen','saveGood']
+    Default = {'spacegroup':list(range(1, 231)),'initSize':p.popSize,'molMode':False,'mlRelax':False}
+    checkParameters(p,p,Requirement,Default)
 
     p.initSize = p.popSize
     expandSpg = []
     for item in p.spacegroup:
+        logging.info(item)
         if isinstance(item, int):
             if 1 <= item <= 230:
                 expandSpg.append(item)
@@ -50,7 +51,6 @@ def read_all_parameters(inputFile):
             assert 1 <= s1 < s2 <= 230, 'Please check the format of spacegroup'
             expandSpg.extend(list(range(s1, s2+1)))
     p.spgs = expandSpg
-
     if p.molMode:
         assert hasattr(p,'molFile'), 'Please define molFile'
         assert hasattr(p,'molFormula'), 'Please define molFormula'
@@ -81,7 +81,7 @@ def get_pop_generator(parameters):
     ripple = RippleMutation()
     slip = SlipMutation()
 
-    num = 2*int(parameters['popSize']/3)+1
+    num = 2*int(parameters.popSize/3)+1
     Requirement = []
     Default = {'cutNum':num,'permNum': num, 'rotNum': num,
         'slipNum': num,'latNum': num, 'ripNum': num}
@@ -96,6 +96,8 @@ def get_calculator(parameters):
     p = EmptyClass()
     for key, val in parameters.maincalculator.items():
         setattr(p, key, val)
+    p.workDir = parameters.workDir
+    checkParameters(p,p,['calculator'],{})
     if p.calculator == 'vasp':
         MainCalculator = VaspCalculator(p)
     elif p.calculator == 'lj':
