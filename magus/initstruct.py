@@ -285,8 +285,6 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
     generator.GetConventional = True
     numbers = []
     for i in range(numType):
-        # logging.debug(str(i))
-        # generator.AppendAtoms(formula[i], str(i), radius[i], False)
         generator.AppendAtoms(formula[i], "{}".format(i), radius[i], False)
         numbers.extend([i]*formula[i])
 
@@ -298,11 +296,8 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
         positions = np.reshape(positions, (-1, 3))
         wyckPos = generator.GetWyckPos(0)
         wyckPos = np.reshape(wyckPos, (-1,3))
-        # logging.debug(wycks)
         wyckName = generator.GetWyckLabel(0)
-        # logging.debug(wyckName)
         wyckNum = [int(n) for n in wyckName]
-        # wyckPos = [i for i in wycks if isinstance(i, float)]
         return label, cell, numbers, positions, wyckNum, wyckPos
     else:
         return label, None, None, None, None, None
@@ -480,7 +475,6 @@ def read_seeds(parameters, seedFile):
         seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
         for ind in seedPop:
             ind.info['origin'] = 'seed'
-    # logging.info("Read Seeds: %s"%(len(seedPop)))
     return seedPop
 
 

@@ -64,6 +64,7 @@ def read_parameters(inputFile):
                     'positions': ats.get_positions()}
                     for ats in mols]
         p.molNum = len(p.molFile)
+        p.inputMols = [Atoms(**molInfo) for molInfo in p.molList]
     return p
 
 def get_atoms_generator(parameters):

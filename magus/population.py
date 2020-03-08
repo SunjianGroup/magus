@@ -122,7 +122,7 @@ class Population:
             fit_calc(self.pop)
 
     def del_duplicate(self):
-        logging.info('del_duplicate {} begin,now {} in pop'.format(self.name,len(self.pop)))
+        logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
         newpop = []
         for ind1 in self.pop:
             for ind2 in newpop:
@@ -130,11 +130,11 @@ class Population:
                     break
             else:
                 newpop.append(ind1)
-        logging.info('del_duplicate {} finish,now {} in pop'.format(self.name,len(newpop)))
+        logging.info('del_duplicate survival: {}'.format(len(newpop)))
         self.pop = newpop
 
     def check(self):
-        logging.info("check distance")
+        logging.info("check population {}, popsize:{}".format(self.name,len(self.pop)))
         checkpop = []
         for ind in self.pop:
             if ind.check():
@@ -171,8 +171,15 @@ class Population:
         return np.mean(volRatios)
 
     def select(self,n):
+        self.calc_dominators()
         if len(self) > n:
             self.pop = sorted(self.pop, key=lambda x:x.info['dominators'])[:n]
+    
+    def bestind(self):
+        self.calc_dominators()
+        dominators = np.array([ind.info['dominators'] for ind in self.pop])
+        best_i = np.where(dominators==0)[0]
+        return [self.pop[i] for i in best_i]
         
 class Individual:
     def __init__(self,parameters):

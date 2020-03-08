@@ -465,10 +465,10 @@ class PopGenerator:
         Pop.calc_dominators()
         newPop = Pop([],'initpop',Pop.gen+1) 
         for op,num in zip(self.oplist,self.numlist):
+            logging.debug('name:{}'.format(op.descriptor))
             if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(Pop,num)
                 for ind in mutate_inds:
-                    logging.debug('name:{}'.format(op.descriptor))
                     newind = op.get_new_individual(ind)
                     if newind:
                         newPop.append(newind)

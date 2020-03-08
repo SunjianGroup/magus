@@ -116,7 +116,7 @@ class ASECalculator(Calculator):
         for i, ind in enumerate(calcPop):
             for j, calc in enumerate(calcs):
                 ind.set_calculator(calc)
-                logging.info("Structure {} Step {}".format(i, j))
+                logging.debug("Structure {} Step {}".format(i, j))
                 ucf = ExpCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
                 # ucf = UnitCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
                 if self.p.optimizer == 'cg':
@@ -134,12 +134,12 @@ class ASECalculator(Calculator):
                     pass
                 except TimeoutError:
                     errorPop.append(ind)
-                    logging.info("Timeout")
+                    logging.warning("Calculator:{} relax Timeout".format(self.__class__.__name__))
                     continue
                 except:
                     errorPop.append(ind)
-                    logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-                    logging.info("ASE relax fail")
+                    logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                    logging.warning("Calculator:{} relax fail".format(self.__class__.__name__))
                     continue
 
             else:
@@ -362,7 +362,7 @@ class ABinitCalculator(Calculator):
             try:
                 pop.extend(ase.io.read("{}/optPop.traj".format(job['workDir']), format='traj', index=':'))
             except:
-                logging.info("ERROR in read results {}".format(job['workDir']))
+                logging.warning("ERROR in read results {}".format(job['workDir']))
         return pop
 
 class VaspCalculator(ABinitCalculator):
@@ -512,21 +512,20 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
     for n, ind in enumerate(calcPop):
         if calcNum == 0:
             ind = calc_gulp_once(0, ind, pressure, exeCmd, inputDir)
-            logging.info("Structure %s scf" %(n))
+            logging.debug("Structure %s scf" %(n))
             if ind:
                 optPop.append(ind)
             else:
-                logging.info("fail in scf")
+                logging.warning("fail in gulp scf")
         else:
             for i in range(1, calcNum + 1):
-                logging.info("Structure %s Step %s" %(n, i))
+                logging.debug("Structure %s Step %s" %(n, i))
                 ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
             if ind:
                 optPop.append(ind)
                 shutil.copy('output', "gulp_out-{}-{}".format(n, i))
             else:
-                logging.info("fail in localopt")
-    logging.info('\n')
+                logging.warning("fail in gulp relax")
     return optPop
 
 def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
@@ -596,8 +595,8 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         return optInd
 
     except:
-        logging.debug("traceback.format_exc():\n{}".format(traceback.format_exc()))
-        logging.info("GULP fail")
+        logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        logging.warning("GULP fail")
         return None
 
 
@@ -615,10 +614,8 @@ def calc_vasp_once(
         gap = read_eigen()
     except:
         s = sys.exc_info()
-        logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-        logging.info("VASP fail")
-        print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-
+        logging.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+        logging.warning("VASP fail")
         return None
 
     if calc.float_params['pstress']:
@@ -648,7 +645,7 @@ def calc_vasp_once(
         struct.info['trajs'] = []
     struct.info['trajs'].append(trajDict)
 
-    logging.info("VASP finish")
+    logging.debug("VASP finish")
     return struct[:]
 
 def calc_vasp(
@@ -657,27 +654,19 @@ def calc_vasp(
     ):
 
     newStructs = []
-    # logging.info('1')
     for i, ind in enumerate(structs):
         initInd = ind.copy()
-        # logging.info('1')
         initInd.info = {}
         for j, calc in enumerate(calcs):
-            # logging.info('Structure ' + str(structs.index(ind)) + ' Step '+ str(calcs.index(calc)))
-            logging.info("Structure {} Step {}".format(i, j))
-            # print("Structure {} Step {}".format(i, j))
+            logging.debug("Structure {} Step {}".format(i, j))
             ind = calc_vasp_once(copy.deepcopy(calc), ind, j)
             press = calc.float_params['pstress']/10
             shutil.copy("OUTCAR", "OUTCAR-{}-{}-{}".format(i, j, press))
-            # shutil.copy("INCAR", "INCAR-{}-{}".format(i, j))
-
             if ind is None:
                 break
-
         else:
             # ind.info['initStruct'] = extract_atoms(initInd)
             newStructs.append(ind)
-
     return newStructs
 
 def read_gulp_results(filename):
