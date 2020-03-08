@@ -121,12 +121,12 @@ class Molfilter:
 #TODO steal from ase, need to change
 def isolate_components(atoms, kcutoff=None): 
     if kcutoff is None:
-        intervals = analyze_dimensionality(atoms, method='RDA')
+        intervals = analyze_dimensionality(atoms, method='RDA', merge=False)
         m = intervals[0]
         if m.b == float("inf"):
             kcutoff = m.a + 0.1
         else:
-            kcutoff = max((m.a + m.b) / 2, m.b - 0.1)
+            kcutoff = (m.a + m.b) / 2
     data = {}
     components, all_visited, ranks = traverse_graph(atoms, kcutoff)
 
@@ -137,7 +137,8 @@ def isolate_components(atoms, kcutoff=None):
         key = tuple(np.unique([c for c, offset in v]))
         for c in key:
             components[np.where(components == c)] = key[0]
-            all_visited[c] = None
+            if c in all_visited.keys():
+                all_visited[c] = None
 
     return components
 

@@ -45,12 +45,12 @@ class Magus:
         logging.info("===== Generation {} =====".format(self.curgen))
         if not self.parameters.molMode:
             initpop = self.Generator.Generate_pop(self.parameters.initSize,initpop=True)
-            initPop = self.Population(initpop,'initpop',self.curgen)
         else:
-            initPop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, 
+            initpop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, 
                 self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula, 
                 self.parameters.numFrml, self.parameters.spacegroup, 
                 fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
+        initPop = self.Population(initpop,'initpop',self.curgen)
         logging.info("initPop length: {}".format(len(initPop)))
 
         #read seeds

@@ -178,7 +178,7 @@ class Population:
     def bestind(self):
         self.calc_dominators()
         dominators = np.array([ind.info['dominators'] for ind in self.pop])
-        best_i = np.where(dominators==0)[0]
+        best_i = np.where(dominators == np.min(dominators))[0]
         return [self.pop[i] for i in best_i]
         
 class Individual:
@@ -311,7 +311,7 @@ class Individual:
         else:
             a = atoms.copy()
 
-        atoms = MolFilter(atoms)
+        atoms = Molfilter(atoms)
         for atom in atoms:
             if atom.symbol not in self.inputFormulas:
                 return False

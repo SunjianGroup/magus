@@ -65,6 +65,11 @@ def read_parameters(inputFile):
                     for ats in mols]
         p.molNum = len(p.molFile)
         p.inputMols = [Atoms(**molInfo) for molInfo in p.molList]
+        minFrml = int(np.ceil(p.minAt/sum(p.formula)))
+        maxFrml = int(p.maxAt/sum(p.formula))
+        p.numFrml = list(range(minFrml, maxFrml + 1))
+        p.fixCell = False
+        p.setCellPar = [1,1,1,90,90,90]
     return p
 
 def get_atoms_generator(parameters):
