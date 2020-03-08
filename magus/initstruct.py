@@ -9,21 +9,16 @@ import ase,ase.io
 import copy
 from .utils import *
 
-class BaseGenerator:
+class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        self.parameters=parameters
-        Requirement=['symbols','formula','minAt','maxAt','spgs ']
+        Requirement=['symbols','formula','minAt','maxAt','spgs']
         Default={'threshold':1.0,'maxAttempts':50,'method':2,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
 
-        minFrml = int(np.ceil(self.p.minAt/sum(self.p.formula)))
-        maxFrml = int(self.p.maxAt/sum(self.p.formula))
-        self.p.numFrml = list(range(minFrml, maxFrml + 1))
-        
     def updatevolRatio(self,volRatio):
         self.p.volRatio=volRatio
         logging.debug("new volRatio: {}".format(self.p.volRatio))
@@ -79,6 +74,13 @@ class BaseGenerator:
             return label, atoms
         else:
             return label, None
+
+class BaseGenerator(Generator):
+    def __init__(self,parameters):
+        super().__init__(parameters)
+        minFrml = int(np.ceil(self.p.minAt/sum(self.p.formula)))
+        maxFrml = int(self.p.maxAt/sum(self.p.formula))
+        self.p.numFrml = list(range(minFrml, maxFrml + 1))
 
     def afterprocessing(self,ind,nfm):
         ind.info['symbols'] = self.p.symbols
@@ -144,7 +146,7 @@ class MoleculeGenerator(BaseGenerator):
     pass
 
 
-class VarGenerator(BaseGenerator):
+class VarGenerator(Generator):
     def __init__(self,parameters):
         super().__init__(parameters)
         Requirement=['minAt','maxAt']

@@ -40,7 +40,6 @@ def read_parameters(inputFile):
     p.initSize = p.popSize
     expandSpg = []
     for item in p.spacegroup:
-        logging.info(item)
         if isinstance(item, int):
             if 1 <= item <= 230:
                 expandSpg.append(item)
@@ -51,6 +50,7 @@ def read_parameters(inputFile):
             assert 1 <= s1 < s2 <= 230, 'Please check the format of spacegroup'
             expandSpg.extend(list(range(s1, s2+1)))
     p.spgs = expandSpg
+    
     if p.molMode:
         assert hasattr(p,'molFile'), 'Please define molFile'
         assert hasattr(p,'molFormula'), 'Please define molFormula'

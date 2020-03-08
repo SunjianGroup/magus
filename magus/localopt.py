@@ -83,7 +83,7 @@ class RelaxVasp(Vasp):
 
 class Calculator:
     def __init__(self,parameters):
-        if not hasattr(self,p):
+        if not hasattr(self,'p'):
             self.p = EmptyClass()
         Requirement = ['workDir']
         Default = {'pressure':0}

@@ -25,7 +25,7 @@ class Population:
     a class of atoms population
     """
     def __init__(self,parameters):
-        self.parameters = parameters
+        self.p = EmptyClass()
         Requirement=['resultsDir','calcType']
         Default={}
         checkParameters(self.p,parameters,Requirement,Default)
@@ -40,9 +40,13 @@ class Population:
         return self.pop[i]
 
     def __call__(self,pop,name='temp',gen=None):
-        newpop = self.__class__(self.parameters)
+        newpop = self.__new__(self.__class__)
+        newpop.p = self.p
         pop = [self.Individual(ind) if ind.__class__.__name__ == 'Atoms' else ind for ind in pop]
+        newpop.Individual = self.Individual
+        newpop.fit_calcs = self.fit_calcs
         newpop.pop = pop
+        logging.debug('generate:pop {} with {} ind'.format(name,len(pop)))
         newpop.name = name
         newpop.gen = gen
         for i,ind in enumerate(pop):
@@ -118,7 +122,7 @@ class Population:
             fit_calc(self.pop)
 
     def del_duplicate(self):
-        logging.info('del_duplicate {} begin'.format(self.name))
+        logging.info('del_duplicate {} begin,now {} in pop'.format(self.name,len(self.pop)))
         newpop = []
         for ind1 in self.pop:
             for ind2 in newpop:
@@ -126,7 +130,7 @@ class Population:
                     break
             else:
                 newpop.append(ind1)
-        logging.info('del_duplicate {} finish'.format(self.name))
+        logging.info('del_duplicate {} finish,now {} in pop'.format(self.name,len(newpop)))
         self.pop = newpop
 
     def check(self):
@@ -244,20 +248,22 @@ class Individual:
         check if cellpar reasonable
         TODO bond
         """
-        return True
         if atoms is None:
             a = self.atoms.copy()
         else:
             a = atoms.copy()
 
-        minLen = self.p.minLattice if self.p.minLattice else [0,0,0,30,30,30]
-        maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,150,150,150]
+        minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
+        maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
         minLen,maxLen = np.array([minLen,maxLen])
         cellPar = a.get_cell_lengths_and_angles()
-        if (minLen < cellPar).all() and (cellPar < maxLen).all():
-            return True
-        else:
-            return False
+
+        cos_ = np.cos(cellPar[3:]/180*np.pi)
+        sin_ = np.sin(cellPar[3:]/180*np.pi)
+        X = np.sum(cos_**2)-2*cos_[0]*cos_[1]*cos_[2]
+        angles = np.arccos(np.sqrt(X-cos_**2)/sin_)/np.pi*180
+
+        return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
 
     def check_distance(self,atoms=None):
         """
@@ -312,6 +318,7 @@ class Individual:
         check_cellpar = self.check_cellpar(a) 
         check_distance = self.check_distance(a)
         check_mol = self.check_mol(a) if self.p.chkMol else True
+        return check_cellpar and check_distance and check_mol
 
     def sort(self):
         indices = []
@@ -451,7 +458,7 @@ class VarInd(Individual):
         super().__init__(parameters)
         self.rank = np.linalg.matrix_rank(self.p.formula)
         self.invF = np.linalg.pinv(self.p.formula)
-        checkParameters(self,parameters,[],{'fullEles':False})
+        checkParameters(self.p,parameters,[],{'fullEles':False})
 
     def __call__(self,atoms):
         newind = self.__new__(self.__class__)
@@ -500,7 +507,7 @@ class VarInd(Individual):
             a = atoms.copy()
         symbols = a.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.p.symbols]
-        return not self.fullEles or 0 not in formula 
+        return not self.p.fullEles or 0 not in formula 
 
     def check(self, atoms=None):
         if atoms is None:

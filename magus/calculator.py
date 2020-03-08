@@ -60,10 +60,8 @@ class calculator:
             gap = read_eigen()
         except:
             s = sys.exc_info()
-            logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-            logging.info("VASP fail")
-            print("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-
+            logging.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+            logging.warning("VASP fail")
             return None
 
         if calc.float_params['pstress']:

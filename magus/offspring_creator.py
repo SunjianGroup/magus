@@ -207,7 +207,7 @@ class PermMutation(Mutation):
         fracSwaps = self.fracSwaps
         atoms = ind.atoms.copy()
 
-        if ind.is_mol:
+        if ind.p.is_mol:
             atoms = Molfilter(atoms)
 
         maxSwaps = int(fracSwaps*len(atoms))
@@ -260,14 +260,14 @@ class LatticeMutation(Mutation):
         cellPar = cell_to_cellpar(newCell)
         cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
 
-        if ind.is_mol:
+        if ind.p.is_mol:
             atoms = Molfilter(atoms)
 
         atoms.set_cell(cellPar, scale_atoms=True)
         positions = atoms.get_positions()
         atGauss = np.random.normal(0,sigma,[len(atoms),3])/sigma
         radius = covalent_radii[atoms.get_atomic_numbers()][:,np.newaxis]
-        positions += atGasuss * radius
+        positions += atGauss * radius
         atoms.set_positions(positions)
 
         return ind(atoms)
@@ -286,7 +286,7 @@ class SlipMutation(Mutation):
         cut = self.cut
         atoms = ind.atoms.copy()
 
-        if ind.is_mol:
+        if ind.p.is_mol:
             atoms = Molfilter(atoms)
 
 
@@ -297,7 +297,7 @@ class SlipMutation(Mutation):
         z = np.where(scl_pos[:,axis[0]] > cut)
         scl_pos[z,axis[1]] += np.random.uniform(*self.randRange)
         scl_pos[z,axis[2]] += np.random.uniform(*self.randRange)
-        atoms.set_scaled_positions(pos)
+        atoms.set_scaled_positions(scl_pos)
 
         return ind(atoms)
 
@@ -314,7 +314,7 @@ class RippleMutation(Mutation):
         '''
         atoms = ind.atoms.copy()
 
-        if ind.is_mol:
+        if ind.p.is_mol:
             atoms = Molfilter(atoms)
 
         scl_pos = atoms.get_scaled_positions()
@@ -325,7 +325,7 @@ class RippleMutation(Mutation):
             np.cos(2*np.pi*self.mu*scl_pos[:,axis[1]] + np.random.uniform(0,2*np.pi,len(atoms)))*\
             np.cos(2*np.pi*self.eta*scl_pos[:,axis[2]] + np.random.uniform(0,2*np.pi,len(atoms)))
 
-        atoms.set_scaled_positions(pos)
+        atoms.set_scaled_positions(scl_pos)
 
         return ind(atoms)
 
@@ -364,7 +364,7 @@ class CutAndSplicePairing(Crossover):
 
         cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
 
-        if ind1.is_mol:
+        if ind1.p.is_mol:
             atoms1 = Molfilter(atoms1)
             atoms2 = Molfilter(atoms2)
             cutAtoms =  Molfilter(cutAtoms)
@@ -383,7 +383,7 @@ class CutAndSplicePairing(Crossover):
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
 
-        if ind.is_mol:
+        if ind.p.is_mol:
             cutAtoms =  cutAtoms.to_atoms()
 
         cutInd = ind1(cutAtoms)
