@@ -410,6 +410,9 @@ class Individual:
                 if check_new_atom_dist(repatoms, pos, add_symbol, dRatio):
                     addAt = Atom(symbol=add_symbol, position=pos)
                     repatoms.append(addAt)
+                    toadd[add_symbol] -= 1
+                    if toadd[add_symbol] == 0:
+                        toadd.pop(add_symbol)
                     break
             else:
                 self.atoms = None
@@ -430,6 +433,7 @@ class FixInd(Individual):
 
         if atoms.__class__.__name__ == 'Molfilter':
             atoms = atoms.to_atoms()
+        atoms.wrap()
         newind.atoms = atoms
         newind.sort()
         newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
@@ -480,6 +484,7 @@ class VarInd(Individual):
 
         if atoms.__class__.__name__ == 'Molfilter':
             atoms = atoms.to_atoms()
+        atoms.wrap()
         newind.atoms = atoms
         newind.info = {'numOfFormula':1}
         newind.info['fitness'] = {}

@@ -26,12 +26,15 @@ class Magus:
         if self.parameters.mlRelax:
             self.ML = LRmodel(parameters)
         self.curgen = 0
-        self.best = []
+        self.bestlen = []
 
     def run(self):
         self.Initialize()
-        for _ in range(self.parameters.numGen):
+        for gen in range(self.parameters.numGen):
             self.Onestep()
+            if gen > 5 and self.bestlen[gen] == self.bestlen[gen-5]:
+                logging.info('converged')
+                break
 
     def Initialize(self):
         if os.path.exists("results"):
@@ -79,9 +82,12 @@ class Magus:
         self.curPop = relaxPop
         self.goodPop = self.Population([],'goodpop',self.curgen)
         self.keepPop = self.Population([],'keeppop',self.curgen)
+        self.bestPop = self.Population([],'bestpop')
 
         logging.info("best ind:")
         bestind = relaxPop.bestind()
+        self.bestPop.extend(bestind)
+        self.bestlen.append(len(self.bestPop))
         for ind in bestind:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
@@ -159,6 +165,8 @@ class Magus:
 
         logging.info("best ind:")
         bestind = goodPop.bestind()
+        self.bestPop.extend(bestind)
+        self.bestlen.append(len(self.bestPop))
         for ind in bestind:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))

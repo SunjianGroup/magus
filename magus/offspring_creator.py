@@ -222,15 +222,16 @@ class PermMutation(Mutation):
 
         indices = list(range(len(atoms)))
         for _ in range(numSwaps):
-            if len(indices) < 2:
+            s1, s2 = np.random.choice(symList, 2, replace = False)
+            s1list = [index for index in indices if atoms[index].symbol==s1]
+            s2list = [index for index in indices if atoms[index].symbol==s2]
+            if len(s1list)==0 or len(s2list)==0:
                 break
-            s1, s2 = np.random.choice(symList, 2)
-            i = np.random.choice([index for index in indices if atoms[index].symbol==s1])
-            j = np.random.choice([index for index in indices if atoms[index].symbol==s2])
+            i = np.random.choice(s1list)
+            j = np.random.choice(s2list)
             atoms[i].position,atoms[j].position = atoms[j].position,atoms[i].position
             indices.remove(i)  
             indices.remove(j)             
-
         return ind(atoms)
 
 class LatticeMutation(Mutation):
@@ -383,7 +384,7 @@ class CutAndSplicePairing(Crossover):
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
 
-        if ind.p.is_mol:
+        if ind1.p.is_mol:
             cutAtoms =  cutAtoms.to_atoms()
 
         cutInd = ind1(cutAtoms)
@@ -421,7 +422,8 @@ class ReplaceBallPairing(Crossover):
         newatoms.extend(atoms2[indices])
         cutInd = ind1(newatoms)
         cutInd.parents = [ind1 ,ind2]
-        return newatoms 
+        return newatoms
+
 class PopGenerator:
     def __init__(self,numlist,oplist,parameters):
         self.oplist = oplist
@@ -433,7 +435,7 @@ class PopGenerator:
 
     def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
         pairs = []
-        labels = Pop.clustering(clusterNum)
+        labels,_ = Pop.clustering(clusterNum)
         fail = 0
         while len(pairs) < crossNum and fail < tryNum:
             label = np.random.choice(np.unique(labels))
@@ -465,16 +467,16 @@ class PopGenerator:
         Pop.calc_dominators()
         newPop = Pop([],'initpop',Pop.gen+1) 
         for op,num in zip(self.oplist,self.numlist):
-            logging.debug('name:{}'.format(op.descriptor))
+            logging.debug('name:{} num:{}'.format(op.descriptor,num))
             if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(Pop,num)
-                for ind in mutate_inds:
+                for i,ind in enumerate(mutate_inds):
                     newind = op.get_new_individual(ind)
                     if newind:
                         newPop.append(newind)
             elif op.optype == 'Crossover':
                 cross_pairs = self.get_pairs(Pop,num,saveGood)
-                for parents in cross_pairs:
+                for i,parents in enumerate(cross_pairs):
                     newind = op.get_new_individual(parents)
                     if newind:
                         newPop.append(newind)
