@@ -34,8 +34,11 @@ class Mutation(OffspringCreator):
             newind = self.mutate(ind)
             if newind is None:
                 continue
+            ase.io.write('newind.cif',newind.atoms)
+            ase.io.write('ind.cif',ind.atoms)
             newind.parents = [ind]
             newind.merge_atoms()
+            ase.io.write('mergeind.cif',newind.atoms)
             if newind.repair_atoms():
                 break                
         else:
@@ -235,7 +238,7 @@ class PermMutation(Mutation):
         return ind(atoms)
 
 class LatticeMutation(Mutation):
-    def __init__(self, sigma=0.5, cellCut=1,tryNum=10):
+    def __init__(self, sigma=0.05, cellCut=1,tryNum=10):
         """
         sigma: Gauss distribution standard deviation
         cellCut: coefficient of gauss distribution in cell mutation

@@ -364,6 +364,9 @@ class Individual:
         if not self.needrepair:
             self.sort()
             return True
+        if len(self.atoms) == 0:
+            self.atoms = None
+            return False
         atoms = self.atoms
         dRatio = self.p.dRatio
         syms = atoms.get_chemical_symbols()
@@ -395,7 +398,6 @@ class Individual:
             toremove[del_symbol] -= 1
             if toremove[del_symbol] == 0:
                 toremove.pop(del_symbol)
-        
         while toadd:
             add_symbol = np.random.choice(list(toadd.keys()))
             for _ in range(self.p.repairtryNum):
@@ -417,7 +419,7 @@ class Individual:
             else:
                 self.atoms = None
                 return False
-                
+        self.atoms = repatoms
         self.sort()
         return True
 
@@ -458,7 +460,7 @@ class FixInd(Individual):
         if self.p.minAt <= Natoms <= self.p.maxAt :
             numFrml = int(round(Natoms/sum(self.p.formula)))
         else:
-            numFrml = int(round(0.5 * sum([ind.info['numOfFormula'] for ind in self.parents])))
+            numFrml = int(round(np.mean([ind.info['numOfFormula'] for ind in self.parents])))
         self.info['formula'] = self.p.formula
         self.info['numOfFormula'] = numFrml
         targetFrml = {s:numFrml*i for s,i in zip(self.p.symbols,self.p.formula)}
