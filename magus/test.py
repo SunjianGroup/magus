@@ -18,7 +18,7 @@ Population:Population(pop) --> Pop
 #TODO build mol struct
 class Magus:
     def __init__(self,parameters):
-        self.parameters = parameters
+        self.parameters = parameters 
         self.Generator = get_atoms_generator(parameters)
         self.Algo = get_pop_generator(parameters)
         self.MainCalculator = get_calculator(parameters)

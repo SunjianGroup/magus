@@ -74,11 +74,12 @@ def read_parameters(inputFile):
 
 def get_atoms_generator(parameters):
     if parameters.calcType == 'fix':
-        return BaseGenerator(parameters)
+        Generator = BaseGenerator(parameters)
     elif parameters.calcType == 'var':
-        return VarGenerator(parameters)
+        Generator = VarGenerator(parameters)
     else:
         raise Exception("Undefined calcType '{}'".format(parameters.calcType))
+    return Generator
 
 def get_pop_generator(parameters):
     cutandsplice = CutAndSplicePairing()
@@ -123,7 +124,8 @@ def get_calculator(parameters):
     return MainCalculator
 
 def get_population(parameters):
-    return Population(parameters)
+    pop = Population(parameters)
+    return pop
 
 if __name__ == '__main__':
     parm = read_parameters('input.yaml')

@@ -118,18 +118,19 @@ class ASECalculator(Calculator):
                 ind.set_calculator(calc)
                 logging.debug("Structure {} Step {}".format(i, j))
                 ucf = ExpCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
-                # ucf = UnitCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
                 if self.p.optimizer == 'cg':
-                    gopt = SciPyFminCG(ucf, logfile=logfile,)
+                    gopt = SciPyFminCG(ucf, logfile=logfile,trajectory='calc.traj')
                 elif self.p.optimizer == 'bfgs':
-                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep)
+                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory='calc.traj')
                 elif self.p.optimizer == 'lbfgs':
-                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep)
+                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory='calc.traj')
                 elif self.p.optimizer == 'fire':
-                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep)
-
+                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep,trajectory='calc.traj')
                 try:
-                    label=gopt.run(fmax=self.p.epsArr[j], steps=self.p.stepArr[j])
+                    label = gopt.run(fmax=self.p.epsArr[j], steps=self.p.stepArr[j])
+                    traj = ase.io.read('calc.traj',':')
+                    # save relax steps
+                    logging.debug('{} relax steps: {}'.format(self.__class__.__name__,len(traj)))
                 except Converged:
                     pass
                 except TimeoutError:
@@ -175,6 +176,7 @@ class ASECalculator(Calculator):
                 atoms.info['enthalpy'] = round(enthalpy, 3)
                 atoms.set_calculator(None)
                 scfPop.append(atoms)
+                logging.debug('{} scf steps: 0'.format(self.__class__.__name__))
             except:
                 pass
         os.chdir(self.p.workDir)
@@ -640,6 +642,9 @@ def calc_vasp_once(
 
     # save relax trajectory
     traj = ase.io.read('OUTCAR', index=':', format='vasp-out')
+
+    # save relax steps
+    logging.debug('vasp relax steps: {}'.format(len(traj)))
     trajDict = [extract_atoms(ats) for ats in traj]
     if index == 0:
         struct.info['trajs'] = []
