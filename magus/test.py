@@ -27,6 +27,8 @@ class Magus:
             self.ML = LRmodel(parameters)
         self.curgen = 0
         self.bestlen = []
+        self.allPop = self.Population([],'allPop')
+        self.Population.allPop = self.allPop
 
     def run(self):
         self.Initialize()
@@ -80,9 +82,10 @@ class Magus:
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
         self.curPop = relaxPop
-        self.goodPop = relaxPop.copy()
-        self.keepPop = self.Population([],'keeppop',self.curgen)
-        self.bestPop = self.Population([],'bestpop')
+        self.allPop.extend(self.curPop)
+        self.goodPop = self.Population([],'goodPop',self.curgen)
+        self.keepPop = self.Population([],'keepPop',self.curgen)
+        self.bestPop = self.Population([],'bestPop')
 
         logging.info("best ind:")
         bestind = relaxPop.bestind()
@@ -154,12 +157,10 @@ class Magus:
         relaxPop.save('raw')
         relaxPop.check()
         relaxPop.del_duplicate()
+        self.allPop.extend(relaxPop)
 
-        #debug
-        goodPop.save('good')
         #######  goodPop and keepPop  #######
         logging.info('construct goodPop')
-        goodPop = relaxPop + goodPop
         goodPop = relaxPop + goodPop + keepPop
         goodPop.del_duplicate()
         goodPop.select(self.parameters.popSize)

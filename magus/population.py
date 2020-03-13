@@ -24,7 +24,7 @@ class Population:
     """
     a class of atoms population
     """
-    def __init__(self,parameters):
+    def __init__(self,parameters,allPop):
         self.p = EmptyClass()
         Requirement=['resultsDir','calcType']
         Default={}
@@ -39,8 +39,10 @@ class Population:
     def __getitem__(self,i):
         return self.pop[i]
 
-    def __call__(self,pop,name='temp',gen=None):
+    def __call__(self,pop,name='temp',gen=None):   
         newPop = self.__new__(self.__class__)
+        if hasattr(self,'allPop'):
+            newPop.allPop = self.allPop
         newPop.p = self.p
         pop = [self.Individual(ind) if ind.__class__.__name__ == 'Atoms' else ind for ind in pop]
         newPop.Individual = self.Individual
@@ -120,7 +122,7 @@ class Population:
 
     def calc_fitness(self):
         for fit_calc in self.fit_calcs:
-            fit_calc(self.pop)
+            fit_calc(self)
 
     def del_duplicate(self):
         logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))

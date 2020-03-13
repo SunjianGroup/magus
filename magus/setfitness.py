@@ -8,13 +8,14 @@ from .xrd import compare_xrd
 import copy
 from ase.phasediagram import PhaseDiagram
 
-def fix_fitness(pop):
-    for ind in pop:
+def fix_fitness(Pop):
+    for ind in Pop.pop:
         ind.info['enthalpy'] = ind.atoms.info['enthalpy']
         ind.info['fitness']['enthalpy'] = -ind.atoms.info['enthalpy']
 
 
-def var_fitness(pop):
+def var_fitness(Pop):
+    pop = Pop.allPop.pop
     name = [ind.atoms.get_chemical_formula() for ind in pop]
     enth = [ind.atoms.info['enthalpy']*len(ind.atoms) for ind in pop]
     refs = zip(name, enth)
