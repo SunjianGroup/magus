@@ -1,4 +1,4 @@
-#BSUB -J newgulp
+#BSUB -J new-vasp
 #BSUB -n 1
 #BSUB -e err
 #BSUB -o out

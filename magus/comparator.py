@@ -18,12 +18,13 @@ class Comparator:
         return True
 
 class FingerprintComparator(Comparator):
-    def __init__(self, dE=0.01, dV=0.05, dD=0.1, topri=False):
+    def __init__(self, dE=0.01, dV=0.05, dD=0.05, topri=False):
         super().__init__(dE=dE, dV=dV, topri=topri)
         self.dD = dD
 
     def looks_like(self, a1, a2):
-        distance = np.linalg.norm(a1.fingerprint - a2.fingerprint)
-        if distance > self.dD:
+        x,y = a1.fingerprint , a2.fingerprint
+        dist = 1 - np.dot(x,y)/(np.linalg.norm(x)*np.linalg.norm(y))
+        if dist > self.dD:
             return False
         return super().looks_like(a1,a2)

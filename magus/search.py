@@ -1,60 +1,42 @@
 import random, logging, os, sys, shutil, time, json
 import argparse
+import copy
 import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .localopt import VaspCalculator,XTBCalculator,LJCalculator,EMTCalculator,GULPCalculator,LAMMPSCalculator,QUIPCalculator
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
-from .writeresults import write_dataset, write_results, write_traj
-from .readparm import read_parameters
+from .initstruct import read_seeds,build_mol_struct
+from .readparm import *
 from .utils import *
-import copy
-from .queue import JobManager
-from .setfitness import calc_fitness
-from .renew import BaseEA, BOEA
-#ML module
 from .machinelearning import LRmodel
 
+"""
+Pop:class,poplulation
+pop:list,a list of atoms
+Population:Population(pop) --> Pop
+"""
+#TODO build mol struct
 class Magus:
     def __init__(self,parameters):
-        self.parameters=parameters
-        if self.parameters.calcType == 'fix':
-            self.Generator=BaseGenerator(parameters)
-        elif self.parameters.calcType == 'var':
-            self.Generator=VarGenerator(parameters)
-        # molecule mode
-        if self.parameters.molMode:
-            self.inputMols = [Atoms(**molInfo) for molInfo in self.parameters.molList]
-        if self.parameters.setAlgo == 'ea':
-            self.Algo=BaseEA(parameters)
-        elif self.parameters.setAlgo == 'boea':
-            self.Algo = BOEA(parameters)
-        if self.parameters.calculator == 'vasp':
-            self.MainCalculator = VaspCalculator(parameters)
-        elif self.parameters.calculator == 'lj':
-            self.MainCalculator = LJCalculator(parameters)
-        elif self.parameters.calculator == 'emt':
-            self.MainCalculator = EMTCalculator(parameters)
-        elif self.parameters.calculator == 'gulp':
-            self.MainCalculator = GULPCalculator(parameters)
-        elif self.parameters.calculator == 'xtb':
-            self.MainCalculator = XTBCalculator(parameters)
-        elif self.parameters.calculator == 'quip':
-            self.MainCalculator = QUIPCalculator(parameters)
-        elif self.parameters.calculator == 'lammps':
-            self.MainCalculator = LAMMPSCalculator(parameters)
-        self.ML=LRmodel(parameters)
-        self.get_fitness=calc_fitness
-        self.pop=[]
-        self.goodPop=[]
-        self.keepPop=[]
-        self.curgen=1
+        self.parameters = parameters 
+        self.Generator = get_atoms_generator(parameters)
+        self.Algo = get_pop_generator(parameters)
+        self.MainCalculator = get_calculator(parameters)
+        self.Population = get_population(parameters)
+        if self.parameters.mlRelax:
+            self.ML = LRmodel(parameters)
+        self.curgen = 0
+        self.bestlen = []
+        self.allPop = self.Population([],'allPop')
+        self.Population.allPop = self.allPop
 
     def run(self):
         self.Initialize()
-        for _ in range(self.parameters.numGen):
+        for gen in range(self.parameters.numGen):
             self.Onestep()
+            if gen > 5 and self.bestlen[gen] == self.bestlen[gen-5]:
+                logging.info('converged')
+                break
 
     def Initialize(self):
         if os.path.exists("results"):
@@ -63,205 +45,150 @@ class Magus:
                 i+=1
             shutil.move("results", "results{}".format(i))
         os.mkdir("results")
-        # if not os.path.exists("calcFold"):
-        #     os.mkdir("calcFold")
-        self.parameters.resultsDir=os.path.join(self.parameters.workDir,'results')
-        shutil.copy("allParameters.yaml", "results/allParameters.yaml")
+
+        #shutil.copy("allParameters.yaml", "results/allParameters.yaml")
         logging.info("===== Generation {} =====".format(self.curgen))
         if not self.parameters.molMode:
-            initPop = self.Generator.Generate_pop(self.parameters.initSize)
-            if self.parameters.calcType == 'var':
-                p_=copy.deepcopy(self.parameters)
-                # Generate simple substance in variable mode
-                for n, sybl in enumerate(self.parameters.symbols):
-                    p_.symbols = [sybl]
-                    p_.formula = [1]
-                    p_.numFrml = list(range(1,p_.maxAt+1))
-                    g_=BaseGenerator(p_)
-                    elePop = g_.Generate_pop(p_.eleSize)
-                    eleFrml = np.zeros(len(self.parameters.symbols))
-                    eleFrml[n] = 1
-                    eleFrml = eleFrml.astype(np.int)
-                    for eleInd in elePop:
-                        eleInd.info['symbols'] = self.parameters.symbols
-                        tmpFrml = eleFrml*len(eleInd)
-                        eleInd.info['formula'] = tmpFrml.tolist()
-                        eleInd.info['numOfFormula'] = 1
-                    initPop.extend(elePop)
+            initpop = self.Generator.Generate_pop(self.parameters.initSize,initpop=True)
         else:
-            initPop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, self.parameters.formula, self.inputMols, self.parameters.molFormula, self.parameters.numFrml, self.parameters.spacegroup, fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
-
-        # fix cell
-        if self.parameters.fixCell:
-            logging.info("Fix cell parameters")
-            for ind in initPop:
-                ind.set_cell(self.parameters.setCellPar, scale_atoms=True)
-            initPop = check_dist(initPop, self.parameters.dRatio)
+            initpop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, 
+                self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula, 
+                self.parameters.numFrml, self.parameters.spacegroup, 
+                fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
+        initPop = self.Population(initpop,'initpop',self.curgen)
         logging.info("initPop length: {}".format(len(initPop)))
 
-        seedPop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+        #read seeds
+        seedpop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+        seedPop = self.Population(seedpop,'seedpop',self.curgen)
+        seedPop.check()
+        initPop.extend(seedPop)
 
-        if len(seedPop) > 0:
-            logging.info("check seeds distance")
-            seedPop = check_dist(seedPop, self.parameters.dRatio)
-            if self.parameters.chkMol:
-                logging.info("check seeds mols")
-                seedPop = check_mol_pop(seedPop, self.inputMols, self.parameters.bondRatio)
-            logging.info("read {} seeds".format(len(seedPop)))
-            initPop.extend(seedPop)
+        initPop.save('init')
 
-        write_results(initPop, self.curgen, 'init',self.parameters.resultsDir)
+        relaxpop = self.MainCalculator.relax(initPop.frames)
+        relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
+        relaxPop.check()
 
-        relaxPop=self.MainCalculator.relax(initPop)
+        relaxPop.del_duplicate()
+        relaxPop.save('raw')
 
-        write_results(relaxPop, self.curgen, 'raw', self.parameters.resultsDir)
+        if self.parameters.mlRelax:
+            self.ML.updatedataset(relaxPop.frames)
+            self.ML.train()
+            scfpop = self.MainCalculator.scf(relaxPop.frames)
+            scfPop = self.Population(scfpop,'scfpop',self.curgen)
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
-        self.pop=copy.deepcopy(relaxPop)
+        self.curPop = relaxPop
+        self.allPop.extend(self.curPop)
+        self.goodPop = self.Population([],'goodPop',self.curgen)
+        self.keepPop = self.Population([],'keepPop',self.curgen)
+        self.bestPop = self.Population([],'bestPop')
+
+        logging.info("best ind:")
+        bestind = relaxPop.bestind()
+        self.bestPop.extend(bestind)
+        self.bestlen.append(len(self.bestPop))
+        for ind in bestind:
+            logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
+        self.bestPop.save('best',self.curgen)
 
     def Onestep(self):
-        relaxPop = self.pop
+        curPop = self.curPop
         goodPop = self.goodPop
         keepPop = self.keepPop
-
-        logging.info("check distance")
-        relaxPop = check_dist(relaxPop, self.parameters.dRatio)
-        logging.info("check survival: {}".format(len(relaxPop)))
-
-        if self.parameters.chkMol:
-            logging.info("check mols")
-            relaxPop = check_mol_pop(relaxPop, self.inputMols, self.parameters.bondRatio)
-            logging.info("check survival: {}".format(len(relaxPop)))
-
-        logging.info('del_duplicate relaxPop begin')
-        relaxPop = del_duplicate(relaxPop, symprec=self.parameters.symprec)
-        logging.info('del_duplicate relaxPop finish')
-
-        if self.parameters.calcType == 'var':
-            relaxPop, goodPop, keepPop = convex_hull_pops(relaxPop, goodPop, keepPop)
-
-
-        for Pop in [relaxPop,goodPop,keepPop]:
-            self.get_fitness(Pop, mode=self.parameters.calcType)
-        logging.info('calc_fitness finish')
-
-        for ind in relaxPop:
-            logging.info("{strFrml} enthalpy: {enthalpy}, fit1: {fitness1}, fit2: {fitness2}".format(strFrml=ind.get_chemical_formula(), **ind.info))
-
-        # Calculate fingerprints
-        logging.debug('calc_all_fingerprints begin')
-        self.ML.get_fp(relaxPop)
-        if self.parameters.mlRelax:
-            self.ML.updatedataset(relaxPop)
-            self.ML.train()
-            scfPop = self.MainCalculator.scf(relaxPop)
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop)[:4]))
-        logging.info('calc_all_fingerprints finish')
-        # Write relaxPop
-        write_results(relaxPop, self.curgen, 'gen', self.parameters.resultsDir)
-
-        ### save good individuals
-        logging.info('goodPop')
-        goodPop = relaxPop+goodPop+keepPop
-        goodPop = del_duplicate(goodPop, symprec=self.parameters.symprec)
-        goodPop = calc_dominators(goodPop)
-        goodPop = sorted(goodPop, key=lambda x:x.info['dominators'])
-
-
-        if len(goodPop) > self.parameters.popSize:
-            goodPop = goodPop[:self.parameters.popSize]
-
-        ### keep best
-        logging.info('keepPop')
-        labels, keepPop = clustering(goodPop, self.parameters.saveGood)
-
-        ### write good and keep pop
-        write_results(goodPop, '', 'good',self.parameters.resultsDir)
-        write_results(goodPop, self.curgen, 'savegood',self.parameters.resultsDir)
-        write_results(keepPop, self.curgen, 'keep',self.parameters.resultsDir)
-        shutil.copy('{}/log.txt'.format(self.parameters.workDir), '{}/results/log.txt'.format(self.parameters.workDir))
-
-        ### write dataset
-        write_dataset(relaxPop)
-
-        curPop = del_duplicate(relaxPop + keepPop, symprec=self.parameters.symprec)
-
-        # renew volRatio
-        volRatio = sum([calc_volRatio(ats) for ats in relaxPop])/len(relaxPop)
-        self.Generator.updatevolRatio(0.5*(volRatio + self.Generator.volRatio))
-        logging.debug("volRatio: {}".format(self.Generator.volRatio))
-
-        self.Algo.generate(curPop)
-        initPop=self.Algo.select()
-        ### Initail check
-        # initPop = check_dist(initPop, self.parameters.dRatio)
-        logging.debug("Generated by Algo: {}".format(len(initPop)))
-
-        if len(initPop) < self.parameters.popSize:
-            logging.info("random structures")
-            initPop.extend(self.Generator.Generate_pop(self.parameters.popSize-len(initPop)))
-
-
         self.curgen+=1
         logging.info("===== Generation {} =====".format(self.curgen))
+        #######  get next Pop  #######
+        # renew volRatio
+        volRatio = curPop.get_volRatio()
+        self.Generator.updatevolRatio(0.5*(volRatio + self.Generator.p.volRatio))
 
+        initPop = self.Algo.next_Pop(curPop)
+        logging.info("Generated by Algo: {}".format(len(initPop)))
+        if len(initPop) < self.parameters.popSize:
+            logging.info("random structures:{}".format(self.parameters.popSize-len(initPop)))
+            if self.parameters.molMode:
+                addpop = build_mol_struct(self.parameters.popSize-len(initPop), self.parameters.symbols, 
+                self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula, 
+                self.parameters.numFrml, self.parameters.spacegroup, 
+                fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
+            else:
+                addpop = self.Generator.Generate_pop(self.parameters.popSize-len(initPop))
+            initPop.extend(addpop)
 
-        ### Initial fingerprint
-        # self.ML.get_fp(initPop)
+        #read seeds
+        seedpop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+        seedPop = self.Population(seedpop,'seedpop',self.curgen)
+        seedPop.check()
+        initPop.extend(seedPop)
 
-        # fix cell
-        if self.parameters.fixCell:
-            logging.info("Fix cell parameters")
-            for ind in initPop:
-                ind.set_cell(self.parameters.setCellPar, scale_atoms=True)
-            initPop = check_dist(initPop, self.parameters.dRatio)
+        # Save Initial
+        initPop.save()
 
-        # save tmpPop
-        if p.savetmp:
-            write_results(self.Algo.tmpPop, self.curgen, 'tmp',self.parameters.resultsDir)
-        ### Save Initial
-        write_results(initPop,self.curgen, 'init',self.parameters.resultsDir)
-
-        seedPop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
-
-        if len(seedPop) > 0:
-            logging.info("check seeds distance")
-            seedPop = check_dist(seedPop, self.parameters.dRatio)
-            if self.parameters.chkMol:
-                logging.info("check seeds mols")
-                seedPop = check_mol_pop(seedPop, self.inputMols, self.parameters.bondRatio)
-            logging.info("read {} seeds".format(len(seedPop)))
-            initPop.extend(seedPop)
-
+        #######  relax  #######
         if self.parameters.mlRelax:
-            ### mlrelax
             for _ in range(10):
-                relaxPop = self.ML.relax(initPop)
-                relaxPop = check_dist(relaxPop, self.parameters.dRatio)
-                scfPop = self.MainCalculator.scf(relaxPop)
-                loss = self.ML.get_loss(scfPop)
+                relaxpop = self.ML.relax(initPop.frames)
+                relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
+                relaxPop.check()
+                scfpop = self.MainCalculator.scf(relaxPop.frames)
+                loss = self.ML.get_loss(scfpop)
                 if loss[1]>0.8:
                     logging.info('ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
                     break
                 logging.info('QAQ ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
-                self.ML.updatedataset(scfPop)
+                self.ML.updatedataset(scfpop)
                 write_results(self.ML.dataset,'','dataset',self.parameters.resultsDir)
                 self.ML.train()
 
             else:
-                relaxPop = self.MainCalculator.relax(initPop)
+                relaxpop = self.MainCalculator.relax(initPop.frames)
+                relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
                 logging.info('Turn to main calculator')
         else:
-            relaxPop = self.MainCalculator.relax(initPop)
+            relaxpop = self.MainCalculator.relax(initPop.frames)
+            relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
 
         # save raw date before checking
-        write_results(relaxPop, self.curgen, 'raw',self.parameters.resultsDir)
+        relaxPop.save('raw')
+        relaxPop.check()
+        relaxPop.del_duplicate()
+        self.allPop.extend(relaxPop)
 
-        self.pop=copy.deepcopy(relaxPop)
-        self.goodPop=copy.deepcopy(goodPop)
-        self.keepPop=copy.deepcopy(keepPop)
-
-
-
+        #######  goodPop and keepPop  #######
+        logging.info('construct goodPop')
+        goodPop = relaxPop + goodPop + keepPop
+        goodPop.del_duplicate()
+        goodPop.select(self.parameters.popSize)
+        goodPop.save('good','')
+        goodPop.save('savegood')
+        logging.info("good ind:")
+        for ind in goodPop.pop:
+            logging.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
+        logging.info("best ind:")
+        bestind = goodPop.bestind()
+        self.bestPop.extend(bestind)
+        self.bestlen.append(len(self.bestPop))
+        for ind in bestind:
+            logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
+        self.bestPop.save('best',self.curgen)
+        # keep best
+        logging.info('construct keepPop')
+        _, keeppop = goodPop.clustering(self.parameters.saveGood)
+        keepPop = self.Population(keeppop,'keeppop',self.curgen)
+        keepPop.save('keep')
+        
+        curPop = relaxPop + keepPop
+        curPop.del_duplicate()
+        curPop.save('gen')
+        self.curPop = curPop
+        self.goodPop = goodPop
+        self.keepPop = keepPop
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
@@ -273,9 +200,5 @@ else:
     logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
 
 parameters = read_parameters('input.yaml')
-p = EmptyClass()
-for key, val in parameters.items():
-    setattr(p, key, val)
-
-m=Magus(p)
+m=Magus(parameters)
 m.run()

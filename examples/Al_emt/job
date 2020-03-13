@@ -4,4 +4,4 @@
 #BSUB -o out
 #BSUB -q e5v3ib
 
-python -m magus.test --debug
+python -m magus.search --debug

@@ -20,7 +20,7 @@ def var_fitness(Pop):
     enth = [ind.atoms.info['enthalpy']*len(ind.atoms) for ind in pop]
     refs = zip(name, enth)
     pd = PhaseDiagram(refs, verbose=False)
-    for ind in pop:
+    for ind in Pop.pop:
         refE = pd.decompose(ind.atoms.get_chemical_formula())[0]
         ehull = ind.atoms.info['enthalpy'] - refE/len(ind.atoms)
         ind.atoms.info['ehull'] = ehull #if ehull > 1e-6 else 0

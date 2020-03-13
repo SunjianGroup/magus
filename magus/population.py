@@ -24,7 +24,7 @@ class Population:
     """
     a class of atoms population
     """
-    def __init__(self,parameters,allPop):
+    def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['resultsDir','calcType']
         Default={}
@@ -91,7 +91,7 @@ class Population:
             os.mkdir(savedir)
         pop = []
         for ind in self.pop:
-            atoms = ind.atoms.copy()
+            atoms = ind.to_save()
             pop.append(atoms)
         ase.io.write("{}/{}{}.traj".format(savedir,filename,gen),pop,format='traj')
         logging.debug("save {}{}.traj".format(filename,gen))
@@ -145,9 +145,6 @@ class Population:
         logging.info("check survival: {}".format(len(checkpop)))
         self.pop = checkpop
 
-    def symmetrize_pop(self):
-        pass
-
     def clustering(self, numClusters):
         """
         clustering by fingerprints
@@ -173,6 +170,10 @@ class Population:
         volRatios = [ind.get_volRatio() for ind in self.pop]
         return np.mean(volRatios)
 
+    def add_symmetry(self):
+        for ind in self.pop:
+            ind.add_symmetry()
+
     def select(self,n):
         self.calc_dominators()
         if len(self) > n:
@@ -189,8 +190,10 @@ class Individual:
         self.p = EmptyClass()
         Requirement=['formula','symbols','minAt','maxAt']
         Default={'repairtryNum':10,'is_mol':False,'chkMol':False,
-            'minLattice':None,'maxLattice':None,'dRatio':0.7}
+            'minLattice':None,'maxLattice':None,'dRatio':0.7,'addSym':False}
         checkParameters(self.p,parameters,Requirement,Default)
+        if self.p.addSym:
+            checkParameters(self.p,parameters,[],{'symprec':0.01})
 
         #TODO add more comparators
         from .comparator import FingerprintComparator
@@ -226,14 +229,11 @@ class Individual:
         newind.info = copy.deepcopy(self.info)
         return newind
 
-    def save(self, filename):
-        if self.atoms:
-            atoms = self.atoms.copy()
-            atoms.set_calculator(None)
-            atoms.info = self.info
-            ase.io.write(filename,atoms)
-        else:
-            logging.debug('None')
+    def to_save(self):
+        atoms = self.atoms.copy()
+        atoms.set_calculator(None)
+        atoms.info = self.info
+        return atoms
 
     @property
     def fingerprint(self):
@@ -241,6 +241,23 @@ class Individual:
             Efps = self.cf.get_all_fingerprints(self.atoms)[0]
             self.info['fingerprint'] = np.mean(Efps,axis=0)
         return self.info['fingerprint']
+
+    def add_symmetry(self):
+        atoms = self.atoms
+        symprec = self.p.symprec
+        stdCell = spglib.standardize_cell(atoms, symprec=symprec)
+        priCell = spglib.find_primitive(atoms, symprec=symprec)
+        if stdCell and len(stdCell[1])==len(atoms):
+            lattice, pos, numbers = stdCell
+            symAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
+            symAts.info = atoms.info.copy()
+        elif priCell and len(priCell[1])==len(atoms):
+            lattice, pos, numbers = priCell
+            symAts = Atoms(cell=lattice, scaled_positions=pos, numbers=numbers, pbc=True)
+            symAts.info = atoms.info.copy()
+        else:
+            symAts = atoms
+        self.atoms = symAts
 
     def get_ball_volume(self):
         ballVol = 0

@@ -372,9 +372,9 @@ class VaspCalculator(ABinitCalculator):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
         Default = {'xc':'PBE'}
-        checkParameters(self,parameters,Requirement,Default)
-        if not hasattr(parameters, 'ppLabel'):
-            self.p.ppLabel = ['' for _ in parameters.symbols]
+        checkParameters(self.p,parameters,Requirement,Default)
+        self.p.ppLabel = parameters.ppLabel if hasattr(parameters,'ppLabel') \
+            else['' for _ in parameters.symbols]
         self.p.setup = dict(zip(self.p.symbols, self.p.ppLabel))
 
     def scf_serial(self,calcPop):

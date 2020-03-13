@@ -463,6 +463,9 @@ class PopGenerator:
         assert len(Pop) >= saveGood, \
             "saveGood should be shorter than length of curPop!"
         Pop.calc_dominators()
+        #TODO move addsym to ind
+        if Pop[0].p.addSym:
+            Pop.add_symmetry()
         newPop = Pop([],'initpop',Pop.gen+1) 
         for op,num in zip(self.oplist,self.numlist):
             logging.debug('name:{} num:{}'.format(op.descriptor,num))
