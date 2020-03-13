@@ -1,48 +1,52 @@
-mode: serial
 calcType: fix
-calculator: gulp
-setAlgo: BOEA
-#xc: PBE
+pressure: 100
 initSize: 40
 popSize: 40
 numGen: 60
+saveGood: 2
+
+#structure parameters
 minAt: 28
 maxAt: 28
-symbols: ['Mg', 'Al', 'O']
-#ppLabel: ['', '']
+symbols: ['Mg','Al','O']
 formula: [4,8,16]
-## mol crystal
-#spacegroup: [1-40]
-#molScaleCell: True
-#maxRelaxTime: 300
-#maxRelaxStep: 0.5
-#mainoptimizer: 'fire'
-
-
 fullEles: True
 eleSize: 0
+
 dRatio: 0.5
-volRatio: 2
-randFrac: 0.4
-saveGood: 2
-pressure: 100
-addSym: True
-#exeCmd: "mpiexec.hydra cp2k_shell.popt"
-#exeCmd: "cp2k_shell.psmp"
-exeCmd: gulp < input > output
-#fastcp2k: False
-calcNum: 4
-#epsArr: [0.1, 0.1, 0.1, 0.1]
-#stepArr: [300, 300, 300, 300]
-numParallel: 2
-numCore: 1
-queueName: e52692v2ib!
-waitTime: 150
-molDetector: 0
-#fixCell: True
-#setCellPar: [15, 10, 15, 90.0, 90.0, 90]
+volRatio: 3
+addSym: False
 
-### Bayesian
-kappa: 1
-ZernikeDiag: True
 
+#main calculator settings
+maincalculator:
+ calculator: gulp
+ mode: parallel
+ calcNum: 4
+ #ase settings
+ #epsArr: [0.5]
+ #stepArr: [30]
+ maxRelaxStep: 0.5
+ #mainoptimizer: fire
+ 
+ #vasp settings
+ #xc: PBE
+ #ppLabel: ['']
+ 
+ #gulp settings
+ exeCmd: gulp < input > output
+ #parallel settings
+ numParallel: 8
+ numCore: 4
+ #queueName: e52692v2ib!
+ queueName: e5v3ib
+ waitTime: 60
+
+
+##ML
+MLpath: MLfold
+mloptimizer: fire
+mlrelaxNum: 1
+mlepsArr: [0.5]
+mlstepArr: [50]
+mlmaxRelaxStep: 0.5

@@ -34,11 +34,8 @@ class Mutation(OffspringCreator):
             newind = self.mutate(ind)
             if newind is None:
                 continue
-            ase.io.write('newind.cif',newind.atoms)
-            ase.io.write('ind.cif',ind.atoms)
             newind.parents = [ind]
             newind.merge_atoms()
-            ase.io.write('mergeind.cif',newind.atoms)
             if newind.repair_atoms():
                 break                
         else:
@@ -356,8 +353,6 @@ class CutAndSplicePairing(Crossover):
         cut two cells to get a new cell
         """
         atoms1,atoms2,ratio1,ratio2 = match_lattice(ind1.atoms,ind2.atoms)
-        ase.io.write('atoms1.cif',atoms1)
-        ase.io.write('atoms2.cif',atoms2)
         cutCell = (atoms1.get_cell()+atoms2.get_cell())*0.5
         cutCell[2] = (atoms1.get_cell()[2]/ratio1+atoms2.get_cell()[2]/ratio2)*0.5
         cutVol = (atoms1.get_volume()/ratio1+atoms2.get_volume()/ratio2)*0.5

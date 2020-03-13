@@ -8,7 +8,7 @@ import yaml
 import logging
 from functools import reduce
 import numpy as np
-
+import copy
 from .localopt import *
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
@@ -100,10 +100,9 @@ def get_pop_generator(parameters):
     return popgen
 
 def get_calculator(parameters):
-    p = EmptyClass()
+    p = copy.deepcopy(parameters)
     for key, val in parameters.maincalculator.items():
         setattr(p, key, val)
-    p.workDir = parameters.workDir
     checkParameters(p,p,['calculator'],{})
     if p.calculator == 'vasp':
         MainCalculator = VaspCalculator(p)

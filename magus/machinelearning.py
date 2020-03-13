@@ -92,14 +92,14 @@ class LRCalculator(Calculator):
 optimizers={'BFGS':BFGS,'FIRE':FIRE}
 class LRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
-        self.p = Emptyclass()
+        self.p = EmptyClass()
         
         Requirement = []
         Default = {'w_energy':30.0,'w_force':1.0,'w_stress':1.0,
             'mlDir': '{}/MLFold'.format(parameters.workDir)}
         checkParameters(self.p,parameters,Requirement,Default)
 
-        p = EmptyClass()
+        p = copy.deepcopy(parameters)
         for key, val in parameters.mlcalculator.items():
             setattr(p, key, val)
         p.workDir = parameters.workDir

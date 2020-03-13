@@ -40,18 +40,19 @@ class Population:
         return self.pop[i]
 
     def __call__(self,pop,name='temp',gen=None):
-        newpop = self.__new__(self.__class__)
-        newpop.p = self.p
+        newPop = self.__new__(self.__class__)
+        newPop.p = self.p
         pop = [self.Individual(ind) if ind.__class__.__name__ == 'Atoms' else ind for ind in pop]
-        newpop.Individual = self.Individual
-        newpop.fit_calcs = self.fit_calcs
-        newpop.pop = pop
-        logging.debug('generate:pop {} with {} ind'.format(name,len(pop)))
-        newpop.name = name
-        newpop.gen = gen
+        newPop.Individual = self.Individual
+        newPop.fit_calcs = self.fit_calcs
+        newPop.pop = pop
+        logging.debug('generate:Pop {} with {} ind'.format(name,len(pop)))
+        newPop.name = name
+        newPop.gen = gen
         for i,ind in enumerate(pop):
             ind.info['identity'] = [name, i]
-        return newpop
+            ind.Pop = self
+        return newPop
 
     def __len__(self):
         return len(self.pop)
@@ -190,8 +191,8 @@ class Individual:
         checkParameters(self.p,parameters,Requirement,Default)
 
         #TODO add more comparators
-        from ase.ga.standard_comparators import AtomsComparator
-        self.comparator = AtomsComparator()
+        from .comparator import FingerprintComparator
+        self.comparator = FingerprintComparator()
 
         #fingerprint
         self.cf = ZernikeFp(parameters)
@@ -215,7 +216,7 @@ class Individual:
             self.inputFormulas.append(s)
 
     def __eq__(self, obj):
-        return self.comparator.looks_like(self.atoms,obj.atoms)
+        return self.comparator.looks_like(self,obj)
 
     def copy(self):
         atoms = self.atoms.copy()
@@ -515,6 +516,8 @@ class VarInd(Individual):
         return targetFrml
 
     def check_full(self,atoms=None):
+        return True
+        """
         if atoms is None:
             a = self.atoms.copy()
         else:
@@ -522,6 +525,7 @@ class VarInd(Individual):
         symbols = a.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.p.symbols]
         return not self.p.fullEles or 0 not in formula 
+        """
 
     def check(self, atoms=None):
         if atoms is None:

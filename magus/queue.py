@@ -42,7 +42,7 @@ class JobManager:
             else:
                 job['state'] = 'ERROR'
         return True
-
+    #TODO kill job after max waittime
     def WaitJobsDone(self,waitTime):
         while not self.checkjobs():
             time.sleep(waitTime)

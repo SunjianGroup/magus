@@ -278,7 +278,7 @@ class ASEGULPCalculator(ASECalculator):
 class ABinitCalculator(Calculator):
     def __init__(self,parameters,prefix):
         super().__init__(parameters)
-        Requirement = ['mode']
+        Requirement = ['mode','calcNum']
         Default = {}
         checkParameters(self.p,parameters,Requirement,Default)
         if self.p.mode == 'serial':
@@ -435,7 +435,7 @@ class GULPCalculator(ABinitCalculator):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
         Default = {'exeCmd':''}
-        checkParameters(self,parameters,Requirement,Default)
+        checkParameters(self.p,parameters,Requirement,Default)
 
     def scf_serial(self,calcPop):
         self.cdcalcFold()
@@ -584,9 +584,10 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
 
         optInd = crystal(symbols=calcInd, cellpar=cellpar)
         optInd.set_scaled_positions(pos)
-
         optInd.info = calcInd.info.copy()
 
+        relaxsteps = os.popen("grep Cycle output | tail -1 | awk '{print $2}'").readlines()[0]
+        logging.debug('gulp relax steps:{}'.format(relaxsteps))
         enthalpy = os.popen("grep Energy output | tail -1 | awk '{print $4}'").readlines()[0]
         enthalpy = float(enthalpy)
         volume = optInd.get_volume()

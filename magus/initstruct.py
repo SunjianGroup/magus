@@ -192,7 +192,7 @@ class VarGenerator(Generator):
                 for i in range(self.p.eleSize):
                     for j in range(self.p.maxtryNum):
                         numAt = np.random.randint(self.p.minAt, self.p.maxAt+1)
-                        numlist = np.zeros(len(self.p.symbols))
+                        numlist = [0]*len(self.p.symbols)
                         numlist[n] = numAt
                         spg = np.random.choice(self.p.spgs)
 
