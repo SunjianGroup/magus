@@ -1,11 +1,11 @@
 import numpy as np
-import os
+import os,re,itertools
 from scipy.spatial.distance import cdist, pdist
-import itertools
 import ase.io
 from ase.data import covalent_radii,atomic_numbers
 from ase.neighborlist import neighbor_list
 from ase.atom import Atom
+import spglib
 from .utils import *
 import logging
 from sklearn import cluster
@@ -35,11 +35,11 @@ class Population:
     def __iter__(self):
         for i in self.pop:
             yield i
-            
+
     def __getitem__(self,i):
         return self.pop[i]
 
-    def __call__(self,pop,name='temp',gen=None):   
+    def __call__(self,pop,name='temp',gen=None):
         newPop = self.__new__(self.__class__)
         if hasattr(self,'allPop'):
             newPop.allPop = self.allPop
@@ -74,7 +74,7 @@ class Population:
         else:
             self.pop.append(ind)
             return True
-    
+
     def extend(self,pop):
         for ind in pop:
             self.append(ind)
@@ -170,6 +170,10 @@ class Population:
         volRatios = [ind.get_volRatio() for ind in self.pop]
         return np.mean(volRatios)
 
+    def find_spg(self):
+        for ind in self.pop:
+            ind.find_spg()
+
     def add_symmetry(self):
         for ind in self.pop:
             ind.add_symmetry()
@@ -178,26 +182,27 @@ class Population:
         self.calc_dominators()
         if len(self) > n:
             self.pop = sorted(self.pop, key=lambda x:x.info['dominators'])[:n]
-    
+
     def bestind(self):
         self.calc_dominators()
         dominators = np.array([ind.info['dominators'] for ind in self.pop])
         best_i = np.where(dominators == np.min(dominators))[0]
         return [self.pop[i] for i in best_i]
-        
+
 class Individual:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['formula','symbols','minAt','maxAt']
+        Requirement=['formula','symbols','minAt','maxAt','symprec']
         Default={'repairtryNum':10,'is_mol':False,'chkMol':False,
             'minLattice':None,'maxLattice':None,'dRatio':0.7,'addSym':False}
         checkParameters(self.p,parameters,Requirement,Default)
-        if self.p.addSym:
-            checkParameters(self.p,parameters,[],{'symprec':0.01})
+        # if self.p.addSym:
+        #     checkParameters(self.p,parameters,[],{'symprec':0.01})
 
         #TODO add more comparators
-        from .comparator import FingerprintComparator
-        self.comparator = FingerprintComparator()
+        from .comparator import FingerprintComparator, Comparator
+        #self.comparator = FingerprintComparator()
+        self.comparator = Comparator()
 
         #fingerprint
         self.cf = ZernikeFp(parameters)
@@ -232,7 +237,10 @@ class Individual:
     def to_save(self):
         atoms = self.atoms.copy()
         atoms.set_calculator(None)
-        atoms.info = self.info
+        # atoms.info = self.info
+        for key, val in self.info.items():
+            if key not in atoms.info:
+                atoms.info[key] = val
         return atoms
 
     @property
@@ -241,6 +249,27 @@ class Individual:
             Efps = self.cf.get_all_fingerprints(self.atoms)[0]
             self.info['fingerprint'] = np.mean(Efps,axis=0)
         return self.info['fingerprint']
+
+    def find_spg(self):
+        atoms = self.atoms
+        symprec = self.p.symprec
+        spg = spglib.get_spacegroup(atoms, symprec)
+        pattern = re.compile(r'\(.*\)')
+        try:
+            spg = pattern.search(spg).group()
+            spg = int(spg[1:-1])
+        except:
+            spg = 1
+        atoms.info['spg'] = spg
+        priCell = spglib.find_primitive(atoms, symprec=symprec)
+        if priCell:
+            lattice, pos, numbers = priCell
+            atoms.info['priNum'] = numbers
+            atoms.info['priVol'] = abs(np.linalg.det(lattice))
+        else:
+            atoms.info['priNum'] = atoms.get_atomic_numbers()
+            atoms.info['priVol'] = atoms.get_volume()
+        self.atoms = atoms
 
     def add_symmetry(self):
         atoms = self.atoms
@@ -269,7 +298,7 @@ class Individual:
     def get_volRatio(self):
         self.volRatio = self.atoms.get_volume()/self.get_ball_volume()
         return self.volRatio
-        
+
     def check_cellpar(self,atoms=None):
         """
         check if cellpar reasonable
@@ -291,6 +320,7 @@ class Individual:
         angles = np.arccos(np.sqrt(X-cos_**2)/sin_)/np.pi*180
 
         return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
+        # return (minLen < cellPar).all() and (cellPar < maxLen).all()
 
     def check_distance(self,atoms=None):
         """
@@ -303,7 +333,7 @@ class Individual:
         else:
             a = atoms.copy()
 
-        threshold = self.p.dRatio  
+        threshold = self.p.dRatio
         cell = a.get_cell()
         nums = a.get_atomic_numbers()
         unique_types = sorted(list(set(nums)))
@@ -342,7 +372,7 @@ class Individual:
             a = self.atoms.copy()
         else:
             a = atoms.copy()
-        check_cellpar = self.check_cellpar(a) 
+        check_cellpar = self.check_cellpar(a)
         check_distance = self.check_distance(a)
         check_mol = self.check_mol(a) if self.p.chkMol else True
         return check_cellpar and check_distance and check_mol
@@ -447,7 +477,7 @@ class FixInd(Individual):
     def __call__(self,atoms):
         newind = self.__new__(self.__class__)
         newind.p = self.p
-        
+
         newind.comparator = self.comparator
         newind.cf = self.cf
         newind.inputMols = self.inputMols
@@ -496,7 +526,7 @@ class VarInd(Individual):
     def __call__(self,atoms):
         newind = self.__new__(self.__class__)
         newind.p = self.p
-        
+
         newind.rank = self.rank
         newind.invF = self.invF
         newind.comparator = self.comparator
@@ -521,7 +551,7 @@ class VarInd(Individual):
         formula = [symbols.count(s) for s in self.p.symbols]
         rank = np.linalg.matrix_rank(np.concatenate((self.p.formula, [formula])))
         return rank == self.rank
-    
+
     def get_targetFrml(self):
         symbols = self.atoms.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.p.symbols]
@@ -543,7 +573,7 @@ class VarInd(Individual):
             a = atoms.copy()
         symbols = a.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.p.symbols]
-        return not self.p.fullEles or 0 not in formula 
+        return not self.p.fullEles or 0 not in formula
         """
 
     def check(self, atoms=None):

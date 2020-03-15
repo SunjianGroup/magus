@@ -18,25 +18,25 @@ Population:Population(pop) --> Pop
 #TODO build mol struct
 class Magus:
     def __init__(self,parameters):
-        self.parameters = parameters 
+        self.parameters = parameters
         self.Generator = get_atoms_generator(parameters)
         self.Algo = get_pop_generator(parameters)
         self.MainCalculator = get_calculator(parameters)
         self.Population = get_population(parameters)
         if self.parameters.mlRelax:
             self.ML = LRmodel(parameters)
-        self.curgen = 0
+        self.curgen = 1
         self.bestlen = []
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
 
     def run(self):
         self.Initialize()
-        for gen in range(self.parameters.numGen):
+        for gen in range(self.parameters.numGen-1):
             self.Onestep()
-            if gen > 5 and self.bestlen[gen] == self.bestlen[gen-5]:
-                logging.info('converged')
-                break
+            #if gen > 5 and self.bestlen[gen] == self.bestlen[gen-5]:
+            #    logging.info('converged')
+            #    break
 
     def Initialize(self):
         if os.path.exists("results"):
@@ -51,9 +51,9 @@ class Magus:
         if not self.parameters.molMode:
             initpop = self.Generator.Generate_pop(self.parameters.initSize,initpop=True)
         else:
-            initpop = build_mol_struct(self.parameters.initSize, self.parameters.symbols, 
-                self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula, 
-                self.parameters.numFrml, self.parameters.spacegroup, 
+            initpop = build_mol_struct(self.parameters.initSize, self.parameters.symbols,
+                self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula,
+                self.parameters.numFrml, self.parameters.spacegroup,
                 fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
         initPop = self.Population(initpop,'initpop',self.curgen)
         logging.info("initPop length: {}".format(len(initPop)))
@@ -64,14 +64,14 @@ class Magus:
         seedPop.check()
         initPop.extend(seedPop)
 
-        initPop.save('init')
+        initPop.save()
 
         relaxpop = self.MainCalculator.relax(initPop.frames)
         relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-        relaxPop.check()
-
-        relaxPop.del_duplicate()
+        # save raw pop before check and del_duplicates
         relaxPop.save('raw')
+        relaxPop.check()
+        relaxPop.del_duplicate()
 
         if self.parameters.mlRelax:
             self.ML.updatedataset(relaxPop.frames)
@@ -95,6 +95,9 @@ class Magus:
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
         self.bestPop.save('best',self.curgen)
 
+        # save relaxPop after relaxPop.bestind(), in which fitness is calculated
+        relaxPop.save('gen')
+
     def Onestep(self):
         curPop = self.curPop
         goodPop = self.goodPop
@@ -111,9 +114,9 @@ class Magus:
         if len(initPop) < self.parameters.popSize:
             logging.info("random structures:{}".format(self.parameters.popSize-len(initPop)))
             if self.parameters.molMode:
-                addpop = build_mol_struct(self.parameters.popSize-len(initPop), self.parameters.symbols, 
-                self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula, 
-                self.parameters.numFrml, self.parameters.spacegroup, 
+                addpop = build_mol_struct(self.parameters.popSize-len(initPop), self.parameters.symbols,
+                self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula,
+                self.parameters.numFrml, self.parameters.spacegroup,
                 fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
             else:
                 addpop = self.Generator.Generate_pop(self.parameters.popSize-len(initPop))
@@ -155,6 +158,8 @@ class Magus:
         # save raw date before checking
         relaxPop.save('raw')
         relaxPop.check()
+        # find spg before delete duplicate
+        relaxPop.find_spg()
         relaxPop.del_duplicate()
         self.allPop.extend(relaxPop)
 
@@ -182,7 +187,7 @@ class Magus:
         _, keeppop = goodPop.clustering(self.parameters.saveGood)
         keepPop = self.Population(keeppop,'keeppop',self.curgen)
         keepPop.save('keep')
-        
+
         curPop = relaxPop + keepPop
         curPop.del_duplicate()
         curPop.save('gen')

@@ -37,10 +37,16 @@ class Mutation(OffspringCreator):
             newind.parents = [ind]
             newind.merge_atoms()
             if newind.repair_atoms():
-                break                
+                break
         else:
             logging.debug('fail {} in {}'.format(self.descriptor,ind.info['identity']))
             return None
+
+        # remove some parent infomation
+        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum']
+        for k in rmkeys:
+            if k in newind.atoms.info.keys():
+                del newind.atoms.info[k]
 
         newind.info['parents'] = [ind.info['identity']]
         newind.info['pardom'] = ind.info['dominators']
@@ -64,13 +70,20 @@ class Crossover(OffspringCreator):
             newind.parents = [f,m]
             newind.merge_atoms()
             if newind.repair_atoms():
-                break                
+                break
         else:
             logging.debug('fail {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
             return None
 
+        # remove some parent infomation
+        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum']
+        for k in rmkeys:
+            if k in newind.atoms.info.keys():
+                del newind.atoms.info[k]
+
         newind.info['parents'] = [f.info['identity'],m.info['identity']]
         newind.info['pardom'] = 0.5*(f.info['dominators']+m.info['dominators'])
+
         return newind
 class SoftMutation(Mutation):
     """
@@ -96,7 +109,7 @@ class SoftMutation(Mutation):
             If the largest displacement in the resulting structure
             is lower than the provided lower bound, the mutant is
             considered too similar to the parent and None is
-            returned.   
+            returned.
     """
 
     def __init__(self, calculator, bounds=[0.5, 2.0],tryNum=10):
@@ -197,7 +210,7 @@ class SoftMutation(Mutation):
 
 class PermMutation(Mutation):
     def __init__(self, fracSwaps=0.5,tryNum=10):
-        """        
+        """
         fracSwaps -- max ratio of atoms exchange
         """
         self.fracSwaps = fracSwaps
@@ -214,7 +227,7 @@ class PermMutation(Mutation):
         if maxSwaps == 0:
             maxSwaps = 1
         numSwaps = np.random.randint(1, maxSwaps)
-        
+
         symbols = atoms.get_chemical_symbols()
         symList = list(set(symbols))
         if len(symList)<2:
@@ -230,8 +243,8 @@ class PermMutation(Mutation):
             i = np.random.choice(s1list)
             j = np.random.choice(s2list)
             atoms[i].position,atoms[j].position = atoms[j].position,atoms[i].position
-            indices.remove(i)  
-            indices.remove(j)             
+            indices.remove(i)
+            indices.remove(j)
         return ind(atoms)
 
 class LatticeMutation(Mutation):
@@ -412,7 +425,7 @@ class ReplaceBallPairing(Crossover):
         for index,atom in enumerate(atoms1):
             if index not in indices:
                 newatoms.append(atom)
-    
+
         nl = NeighborList(cutoffs=[cutR/2]*len(atoms2), skin=0, self_interaction=True, bothways=True)
         nl.update(atoms2)
         indices, _ = nl.get_neighbors(j)
@@ -441,7 +454,7 @@ class PopGenerator:
             if len(subpop) < 2:
                 fail+=1
                 continue
-            
+
             dom = np.array([ind.info['dominators'] for ind in subpop])
             edom = np.e**(-k*dom)
             p = edom/np.sum(edom)
@@ -449,9 +462,9 @@ class PopGenerator:
             if pair in pairs:
                 fail+=1
                 continue
-            pairs.append(pair)     
+            pairs.append(pair)
         return pairs
-    
+
     def get_inds(self,Pop,mutateNum,k=0.3):
         dom = np.array([ind.info['dominators'] for ind in Pop.pop])
         edom = np.e**(-k*dom)
@@ -466,7 +479,7 @@ class PopGenerator:
         #TODO move addsym to ind
         if Pop[0].p.addSym:
             Pop.add_symmetry()
-        newPop = Pop([],'initpop',Pop.gen+1) 
+        newPop = Pop([],'initpop',Pop.gen+1)
         for op,num in zip(self.oplist,self.numlist):
             logging.debug('name:{} num:{}'.format(op.descriptor,num))
             if op.optype == 'Mutation':
@@ -481,6 +494,8 @@ class PopGenerator:
                     newind = op.get_new_individual(parents)
                     if newind:
                         newPop.append(newind)
+            logging.debug("popsize after {}: {}".format(op.descriptor, len(newPop)))
+
         newPop.check()
         return newPop
 
@@ -508,7 +523,7 @@ if __name__ == '__main__':
     from .utils import EmptyClass
     from ase.calculators.emt import EMT
     from ase.calculators.lj import LennardJones
-    import ase.io 
+    import ase.io
     import numpy as np
     import argparse
 
@@ -528,7 +543,7 @@ if __name__ == '__main__':
     traj = ase.io.read('good.traj',':')
     for ind in traj:
         pop_.append(Individual(ind,p))
-    
+
     pop = Population(pop_,p)
 
     calc = LennardJones()

@@ -34,7 +34,22 @@ def read_parameters(inputFile):
         setattr(p, key, val)
 
     Requirement = ['calcType','maincalculator','popSize','numGen','saveGood']
-    Default = {'spacegroup':list(range(1, 231)),'initSize':p.popSize,'molMode':False,'mlRelax':False}
+    Default = {
+        'spacegroup':list(range(1, 231)),
+        'initSize':p.popSize,
+        'molMode':False,
+        'mlRelax':False,
+        'symprec': 0.1,
+        'bondRatio': 1.15,
+        'eleSize': 1,
+        'fullEles': False,
+        'setAlgo': 'ea',
+        'volRatio': 2,
+        'dRatio': 0.7,
+        'molDetector': 0,
+        'fixCell': False,
+        'tourRatio': 0.1,
+    }
     checkParameters(p,p,Requirement,Default)
 
     p.initSize = p.popSize
@@ -50,7 +65,7 @@ def read_parameters(inputFile):
             assert 1 <= s1 < s2 <= 230, 'Please check the format of spacegroup'
             expandSpg.extend(list(range(s1, s2+1)))
     p.spgs = expandSpg
-    
+
     if p.molMode:
         assert hasattr(p,'molFile'), 'Please define molFile'
         assert hasattr(p,'molFormula'), 'Please define molFormula'
@@ -68,8 +83,8 @@ def read_parameters(inputFile):
         minFrml = int(np.ceil(p.minAt/sum(p.formula)))
         maxFrml = int(p.maxAt/sum(p.formula))
         p.numFrml = list(range(minFrml, maxFrml + 1))
-        p.fixCell = False
-        p.setCellPar = [1,1,1,90,90,90]
+        # p.fixCell = False
+        # p.setCellPar = [1,1,1,90,90,90]
     return p
 
 def get_atoms_generator(parameters):
@@ -95,7 +110,7 @@ def get_pop_generator(parameters):
     checkParameters(parameters,parameters,Requirement,Default)
     numlist = [parameters.cutNum,parameters.permNum,parameters.latNum,parameters.ripNum,parameters.slipNum]
     oplist = [cutandsplice,perm,lattice,ripple,slip]
-    
+
     popgen = PopGenerator(numlist,oplist,parameters)
     return popgen
 
