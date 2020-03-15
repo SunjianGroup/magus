@@ -3,13 +3,16 @@ Base module for all operators that create offspring.
 steal from ase.ga
 """
 import numpy as np
-from ase import Atoms
-from .renew import match_lattice
-from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 import logging
-from .population import Population
+from ase import Atoms
+from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
+from ase.neighborlist import NeighborList
 from ase.data import covalent_radii
-
+from .population import Population
+from .renew import match_lattice
+from .molecule import Molfilter
+import ase.io
+from .utils import *
 class OffspringCreator:
     def __init__(self,tryNum=10):
         self.tryNum = tryNum
@@ -34,13 +37,19 @@ class Mutation(OffspringCreator):
             newind.parents = [ind]
             newind.merge_atoms()
             if newind.repair_atoms():
-                break                
+                break
         else:
             logging.debug('fail {} in {}'.format(self.descriptor,ind.info['identity']))
             return None
 
+        # remove some parent infomation
+        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum']
+        for k in rmkeys:
+            if k in newind.atoms.info.keys():
+                del newind.atoms.info[k]
+
         newind.info['parents'] = [ind.info['identity']]
-        newind.info['parfitness'] = ind.fitness
+        newind.info['pardom'] = ind.info['dominators']
 
         return newind
 
@@ -61,13 +70,20 @@ class Crossover(OffspringCreator):
             newind.parents = [f,m]
             newind.merge_atoms()
             if newind.repair_atoms():
-                break                
+                break
         else:
             logging.debug('fail {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
             return None
 
+        # remove some parent infomation
+        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum']
+        for k in rmkeys:
+            if k in newind.atoms.info.keys():
+                del newind.atoms.info[k]
+
         newind.info['parents'] = [f.info['identity'],m.info['identity']]
-        newind.info['parfitness'] = 0.5*(f.info['fitness']+m.info['fitness'])
+        newind.info['pardom'] = 0.5*(f.info['dominators']+m.info['dominators'])
+
         return newind
 class SoftMutation(Mutation):
     """
@@ -93,7 +109,7 @@ class SoftMutation(Mutation):
             If the largest displacement in the resulting structure
             is lower than the provided lower bound, the mutant is
             considered too similar to the parent and None is
-            returned.   
+            returned.
     """
 
     def __init__(self, calculator, bounds=[0.5, 2.0],tryNum=10):
@@ -190,11 +206,11 @@ class SoftMutation(Mutation):
         if amplitude * largest_norm < self.bounds[0]:
             return None
 
-        return ind.new(mutant)
+        return ind(mutant)
 
 class PermMutation(Mutation):
     def __init__(self, fracSwaps=0.5,tryNum=10):
-        """        
+        """
         fracSwaps -- max ratio of atoms exchange
         """
         self.fracSwaps = fracSwaps
@@ -203,12 +219,15 @@ class PermMutation(Mutation):
     def mutate(self, ind):
         fracSwaps = self.fracSwaps
         atoms = ind.atoms.copy()
-        
+
+        if ind.p.is_mol:
+            atoms = Molfilter(atoms)
+
         maxSwaps = int(fracSwaps*len(atoms))
         if maxSwaps == 0:
             maxSwaps = 1
         numSwaps = np.random.randint(1, maxSwaps)
-        
+
         symbols = atoms.get_chemical_symbols()
         symList = list(set(symbols))
         if len(symList)<2:
@@ -216,19 +235,20 @@ class PermMutation(Mutation):
 
         indices = list(range(len(atoms)))
         for _ in range(numSwaps):
-            if len(indices) < 2:
+            s1, s2 = np.random.choice(symList, 2, replace = False)
+            s1list = [index for index in indices if atoms[index].symbol==s1]
+            s2list = [index for index in indices if atoms[index].symbol==s2]
+            if len(s1list)==0 or len(s2list)==0:
                 break
-            s1, s2 = np.random.choice(symList, 2)
-            i = np.random.choice([index for index in indices if atoms[index].symbol==s1])
-            j = np.random.choice([index for index in indices if atoms[index].symbol==s2])
-            atoms[i].symbol,atoms[j].symbol = s2,s1 
-            indices.remove(i)  
-            indices.remove(j)             
-
-        return ind.new(atoms)
+            i = np.random.choice(s1list)
+            j = np.random.choice(s2list)
+            atoms[i].position,atoms[j].position = atoms[j].position,atoms[i].position
+            indices.remove(i)
+            indices.remove(j)
+        return ind(atoms)
 
 class LatticeMutation(Mutation):
-    def __init__(self, sigma=0.5, cellCut=1,tryNum=10):
+    def __init__(self, sigma=0.05, cellCut=1,tryNum=10):
         """
         sigma: Gauss distribution standard deviation
         cellCut: coefficient of gauss distribution in cell mutation
@@ -253,17 +273,21 @@ class LatticeMutation(Mutation):
         ratio = atoms.get_volume()/np.abs(np.linalg.det(newCell))
         cellPar = cell_to_cellpar(newCell)
         cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
+
+        if ind.p.is_mol:
+            atoms = Molfilter(atoms)
+
         atoms.set_cell(cellPar, scale_atoms=True)
+        positions = atoms.get_positions()
+        atGauss = np.random.normal(0,sigma,[len(atoms),3])/sigma
+        radius = covalent_radii[atoms.get_atomic_numbers()][:,np.newaxis]
+        positions += atGauss * radius
+        atoms.set_positions(positions)
 
-        atoms.positions += np.random.normal(0,sigma,[len(atoms),3])/sigma\
-            *covalent_radii[atoms.get_atomic_numbers()][:,np.newaxis]
+        return ind(atoms)
 
-        atoms.wrap()
-
-        return ind.new(atoms)
 
 class SlipMutation(Mutation):
-    #TODO sha wan yi?
     def __init__(self, cut=0.5, randRange=[0.5, 2],tryNum=10):
         self.cut = cut
         self.randRange = randRange
@@ -275,18 +299,23 @@ class SlipMutation(Mutation):
         '''
         cut = self.cut
         atoms = ind.atoms.copy()
-        pos = atoms.get_scaled_positions()
+
+        if ind.p.is_mol:
+            atoms = Molfilter(atoms)
+
+
+        scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
         np.random.shuffle(axis)
 
-        z = np.where(pos[:,axis[0]] > cut)
-        pos[z,axis[1]] += np.random.uniform(*self.randRange)
-        pos[z,axis[2]] += np.random.uniform(*self.randRange)
-        atoms.set_scaled_positions(pos)
-        return ind.new(atoms)
+        z = np.where(scl_pos[:,axis[0]] > cut)
+        scl_pos[z,axis[1]] += np.random.uniform(*self.randRange)
+        scl_pos[z,axis[2]] += np.random.uniform(*self.randRange)
+        atoms.set_scaled_positions(scl_pos)
+
+        return ind(atoms)
 
 class RippleMutation(Mutation):
-    #TODO sha wan yi?
     def __init__(self, rho=0.3, mu=2, eta=1,tryNum=10):
         self.rho = rho
         self.mu = mu
@@ -298,16 +327,23 @@ class RippleMutation(Mutation):
         from XtalOpt
         '''
         atoms = ind.atoms.copy()
-        pos = atoms.get_scaled_positions()
+
+        if ind.p.is_mol:
+            atoms = Molfilter(atoms)
+
+        scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
         np.random.shuffle(axis)
 
-        pos[:, axis[0]] += self.rho*\
-            np.cos(2*np.pi*self.mu*pos[:,axis[1]] + np.random.uniform(0,2*np.pi,len(atoms)))*\
-            np.cos(2*np.pi*self.eta*pos[:,axis[2]] + np.random.uniform(0,2*np.pi,len(atoms)))
+        scl_pos[:, axis[0]] += self.rho*\
+            np.cos(2*np.pi*self.mu*scl_pos[:,axis[1]] + np.random.uniform(0,2*np.pi,len(atoms)))*\
+            np.cos(2*np.pi*self.eta*scl_pos[:,axis[2]] + np.random.uniform(0,2*np.pi,len(atoms)))
 
-        atoms.set_scaled_positions(pos)
-        return ind.new(atoms)
+        atoms.set_scaled_positions(scl_pos)
+
+        return ind(atoms)
+
+
 class CutAndSplicePairing(Crossover):
     """ A cut and splice operator for bulk structures.
 
@@ -330,8 +366,6 @@ class CutAndSplicePairing(Crossover):
         cut two cells to get a new cell
         """
         atoms1,atoms2,ratio1,ratio2 = match_lattice(ind1.atoms,ind2.atoms)
-        ase.io.write('atoms1.cif',atoms1)
-        ase.io.write('atoms2.cif',atoms2)
         cutCell = (atoms1.get_cell()+atoms2.get_cell())*0.5
         cutCell[2] = (atoms1.get_cell()[2]/ratio1+atoms2.get_cell()[2]/ratio2)*0.5
         cutVol = (atoms1.get_volume()/ratio1+atoms2.get_volume()/ratio2)*0.5
@@ -341,90 +375,145 @@ class CutAndSplicePairing(Crossover):
             cutCellPar[:3] = [length*ratio**(1/3) for length in cutCellPar[:3]]
 
         cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
-        scaled_positions = []
-        cutPos = 0.5+self.cutDisp*np.random.uniform(-0.5, 0.5)
-        for atom in atoms1:
-            if 0 <= atom.c < cutPos/ratio1:
-                cutAtoms.append(atom)
-                scaled_positions.append([atom.a,atom.b,atom.c])
-        for atom in atoms2:
-            if 0 <= atom.c < (1-cutPos)/ratio2:
-                cutAtoms.append(atom)
-                scaled_positions.append([atom.a,atom.b,atom.c+cutPos/ratio1])
 
+        if ind1.p.is_mol:
+            atoms1 = Molfilter(atoms1)
+            atoms2 = Molfilter(atoms2)
+            cutAtoms =  Molfilter(cutAtoms)
+
+
+        scaled_positions = []
+        cutPos = [0, 0.5+self.cutDisp*np.random.uniform(-0.5, 0.5), 1]
+
+        for n, atoms in enumerate([atoms1, atoms2]):
+            spositions = atoms.get_scaled_positions()
+            for i,atom in enumerate(atoms):
+                if cutPos[n] <= spositions[i, 2] < cutPos[n+1]:
+                    cutAtoms.append(atom)
+                    scaled_positions.append(spositions[i])
         cutAtoms.set_scaled_positions(scaled_positions)
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
-        cutInd = ind1.new(cutAtoms)
+
+        if ind1.p.is_mol:
+            cutAtoms =  cutAtoms.to_atoms()
+
+        cutInd = ind1(cutAtoms)
         cutInd.parents = [ind1 ,ind2]
         return cutInd
+
+class ReplaceBallPairing(Crossover):
+    """
+    TODO rotate the replace ball
+    how to rotate the ball to make energy lower
+    """
+    def __init__(self, cutrange=[1,2]):
+        self.cutrange = cutrange
+        super().__init__()
+
+    def cross(self, ind1, ind2):
+        """replace some atoms in a ball
+        """
+        cutR = np.random.uniform(*self.cutrange)
+        atoms1,atoms2 = ind1.atoms.copy(),ind2.atoms.copy()
+        i,j = np.random.randint(len(atoms1)),np.random.randint(len(atoms2))
+        newatoms = Atoms(pbc=atoms1.pbc, cell=atoms1.cell)
+
+        nl = NeighborList(cutoffs=[cutR/2]*len(atoms1), skin=0, self_interaction=True, bothways=True)
+        nl.update(atoms1)
+        indices, _ = nl.get_neighbors(i)
+        for index,atom in enumerate(atoms1):
+            if index not in indices:
+                newatoms.append(atom)
+
+        nl = NeighborList(cutoffs=[cutR/2]*len(atoms2), skin=0, self_interaction=True, bothways=True)
+        nl.update(atoms2)
+        indices, _ = nl.get_neighbors(j)
+        atoms2.positions += atoms1.positions[i]-atoms2.positions[j]
+        newatoms.extend(atoms2[indices])
+        cutInd = ind1(newatoms)
+        cutInd.parents = [ind1 ,ind2]
+        return newatoms
 
 class PopGenerator:
     def __init__(self,numlist,oplist,parameters):
         self.oplist = oplist
         self.numlist = numlist
-        self.parameters = parameters
+        self.p = EmptyClass()
+        Requirement = ['popSize','saveGood']
+        Default = {}
+        checkParameters(self.p,parameters,Requirement,Default)
 
-    def get_pairs(self, pop, crossNum ,clusterNum, tryNum=50):
+    def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
         pairs = []
-        labels = pop.clustering(clusterNum)
+        labels,_ = Pop.clustering(clusterNum)
         fail = 0
         while len(pairs) < crossNum and fail < tryNum:
             label = np.random.choice(np.unique(labels))
-            subpop = [ind for j,ind in enumerate(pop.pop) if labels[j] == label]
+            subpop = [ind for j,ind in enumerate(Pop.pop) if labels[j] == label]
             if len(subpop) < 2:
                 fail+=1
                 continue
-            fit = np.array([ind.fitness for ind in subpop])
-            p = fit/np.sum(fit)
+
+            dom = np.array([ind.info['dominators'] for ind in subpop])
+            edom = np.e**(-k*dom)
+            p = edom/np.sum(edom)
             pair = tuple(np.random.choice(subpop,2,False,p=p))
             if pair in pairs:
                 fail+=1
                 continue
-            pairs.append(pair)     
+            pairs.append(pair)
         return pairs
-    
-    def get_inds(self,pop,mutateNum):
-        fit = np.array([ind.fitness for ind in pop.pop])
-        p = fit/np.sum(fit)
-        return np.random.choice(pop.pop,mutateNum,False,p=p)
 
-    def generate(self,pop,saveGood):
-        assert len(pop) >= saveGood, \
+    def get_inds(self,Pop,mutateNum,k=0.3):
+        dom = np.array([ind.info['dominators'] for ind in Pop.pop])
+        edom = np.e**(-k*dom)
+        p = edom/np.sum(edom)
+        mutateNum = min(mutateNum,len(Pop))
+        return np.random.choice(Pop.pop,mutateNum,False,p=p)
+
+    def generate(self,Pop,saveGood):
+        assert len(Pop) >= saveGood, \
             "saveGood should be shorter than length of curPop!"
-
-        newpop = Population([],pop.parameters) 
+        Pop.calc_dominators()
+        #TODO move addsym to ind
+        if Pop[0].p.addSym:
+            Pop.add_symmetry()
+        newPop = Pop([],'initpop',Pop.gen+1)
         for op,num in zip(self.oplist,self.numlist):
+            logging.debug('name:{} num:{}'.format(op.descriptor,num))
             if op.optype == 'Mutation':
-                mutate_inds = self.get_inds(pop,num)
-                for ind in mutate_inds:
-                    logging.debug('name:{}'.format(op.descriptor))
+                mutate_inds = self.get_inds(Pop,num)
+                for i,ind in enumerate(mutate_inds):
                     newind = op.get_new_individual(ind)
                     if newind:
-                        newpop.append(newind)
+                        newPop.append(newind)
             elif op.optype == 'Crossover':
-                cross_pairs = self.get_pairs(pop,num,saveGood)
-                for parents in cross_pairs:
+                cross_pairs = self.get_pairs(Pop,num,saveGood)
+                for i,parents in enumerate(cross_pairs):
                     newind = op.get_new_individual(parents)
                     if newind:
-                        newpop.append(newind)
-        newpop.check()
-        return newpop
+                        newPop.append(newind)
+            logging.debug("popsize after {}: {}".format(op.descriptor, len(newPop)))
 
-    def select(self,pop,num):
-        if num < len(pop):
-            parfit = np.array([ind.info['parfitness'] for ind in pop.pop])
-            p = parfit/np.sum(parfit)
-            pop.pop = np.random.choice(pop.pop,num,False,p=p)
-            return pop
+        newPop.check()
+        return newPop
+
+    def select(self,Pop,num,k=0.3):
+        if num < len(Pop):
+            pardom = np.array([ind.info['pardom'] for ind in Pop.pop])
+            edom = np.e**(-k*pardom)
+            p = edom/np.sum(edom)
+            Pop.pop = np.random.choice(Pop.pop,num,False,p=p)
+            return Pop
         else:
-            return pop
+            return Pop
 
-    def next_pop(self,pop):
-        saveGood = self.parameters.saveGood
-        popSize = self.parameters.popSize
-        newpop = self.generate(pop,saveGood)
-        return self.select(newpop,popSize)
+    def next_Pop(self,Pop):
+        saveGood = self.p.saveGood
+        popSize = self.p.popSize
+        newPop = self.generate(Pop,saveGood)
+        return self.select(newPop,popSize)
 
 
 
@@ -434,7 +523,7 @@ if __name__ == '__main__':
     from .utils import EmptyClass
     from ase.calculators.emt import EMT
     from ase.calculators.lj import LennardJones
-    import ase.io 
+    import ase.io
     import numpy as np
     import argparse
 
@@ -454,7 +543,7 @@ if __name__ == '__main__':
     traj = ase.io.read('good.traj',':')
     for ind in traj:
         pop_.append(Individual(ind,p))
-    
+
     pop = Population(pop_,p)
 
     calc = LennardJones()

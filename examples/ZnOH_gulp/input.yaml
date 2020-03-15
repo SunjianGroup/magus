@@ -1,54 +1,54 @@
 calcType: var
-calculator: gulp
-setAlgo: EA
-xc: PBE
+pressure: 0
 initSize: 10
 popSize: 20
 numGen: 60
+saveGood: 3
+
+#structure parameters
 minAt: 8
 maxAt: 16
-symbols: ['Zn', 'O', 'H']
-#ppLabel: ['', '']
+symbols: ['Zn','O','H']
 formula: [[1,0,0],[0,1,1]]
-#formula: [[1,0,0],[0,1,0],[0,0,1]]
-## mol crystal
-#spacegroup: [1-40]
-#molScaleCell: True
-#maxRelaxTime: 300
-#maxRelaxStep: 0.5
-#optimizer: 'fire'
-
-
 fullEles: True
 eleSize: 5
+
 dRatio: 0.5
 volRatio: 10
-randFrac: 0.3
-saveGood: 3
-pressure: 0
+addSym: False
+
+
+#main calculator settings
+maincalculator:
+ calculator: gulp
+ mode: parallel
+ calcNum: 3
+ #ase settings
+ epsArr: [0.5]
+ stepArr: [30]
+ maxRelaxStep: 0.5
+ mainoptimizer: fire
+ 
+ #vasp settings
+ #xc: PBE
+ #ppLabel: ['']
+ 
+ #gulp settings
+ exeCmd: gulp < input > output
+ #parallel settings
+ numParallel: 5
+ numCore: 1
+ #queueName: e52692v2ib!
+ queueName: e5v3ib
+ waitTime: 60
+
+#offspring creator
 addSym: True
-#exeCmd: "mpiexec.hydra cp2k_shell.popt"
-#exeCmd: "cp2k_shell.psmp"
-exeCmd: gulp < input > output
-#fastcp2k: False
-calcNum: 3
-#epsArr: [2]
-#stepArr: [30]
-numParallel: 5
-numCore: 1
-queueName: e52692v2ib!
-waitTime: 60
-molDetector: 0
-#fixCell: True
-#setCellPar: [15, 10, 15, 90.0, 90.0, 90]
 
-### Bayesian
-kappa: 0
-kappaLoop: 1
-scale: 0.0005
-parent_factor: 1
-
-### BBO
-#grids: [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
-migrateFrac: 0.0
-mutateFrac: 0.6
+##ML
+MLpath: MLfold
+mloptimizer: fire
+mlrelaxNum: 1
+mlepsArr: [0.5]
+mlstepArr: [50]
+mlmaxRelaxStep: 0.5

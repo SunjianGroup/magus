@@ -11,13 +11,13 @@ from ase import Atoms
 import numpy as np
 
 
-savePri = 0
+savePri = 1
 saveStd = 0
 
 pd.options.display.max_rows = 200
 
 filename = sys.argv[1]
-symprec = 0.9
+symprec = 0.1
 # images = read_yaml(filename)
 images = ase.io.read(filename, format='traj', index=':')
 
@@ -25,16 +25,17 @@ names = locals()
 showList = [
 'symmetry',
 'enthalpy',
-#'ehull',
-'predictE',
+'ehull',
+#'predictE',
 'parentE',
 #'symbols',
-#'formula',
+'formula',
+#'dominators',
 #'gap',
 #'volume',
 #'Origin',
-'utilVal',
-'sigma',
+#'utilVal',
+#'sigma',
 #'relaxD',
 #'fullSym',
 #'lengths',
@@ -93,8 +94,8 @@ for i, at in enumerate(images):
     allRes.append(oneRes)
 
 table = pd.DataFrame(allRes, columns=showList)
-#print(table.sort_values('ehull', axis=0))
-print(table.sort_values('enthalpy', axis=0))
+print(table.sort_values('ehull', axis=0))
+#print(table.sort_values('enthalpy', axis=0))
 
     # outD = dict()
     # for feature in showList:

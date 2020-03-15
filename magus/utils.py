@@ -736,38 +736,6 @@ def symmetrize_pop(pop, symprec=1e-2):
     return [symmetrize_atoms(ats, symprec) for ats in pop]
 
 
-def lower_triangullar_cell(oriInd):
-    """
-    Convert the cell of origin structure to a triangular matrix.
-    """
-    cellPar = oriInd.get_cell_lengths_and_angles()
-    oriCell = oriInd.get_cell()
-    # oriPos =oriInd.get_scaled_positions()
-    triInd = oriInd.copy()
-
-    a, b, c, alpha, beta, gamma = cellPar
-    alpha *= pi/180.0
-    beta *= pi/180.0
-    gamma *= pi/180.0
-    va = a * np.array([1, 0, 0])
-    vb = b * np.array([cos(gamma), sin(gamma), 0])
-    cx = cos(beta)
-    cy = (cos(alpha) - cos(beta)*cos(gamma))/sin(gamma)
-    cz = sqrt(1. - cx*cx - cy*cy)
-    vc = c * np.array([cx, cy, cz])
-    triCell = np.vstack((va, vb, vc))
-
-#    T = np.linalg.solve(oriCell, triCell)
-#    triPos = dot(oriPos, T)
-
-    triInd.set_cell(triCell, scale_atoms=True)
-    # triInd.set_scaled_positions(oriPos)
-    triInd.info = oriInd.info.copy()
-
-    return triInd
-
-
-
 def lda_mol(centers, rltPos, cell, ratio, coefEps=1e-3, ratioEps=1e-3):
     """
     centers: centers of molecules
@@ -917,3 +885,16 @@ def clustering(inPop, numClusters, label=False):
         else:
             goodPop[label] = ind
     return labels, goodPop
+
+def checkParameters(instance,parameters,Requirement=[],Default={}):
+    name = instance.__class__.__name__
+    for key in Requirement:
+        if not hasattr(parameters, key):
+            raise Exception("Mei you '{}' wo suan ni ma {}?".format(key,name))
+        setattr(instance,key,getattr(parameters,key))
+
+    for key in Default.keys():
+        if not hasattr(parameters,key):
+            setattr(instance,key,Default[key])
+        else:
+            setattr(instance,key,getattr(parameters,key))

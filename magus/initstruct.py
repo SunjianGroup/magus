@@ -3,59 +3,39 @@ from . import GenerateNew
 from ase.data import atomic_numbers, covalent_radii
 from ase import Atoms
 from ase.spacegroup import Spacegroup
-from ase.geometry import cellpar_to_cell
+from ase.geometry import cellpar_to_cell,cell_to_cellpar
 from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
 from .utils import *
 
-class BaseGenerator:
-    def __init__(self,p):
-        self.p=p
-        Requirement=['symbols','formula','numFrml']
-        Default={'threshold':1.0,'maxAttempts':50,'method':2,'volRatio':1.5,'spgs':np.arange(1,231),'maxtryNum':20}
-        self.checkParameters(Requirement,Default)
-        self.radius = p.raidus if hasattr(p,'radius') else [covalent_radii[atomic_numbers[atom]] for atom in self.symbols]
-
-        formula = np.array(self.formula)
-        frmlDim = len(formula.shape)
-        if frmlDim == 1:
-            meanFrml = formula
-        elif frmlDim > 1:
-            meanFrml = np.mean(formula, axis=0)
-        self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*meanFrml)*self.volRatio/(meanFrml.sum())
-        # self.meanVolume = p.meanVolume if hasattr(p,'meanVolume') else 4*np.pi/3*np.sum(np.array(self.radius)**3*np.array(self.formula))*self.volRatio/sum(self.formula)
-        self.minVolume = p.minVolume if hasattr(p,'minVolume') else self.meanVolume*0.5
-        self.maxVolume = p.maxVolume if hasattr(p,'maxVolume') else self.meanVolume*1.5
-        """
-        self.minLen=p.minLen if hasattr(p,'minLen') else [2*np.max(self.radius)]*3
-        self.maxLen=p.maxLen if hasattr(p,'maxLen') else [(self.maxVolume*np.max(self.numFrml))**(1./3)]*3
-        """
+class Generator:
+    def __init__(self,parameters):
+        self.p = EmptyClass()
+        Requirement=['symbols','formula','minAt','maxAt','spgs']
+        Default={'threshold':1.0,'maxAttempts':50,'method':2,
+        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
+        checkParameters(self.p,parameters,Requirement,Default)
+        radius = [covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
+        checkParameters(self.p,parameters,[],{'radius':radius})
 
     def updatevolRatio(self,volRatio):
-        self.meanVolume *= volRatio/self.volRatio
-        self.minVolume *= volRatio/self.volRatio
-        self.maxVolume *= volRatio/self.volRatio
-        self.volRatio=volRatio
-
-    def checkParameters(self,Requirement=[],Default={}):
-        for key in Requirement:
-            if not hasattr(self.p, key):
-                raise Exception("Mei you '{}' wo suan ni ma?".format(key))
-            setattr(self,key,getattr(self.p,key))
-
-        for key in Default.keys():
-            if not hasattr(self.p,key):
-                setattr(self,key,Default[key])
-            else:
-                setattr(self,key,getattr(self.p,key))
+        self.p.volRatio=volRatio
+        logging.debug("new volRatio: {}".format(self.p.volRatio))
 
     def getVolumeandLattice(self,numlist):
-        minVolume = self.minVolume*np.sum(numlist)
-        maxVolume = self.maxVolume*np.sum(numlist)
-        minLattice= [2*np.max(self.radius)]*3+[60]*3
-        # maxLattice= [maxVolume/2/np.max(self.radius)]*3+[120]*3
+        Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
+        minVolume = Volume*0.5
+        maxVolume = Volume*1.5
+        minLattice= [2*np.max(self.p.radius)]*3+[60]*3
+        # maxLattice= [maxVolume/2/np.max(self.p.radius)]*3+[120]*3
         maxLattice= [maxVolume**(1./3)]*3+[120]*3
+        if self.p.minLattice:
+            minLattice = self.p.minLattice
+            minVolume = np.linalg.det(cellpar_to_cell(minLattice))
+        if self.p.maxLattice:
+            maxLattice = self.p.maxLattice
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice)) 
         return minVolume,maxVolume,minLattice,maxLattice
 
     def Generate_ind(self,spg,numlist):
@@ -64,9 +44,9 @@ class BaseGenerator:
         generator = GenerateNew.Info()
         generator.spg = spg
         generator.spgnumber = 1
-        generator.maxAttempts = self.maxAttempts
-        generator.threshold=self.threshold
-        generator.method=self.method
+        generator.maxAttempts = self.p.maxAttempts
+        generator.threshold=self.p.threshold
+        generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
 
@@ -79,8 +59,8 @@ class BaseGenerator:
         numbers=[]
         for i in range(numType):
             if numlist[i] > 0:
-                generator.AppendAtoms(int(numlist[i]), str(i), self.radius[i], False)
-                numbers.extend([atomic_numbers[self.symbols[i]]]*numlist[i])
+                generator.AppendAtoms(int(numlist[i]), str(i), self.p.radius[i], False)
+                numbers.extend([atomic_numbers[self.p.symbols[i]]]*numlist[i])
 
         label = generator.PreGenerate()
         if label:
@@ -95,21 +75,28 @@ class BaseGenerator:
         else:
             return label, None
 
+class BaseGenerator(Generator):
+    def __init__(self,parameters):
+        super().__init__(parameters)
+        minFrml = int(np.ceil(self.p.minAt/sum(self.p.formula)))
+        maxFrml = int(self.p.maxAt/sum(self.p.formula))
+        self.p.numFrml = list(range(minFrml, maxFrml + 1))
+
     def afterprocessing(self,ind,nfm):
-        ind.info['symbols'] = self.symbols
-        ind.info['formula'] = self.formula
+        ind.info['symbols'] = self.p.symbols
+        ind.info['formula'] = self.p.formula
         ind.info['numOfFormula'] = nfm
         ind.info['parentE'] = 0
         ind.info['origin'] = 'random'
         return ind
 
-    def Generate_pop(self,popSize):
+    def Generate_pop(self,popSize,initpop=False):
         buildPop = []
         tryNum=0
-        while tryNum<self.maxtryNum*popSize and popSize > len(buildPop):
-            nfm = np.random.choice(self.numFrml)
-            spg = np.random.choice(self.spgs)
-            numlist=np.array(self.formula)*nfm
+        while tryNum<self.p.maxtryNum*popSize and popSize > len(buildPop):
+            nfm = np.random.choice(self.p.numFrml)
+            spg = np.random.choice(self.p.spgs)
+            numlist=np.array(self.p.formula)*nfm
             label,ind = self.Generate_ind(spg,numlist)
             if label:
                 self.afterprocessing(ind,nfm)
@@ -120,9 +107,9 @@ class BaseGenerator:
         # Allow P1 structure
         if popSize > len(buildPop):
             for _ in range(popSize - len(buildPop)):
-                nfm = np.random.choice(self.numFrml)
-                spg = np.random.choice(self.spgs)
-                numlist=np.array(self.formula)*nfm
+                nfm = np.random.choice(self.p.numFrml)
+                spg = np.random.choice(self.p.spgs)
+                numlist=np.array(self.p.formula)*nfm
                 label,ind = self.Generate_ind(spg,numlist)
                 if label:
                     self.afterprocessing(ind,nfm)
@@ -141,8 +128,8 @@ class LayerGenerator(BaseGenerator):
 
         self.cmax=p.cmax
         self.d=p.d if hasattr(p,'d') else 15
-        self.minLen=p.minLen if hasattr(p,'minLen') else [2*np.max(self.radius)]*3
-        amax=(self.maxVolume*np.max(self.numFrml)/self.cmax)**(1./2)
+        self.minLen=p.minLen if hasattr(p,'minLen') else [2*np.max(self.p.radius)]*3
+        amax=(self.maxVolume*np.max(self.p.numFrml)/self.cmax)**(1./2)
         self.maxLen=p.maxLen if hasattr(p,'maxLen') else [amax,amax,self.cmax]
 
     def addVacuumlayer(self,ind):
@@ -159,43 +146,63 @@ class MoleculeGenerator(BaseGenerator):
     pass
 
 
-class VarGenerator(BaseGenerator):
-    def __init__(self,p):
-        super().__init__(p)
-        super().checkParameters(Requirement=['minAt','maxAt'],Default={'fullEles':True})
-        # self.projection_matrix=np.dot(self.formula.T,np.linalg.pinv(self.formula.T))
-        self.invFrml = np.linalg.pinv(self.formula)
+class VarGenerator(Generator):
+    def __init__(self,parameters):
+        super().__init__(parameters)
+        Requirement=['minAt','maxAt']
+        Default={'fullEles':True,'eleSize':1}
+        checkParameters(self.p,parameters,Requirement,Default)
+        # self.projection_matrix=np.dot(self.p.formula.T,np.linalg.pinv(self.p.formula.T))
+        self.p.invFrml = np.linalg.pinv(self.p.formula)
 
-
-    def afterprocessing(self,ind,numlist):
-        ind.info['symbols'] = self.symbols
+    def afterprocessing(self,ind,numlist,nfm):
+        ind.info['symbols'] = self.p.symbols
         ind.info['formula'] = numlist
-        ind.info['numOfFormula'] = 1
+        ind.info['numOfFormula'] = nfm
         ind.info['parentE'] = 0
         ind.info['origin'] = 'random'
         return ind
 
-    def Generate_pop(self,popSize):
+    def Generate_pop(self,popSize,initpop=False):
         buildPop = []
         for i in range(popSize):
-            for j in range(self.maxtryNum):
-                numAt = np.random.randint(self.minAt, self.maxAt+1)
-                numlist = np.random.rand(len(self.symbols))
+            for j in range(self.p.maxtryNum):
+                numAt = np.random.randint(self.p.minAt, self.p.maxAt+1)
+                numlist = np.random.rand(len(self.p.symbols))
                 numlist *= numAt/np.sum(numlist)
-                numlist = np.dot(np.rint(np.dot(numlist,self.invFrml)).astype(np.int),self.formula)
+                nfm = np.rint(np.dot(numlist,self.p.invFrml)).astype(np.int)
+                numlist = np.dot(nfm,self.p.formula)
                 # numlist = np.rint(np.dot(self.projection_matrix,numlist)).astype(np.int)
-                if np.sum(numlist) < self.minAt or np.sum(numlist) > self.maxAt or (self.fullEles and 0 in numlist) or np.sum(numlist<0)>0:
+                if np.sum(numlist) < self.p.minAt or np.sum(numlist) > self.p.maxAt or (self.p.fullEles and 0 in numlist) or np.sum(numlist<0)>0:
                     continue
 
-                spg = np.random.choice(self.spgs)
+                spg = np.random.choice(self.p.spgs)
 
                 label,ind = self.Generate_ind(spg,numlist)
                 if label:
-                    self.afterprocessing(ind,numlist)
+                    self.afterprocessing(ind,numlist,nfm)
                     buildPop.append(ind)
                     break
                 else:
                     continue
+
+        # Generate simple substance in variable mode
+        if initpop:
+            for n,symbol in enumerate(self.p.symbols):
+                for i in range(self.p.eleSize):
+                    for j in range(self.p.maxtryNum):
+                        numAt = np.random.randint(self.p.minAt, self.p.maxAt+1)
+                        numlist = [0]*len(self.p.symbols)
+                        numlist[n] = numAt
+                        spg = np.random.choice(self.p.spgs)
+
+                        label,ind = self.Generate_ind(spg,numlist)
+                        if label:
+                            self.afterprocessing(ind,numlist,nfm)
+                            buildPop.append(ind)
+                            break
+                        else:
+                            continue
         return buildPop
 
 def equivalent_sites_rots(spg, scaled_positions, symprec=1e-3):
@@ -278,8 +285,6 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
     generator.GetConventional = True
     numbers = []
     for i in range(numType):
-        # logging.debug(str(i))
-        # generator.AppendAtoms(formula[i], str(i), radius[i], False)
         generator.AppendAtoms(formula[i], "{}".format(i), radius[i], False)
         numbers.extend([i]*formula[i])
 
@@ -291,11 +296,8 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
         positions = np.reshape(positions, (-1, 3))
         wyckPos = generator.GetWyckPos(0)
         wyckPos = np.reshape(wyckPos, (-1,3))
-        # logging.debug(wycks)
         wyckName = generator.GetWyckLabel(0)
-        # logging.debug(wyckName)
         wyckNum = [int(n) for n in wyckName]
-        # wyckPos = [i for i in wycks if isinstance(i, float)]
         return label, cell, numbers, positions, wyckNum, wyckPos
     else:
         return label, None, None, None, None, None
@@ -473,7 +475,6 @@ def read_seeds(parameters, seedFile):
         seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
         for ind in seedPop:
             ind.info['origin'] = 'seed'
-    # logging.info("Read Seeds: %s"%(len(seedPop)))
     return seedPop
 
 

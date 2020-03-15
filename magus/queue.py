@@ -28,7 +28,7 @@ class JobManager:
                 stat = stat.decode()[:-1]
             except:
                 s = sys.exc_info()
-                logging.info("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                logging.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
                 stat = ''
             # logging.debug(job['id'], stat)
             if stat == 'DONE' or stat == '':
@@ -42,7 +42,7 @@ class JobManager:
             else:
                 job['state'] = 'ERROR'
         return True
-
+    #TODO kill job after max waittime
     def WaitJobsDone(self,waitTime):
         while not self.checkjobs():
             time.sleep(waitTime)
