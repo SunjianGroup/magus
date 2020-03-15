@@ -43,13 +43,17 @@ class Mutation(OffspringCreator):
             return None
 
         # remove some parent infomation
-        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum']
+        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull']
         for k in rmkeys:
             if k in newind.atoms.info.keys():
                 del newind.atoms.info[k]
 
         newind.info['parents'] = [ind.info['identity']]
         newind.info['pardom'] = ind.info['dominators']
+        newind.info['origin'] = self.descriptor
+        newind.info['symbols'] = ind.p.symbols
+        newind.info['formula'] = get_formula(newind.atoms, newind.info['symbols'])
+        newind.fix_atoms_info()
 
         return newind
 
@@ -76,13 +80,17 @@ class Crossover(OffspringCreator):
             return None
 
         # remove some parent infomation
-        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum']
+        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull']
         for k in rmkeys:
             if k in newind.atoms.info.keys():
                 del newind.atoms.info[k]
 
         newind.info['parents'] = [f.info['identity'],m.info['identity']]
         newind.info['pardom'] = 0.5*(f.info['dominators']+m.info['dominators'])
+        newind.info['origin'] = self.descriptor
+        newind.info['symbols'] = f.p.symbols
+        newind.info['formula'] = get_formula(newind.atoms, newind.info['symbols'])
+        newind.fix_atoms_info()
 
         return newind
 class SoftMutation(Mutation):
