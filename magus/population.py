@@ -68,12 +68,15 @@ class Population:
     def append(self,ind):
         if ind.__class__.__name__ == 'Atoms':
             ind = self.Individual(ind)
-        for ind_ in self.pop:
-            if ind == ind_:
-                return False
-        else:
-            self.pop.append(ind)
-            return True
+
+        self.pop.append(ind)
+        return True
+        #for ind_ in self.pop:
+        #    if ind == ind_:
+        #        return False
+        #else:
+        #    self.pop.append(ind)
+        #    return True
 
     def extend(self,pop):
         for ind in pop:
@@ -239,9 +242,12 @@ class Individual:
         atoms.set_calculator(None)
         # atoms.info = self.info
         for key, val in self.info.items():
-            if key not in atoms.info:
-                atoms.info[key] = val
+            atoms.info[key] = val
         return atoms
+
+    def fix_atoms_info(self):
+        for key, val in self.info.items():
+            self.atoms.info[key] = val
 
     @property
     def fingerprint(self):

@@ -52,7 +52,7 @@ def read_parameters(inputFile):
     }
     checkParameters(p,p,Requirement,Default)
 
-    p.initSize = p.popSize
+    # p.initSize = p.popSize
     expandSpg = []
     for item in p.spacegroup:
         if isinstance(item, int):
