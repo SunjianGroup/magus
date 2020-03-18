@@ -228,7 +228,7 @@ class PermMutation(Mutation):
         fracSwaps = self.fracSwaps
         atoms = ind.atoms.copy()
 
-        if ind.p.molDetector>0:
+        if ind.p.molDetector != 0:
             atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
 
         maxSwaps = int(fracSwaps*len(atoms))
@@ -236,6 +236,9 @@ class PermMutation(Mutation):
             maxSwaps = 1
         numSwaps = np.random.randint(1, maxSwaps)
 
+        #TODO Molfilter need get_chemical_symbols().
+        if ind.p.molDetector != 0:
+            return None
         symbols = atoms.get_chemical_symbols()
         symList = list(set(symbols))
         if len(symList)<2:
@@ -282,7 +285,7 @@ class LatticeMutation(Mutation):
         cellPar = cell_to_cellpar(newCell)
         cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
 
-        if ind.p.molDetector>0:
+        if ind.p.molDetector != 0:
             atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
 
         atoms.set_cell(cellPar, scale_atoms=True)
@@ -308,7 +311,7 @@ class SlipMutation(Mutation):
         cut = self.cut
         atoms = ind.atoms.copy()
 
-        if ind.p.molDetector>0:
+        if ind.p.molDetector != 0:
             atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
 
 
@@ -336,7 +339,7 @@ class RippleMutation(Mutation):
         '''
         atoms = ind.atoms.copy()
 
-        if ind.p.molDetector>0:
+        if ind.p.molDetector != 0:
             atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
 
         scl_pos = atoms.get_scaled_positions()
@@ -384,7 +387,7 @@ class CutAndSplicePairing(Crossover):
 
         cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
 
-        if ind1.p.molDetector>0:
+        if ind1.p.molDetector != 0:
             atoms1 = Molfilter(atoms1, ind1.p.molDetector, ind1.p.bondRatio)
             atoms2 = Molfilter(atoms2, ind1.p.molDetector, ind1.p.bondRatio)
             cutAtoms = Molfilter(cutAtoms, ind1.p.molDetector, ind1.p.bondRatio)
@@ -403,7 +406,7 @@ class CutAndSplicePairing(Crossover):
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
 
-        if ind1.p.molDetector>0:
+        if ind1.p.molDetector != 0:
             cutAtoms = cutAtoms.to_atoms()
 
         cutInd = ind1(cutAtoms)

@@ -141,7 +141,7 @@ class MolCryst:
 
     def get_cell(self):
         """
-        Return the cell 
+        Return the cell
         """
         return self.cell[:]
 
@@ -175,7 +175,7 @@ class MolCryst:
 
     def set_cell(self, cell, scale_atoms=False, scale_centers=True):
         """
-        Set the cell 
+        Set the cell
         scale_atoms: scale all atoms (may change relative positions) or not
         scale_center: scale molecule centers (do not change relative positions) or not
         """
@@ -234,7 +234,7 @@ class MolCryst:
 def atoms2molcryst(atoms, coef=1.1):
     """
     Convert crystal to molecular crystal
-    atoms: (ASE.Atoms) the input crystal structure 
+    atoms: (ASE.Atoms) the input crystal structure
     coef: (float) the criterion for connecting two atoms
     Return: MolCryst
     """
@@ -282,7 +282,7 @@ def atoms2molcryst(atoms, coef=1.1):
 def primitive_atoms2molcryst(atoms, coef=1.1):
     """
     Convert crystal to molecular crystal
-    atoms: (ASE.Atoms) the input crystal structure 
+    atoms: (ASE.Atoms) the input crystal structure
     coef: (float) the criterion for connecting two atoms
     Return: tags and offsets
     """
@@ -301,18 +301,18 @@ def primitive_atoms2molcryst(atoms, coef=1.1):
             for i in G.nodes():
                 partition.append([i])
                 offSets[i] = [0,0,0]
-    
+
     for tag, p in enumerate(partition):
         for j in p:
             tags[j] = tag
-    
-    return tags, offset
+
+    return tags, offSets
 
 
 def atoms2communities(atoms, coef=1.1):
     """
-    Split crystal to communities 
-    atoms: (ASE.Atoms) the input crystal structure 
+    Split crystal to communities
+    atoms: (ASE.Atoms) the input crystal structure
     coef: (float) the criterion for connecting two atoms
     Return: MolCryst
     """
@@ -346,8 +346,8 @@ def atoms2communities(atoms, coef=1.1):
 
 def primitive_atoms2communities(atoms, coef=1.1):
     """
-    Split crystal to communities 
-    atoms: (ASE.Atoms) the input crystal structure 
+    Split crystal to communities
+    atoms: (ASE.Atoms) the input crystal structure
     coef: (float) the criterion for connecting two atoms
     Return: tags and offsets
     """
@@ -375,11 +375,11 @@ def primitive_atoms2communities(atoms, coef=1.1):
 
     # logging.debug("atoms2communities partition: {}".format(partition))
 
-   for tag, p in enumerate(partition):
+    for tag, p in enumerate(partition):
         for j in p:
-            tags[j] = tag
-    
-    return tags, offset
+           tags[j] = tag
+
+    return tags, offSets
 
 def symbols_and_formula(atoms):
 
