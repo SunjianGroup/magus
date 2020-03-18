@@ -470,7 +470,7 @@ class PopGenerator:
                 continue
 
             dom = np.array([ind.info['dominators'] for ind in subpop])
-            edom = np.e**(-k*dom)
+            edom = np.exp(-k*dom)
             p = edom/np.sum(edom)
             pair = tuple(np.random.choice(subpop,2,False,p=p))
             if pair in pairs:
@@ -481,10 +481,13 @@ class PopGenerator:
 
     def get_inds(self,Pop,mutateNum,k=0.3):
         dom = np.array([ind.info['dominators'] for ind in Pop.pop])
-        edom = np.e**(-k*dom)
+        edom = np.exp(-k*dom)
         p = edom/np.sum(edom)
         # mutateNum = min(mutateNum,len(Pop))
-        return np.random.choice(Pop.pop,mutateNum,True,p=p)
+        if mutateNum > len(pop):
+            return np.random.choice(Pop.pop,mutateNum,True,p=p)
+        else:
+            return np.random.choice(Pop.pop,mutateNum,False,p=p)
 
     def generate(self,Pop,saveGood):
         assert len(Pop) >= saveGood, \
@@ -509,7 +512,7 @@ class PopGenerator:
                 for i,parents in enumerate(cross_pairs):
                     if self.p.molDetector != 0:
                         for ind in parents:
-                            if not hasattr(ind, 'molCryst')
+                            if not hasattr(ind, 'molCryst'):
                                 ind.to_mol()
                     newind = op.get_new_individual(parents)
                     if newind:
