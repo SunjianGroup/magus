@@ -35,7 +35,7 @@ class Mutation(OffspringCreator):
             if newind is None:
                 continue
             newind.parents = [ind]
-            newind.merge_atoms()
+            newind.merge_atoms(tolerance=ind.p.dRatio)
             if newind.repair_atoms():
                 break
         else:
@@ -47,6 +47,8 @@ class Mutation(OffspringCreator):
         for k in rmkeys:
             if k in newind.atoms.info.keys():
                 del newind.atoms.info[k]
+        if hasattr(newind, 'molCryst'):
+            delattr(newind, 'molCryst')
 
         newind.info['parents'] = [ind.info['identity']]
         newind.info['pardom'] = ind.info['dominators']
@@ -72,7 +74,7 @@ class Crossover(OffspringCreator):
             if newind is None:
                 continue
             newind.parents = [f,m]
-            newind.merge_atoms()
+            newind.merge_atoms(tolerance=f.p.dRatio)
             if newind.repair_atoms():
                 break
         else:
@@ -481,8 +483,8 @@ class PopGenerator:
         dom = np.array([ind.info['dominators'] for ind in Pop.pop])
         edom = np.e**(-k*dom)
         p = edom/np.sum(edom)
-        mutateNum = min(mutateNum,len(Pop))
-        return np.random.choice(Pop.pop,mutateNum,False,p=p)
+        # mutateNum = min(mutateNum,len(Pop))
+        return np.random.choice(Pop.pop,mutateNum,True,p=p)
 
     def generate(self,Pop,saveGood):
         assert len(Pop) >= saveGood, \
@@ -497,7 +499,7 @@ class PopGenerator:
             if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(Pop,num)
                 for i,ind in enumerate(mutate_inds):
-                    if self.p.molDetector != 0:
+                    if self.p.molDetector != 0 and not hasattr(newind, 'molCryst'):
                         ind.to_mol()
                     newind = op.get_new_individual(ind)
                     if newind:
@@ -506,8 +508,9 @@ class PopGenerator:
                 cross_pairs = self.get_pairs(Pop,num,saveGood)
                 for i,parents in enumerate(cross_pairs):
                     if self.p.molDetector != 0:
-                       for ind in parents:
-                           ind.to_mol()
+                        for ind in parents:
+                            if not hasattr(ind, 'molCryst')
+                                ind.to_mol()
                     newind = op.get_new_individual(parents)
                     if newind:
                         newPop.append(newind)
