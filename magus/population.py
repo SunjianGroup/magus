@@ -1,5 +1,6 @@
 import numpy as np
 import os,re,itertools
+from collections import Counter
 from scipy.spatial.distance import cdist, pdist
 import ase.io
 from ase.data import covalent_radii,atomic_numbers
@@ -367,9 +368,9 @@ class Individual:
         else:
             a = atoms.copy()
 
-        atoms = Molfilter(atoms)
-        for atom in atoms:
-            if atom.symbol not in self.inputFormulas:
+        molCryst = Molfilter(atoms, coef=self.p.bondRatio)
+        for mol in molCryst:
+            if mol.symbol not in self.inputFormulas:
                 return False
         return True
 
@@ -478,6 +479,12 @@ class Individual:
         self.atoms = repatoms
         self.sort()
         return True
+
+    def to_mol(self):
+        """
+        generate molecular crystal according to molDetector and bondRatio
+        """
+        self.molCryst = Molfilter(self.atoms, self.p.molDetector, self.p.bondRatio)
 
 class FixInd(Individual):
     def __call__(self,atoms):

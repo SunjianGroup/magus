@@ -229,7 +229,7 @@ class PermMutation(Mutation):
         atoms = ind.atoms.copy()
 
         if ind.p.molDetector != 0:
-            atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
+            atoms = ind.molCryst
 
         maxSwaps = int(fracSwaps*len(atoms))
         if maxSwaps == 0:
@@ -286,9 +286,10 @@ class LatticeMutation(Mutation):
         cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
 
         if ind.p.molDetector != 0:
-            atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
-
-        atoms.set_cell(cellPar, scale_atoms=True)
+            atoms = ind.molCryst
+            atoms.set_cell(cellpar_to_cell(cellPar))
+        else:
+            atoms.set_cell(cellPar, scale_atoms=True)
         positions = atoms.get_positions()
         atGauss = np.random.normal(0,sigma,[len(atoms),3])/sigma
         radius = covalent_radii[atoms.get_atomic_numbers()][:,np.newaxis]
@@ -312,7 +313,7 @@ class SlipMutation(Mutation):
         atoms = ind.atoms.copy()
 
         if ind.p.molDetector != 0:
-            atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
+            atoms = ind.molCryst
 
 
         scl_pos = atoms.get_scaled_positions()
@@ -340,7 +341,7 @@ class RippleMutation(Mutation):
         atoms = ind.atoms.copy()
 
         if ind.p.molDetector != 0:
-            atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
+            atoms = ind.molCryst
 
         scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
@@ -388,8 +389,8 @@ class CutAndSplicePairing(Crossover):
         cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
 
         if ind1.p.molDetector != 0:
-            atoms1 = Molfilter(atoms1, ind1.p.molDetector, ind1.p.bondRatio)
-            atoms2 = Molfilter(atoms2, ind1.p.molDetector, ind1.p.bondRatio)
+            atoms1 = ind1.molCryst
+            atoms2 = ind2.molCryst
             cutAtoms = Molfilter(cutAtoms, ind1.p.molDetector, ind1.p.bondRatio)
 
 
@@ -451,7 +452,7 @@ class PopGenerator:
         self.oplist = oplist
         self.numlist = numlist
         self.p = EmptyClass()
-        Requirement = ['popSize','saveGood']
+        Requirement = ['popSize','saveGood','molDetector']
         Default = {}
         checkParameters(self.p,parameters,Requirement,Default)
 
@@ -496,12 +497,17 @@ class PopGenerator:
             if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(Pop,num)
                 for i,ind in enumerate(mutate_inds):
+                    if self.p.molDetector != 0:
+                        ind.to_mol()
                     newind = op.get_new_individual(ind)
                     if newind:
                         newPop.append(newind)
             elif op.optype == 'Crossover':
                 cross_pairs = self.get_pairs(Pop,num,saveGood)
                 for i,parents in enumerate(cross_pairs):
+                    if self.p.molDetector != 0:
+                       for ind in parents:
+                           ind.to_mol()
                     newind = op.get_new_individual(parents)
                     if newind:
                         newPop.append(newind)
