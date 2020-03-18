@@ -279,6 +279,36 @@ def atoms2molcryst(atoms, coef=1.1):
 
     return molC
 
+def primitive_atoms2molcryst(atoms, coef=1.1):
+    """
+    Convert crystal to molecular crystal
+    atoms: (ASE.Atoms) the input crystal structure 
+    coef: (float) the criterion for connecting two atoms
+    Return: tags and offsets
+    """
+    QG = quotient_graph(atoms, coef)
+    graphs = nx.connected_component_subgraphs(QG)
+    partition = []
+    offSets = np.zeros([len(atoms), 3])
+    tags = np.zeros(len(atoms))
+    for G in graphs:
+        if graph_dim(G) == 0 and G.number_of_nodes() > 1:
+            nodes, offs = nodes_and_offsets(G)
+            partition.append(nodes)
+            for i, offSet in zip(nodes, offs):
+                offSets[i] = offSet
+        else:
+            for i in G.nodes():
+                partition.append([i])
+                offSets[i] = [0,0,0]
+    
+    for tag, p in enumerate(partition):
+        for j in p:
+            tags[j] = tag
+    
+    return tags, offset
+
+
 def atoms2communities(atoms, coef=1.1):
     """
     Split crystal to communities 
@@ -313,6 +343,43 @@ def atoms2communities(atoms, coef=1.1):
     sclPos=atoms.get_scaled_positions(), partition=partition, offSets=offSets, info=atoms.info.copy())
 
     return molC
+
+def primitive_atoms2communities(atoms, coef=1.1):
+    """
+    Split crystal to communities 
+    atoms: (ASE.Atoms) the input crystal structure 
+    coef: (float) the criterion for connecting two atoms
+    Return: tags and offsets
+    """
+    QG = quotient_graph(atoms, coef)
+    graphs = nx.connected_component_subgraphs(QG)
+    partition = []
+    offSets = np.zeros([len(atoms), 3])
+    tags = np.zeros(len(atoms))
+    for SG in graphs:
+        G = remove_selfloops(SG)
+        if graph_dim(G) == 0:
+            nodes, offs = nodes_and_offsets(G)
+            partition.append(nodes)
+            for i, offSet in zip(nodes, offs):
+                offSets[i] = offSet
+        else:
+            # comps = find_communities(G)
+            comps = find_communities2(G)
+            for indices in comps:
+                tmpG = G.subgraph(indices)
+                nodes, offs = nodes_and_offsets(tmpG)
+                partition.append(nodes)
+                for i, offSet in zip(nodes, offs):
+                    offSets[i] = offSet
+
+    # logging.debug("atoms2communities partition: {}".format(partition))
+
+   for tag, p in enumerate(partition):
+        for j in p:
+            tags[j] = tag
+    
+    return tags, offset
 
 def symbols_and_formula(atoms):
 

@@ -1,10 +1,7 @@
-from ase.geometry.dimensionality import analyze_dimensionality
-from ase.geometry.dimensionality.isolation import traverse_graph
-from ase.ga.utilities import gather_atoms_by_tag
 from ase.atoms import Atoms
 from ase.data import atomic_numbers,covalent_radii
 import numpy as np
-
+from .utils import primitive_atoms2molcryst, primitive_atoms2communities
 class Atomset:
     def __init__(self,positions,symbols):
         self.symbols = symbols
@@ -34,15 +31,21 @@ class Atomset:
         return numbers[np.argmax(radius)]
 
 class Molfilter:
-    def __init__(self, atoms):
+    def __init__(self, atoms, detector=1, coef=1.1):
         self.atoms = atoms
         self.mols = []
         if len(atoms)>0:
-            tags = isolate_components(atoms)
+            if detector == 1:
+                tags, offsets = primitive_atoms2molcryst(atoms, coef)
+            elif detector == 2:
+                tags, offsets = primitive_atoms2communities(atoms, coef)
             self.tags = tags
             self.atoms.set_tags(tags)
-            gather_atoms_by_tag(self.atoms)
             self.unique_tags = np.unique(tags)
+            # add offsets
+            oldPos = self.atoms.get_positions()
+            cell = self.atoms.get_cell()
+            self.atoms.set_positions(oldPos + np.dot(offsets, cell))
 
             positions = atoms.get_positions()
             symbols = atoms.get_chemical_symbols()
@@ -118,29 +121,29 @@ class Molfilter:
         atoms = Atoms(symbols=symbols,positions=positions,pbc=self.atoms.pbc,cell=self.atoms.cell)
         return atoms
         
-#TODO steal from ase, need to change
-def isolate_components(atoms, kcutoff=None): 
-    if kcutoff is None:
-        intervals = analyze_dimensionality(atoms, method='RDA', merge=False)
-        m = intervals[0]
-        if m.b == float("inf"):
-            kcutoff = m.a + 0.1
-        else:
-            kcutoff = (m.a + m.b) / 2
-    data = {}
-    components, all_visited, ranks = traverse_graph(atoms, kcutoff)
+# #TODO from ase, need to change
+# def isolate_components(atoms, kcutoff=None): 
+#     if kcutoff is None:
+#         intervals = analyze_dimensionality(atoms, method='RDA', merge=False)
+#         m = intervals[0]
+#         if m.b == float("inf"):
+#             kcutoff = m.a + 0.1
+#         else:
+#             kcutoff = (m.a + m.b) / 2
+#     data = {}
+#     components, all_visited, ranks = traverse_graph(atoms, kcutoff)
 
-    for k, v in all_visited.items():
-        if v is None:
-            continue
-        v = sorted(list(v))
-        key = tuple(np.unique([c for c, offset in v]))
-        for c in key:
-            components[np.where(components == c)] = key[0]
-            if c in all_visited.keys():
-                all_visited[c] = None
+#     for k, v in all_visited.items():
+#         if v is None:
+#             continue
+#         v = sorted(list(v))
+#         key = tuple(np.unique([c for c, offset in v]))
+#         for c in key:
+#             components[np.where(components == c)] = key[0]
+#             if c in all_visited.keys():
+#                 all_visited[c] = None
 
-    return components
+#     return components
 
 
 if __name__ == '__main__':

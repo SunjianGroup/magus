@@ -228,8 +228,8 @@ class PermMutation(Mutation):
         fracSwaps = self.fracSwaps
         atoms = ind.atoms.copy()
 
-        if ind.p.is_mol:
-            atoms = Molfilter(atoms)
+        if ind.p.molDetector>0:
+            atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
 
         maxSwaps = int(fracSwaps*len(atoms))
         if maxSwaps == 0:
@@ -282,8 +282,8 @@ class LatticeMutation(Mutation):
         cellPar = cell_to_cellpar(newCell)
         cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
 
-        if ind.p.is_mol:
-            atoms = Molfilter(atoms)
+        if ind.p.molDetector>0:
+            atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
 
         atoms.set_cell(cellPar, scale_atoms=True)
         positions = atoms.get_positions()
@@ -308,8 +308,8 @@ class SlipMutation(Mutation):
         cut = self.cut
         atoms = ind.atoms.copy()
 
-        if ind.p.is_mol:
-            atoms = Molfilter(atoms)
+        if ind.p.molDetector>0:
+            atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
 
 
         scl_pos = atoms.get_scaled_positions()
@@ -336,8 +336,8 @@ class RippleMutation(Mutation):
         '''
         atoms = ind.atoms.copy()
 
-        if ind.p.is_mol:
-            atoms = Molfilter(atoms)
+        if ind.p.molDetector>0:
+            atoms = Molfilter(atoms, ind.p.molDetector, ind.p.bondRatio)
 
         scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
@@ -384,10 +384,10 @@ class CutAndSplicePairing(Crossover):
 
         cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
 
-        if ind1.p.is_mol:
-            atoms1 = Molfilter(atoms1)
-            atoms2 = Molfilter(atoms2)
-            cutAtoms =  Molfilter(cutAtoms)
+        if ind1.p.molDetector>0:
+            atoms1 = Molfilter(atoms1, ind1.p.molDetector, ind1.p.bondRatio)
+            atoms2 = Molfilter(atoms2, ind1.p.molDetector, ind1.p.bondRatio)
+            cutAtoms = Molfilter(cutAtoms, ind1.p.molDetector, ind1.p.bondRatio)
 
 
         scaled_positions = []
@@ -403,8 +403,8 @@ class CutAndSplicePairing(Crossover):
         if len(cutAtoms) == 0:
             raise RuntimeError('No atoms in the new cell')
 
-        if ind1.p.is_mol:
-            cutAtoms =  cutAtoms.to_atoms()
+        if ind1.p.molDetector>0:
+            cutAtoms = cutAtoms.to_atoms()
 
         cutInd = ind1(cutAtoms)
         cutInd.parents = [ind1 ,ind2]

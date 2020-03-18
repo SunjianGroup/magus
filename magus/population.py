@@ -195,7 +195,7 @@ class Population:
 class Individual:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['formula','symbols','minAt','maxAt','symprec']
+        Requirement=['formula','symbols','minAt','maxAt','symprec','molDetector','bondRatio']
         Default={'repairtryNum':10,'is_mol':False,'chkMol':False,
             'minLattice':None,'maxLattice':None,'dRatio':0.7,'addSym':False}
         checkParameters(self.p,parameters,Requirement,Default)
