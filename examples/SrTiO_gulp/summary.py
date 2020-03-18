@@ -17,7 +17,7 @@ saveStd = 0
 pd.options.display.max_rows = 200
 
 filename = sys.argv[1]
-symprec = 0.5
+symprec = 0.1
 # images = read_yaml(filename)
 images = ase.io.read(filename, format='traj', index=':')
 
@@ -27,19 +27,19 @@ showList = [
 'enthalpy',
 #'ehull',
 #'predictE',
-#'parentE',
+#'parents',
 #'symbols',
 #'formula',
+#'dominators',
 #'gap',
 #'volume',
-#'Origin',
+'origin',
 #'utilVal',
 #'sigma',
 #'relaxD',
 #'fullSym',
 #'lengths',
 #'angles',
-#'energy',
 ]
 allRes = []
 

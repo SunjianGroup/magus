@@ -11,7 +11,7 @@ from ase import Atoms
 import numpy as np
 
 
-savePri = 1
+savePri = 0
 saveStd = 0
 
 pd.options.display.max_rows = 200
@@ -27,13 +27,13 @@ showList = [
 'enthalpy',
 'ehull',
 #'predictE',
-'parentE',
-#'symbols',
+#'parents',
+'symbols',
 'formula',
 #'dominators',
 #'gap',
 #'volume',
-#'Origin',
+'origin',
 #'utilVal',
 #'sigma',
 #'relaxD',
