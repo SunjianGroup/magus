@@ -16,6 +16,7 @@ pop:list,a list of atoms
 Population:Population(pop) --> Pop
 """
 #TODO build mol struct
+#TODO change read parameters
 class Magus:
     def __init__(self,parameters):
         self.parameters = parameters
@@ -25,11 +26,27 @@ class Magus:
         self.Population = get_population(parameters)
         if self.parameters.mlRelax:
             self.ML = LRmodel(parameters)
+
+        self.save_parameters()
         self.curgen = 1
         self.bestlen = []
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
 
+    def save_parameters(self):
+        d = {}
+        d['atoms generator parameters'] = self.Generator.p.__dict__
+        d['pop generator parameters'] = self.Algo.p.__dict__
+        d['main calculator parameters'] = self.MainCalculator.p.__dict__
+        d['Population parameters'] = self.Population.p.__dict__
+        d['Individual parameters'] = self.Population.Individual.p.__dict__
+        if self.parameters.mlRelax:
+            d['ML parameters'] = self.ML.p.__dict__
+        import yaml
+        with open('allparameters.yaml','w') as f:
+            yaml.dump(d,f)
+
+        
     def run(self):
         self.Initialize()
         for gen in range(self.parameters.numGen-1):
