@@ -293,6 +293,19 @@ class RippleMutation(Mutation):
 
         return ind(atoms)
 
+class RotateMutation(Mutation):
+    def __init__(self, p=0.5,tryNum=10):
+        self.p = p
+        super().__init__(tryNum=tryNum)
+
+    def mutate(self,ind):
+        atoms = ind.atoms.copy()
+        atoms = Molfilter(atoms)
+        for mol in atoms:
+            if len(mol)>1 and np.random.rand() < self.p:
+                phi, theta, psi = np.random.uniform(-1,1,3)*np.pi*2
+                mol.rotate(phi,theta,psi)
+        return ind(atoms)
 
 class CutAndSplicePairing(Crossover):
     """ A cut and splice operator for bulk structures.

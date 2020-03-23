@@ -9,7 +9,7 @@ from .initstruct import read_seeds,build_mol_struct
 from .readparm import *
 from .utils import *
 from .machinelearning import LRmodel
-
+from .parameters import magusParameters
 """
 Pop:class,poplulation
 pop:list,a list of atoms
@@ -19,33 +19,19 @@ Population:Population(pop) --> Pop
 #TODO change read parameters
 class Magus:
     def __init__(self,parameters):
-        self.parameters = parameters
-        self.Generator = get_atoms_generator(parameters)
-        self.Algo = get_pop_generator(parameters)
-        self.MainCalculator = get_calculator(parameters)
-        self.Population = get_population(parameters)
+        self.parameters = parameters.parameters
+        self.Generator = parameters.get_AtomsGenerator()
+        self.Algo = parameters.get_PopGenerator()
+        self.MainCalculator = parameters.get_MainCalculator()
+        self.Population = parameters.get_Population()
         if self.parameters.mlRelax:
-            self.ML = LRmodel(parameters)
+            self.ML = parameters.get_MLCalculator()
 
-        self.save_parameters()
+        self.parameters.save('allparameters.yaml')
         self.curgen = 1
         self.bestlen = []
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
-
-    def save_parameters(self):
-        d = {}
-        d['atoms generator parameters'] = self.Generator.p.__dict__
-        d['pop generator parameters'] = self.Algo.p.__dict__
-        d['main calculator parameters'] = self.MainCalculator.p.__dict__
-        d['Population parameters'] = self.Population.p.__dict__
-        d['Individual parameters'] = self.Population.Individual.p.__dict__
-        if self.parameters.mlRelax:
-            d['ML parameters'] = self.ML.p.__dict__
-        import yaml
-        with open('allparameters.yaml','w') as f:
-            yaml.dump(d,f)
-
         
     def run(self):
         self.Initialize()
@@ -221,6 +207,6 @@ if args.debug:
 else:
     logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
 
-parameters = read_parameters('input.yaml')
+parameters = magusParameters('input.yaml')
 m=Magus(parameters)
 m.run()

@@ -18,6 +18,13 @@ class Atomset:
     def to_atoms(self):
         return Atoms(symbols=self.symbols,positions=self.positions)
 
+    def rotate(self,phi,theta,psi):
+        rot1 = np.array([[cos(phi),-1*sin(phi),0],[sin(phi),cos(phi),0],[0,0,1]])
+        rot2 = np.array([[cos(theta), 0, -1*sin(theta)],[0,1,0],[sin(theta), 0, cos(theta)]])
+        rot3 = np.array([[1,0,0],[0,cos(psi),-1*sin(psi)],[0,sin(psi),cos(psi)]])
+        rotMat = rot1@rot2@rot3
+        self.relative_positions = self.relative_positions@rotMat
+        return rotMat
     @property
     def positions(self):
         return self.position + self.relative_positions

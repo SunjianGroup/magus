@@ -34,7 +34,7 @@ class LRCalculator(Calculator):
     implemented_properties = ['energy', 'forces', 'stress']
     nolabel = True
 
-    def __init__(self, reg, cf ,**kwargs):
+    def __init__(self, cf, reg=None ,**kwargs):
         Calculator.__init__(self, **kwargs)
         self.reg = reg
         self.cf = cf
@@ -50,6 +50,7 @@ class LRCalculator(Calculator):
         lmax = data['lmax']
         ncut = data['ncut']
         diag = data['diag']
+        elems = data['elems']
         self.cf = ZernikeFp(cutoff, nmax, lmax, ncut, elems,diag=diag)
 
     def save_calculator(self,filename):
@@ -95,8 +96,7 @@ class LRmodel(MachineLearning,ASECalculator):
         self.p = EmptyClass()
         
         Requirement = []
-        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':1.0,
-            'mlDir': '{}/MLFold'.format(parameters.workDir)}
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':1.0}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
@@ -112,11 +112,13 @@ class LRmodel(MachineLearning,ASECalculator):
         if not os.path.exists(self.p.mlDir):
             os.mkdir(self.p.mlDir)
 
+        self.calc = LRCalculator(self.cf)
+
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
         self.reg = LinearRegression().fit(self.X, self.y, self.w)
-        calc = LRCalculator(self.reg,self.cf)
-        calc.save_calculator('{}/mlparameters'.format(self.p.mlDir))
+        self.calc.reg = self.reg
+        self.calc.save_calculator('{}/mlparameters'.format(self.p.mlDir))
         logging.info('training end')
 
     def get_data(self,images,implemented_properties = ['energy', 'forces']):
@@ -201,10 +203,10 @@ class LRmodel(MachineLearning,ASECalculator):
             ind.info['image_fp']=X[0,1:]
 
     def relax(self,calcPop):
-        calcs = [LRCalculator(self.reg,self.cf)]
+        calcs = [self.calc]
         return super().relax(calcPop,calcs)
         
 
     def scf(self,calcPop):
-        calcs = [LRCalculator(self.reg,self.cf)]
+        calcs = [self.calc]
         return super().scf(calcPop,calcs)
