@@ -76,12 +76,12 @@ class Magus:
         relaxPop.check()
         relaxPop.del_duplicate()
 
-        if self.parameters.mlRelax:
+        if self.parameters.useml:
             self.ML.updatedataset(relaxPop.frames)
             self.ML.train()
             scfpop = self.MainCalculator.scf(relaxPop.frames)
             scfPop = self.Population(scfpop,'scfpop',self.curgen)
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\tforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
         self.curPop = relaxPop
         self.allPop.extend(self.curPop)
@@ -142,20 +142,28 @@ class Magus:
                 relaxPop.check()
                 scfpop = self.MainCalculator.scf(relaxPop.frames)
                 loss = self.ML.get_loss(scfpop)
+                logging.info('ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
                 if loss[1]>0.8:
-                    logging.info('ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
+                    logging.info('Good fit, ml relax adapt')
                     break
-                logging.info('QAQ ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
+                logging.info('Bad fit, retraining...')
                 self.ML.updatedataset(scfpop)
                 write_results(self.ML.dataset,'','dataset',self.parameters.mlDir)
                 self.ML.train()
-
             else:
+                logging.info('Cannot fit, turn to main calculator')
                 relaxpop = self.MainCalculator.relax(initPop.frames)
                 relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-                logging.info('Turn to main calculator')
         else:
             relaxpop = self.MainCalculator.relax(initPop.frames)
+            if self.parameters.useml:
+                self.ML.get_loss(relaxpop)
+                logging.info('ML Energy Error:{}'.format(loss[1]))
+                if loss[1]<0.8:
+                    logging.info('Bad fit, retraining...')
+                    self.ML.updatedataset(relaxpop)
+                    write_results(self.ML.dataset,'','dataset',self.parameters.mlDir)
+                    self.ML.train()
             relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
 
         # save raw date before checking

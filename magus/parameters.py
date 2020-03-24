@@ -112,7 +112,7 @@ class magusParameters:
             permNum = num if len(self.parameters.symbols) > 1 else 0
             rotNum = num if self.parameters.molMode else 0
 
-            if self.parameters.mlRelax:
+            if self.parameters.useml:
                 self.get_MLCalculator()
                 soft = SoftMutation(self.MLCalculator.calc)
                 softNum = num
@@ -133,8 +133,13 @@ class magusParameters:
                 self.parameters.softNum,
                 ]
             oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft]
-
-            self.PopGenerator = PopGenerator(numlist,oplist,self.parameters)
+            if self.parameters.Algo == 'EA':
+                if self.parameters.mlpredict:
+                    assert self.parameters.useml, "'useml' must be True"
+                    calc = self.MLCalculator.calc
+                    self.PopGenerator = MLselect(numlist,oplist,calc,self.parameters)
+                else:
+                    self.PopGenerator = PopGenerator(numlist,oplist,self.parameters)
             self.parameters.attach(self.PopGenerator.p)
         return self.PopGenerator
 

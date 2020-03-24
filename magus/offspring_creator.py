@@ -480,6 +480,27 @@ class PopGenerator:
         newPop = self.generate(Pop,saveGood)
         return self.select(newPop,popSize)
 
+class MLselect(PopGenerator):
+    def __init__(self, numlist, oplist, calc,parameters):
+        super().__init__(numlist, oplist, parameters)
+        self.calc = calc
+    
+    def select(self,Pop,num,k=0.3):
+        predictE = []
+        if num < len(Pop):
+            for ind in Pop:
+                ind.atoms.set_calculator(self.calc)
+                ind.info['predictE'] = ind.atoms.get_potential_energy()
+                predictE.append(ind.info['predictE'])
+                ind.atoms.set_calculator(None)
+
+            dom = np.argsort(predictE)
+            edom = np.exp(-k*dom)
+            p = edom/np.sum(edom)
+            Pop.pop = np.random.choice(Pop.pop,num,False,p=p)
+            return Pop
+        else:
+            return Pop
 
 
 if __name__ == '__main__':
