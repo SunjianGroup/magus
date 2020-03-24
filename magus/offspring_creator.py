@@ -484,7 +484,7 @@ class PopGenerator:
         edom = np.exp(-k*dom)
         p = edom/np.sum(edom)
         # mutateNum = min(mutateNum,len(Pop))
-        if mutateNum > len(pop):
+        if mutateNum > len(Pop):
             return np.random.choice(Pop.pop,mutateNum,True,p=p)
         else:
             return np.random.choice(Pop.pop,mutateNum,False,p=p)
