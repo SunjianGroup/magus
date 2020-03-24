@@ -509,7 +509,7 @@ class PopGenerator:
                 for i,parents in enumerate(cross_pairs):
                     if self.p.molDetector != 0:
                         for ind in parents:
-                            if not hasattr(ind, 'molCryst')
+                            if not hasattr(ind, 'molCryst'):
                                 ind.to_mol()
                     newind = op.get_new_individual(parents)
                     if newind:
