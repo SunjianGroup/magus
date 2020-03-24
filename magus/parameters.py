@@ -34,7 +34,7 @@ class magusParameters:
         for key, val in p_dict.items():
             setattr(p, key, val)
 
-        Requirement = ['calcType','maincalculator','popSize','numGen','saveGood','symbols']
+        Requirement = ['calcType','MainCalculator','popSize','numGen','saveGood','symbols']
         Default = {
             'spacegroup':list(range(1, 231)),
             'initSize':p.popSize,
@@ -109,11 +109,11 @@ class magusParameters:
             num = 2*int(self.parameters.popSize/3)+1
             Requirement = []
             cutNum,slipNum,latNum,ripNum = [num]*4
-            permNum = num if len(self.parameters.symbols) == 1 else 0
+            permNum = num if len(self.parameters.symbols) > 1 else 0
             rotNum = num if self.parameters.molMode else 0
 
             if self.parameters.mlRelax:
-                self.get_ML_calculation()
+                self.get_MLCalculator()
                 soft = SoftMutation(self.MLCalculator.calc)
                 softNum = num
             else:

@@ -444,6 +444,8 @@ class PopGenerator:
             Pop.add_symmetry()
         newPop = Pop([],'initpop',Pop.gen+1)
         for op,num in zip(self.oplist,self.numlist):
+            if num == 0:
+                continue
             logging.debug('name:{} num:{}'.format(op.descriptor,num))
             if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(Pop,num)

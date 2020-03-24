@@ -147,7 +147,7 @@ class Magus:
                     break
                 logging.info('QAQ ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
                 self.ML.updatedataset(scfpop)
-                write_results(self.ML.dataset,'','dataset',self.parameters.resultsDir)
+                write_results(self.ML.dataset,'','dataset',self.parameters.mlDir)
                 self.ML.train()
 
             else:

@@ -95,12 +95,12 @@ class LRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
         self.p = EmptyClass()
         
-        Requirement = []
+        Requirement = ['mlDir']
         Default = {'w_energy':30.0,'w_force':1.0,'w_stress':1.0}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
-        for key, val in parameters.mlcalculator.items():
+        for key, val in parameters.MLCalculator.items():
             setattr(p, key, val)
         p.workDir = parameters.workDir
         ASECalculator.__init__(self,p)

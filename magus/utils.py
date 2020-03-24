@@ -41,7 +41,7 @@ class EmptyClass:
     def save(self,filename):
         d = todict(self)
         with open(filename,'w') as f:
-            yaml.dump(f,d)
+            yaml.dump(d,f)
 
 
 class MolCryst:
