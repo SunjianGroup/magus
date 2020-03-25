@@ -405,9 +405,11 @@ class CutAndSplicePairing(Crossover):
                 if cutPos[n] <= spositions[i, 2] < cutPos[n+1]:
                     cutAtoms.append(atom)
                     scaled_positions.append(spositions[i])
+        if len(scaled_positions) == 0:
+            return None
+                 
+            #raise RuntimeError('No atoms in the new cell')
         cutAtoms.set_scaled_positions(scaled_positions)
-        if len(cutAtoms) == 0:
-            raise RuntimeError('No atoms in the new cell')
 
         if ind1.p.molDetector != 0:
             cutAtoms = cutAtoms.to_atoms()
