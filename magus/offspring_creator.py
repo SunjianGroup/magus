@@ -232,15 +232,15 @@ class PermMutation(Mutation):
 
         if ind.p.molDetector != 0:
             atoms = ind.molCryst
-
-        maxSwaps = int(fracSwaps*len(atoms))
-        if maxSwaps == 0:
-            maxSwaps = 1
-        numSwaps = np.random.randint(1, maxSwaps)
-
         #TODO Molfilter need get_chemical_symbols().
         if ind.p.molDetector != 0:
             return None
+
+        maxSwaps = int(fracSwaps*len(atoms))
+        if maxSwaps == 0:
+            maxSwaps = 2
+        numSwaps = np.random.randint(1, maxSwaps)
+
         symbols = atoms.get_chemical_symbols()
         symList = list(set(symbols))
         if len(symList)<2:
@@ -407,7 +407,7 @@ class CutAndSplicePairing(Crossover):
                     scaled_positions.append(spositions[i])
         if len(scaled_positions) == 0:
             return None
-                 
+
             #raise RuntimeError('No atoms in the new cell')
         cutAtoms.set_scaled_positions(scaled_positions)
 
@@ -456,7 +456,7 @@ class PopGenerator:
         self.oplist = oplist
         self.numlist = numlist
         self.p = EmptyClass()
-        Requirement = ['popSize','saveGood','molDetector']
+        Requirement = ['popSize','saveGood','molDetector', 'randFrac', 'calcType', 'addSym']
         Default = {}
         checkParameters(self.p,parameters,Requirement,Default)
 
@@ -492,11 +492,14 @@ class PopGenerator:
             return np.random.choice(Pop.pop,mutateNum,False,p=p)
 
     def generate(self,Pop,saveGood):
+        # calculate dominators before checking formula
+        Pop.calc_dominators()
+        if self.p.calcType == 'var':
+            Pop.check_full()
         assert len(Pop) >= saveGood, \
             "saveGood should be shorter than length of curPop!"
-        Pop.calc_dominators()
         #TODO move addsym to ind
-        if Pop[0].p.addSym:
+        if self.p.addSym:
             Pop.add_symmetry()
         newPop = Pop([],'initpop',Pop.gen+1)
         for op,num in zip(self.oplist,self.numlist):
@@ -521,6 +524,8 @@ class PopGenerator:
                         newPop.append(newind)
             logging.debug("popsize after {}: {}".format(op.descriptor, len(newPop)))
 
+        if self.p.calcType == 'var':
+            newPop.check_full()
         newPop.check()
         return newPop
 
@@ -529,14 +534,14 @@ class PopGenerator:
             pardom = np.array([ind.info['pardom'] for ind in Pop.pop])
             edom = np.e**(-k*pardom)
             p = edom/np.sum(edom)
-            Pop.pop = np.random.choice(Pop.pop,num,False,p=p)
+            Pop.pop = list(np.random.choice(Pop.pop,num,False,p=p))
             return Pop
         else:
             return Pop
 
     def next_Pop(self,Pop):
         saveGood = self.p.saveGood
-        popSize = self.p.popSize
+        popSize = int(self.p.popSize*(1-self.p.randFrac))
         newPop = self.generate(Pop,saveGood)
         return self.select(newPop,popSize)
 
