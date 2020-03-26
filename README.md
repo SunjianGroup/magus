@@ -34,6 +34,12 @@
   或者下载压缩包。
   
   假设Magus的路径为`/your/path/magus`.
+  
+  由于项目中包含了子项目，所以第一次使用时要在项目的主目录下(`/your/path/magus`)初始化并更新：
+  ```shell
+  git submodule init
+  git submodule update
+  ```
 
 
 - 加载`Anaconda`:
@@ -89,7 +95,7 @@
 - 编译库文件
 
   - `GenerateNew.so`
-      源文件在在`magus/GenerateNew`中。编译时需要用python库的头文件。如果使用集群上的`anaconda/3` 模块，编译命令为：
+      源文件在在`magus/generatenew`中。编译时需要用python库的头文件。如果使用集群上的`anaconda/3` 模块，编译命令为：
       ```shell
       g++ -std=c++11 -I/fs00/software/anaconda/3/include -I/fs00/software/anaconda/3/include/python3.6m -L/fs00/software/anaconda/3/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
       ```
@@ -97,6 +103,7 @@
       ```shell
       g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include -I/fs00/software/anaconda/3-5.0.1/include/python3.6m -L/fs00/software/anaconda/3-5.0.1/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
       ```
+      可以参考子项目的的README文件。
       编译生成的`GenerateNew.so`需要放在`magus/`目录下。
 
   - `lrpot.so`
@@ -105,6 +112,7 @@
       ``` shell
       g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include -I/fs00/software/anaconda/3-5.0.1/include/python3.6m -L/fs00/software/anaconda/3-5.0.1/lib -lboost_python -lboost_numpy -lpython3.6m lrpot.cpp -o lrpot.so -shared -fPIC
       ```
+      可以参考子项目的的README文件。
       编译生成的`lrpot.so`需要放在`magus/`目录下。
 
 

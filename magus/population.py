@@ -1,5 +1,6 @@
 import numpy as np
 import os,re,itertools
+from collections import Counter
 from scipy.spatial.distance import cdist, pdist
 import ase.io
 from ase.data import covalent_radii,atomic_numbers
@@ -148,6 +149,15 @@ class Population:
         logging.info("check survival: {}".format(len(checkpop)))
         self.pop = checkpop
 
+    def check_full(self):
+        logging.info("check_full population {}, popsize:{}".format(self.name,len(self.pop)))
+        checkpop = []
+        for ind in self.pop:
+            if ind.check_full():
+                checkpop.append(ind)
+        logging.info("check_full survival: {}".format(len(checkpop)))
+        self.pop = checkpop
+
     def clustering(self, numClusters):
         """
         clustering by fingerprints
@@ -182,12 +192,13 @@ class Population:
             ind.add_symmetry()
 
     def select(self,n):
-        self.calc_dominators()
+        # self.calc_dominators()
+        self.pop = sorted(self.pop, key=lambda x:x.info['dominators'])
         if len(self) > n:
-            self.pop = sorted(self.pop, key=lambda x:x.info['dominators'])[:n]
+            self.pop = self.pop[:n]
 
     def bestind(self):
-        self.calc_dominators()
+        # self.calc_dominators()
         dominators = np.array([ind.info['dominators'] for ind in self.pop])
         best_i = np.where(dominators == np.min(dominators))[0]
         return [self.pop[i] for i in best_i]
@@ -195,7 +206,7 @@ class Population:
 class Individual:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['formula','symbols','minAt','maxAt','symprec']
+        Requirement=['formula','symbols','minAt','maxAt','symprec','molDetector','bondRatio','dRatio']
         Default={'repairtryNum':10,'is_mol':False,'chkMol':False,
             'minLattice':None,'maxLattice':None,'dRatio':0.7,'addSym':False}
         checkParameters(self.p,parameters,Requirement,Default)
@@ -367,9 +378,9 @@ class Individual:
         else:
             a = atoms.copy()
 
-        atoms = Molfilter(atoms)
-        for atom in atoms:
-            if atom.symbol not in self.inputFormulas:
+        molCryst = Molfilter(atoms, coef=self.p.bondRatio)
+        for mol in molCryst:
+            if mol.symbol not in self.inputFormulas:
                 return False
         return True
 
@@ -479,6 +490,12 @@ class Individual:
         self.sort()
         return True
 
+    def to_mol(self):
+        """
+        generate molecular crystal according to molDetector and bondRatio
+        """
+        self.molCryst = Molfilter(self.atoms, self.p.molDetector, self.p.bondRatio)
+
 class FixInd(Individual):
     def __call__(self,atoms):
         newind = self.__new__(self.__class__)
@@ -571,20 +588,22 @@ class VarInd(Individual):
         return targetFrml
 
     def check_full(self,atoms=None):
-        return True
-        """
+        # return True
+        # """
         if atoms is None:
             a = self.atoms.copy()
         else:
             a = atoms.copy()
         symbols = a.get_chemical_symbols()
-        formula = [symbols.count(s) for s in self.p.symbols]
+        symCount = Counter(symbols)
+        formula = [symCount[s] for s in self.p.symbols]
         return not self.p.fullEles or 0 not in formula
-        """
+        # """
 
     def check(self, atoms=None):
         if atoms is None:
             a = self.atoms.copy()
         else:
             a = atoms.copy()
-        return super().check(atoms=a) and self.check_full(atoms=a)
+        # return super().check(atoms=a) and self.check_full(atoms=a)
+        return super().check(atoms=a)
