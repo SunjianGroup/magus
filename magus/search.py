@@ -24,7 +24,7 @@ class Magus:
         self.Algo = parameters.get_PopGenerator()
         self.MainCalculator = parameters.get_MainCalculator()
         self.Population = parameters.get_Population()
-        if self.parameters.mlRelax:
+        if self.parameters.useml:
             self.ML = parameters.get_MLCalculator()
 
         self.parameters.save('allparameters.yaml')
@@ -157,7 +157,7 @@ class Magus:
         else:
             relaxpop = self.MainCalculator.relax(initPop.frames)
             if self.parameters.useml:
-                self.ML.get_loss(relaxpop)
+                loss = self.ML.get_loss(relaxpop)
                 logging.info('ML Energy Error:{}'.format(loss[1]))
                 if loss[1]<0.8:
                     logging.info('Bad fit, retraining...')

@@ -19,7 +19,7 @@ addSym: False
 
 
 #main calculator settings
-maincalculator:
+MainCalculator:
  calculator: gulp
  mode: parallel
  calcNum: 4
@@ -44,9 +44,3 @@ maincalculator:
 
 
 ##ML
-MLpath: MLfold
-mloptimizer: fire
-mlrelaxNum: 1
-mlepsArr: [0.5]
-mlstepArr: [50]
-mlmaxRelaxStep: 0.5

@@ -50,6 +50,8 @@ class magusParameters:
             'molDetector': 0,
             'fixCell': False,
             'tourRatio': 0.1,
+            'Algo': 'EA',
+            'mlpredict': False,
         }
         checkParameters(p,p,Requirement,Default)
 
@@ -145,7 +147,7 @@ class magusParameters:
 
     def get_MLCalculator(self):
         if not hasattr(self,'MLCalculator'):
-            if self.parameters.mlRelax:
+            if self.parameters.useml:
                 self.MLCalculator = LRmodel(self.parameters)
             else:
                 self.MLCalculator = None
