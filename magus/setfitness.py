@@ -23,7 +23,9 @@ def var_fitness(Pop):
     for ind in Pop.pop:
         refE = pd.decompose(ind.atoms.get_chemical_formula())[0]
         ehull = ind.atoms.info['enthalpy'] - refE/len(ind.atoms)
-        ind.atoms.info['ehull'] = ehull if ehull > 1e-6 else 0
+        if ehull < 1e-4:
+            ehull = 0
+        ind.atoms.info['ehull'] = ehull
         ind.info['ehull'] = ehull
         ind.info['enthalpy'] = ind.atoms.info['enthalpy']
         ind.info['fitness']['ehull'] = -ehull

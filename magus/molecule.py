@@ -9,7 +9,7 @@ class Atomset:
         self.position = np.mean(positions,axis=0)
         self.relative_positions = positions - self.position
         self.tag = tag
-    
+
     def __len__(self):
         return len(self.symbols)
 
@@ -26,7 +26,7 @@ class Atomset:
     @property
     def positions(self):
         return self.position + self.relative_positions
-    
+
     @property
     def symbol(self):
         s = []
@@ -53,28 +53,28 @@ class Molfilter:
     def __init__(self, atoms, detector=1, coef=1.1):
         self.atoms = atoms
         self.mols = []
-        if len(atoms)>0:
-            if detector == 1:
-                tags, offsets = primitive_atoms2molcryst(atoms, coef)
-            elif detector == 2:
-                tags, offsets = primitive_atoms2communities(atoms, coef)
-            self.tags = tags
-            self.atoms.set_tags(tags)
-            self.unique_tags = np.unique(tags)
-            # add offsets
-            oldPos = self.atoms.get_positions()
-            cell = self.atoms.get_cell()
-            self.atoms.set_positions(oldPos + np.dot(offsets, cell))
+        #if len(atoms)>0:
+        if detector == 1:
+            tags, offsets = primitive_atoms2molcryst(atoms, coef)
+        elif detector == 2:
+            tags, offsets = primitive_atoms2communities(atoms, coef)
+        self.tags = tags
+        self.atoms.set_tags(tags)
+        self.unique_tags = np.unique(tags)
+        # add offsets
+        oldPos = self.atoms.get_positions()
+        cell = self.atoms.get_cell()
+        self.atoms.set_positions(oldPos + np.dot(offsets, cell))
 
-            positions = atoms.get_positions()
-            symbols = atoms.get_chemical_symbols()
-            for tag in self.unique_tags:
-                indices = np.where(tags == tag)[0]
-                pos = [positions[i] for i in indices]
-                sym = [symbols[i] for i in indices]
-                self.mols.append(Atomset(pos,sym,tag))
+        positions = atoms.get_positions()
+        symbols = atoms.get_chemical_symbols()
+        for tag in self.unique_tags:
+            indices = np.where(tags == tag)[0]
+            pos = [positions[i] for i in indices]
+            sym = [symbols[i] for i in indices]
+            self.mols.append(Atomset(pos,sym,tag))
         self.n = len(self.mols)
-        
+
     def get_positions(self):
         cop_pos = np.array([mol.position for mol in self.mols])
         return cop_pos
@@ -125,14 +125,14 @@ class Molfilter:
 
     def __getitem__(self,i):
         return self.mols[i]
-    
+
     def append(self,mol):
         mol.tag = len(self.mols)
         self.mols.append(mol)
         self.atoms.extend(mol.to_atoms())
         newtags = np.array([mol.tag]*len(mol))
-        self.tags = np.concatenate((self,tags,newtags))
-    
+        self.tags = np.concatenate((self.tags,newtags))
+
     def to_atoms(self):
         positions = []
         symbols = []
@@ -141,9 +141,9 @@ class Molfilter:
             positions.extend(mol.positions)
         atoms = Atoms(symbols=symbols,positions=positions,pbc=self.atoms.pbc,cell=self.atoms.cell)
         return atoms
-        
+
 # #TODO from ase, need to change
-# def isolate_components(atoms, kcutoff=None): 
+# def isolate_components(atoms, kcutoff=None):
 #     if kcutoff is None:
 #         intervals = analyze_dimensionality(atoms, method='RDA', merge=False)
 #         m = intervals[0]

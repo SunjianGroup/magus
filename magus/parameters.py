@@ -52,6 +52,7 @@ class magusParameters:
             'tourRatio': 0.1,
             'Algo': 'EA',
             'mlpredict': False,
+            'useml': False,
         }
         checkParameters(p,p,Requirement,Default)
 
