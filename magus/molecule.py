@@ -1,14 +1,28 @@
 from ase.atoms import Atoms
-from ase.data import atomic_numbers,covalent_radii
+from ase.data import atomic_numbers,covalent_radii,atomic_masses
 import numpy as np
 from collections import Counter
 from .utils import primitive_atoms2molcryst, primitive_atoms2communities
 class Atomset:
-    def __init__(self,positions,symbols):
+    def __init__(self,positions,symbols,tag):
         self.symbols = symbols
         self.position = np.mean(positions,axis=0)
         self.relative_positions = positions - self.position
+        self.tag = tag
     
+    def __len__(self):
+        return len(self.symbols)
+
+    def to_atoms(self):
+        return Atoms(symbols=self.symbols,positions=self.positions)
+
+    def rotate(self,phi,theta,psi):
+        rot1 = np.array([[cos(phi),-1*sin(phi),0],[sin(phi),cos(phi),0],[0,0,1]])
+        rot2 = np.array([[cos(theta), 0, -1*sin(theta)],[0,1,0],[sin(theta), 0, cos(theta)]])
+        rot3 = np.array([[1,0,0],[0,cos(psi),-1*sin(psi)],[0,sin(psi),cos(psi)]])
+        rotMat = rot1@rot2@rot3
+        self.relative_positions = self.relative_positions@rotMat
+        return rotMat
     @property
     def positions(self):
         return self.position + self.relative_positions
@@ -24,6 +38,10 @@ class Atomset:
                 s.append(str(n))
         s = ''.join(s)
         return s
+
+    @property
+    def mass(self):
+        return sum([atomic_masses[atomic_numbers[symbol]] for symbol in self.symbols])
 
     @property
     def number(self):
@@ -54,7 +72,7 @@ class Molfilter:
                 indices = np.where(tags == tag)[0]
                 pos = [positions[i] for i in indices]
                 sym = [symbols[i] for i in indices]
-                self.mols.append(Atomset(pos,sym))
+                self.mols.append(Atomset(pos,sym,tag))
         self.n = len(self.mols)
         
     def get_positions(self):
@@ -63,6 +81,8 @@ class Molfilter:
 
     def set_positions(self, positions, **kwargs):
         for i,mol in enumerate(self.mols):
+            indices = np.where(self.tags == mol.tag)
+            self.atoms.positions[indices] = positions[i] - mol.position
             mol.position = positions[i]
 
     def get_scaled_positions(self):
@@ -87,17 +107,13 @@ class Molfilter:
     def get_forces(self, *args, **kwargs):
         f = self.atoms.get_forces()
         forces = np.zeros((self.n, 3))
-        for i in range(self.n):
-            indices = np.where(self.tags == self.unique_tags[i])
+        for mol in self.mols:
+            indices = np.where(self.tags == mol.tag)
             forces[i] = np.sum(f[indices], axis=0)
         return forces
 
     def get_masses(self):
-        m = self.atoms.get_masses()
-        masses = np.zeros(self.n)
-        for i in range(self.n):
-            indices = np.where(self.tags == self.unique_tags[i])
-            masses[i] = np.sum(m[indices])
+        masses = np.array([mol.mass for mol in self.mols])
         return masses
 
     def __len__(self):
@@ -111,7 +127,11 @@ class Molfilter:
         return self.mols[i]
     
     def append(self,mol):
+        mol.tag = len(self.mols)
         self.mols.append(mol)
+        self.atoms.extend(mol.to_atoms())
+        newtags = np.array([mol.tag]*len(mol))
+        self.tags = np.concatenate((self,tags,newtags))
     
     def to_atoms(self):
         positions = []

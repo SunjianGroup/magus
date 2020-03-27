@@ -1,0 +1,192 @@
+from __future__ import print_function, division
+from ase.data import atomic_numbers
+from ase.geometry import cellpar_to_cell
+import ase.io
+import math
+import os
+import yaml
+import logging
+from functools import reduce
+import numpy as np
+import copy
+from .localopt import *
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
+from .writeresults import write_dataset, write_results, write_traj
+from .utils import *
+from .machinelearning import LRmodel
+from .queue import JobManager
+from .renew import BaseEA, BOEA
+from .population import Population
+#ML module
+#from .machinelearning import LRmodel
+from .offspring_creator import *
+###############################
+
+class magusParameters:
+    def __init__(self,inputFile):
+        with open(inputFile) as f:
+            p_dict = yaml.load(f)
+        p = EmptyClass()
+        p.workDir = os.getcwd()
+        p.resultsDir = os.path.join(p.workDir,'results')
+        p.calcDir = os.path.join(p.workDir,'calcFold')
+        p.mlDir = os.path.join(p.workDir,'mlFold')
+        for key, val in p_dict.items():
+            setattr(p, key, val)
+
+        Requirement = ['calcType','MainCalculator','popSize','numGen','saveGood','symbols']
+        Default = {
+            'spacegroup':list(range(1, 231)),
+            'initSize':p.popSize,
+            'molMode':False,
+            'mlRelax':False,
+            'symprec': 0.1,
+            'bondRatio': 1.15,
+            'eleSize': 1,
+            'fullEles': False,
+            'setAlgo': 'ea',
+            'volRatio': 2,
+            'dRatio': 0.7,
+            'molDetector': 0,
+            'fixCell': False,
+            'tourRatio': 0.1,
+            'Algo': 'EA',
+            'mlpredict': False,
+        }
+        checkParameters(p,p,Requirement,Default)
+
+        # p.initSize = p.popSize
+        expandSpg = []
+        for item in p.spacegroup:
+            if isinstance(item, int):
+                if 1 <= item <= 230:
+                    expandSpg.append(item)
+            if isinstance(item, str):
+                assert '-' in item, 'Please check the format of spacegroup'
+                s1, s2 = item.split('-')
+                s1, s2 = int(s1), int(s2)
+                assert 1 <= s1 < s2 <= 230, 'Please check the format of spacegroup'
+                expandSpg.extend(list(range(s1, s2+1)))
+        p.spgs = expandSpg
+
+        if p.molMode:
+            assert hasattr(p,'molFile'), 'Please define molFile'
+            assert hasattr(p,'molFormula'), 'Please define molFormula'
+            mols = [ase.io.read("{}/{}".format(p.workDir, f), format='xyz') for f in p.molFile]
+            molSymbols = set(reduce(lambda x,y: x+y, [ats.get_chemical_symbols() for ats in mols]))
+            assert molSymbols == set(p.symbols), 'Please check the compositions of molecules'
+            if p.molType == 'fix':
+                molFrmls = np.array([get_formula(mol, p.symbols) for mol in mols])
+                p.formula = np.dot(p.molFormula, molFrmls).tolist()
+            p.molList = [{'numbers': ats.get_atomic_numbers(),
+                        'positions': ats.get_positions()}
+                        for ats in mols]
+            p.molNum = len(p.molFile)
+            p.inputMols = [Atoms(**molInfo) for molInfo in p.molList]
+            minFrml = int(np.ceil(p.minAt/sum(p.formula)))
+            maxFrml = int(p.maxAt/sum(p.formula))
+            p.numFrml = list(range(minFrml, maxFrml + 1))
+        self.parameters = p
+
+    def get_AtomsGenerator(self):
+        if not hasattr(self,'AtomsGenerator'):
+            if self.parameters.calcType == 'fix':
+                AtomsGenerator = BaseGenerator(self.parameters)
+            elif self.parameters.calcType == 'var':
+                AtomsGenerator = VarGenerator(self.parameters)
+            else:
+                raise Exception("Undefined calcType '{}'".format(self.parameters.calcType))
+            self.AtomsGenerator = AtomsGenerator
+            self.parameters.attach(AtomsGenerator.p)
+        return self.AtomsGenerator
+
+    def get_PopGenerator(self):
+        if not hasattr(self,'PopGenerator'):
+            cutandsplice = CutAndSplicePairing()
+            perm = PermMutation()
+            lattice = LatticeMutation()
+            ripple = RippleMutation()
+            slip = SlipMutation()
+            rot = RotateMutation()
+            num = 2*int(self.parameters.popSize/3)+1
+            Requirement = []
+            cutNum,slipNum,latNum,ripNum = [num]*4
+            permNum = num if len(self.parameters.symbols) > 1 else 0
+            rotNum = num if self.parameters.molMode else 0
+
+            if self.parameters.useml:
+                self.get_MLCalculator()
+                soft = SoftMutation(self.MLCalculator.calc)
+                softNum = num
+            else:
+                soft = None
+                softNum = 0
+
+            Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
+                'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum}
+            checkParameters(self.parameters,self.parameters,Requirement,Default)
+            numlist = [
+                self.parameters.cutNum,
+                self.parameters.permNum,
+                self.parameters.latNum,
+                self.parameters.ripNum,
+                self.parameters.slipNum,
+                self.parameters.rotNum,
+                self.parameters.softNum,
+                ]
+            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft]
+            if self.parameters.Algo == 'EA':
+                if self.parameters.mlpredict:
+                    assert self.parameters.useml, "'useml' must be True"
+                    calc = self.MLCalculator.calc
+                    self.PopGenerator = MLselect(numlist,oplist,calc,self.parameters)
+                else:
+                    self.PopGenerator = PopGenerator(numlist,oplist,self.parameters)
+            self.parameters.attach(self.PopGenerator.p)
+        return self.PopGenerator
+
+    def get_MLCalculator(self):
+        if not hasattr(self,'MLCalculator'):
+            if self.parameters.useml:
+                self.MLCalculator = LRmodel(self.parameters)
+            else:
+                self.MLCalculator = None
+            self.parameters.MLCalculator = self.MLCalculator.p
+        return self.MLCalculator
+
+    def get_MainCalculator(self):
+        if not hasattr(self,'MainCalculator'):
+            p = copy.deepcopy(self.parameters)
+            for key, val in self.parameters.MainCalculator.items():
+                setattr(p, key, val)
+            checkParameters(p,p,['calculator'],{})
+            if p.calculator == 'vasp':
+                MainCalculator = VaspCalculator(p)
+            elif p.calculator == 'lj':
+                MainCalculator = LJCalculator(p)
+            elif p.calculator == 'emt':
+                MainCalculator = EMTCalculator(p)
+            elif p.calculator == 'gulp':
+                MainCalculator = GULPCalculator(p)
+            elif p.calculator == 'xtb':
+                MainCalculator = XTBCalculator(p)
+            elif p.calculator == 'quip':
+                MainCalculator = QUIPCalculator(p)
+            elif p.calculator == 'lammps':
+                MainCalculator = LAMMPSCalculator(p)
+            else:
+                raise Exception("Undefined calculator '{}'".format(p.calculator))
+            self.MainCalculator = MainCalculator
+            self.parameters.MainCalculator = self.MainCalculator.p
+        return self.MainCalculator
+
+    def get_Population(self):
+        if not hasattr(self,'Population'):
+            self.Population = Population(self.parameters)
+            self.parameters.attach(self.Population.p)
+        return self.Population
+
+if __name__ == '__main__':
+    parm = read_parameters('input.yaml')
+    # print(parm['numFrml'])
+

@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-import os, subprocess, shutil, math, random, re, logging, fractions, sys
+import os, subprocess, shutil, math, random, re, logging, fractions, sys, yaml
 from collections import Counter
 import numpy as np
 import spglib
@@ -22,8 +22,27 @@ except ImportError:
     pass
 
 
+def todict(p):
+    if isinstance(p,EmptyClass):
+        d = {}
+        for key,value in p.__dict__.items():
+            d[key] = todict(value)
+        return d
+    else:
+        return p
 class EmptyClass:
-    pass
+    def attach(self,other):
+        if not isinstance(other,EmptyClass):
+            raise Exception("zhe mei fa attach a")
+        for key,value in other.__dict__.items():
+            if not hasattr(self,key):
+                setattr(self,key,value)
+
+    def save(self,filename):
+        d = todict(self)
+        with open(filename,'w') as f:
+            yaml.dump(d,f)
+
 
 class MolCryst:
     def __init__(self, numbers, cell, sclPos, partition, offSets=None, sclCenters=None, rltSclPos=None, info=dict()):

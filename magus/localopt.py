@@ -543,10 +543,7 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         #     filepath = "{}/{}".format(inputDir, f)
         #     if os.path.isfile(filepath):
         #         shutil.copy(filepath, f)
-        if calcStep == 0:
-            shutil.copy("goptions_scf", "input")
-        else:
-            shutil.copy("goptions_{}".format(calcStep), "input")
+        shutil.copy("goptions_{}".format(calcStep), "input")
 
         with open('input', 'a') as gulpIn:
             gulpIn.write('cell\n')
@@ -597,6 +594,22 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         optInd.info['energy'] = energy
         optInd.info['enthalpy'] = round(enthalpy/len(optInd), 3)
 
+        with open('output') as f:
+            lines = f.readlines()
+        for i,line in enumerate(lines):
+            if 'Final internal derivatives' in line:
+                s = i + 5
+                break
+        forces = []
+        while(True):
+            s = s + 1
+            if "------------" in lines[s]:
+                break
+            g = lines[s].split()[3:6]                    
+            G = [-float(x) * eV / Ang for x in g]
+            forces.append(G)
+        forces = np.array(forces)
+        optInd.info['forces'] = forces
         return optInd
 
     except:

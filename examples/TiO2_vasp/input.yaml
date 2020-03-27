@@ -19,7 +19,7 @@ addSym: False
 
 
 #main calculator settings
-maincalculator:
+MainCalculator:
  calculator: vasp
  mode: parallel
  calcNum: 4
@@ -44,10 +44,3 @@ maincalculator:
  waitTime: 120
 
 
-##ML
-MLpath: MLfold
-mloptimizer: fire
-mlrelaxNum: 1
-mlepsArr: [0.5]
-mlstepArr: [50]
-mlmaxRelaxStep: 0.5

@@ -21,7 +21,7 @@ addSym: False
 
 
 #main calculator settings
-maincalculator:
+MainCalculator:
  calculator: emt
  calcNum: 1
  epsArr: [0.5]

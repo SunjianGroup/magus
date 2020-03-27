@@ -21,7 +21,7 @@ randFrac: 0.3
 molDetector: 2
 
 #main calculator settings
-maincalculator:
+Maincalculator:
  calculator: gulp
  mode: serial
  calcNum: 4
@@ -46,9 +46,3 @@ maincalculator:
 
 
 ##ML
-MLpath: MLfold
-mloptimizer: fire
-mlrelaxNum: 1
-mlepsArr: [0.5]
-mlstepArr: [50]
-mlmaxRelaxStep: 0.5
