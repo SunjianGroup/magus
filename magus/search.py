@@ -108,8 +108,8 @@ class Magus:
         self.goodPop.extend(goodPop)
 
         logging.info('construct keepPop')
-        _, keepPop = goodPop.clustering(self.parameters.saveGood)
-        self.keepPop.extend(keepPop)
+        _, keeppop = goodPop.clustering(self.parameters.saveGood)
+        self.keepPop.extend(keeppop)
         self.keepPop.save('keep')
 
     def Onestep(self):
@@ -134,6 +134,7 @@ class Magus:
                 fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
             else:
                 addpop = self.Generator.Generate_pop(self.parameters.popSize-len(initPop))
+            logging.debug("addpop: {}".format(len(addpop)))
             initPop.extend(addpop)
 
         #read seeds

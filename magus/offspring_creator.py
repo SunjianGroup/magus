@@ -22,7 +22,7 @@ class OffspringCreator:
         pass
 
 class Mutation(OffspringCreator):
-    def __init__(self, tryNum=10):
+    def __init__(self, tryNum=3):
         self.optype = 'Mutation'
         super().__init__(tryNum=tryNum)
 
@@ -36,6 +36,8 @@ class Mutation(OffspringCreator):
                 continue
             newind.parents = [ind]
             newind.merge_atoms(tolerance=ind.p.dRatio)
+            if not newind.check_distance():
+                logging.debug("Too close atoms in merged ind!")
             if newind.repair_atoms():
                 break
         else:
@@ -60,7 +62,7 @@ class Mutation(OffspringCreator):
         return newind
 
 class Crossover(OffspringCreator):
-    def __init__(self, tryNum=10):
+    def __init__(self, tryNum=3):
         self.optype = 'Crossover'
         super().__init__(tryNum=tryNum)
 
@@ -234,11 +236,11 @@ class LatticeMutation(Mutation):
             atoms.set_cell(cellpar_to_cell(cellPar))
         else:
             atoms.set_cell(cellPar, scale_atoms=True)
-        positions = atoms.get_positions()
-        atGauss = np.random.normal(0,sigma,[len(atoms),3])/sigma
-        radius = covalent_radii[atoms.get_atomic_numbers()][:,np.newaxis]
-        positions += atGauss * radius
-        atoms.set_positions(positions)
+            positions = atoms.get_positions()
+            atGauss = np.random.normal(0,sigma,[len(atoms),3])/sigma
+            radius = covalent_radii[atoms.get_atomic_numbers()][:,np.newaxis]
+            positions += atGauss * radius
+            atoms.set_positions(positions)
 
         return ind(atoms)
 
@@ -272,7 +274,7 @@ class SlipMutation(Mutation):
         return ind(atoms)
 
 class RippleMutation(Mutation):
-    def __init__(self, rho=0.3, mu=2, eta=1,tryNum=10):
+    def __init__(self, rho=0.1, mu=1, eta=1,tryNum=10):
         self.rho = rho
         self.mu = mu
         self.eta = eta
@@ -483,6 +485,7 @@ class PopGenerator:
 
         if self.p.calcType == 'var':
             newPop.check_full()
+        newPop.save('testnew')
         newPop.check()
         return newPop
 

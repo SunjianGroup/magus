@@ -13,7 +13,7 @@ class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs']
-        Default={'threshold':1.0,'maxAttempts':50,'method':2,
+        Default={'threshold':1.0,'maxAttempts':50,'method':1,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
@@ -153,7 +153,7 @@ class VarGenerator(Generator):
         Default={'fullEles':True,'eleSize':1}
         checkParameters(self.p,parameters,Requirement,Default)
         # self.projection_matrix=np.dot(self.p.formula.T,np.linalg.pinv(self.p.formula.T))
-        self.p.invFrml = np.linalg.pinv(self.p.formula)
+        self.p.invFrml = np.linalg.pinv(self.p.formula).tolist()
 
     def afterprocessing(self,ind,numlist,nfm):
         ind.info['symbols'] = self.p.symbols

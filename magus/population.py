@@ -1,5 +1,5 @@
 import numpy as np
-import os,re,itertools
+import os,re,itertools,random
 from collections import Counter
 from scipy.spatial.distance import cdist, pdist
 import ase.io
@@ -336,8 +336,8 @@ class Individual:
         X = np.sum(cos_**2)-2*cos_[0]*cos_[1]*cos_[2]
         angles = np.arccos(np.sqrt(X-cos_**2)/sin_)/np.pi*180
 
-        return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
-        # return (minLen < cellPar).all() and (cellPar < maxLen).all()
+        #return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
+        return (minLen < cellPar).all() and (cellPar < maxLen).all()
 
     def check_distance(self,atoms=None):
         """
@@ -413,7 +413,7 @@ class Individual:
 
         for i, j in zip(*nl):
             if i not in exclude and not j in exclude:
-                exclude.append(np.random.choice([i,j]))
+                exclude.append(random.choice([i,j]))
 
         if len(exclude) > 0:
             save = [index for index in indices if index not in exclude]
@@ -456,10 +456,13 @@ class Individual:
             if toadd:
                 #if some symbols need to add, change symbol directly
                 add_symbol = np.random.choice(list(toadd.keys()))
-                repatoms[del_index].symbol = add_symbol
-                toadd[add_symbol] -= 1
-                if toadd[add_symbol] == 0:
-                    toadd.pop(add_symbol)
+                remain_index = [i for i in range(len(repatoms)) if i != del_index]
+                pos = repatoms.positions[del_index]
+                if check_new_atom_dist(repatoms[remain_index], pos, add_symbol, dRatio):
+                    repatoms[del_index].symbol = add_symbol
+                    toadd[add_symbol] -= 1
+                    if toadd[add_symbol] == 0:
+                        toadd.pop(add_symbol)
             else:
                 del repatoms[del_index]
             toremove[del_symbol] -= 1
@@ -469,8 +472,8 @@ class Individual:
             add_symbol = np.random.choice(list(toadd.keys()))
             for _ in range(self.p.repairtryNum):
                 # select a center atoms
-                centerAt = repatoms[np.random.randint(0,len(repatoms)-1)]
-                basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[s]]
+                centerAt = repatoms[np.random.randint(0,len(repatoms))]
+                basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[add_symbol]]
                 # random position in spherical coordination
                 radius = basicR * (dRatio + np.random.uniform(0,0.3))
                 theta = np.random.uniform(0,np.pi)

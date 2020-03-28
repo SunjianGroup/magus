@@ -82,7 +82,7 @@ class Molfilter:
     def set_positions(self, positions, **kwargs):
         for i,mol in enumerate(self.mols):
             indices = np.where(self.tags == mol.tag)
-            self.atoms.positions[indices] = positions[i] - mol.position
+            self.atoms.positions[indices] = positions[i] + mol.relative_positions
             mol.position = positions[i]
 
     def get_scaled_positions(self):
