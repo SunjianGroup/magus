@@ -373,7 +373,7 @@ class VaspCalculator(ABinitCalculator):
     def __init__(self,parameters,prefix='calcVasp'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
-        Default = {'xc':'PBE'}
+        Default = {'xc':'PBE','jobName':'Vasp'}
         checkParameters(self.p,parameters,Requirement,Default)
         self.p.ppLabel = parameters.ppLabel if hasattr(parameters,'ppLabel') \
             else['' for _ in parameters.symbols]
@@ -411,7 +411,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Vasp_%s\n"% (self.p.queueName, self.p.numCore, index))
+                "#BSUB -J %s_%s\n"% (self.p.queueName, self.p.numCore, self.p.jobName,index))
         f.write("{}\n".format(self.p.jobPrefix))
         f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
         f.close()
@@ -436,7 +436,7 @@ class GULPCalculator(ABinitCalculator):
     def __init__(self, parameters,prefix='calcGulp'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
-        Default = {'exeCmd':''}
+        Default = {'exeCmd':'','jobName':'Gulp'}
         checkParameters(self.p,parameters,Requirement,Default)
 
     def scf_serial(self,calcPop):
@@ -480,7 +480,7 @@ class GULPCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Gulp_%s\n"% (self.p.queueName, self.p.numCore, index))
+                "#BSUB -J %s_%s\n"% (self.p.queueName, self.p.numCore, self.p.jobName,index))
         f.write("{}\n".format(self.p.jobPrefix))
         f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
