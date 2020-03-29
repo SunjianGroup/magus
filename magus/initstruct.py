@@ -12,11 +12,12 @@ from .utils import *
 class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['symbols','formula','minAt','maxAt','spgs']
+        Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio']
         Default={'threshold':1.0,'maxAttempts':50,'method':1,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
-        radius = [covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
+        #radius = [covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
+        radius = [self.p.dRatio*covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
 
     def updatevolRatio(self,volRatio):
@@ -24,7 +25,9 @@ class Generator:
         logging.debug("new volRatio: {}".format(self.p.volRatio))
 
     def getVolumeandLattice(self,numlist):
-        Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
+        naturalRadius = [covalent_radii[atomic_numbers[s]] for s in self.p.symbols]
+        Volume = np.sum(4*np.pi/3*np.array(naturalRadius)**3*np.array(numlist))*self.p.volRatio
+        #Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
         minVolume = Volume*0.5
         maxVolume = Volume*1.5
         minLattice= [2*np.max(self.p.radius)]*3+[60]*3
