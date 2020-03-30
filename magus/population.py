@@ -400,6 +400,7 @@ class Individual:
             a = atoms.copy()
         check_cellpar = self.check_cellpar(a)
         check_distance = self.check_distance(a)
+        check_formula = self.check_formula(a)
         check_mol = True
         if self.p.chkMol:
             check_mol = self.check_mol(a)
@@ -448,7 +449,8 @@ class Individual:
         sybls: a list of symbols
         toFrml: a list of formula after repair
         """
-        if not self.needrepair:
+        #if not self.needrepair():
+        if self.check_formula():
             self.sort()
             return True
         if len(self.atoms) == 0:
@@ -539,13 +541,19 @@ class FixInd(Individual):
         newind.info['fitness'] = {}
         return newind
 
-    def needrepair(self):
-        #check if atoms need repair
-        Natoms = len(self.atoms)
+    #def needrepair(self):
+    #    #check if atoms need repair
+    def check_formula(self, atoms=None):
+        # check if the current formual is right
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        Natoms = len(a)
         if Natoms < self.p.minAt or Natoms > self.p.maxAt:
             return False
 
-        symbols = self.atoms.get_chemical_symbols()
+        symbols = a.get_chemical_symbols()
         formula = np.array([symbols.count(s) for s in self.p.symbols])
         numFrml = int(round(Natoms/sum(self.p.formula)))
         targetFrml = numFrml*np.array(self.p.formula)
@@ -589,12 +597,19 @@ class VarInd(Individual):
         newind.info['fitness'] = {}
         return newind
 
-    def needrepair(self):
-        #check if atoms need repair
-        Natoms = len(self.atoms)
+    #def needrepair(self):
+    #    #check if atoms need repair
+    def check_formula(self):
+        # check if the current formual is right
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        Natoms = len(a)
         if Natoms < self.p.minAt or Natoms > self.p.maxAt:
             return False
-        symbols = self.atoms.get_chemical_symbols()
+
+        symbols = a.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.p.symbols]
         rank = np.linalg.matrix_rank(np.concatenate((self.p.formula, [formula])))
         return rank == self.rank

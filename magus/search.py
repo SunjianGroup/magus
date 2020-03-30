@@ -64,7 +64,8 @@ class Magus:
         #read seeds
         seedpop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
         seedPop = self.Population(seedpop,'seedpop',self.curgen)
-        seedPop.check()
+        if self.parameters.chkSeed:
+            seedPop.check()
         initPop.extend(seedPop)
 
         initPop.save()
@@ -140,7 +141,8 @@ class Magus:
         #read seeds
         seedpop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
         seedPop = self.Population(seedpop,'seedpop',self.curgen)
-        seedPop.check()
+        if self.parameters.chkSeed:
+            seedPop.check()
         initPop.extend(seedPop)
 
         # Save Initial

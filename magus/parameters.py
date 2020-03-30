@@ -57,6 +57,7 @@ class magusParameters:
             'addSym': False,
             'randFrac': True,
             'chkMol': False,
+            'chkSeed': True,
         }
         checkParameters(p,p,Requirement,Default)
 

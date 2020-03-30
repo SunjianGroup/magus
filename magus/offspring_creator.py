@@ -42,7 +42,8 @@ class Mutation(OffspringCreator):
                 if newind.repair_atoms():
                     break
             else:
-                if newind.check_mol():
+                #if not newind.needrepair() and newind.check_mol():
+                if newind.check_formula() and newind.check_mol():
                     break
         else:
             logging.debug('fail {} in {}'.format(self.descriptor,ind.info['identity']))
@@ -85,7 +86,8 @@ class Crossover(OffspringCreator):
                 if newind.repair_atoms():
                     break
             else:
-                if newind.check_mol():
+                #if not newind.needrepair() and newind.check_mol():
+                if newind.check_formula() and newind.check_mol():
                     break
         else:
             logging.debug('fail {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))

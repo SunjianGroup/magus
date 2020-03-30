@@ -287,6 +287,7 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
     minLen = 2*max(radius)
     generator.SetLatticeMins(minLen, minLen, minLen, 60, 60, 60)
     generator.GetConventional = True
+    generator.UselocalCellTrans = 'n'
     numbers = []
     for i in range(numType):
         generator.AppendAtoms(formula[i], "{}".format(i), radius[i], False)
@@ -302,7 +303,11 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
         wyckPos = np.reshape(wyckPos, (-1,3))
         wyckName = generator.GetWyckLabel(0)
         wyckNum = [int(n) for n in wyckName]
-        return label, cell, numbers, positions, wyckNum, wyckPos
+        if len(positions) == sum(formula):
+            return label, cell, numbers, positions, wyckNum, wyckPos
+        else:
+            logging.debug("Incorrect formula in generatenew")
+            return False, None, None, None, None, None
     else:
         return label, None, None, None, None, None
 
