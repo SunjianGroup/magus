@@ -403,12 +403,12 @@ class Individual:
         check_mol = True
         if self.p.chkMol:
             check_mol = self.check_mol(a)
-        if not check_cellpar:
-            logging.debug("Fail in check_cellpar")
-        if not check_distance:
-            logging.debug("Fail in check_distance")
-        if not check_mol:
-            logging.debug("Fail in check_mol")
+        #if not check_cellpar:
+        #    logging.debug("Fail in check_cellpar")
+        #if not check_distance:
+        #    logging.debug("Fail in check_distance")
+        #if not check_mol:
+        #    logging.debug("Fail in check_mol")
         return check_cellpar and check_distance and check_mol
 
     def sort(self):

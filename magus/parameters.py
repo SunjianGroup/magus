@@ -56,6 +56,7 @@ class magusParameters:
             'useml': False,
             'addSym': False,
             'randFrac': True,
+            'chkMol': False,
         }
         checkParameters(p,p,Requirement,Default)
 
@@ -77,6 +78,8 @@ class magusParameters:
             assert hasattr(p,'molFile'), 'Please define molFile'
             assert hasattr(p,'molFormula'), 'Please define molFormula'
             mols = [ase.io.read("{}/{}".format(p.workDir, f), format='xyz') for f in p.molFile]
+            for mol in mols:
+                assert not mol.pbc.any(), "Please provide a molecule ranther than a periodic system!"
             molSymbols = set(reduce(lambda x,y: x+y, [ats.get_chemical_symbols() for ats in mols]))
             assert molSymbols == set(p.symbols), 'Please check the compositions of molecules'
             if p.molType == 'fix':
@@ -90,6 +93,8 @@ class magusParameters:
             minFrml = int(np.ceil(p.minAt/sum(p.formula)))
             maxFrml = int(p.maxAt/sum(p.formula))
             p.numFrml = list(range(minFrml, maxFrml + 1))
+        if p.chkMol:
+            assert p.molDetector==1, "If you want to check molecules, molDetector should be 1."
         self.parameters = p
 
     def get_AtomsGenerator(self):
