@@ -29,17 +29,21 @@ class Mutation(OffspringCreator):
     def mutate(self,ind):
         raise NotImplementedError(self.descriptor)
 
-    def get_new_individual(self,ind):
+    def get_new_individual(self,ind,chkMol=False):
         for _ in range(self.tryNum):
             newind = self.mutate(ind)
             if newind is None:
                 continue
             newind.parents = [ind]
-            newind.merge_atoms(tolerance=ind.p.dRatio)
-            if not newind.check_distance():
-                logging.debug("Too close atoms in merged ind!")
-            if newind.repair_atoms():
-                break
+            if not chkMol:
+                newind.merge_atoms()
+                if not newind.check_distance():
+                    logging.debug("Too close atoms in merged ind!")
+                if newind.repair_atoms():
+                    break
+            else:
+                if newind.check_mol():
+                    break
         else:
             logging.debug('fail {} in {}'.format(self.descriptor,ind.info['identity']))
             return None
@@ -69,16 +73,20 @@ class Crossover(OffspringCreator):
     def cross(self,ind):
         raise NotImplementedError(self.descriptor)
 
-    def get_new_individual(self,parents):
+    def get_new_individual(self,parents,chkMol=False):
         f,m = parents
         for _ in range(self.tryNum):
             newind = self.cross(f,m)
             if newind is None:
                 continue
             newind.parents = [f,m]
-            newind.merge_atoms(tolerance=f.p.dRatio)
-            if newind.repair_atoms():
-                break
+            if not chkMol:
+                newind.merge_atoms()
+                if newind.repair_atoms():
+                    break
+            else:
+                if newind.check_mol():
+                    break
         else:
             logging.debug('fail {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
             return None
@@ -413,7 +421,7 @@ class PopGenerator:
         self.oplist = oplist
         self.numlist = numlist
         self.p = EmptyClass()
-        Requirement = ['popSize','saveGood','molDetector', 'randFrac', 'calcType', 'addSym']
+        Requirement = ['popSize','saveGood','molDetector', 'randFrac', 'calcType', 'addSym', 'chkMol']
         Default = {}
         checkParameters(self.p,parameters,Requirement,Default)
 
@@ -468,7 +476,7 @@ class PopGenerator:
                 for i,ind in enumerate(mutate_inds):
                     if self.p.molDetector != 0 and not hasattr(newind, 'molCryst'):
                         ind.to_mol()
-                    newind = op.get_new_individual(ind)
+                    newind = op.get_new_individual(ind, chkMol=self.p.chkMol)
                     if newind:
                         newPop.append(newind)
             elif op.optype == 'Crossover':
@@ -478,7 +486,7 @@ class PopGenerator:
                         for ind in parents:
                             if not hasattr(ind, 'molCryst'):
                                 ind.to_mol()
-                    newind = op.get_new_individual(parents)
+                    newind = op.get_new_individual(parents,chkMol=self.p.chkMol)
                     if newind:
                         newPop.append(newind)
             logging.debug("popsize after {}: {}".format(op.descriptor, len(newPop)))

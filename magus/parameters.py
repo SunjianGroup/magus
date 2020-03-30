@@ -49,10 +49,13 @@ class magusParameters:
             'dRatio': 0.7,
             'molDetector': 0,
             'fixCell': False,
+            'setCellPar': None,
             'tourRatio': 0.1,
             'Algo': 'EA',
             'mlpredict': False,
             'useml': False,
+            'addSym': False,
+            'randFrac': True,
         }
         checkParameters(p,p,Requirement,Default)
 
@@ -109,11 +112,12 @@ class magusParameters:
             ripple = RippleMutation()
             slip = SlipMutation()
             rot = RotateMutation()
-            num = 2*int(self.parameters.popSize/3)+1
+            num = 2*int(self.parameters.popSize/6)+1
             Requirement = []
             cutNum,slipNum,latNum,ripNum = [num]*4
             permNum = num if len(self.parameters.symbols) > 1 else 0
-            rotNum = num if self.parameters.molMode else 0
+            rotNum = num if self.parameters.molDetector != 0 else 0
+            #rotNum = num if self.parameters.molMode else 0
 
             if self.parameters.useml:
                 self.get_MLCalculator()

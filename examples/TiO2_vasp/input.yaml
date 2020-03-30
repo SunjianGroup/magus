@@ -13,7 +13,7 @@ formula: [1,2]
 fullEles: True
 eleSize: 0
 
-dRatio: 0.3
+dRatio: 0.6
 volRatio: 3
 addSym: False
 
@@ -34,13 +34,13 @@ MainCalculator:
  ppLabel: ['','_s']
  
  #gulp settings
- exeCmd: gulp < input > output
+ #exeCmd: gulp < input > output
  
  #parallel settings
  numParallel: 2
  numCore: 6
- #queueName: e52692v2ib!
- queueName: e5v3ib
+ queueName: e52692v2ib!
+ #queueName: e5v3ib
  waitTime: 120
 
 

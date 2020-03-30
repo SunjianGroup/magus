@@ -11,7 +11,7 @@ from ase import Atoms
 import numpy as np
 
 
-savePri = 1
+savePri = 0
 saveStd = 0
 
 pd.options.display.max_rows = 200
@@ -25,14 +25,14 @@ names = locals()
 showList = [
 'symmetry',
 'enthalpy',
-'ehull',
+#'ehull',
 #'predictE',
-'parentE',
+#'parentE',
 #'symbols',
 'formula',
 #'gap',
 #'volume',
-#'Origin',
+'origin',
 #'utilVal',
 #'sigma',
 #'relaxD',

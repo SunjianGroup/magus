@@ -3,6 +3,8 @@ from ase.data import atomic_numbers,covalent_radii,atomic_masses
 import numpy as np
 from collections import Counter
 from .utils import primitive_atoms2molcryst, primitive_atoms2communities
+from math import cos, sin
+
 class Atomset:
     def __init__(self,positions,symbols,tag):
         self.symbols = symbols

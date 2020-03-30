@@ -144,6 +144,7 @@ class Population:
         logging.info("check population {}, popsize:{}".format(self.name,len(self.pop)))
         checkpop = []
         for ind in self.pop:
+            #logging.debug("checking {}".format(ind.info['identity']))
             if ind.check():
                 checkpop.append(ind)
         logging.info("check survival: {}".format(len(checkpop)))
@@ -207,7 +208,7 @@ class Individual:
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['formula','symbols','minAt','maxAt','symprec','molDetector','bondRatio','dRatio']
-        Default={'repairtryNum':10,'is_mol':False,'chkMol':False,
+        Default={'repairtryNum':3,'molMode':False,'chkMol':False,
             'minLattice':None,'maxLattice':None,'dRatio':0.7,'addSym':False}
         checkParameters(self.p,parameters,Requirement,Default)
         # if self.p.addSym:
@@ -221,11 +222,15 @@ class Individual:
         #fingerprint
         self.cf = ZernikeFp(parameters)
 
-        if self.p.is_mol:
+        if self.p.molMode:
             assert hasattr(parameters,'molList')
             self.inputMols = [Atoms(**molInfo) for molInfo in parameters.molList]
+            self.molCounters = [Counter(inMol.get_chemical_symbols()) for inMol in self.inputMols]
+
         else:
             self.inputMols = []
+            self.molCounters = []
+        #TODO Sometimes self.inputFormulas are wrong, so I use Counter instead. -hgao
         self.inputFormulas = []
         for mol in self.inputMols:
             s = []
@@ -238,6 +243,8 @@ class Individual:
                     s.append(str(n))
             s = ''.join(s)
             self.inputFormulas.append(s)
+
+        #logging.debug('self.inputFormulas: {}'.format(self.inputFormulas))
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self,obj)
@@ -378,9 +385,11 @@ class Individual:
         else:
             a = atoms.copy()
 
-        molCryst = Molfilter(atoms, coef=self.p.bondRatio)
+        molCryst = Molfilter(a, coef=self.p.bondRatio)
         for mol in molCryst:
-            if mol.symbol not in self.inputFormulas:
+            molCt = Counter(mol.symbols)
+            if molCt not in self.molCounters:
+            #if mol.symbol not in self.inputFormulas:
                 return False
         return True
 
@@ -391,21 +400,32 @@ class Individual:
             a = atoms.copy()
         check_cellpar = self.check_cellpar(a)
         check_distance = self.check_distance(a)
-        check_mol = self.check_mol(a) if self.p.chkMol else True
+        check_mol = True
+        if self.p.chkMol:
+            check_mol = self.check_mol(a)
+        if not check_cellpar:
+            logging.debug("Fail in check_cellpar")
+        if not check_distance:
+            logging.debug("Fail in check_distance")
+        if not check_mol:
+            logging.debug("Fail in check_mol")
         return check_cellpar and check_distance and check_mol
 
     def sort(self):
-        indices = []
-        for s in self.p.symbols:
-            indices.extend([i for i,atom in enumerate(self.atoms) if atom.symbol==s])
+        #indices = []
+        #for s in self.p.symbols:
+        #    indices.extend([i for i,atom in enumerate(self.atoms) if atom.symbol==s])
+        numbers = self.atoms.get_atomic_numbers()
+        indices = sorted(range(len(self.atoms)), key=lambda x:numbers[x])
         self.atoms = self.atoms[indices]
 
-    def merge_atoms(self, tolerance=0.3,):
+    def merge_atoms(self):
         """
         TODO threshold
         if a pair of atoms are too close, merge them.
         """
         atoms = self.atoms
+        tolerance = self.p.dRatio
         cutoffs = [tolerance * covalent_radii[num] for num in atoms.get_atomic_numbers()]
         nl = neighbor_list("ij", atoms, cutoffs)
         indices = list(range(len(atoms)))
@@ -507,6 +527,7 @@ class FixInd(Individual):
         newind.comparator = self.comparator
         newind.cf = self.cf
         newind.inputMols = self.inputMols
+        newind.molCounters = self.molCounters
         newind.inputFormulas = self.inputFormulas
 
         if atoms.__class__.__name__ == 'Molfilter':
