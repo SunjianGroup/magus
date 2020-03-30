@@ -6,6 +6,7 @@ import spglib
 from numpy import pi, sin, cos, sqrt
 import networkx as nx
 from ase import Atoms
+from ase.geometry import wrap_positions
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_numbers, covalent_radii
 from ase.neighborlist import neighbor_list
@@ -745,14 +746,14 @@ def check_dist(pop, threshold=0.7):
     return checkPop
 
 def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
-
+    newPosition = wrap_positions([newPosition],atoms.cell)[0]
     supAts = atoms * (3,3,3)
     rs = [covalent_radii[num] for num in supAts.get_atomic_numbers()]
     rnew = covalent_radii[atomic_numbers[newSymbol]]
     # Place the new atoms in the centeral cell
     cell = atoms.get_cell()
-    centerPos = newPosition+ np.dot(cell,[1,1,1])
-    distArr = cdist([centerPos], supAts.get_positions())[0]
+    centerPos = newPosition+ np.dot([1,1,1],cell)
+    distArr = cdist([centerPos], supAts.get_positions(wrap=True))[0]
 
     for i, dist in enumerate(distArr):
         if dist/(rs[i]+rnew) < threshold:

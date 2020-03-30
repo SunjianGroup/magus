@@ -421,8 +421,8 @@ class PopGenerator:
         self.oplist = oplist
         self.numlist = numlist
         self.p = EmptyClass()
-        Requirement = ['popSize','saveGood','molDetector', 'randFrac', 'calcType', 'addSym', 'chkMol']
-        Default = {}
+        Requirement = ['popSize','saveGood','molDetector', 'calcType']
+        Default = {'chkMol': False,'addSym': False,'randFrac': 0.0}
         checkParameters(self.p,parameters,Requirement,Default)
 
     def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
