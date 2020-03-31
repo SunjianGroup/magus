@@ -230,7 +230,7 @@ class Individual:
         else:
             self.inputMols = []
             self.molCounters = []
-        #TODO Sometimes self.inputFormulas are wrong, so I use Counter instead. -hgao
+        #Sometimes self.inputFormulas are wrong, so I use Counter instead. -hgao
         self.inputFormulas = []
         for mol in self.inputMols:
             s = []
@@ -599,7 +599,7 @@ class VarInd(Individual):
 
     #def needrepair(self):
     #    #check if atoms need repair
-    def check_formula(self):
+    def check_formula(self, atoms=None):
         # check if the current formual is right
         if atoms is None:
             a = self.atoms.copy()

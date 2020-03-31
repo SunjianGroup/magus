@@ -42,6 +42,7 @@ class LRCalculator(Calculator):
     def load_calculator(self,filename):
         with open(filename) as f:
             data = yaml.load(f)
+        #TODO use bayesian linear regression to calculate uncertainty
         self.reg = LinearRegression()
         self.reg.coef_=data['coef_']
         self.reg.intercept_ = data['intercept_']

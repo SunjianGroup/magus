@@ -39,49 +39,6 @@ class RelaxVasp(Vasp):
     """
     def read_relaxed(self):
         return True
-    # def read_convergence(self):
-    #     """Method that checks whether a calculation has converged."""
-    #     converged = None
-    #     # First check electronic convergence
-    #     for line in open('OUTCAR', 'r'):
-    #         if 0:  # vasp always prints that!
-    #             if line.rfind('aborting loop') > -1:  # scf failed
-    #                 raise RuntimeError(line.strip())
-    #                 break
-    #         if line.rfind('EDIFF  ') > -1:
-    #             ediff = float(line.split()[2])
-    #         if line.rfind('total energy-change') > -1:
-    #             # I saw this in an atomic oxygen calculation. it
-    #             # breaks this code, so I am checking for it here.
-    #             if 'MIXING' in line:
-    #                 continue
-    #             split = line.split(':')
-    #             a = float(split[1].split('(')[0])
-    #             b = split[1].split('(')[1][0:-2]
-    #             # sometimes this line looks like (second number wrong format!):
-    #             # energy-change (2. order) :-0.2141803E-08  ( 0.2737684-111)
-    #             # we are checking still the first number so
-    #             # let's "fix" the format for the second one
-    #             if 'e' not in b.lower():
-    #                 # replace last occurrence of - (assumed exponent) with -e
-    #                 bsplit = b.split('-')
-    #                 bsplit[-1] = 'e' + bsplit[-1]
-    #                 b = '-'.join(bsplit).replace('-e', 'e-')
-    #             b = float(b)
-    #             if [abs(a), abs(b)] < [ediff, ediff]:
-    #                 converged = True
-    #             else:
-    #                 converged = False
-    #                 continue
-    #     # Then if ibrion in [1,2,3] check whether ionic relaxation
-    #     # condition been fulfilled
-    #     # if ((self.int_params['ibrion'] in [1, 2, 3] and
-    #     #      self.int_params['nsw'] not in [0])):
-    #     #     if not self.read_relaxed():
-    #     #         converged = False
-    #     #     else:
-    #     #         converged = True
-    #     return converged
 
 class Calculator:
     def __init__(self,parameters):
@@ -594,6 +551,7 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         optInd.info['energy'] = energy
         optInd.info['enthalpy'] = round(enthalpy/len(optInd), 3)
 
+        #TODO The following code are adapted from ASE, need modification
         with open('output') as f:
             lines = f.readlines()
         for i,line in enumerate(lines):
@@ -689,70 +647,3 @@ def calc_vasp(
             # ind.info['initStruct'] = extract_atoms(initInd)
             newStructs.append(ind)
     return newStructs
-
-def read_gulp_results(filename):
-
-    with open(filename) as f:
-        lines = f.readlines()
-    for i, line in enumerate(lines):
-        m = re.match(r'\s*Total lattice energy\s*=\s*(\S+)\s*eV', line)
-        if m:
-            energy = float(m.group(1))
-
-        elif line.find('Final Cartesian derivatives') != -1:
-            s = i + 5
-            forces = []
-            while(True):
-                s = s + 1
-                if lines[s].find("------------") != -1:
-                    break
-                if lines[s].find(" s ") != -1:
-                    continue
-                g = lines[s].split()[3:6]
-                G = [-float(x) * eV / Ang for x in g]
-                forces.append(G)
-            forces = np.array(forces)
-
-        elif line.find('Final internal derivatives') != -1:
-            s = i + 5
-            forces = []
-            while(True):
-                s = s + 1
-                if lines[s].find("------------") != -1:
-                    break
-                g = lines[s].split()[3:6]
-
-                    # Uncomment the section below to separate the numbers when there is no space between them, in the case of long numbers. This prevents the code to break if numbers are too big.
-
-                '''for t in range(3-len(g)):
-                    g.append(' ')
-                for j in range(2):
-                    min_index=[i+1 for i,e in enumerate(g[j][1:]) if e == '-']
-                    if j==0 and len(min_index) != 0:
-                        if len(min_index)==1:
-                            g[2]=g[1]
-                            g[1]=g[0][min_index[0]:]
-                            g[0]=g[0][:min_index[0]]
-                        else:
-                            g[2]=g[0][min_index[1]:]
-                            g[1]=g[0][min_index[0]:min_index[1]]
-                            g[0]=g[0][:min_index[0]]
-                            break
-                    if j==1 and len(min_index) != 0:
-                        g[2]=g[1][min_index[0]:]
-                        g[1]=g[1][:min_index[0]]'''
-
-                G = [-float(x) * eV / Ang for x in g]
-                forces.append(G)
-            forces = np.array(forces)
-
-        elif line.find('Final stress tensor components') != -1:
-            res=[0.,0.,0.,0.,0.,0.]
-            for j in range(3):
-                var=lines[i+j+3].split()[1]
-                res[j]=float(var)
-                var=lines[i+j+3].split()[3]
-                res[j+3]=float(var)
-            stress=np.array(res)
-
-    return energy, forces, stress

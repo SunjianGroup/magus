@@ -106,6 +106,7 @@ class Molfilter:
     def get_atomic_numbers(self):
         return np.array([mol.number for mol in self.mols])
 
+    # TODO Unused code, and it is from ASE
     def get_forces(self, *args, **kwargs):
         f = self.atoms.get_forces()
         forces = np.zeros((self.n, 3))
