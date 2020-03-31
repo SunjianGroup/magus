@@ -58,6 +58,7 @@ class Mutation(OffspringCreator):
             delattr(newind, 'molCryst')
 
         newind.info['parents'] = [ind.info['identity']]
+        newind.info['parentE'] = ind.info['enthalpy']
         newind.info['pardom'] = ind.info['dominators']
         newind.info['origin'] = self.descriptor
         newind.info['symbols'] = ind.p.symbols
@@ -100,6 +101,7 @@ class Crossover(OffspringCreator):
                 del newind.atoms.info[k]
 
         newind.info['parents'] = [f.info['identity'],m.info['identity']]
+        newind.info['parentE'] = 0.5*(f.info['enthalpy']+m.info['enthalpy'])
         newind.info['pardom'] = 0.5*(f.info['dominators']+m.info['dominators'])
         newind.info['origin'] = self.descriptor
         newind.info['symbols'] = f.p.symbols

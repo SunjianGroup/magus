@@ -17,7 +17,7 @@ class Comparator:
         # if a.get_chemical_formula() != b.get_chemical_formula():
         if Counter(a.info['priNum']) != Counter(b.info['priNum']):
             return False
-        if a.info['spg'] != b.info['spg']:
+        if a.info['spg'] != b.info['spg'] or a.info['spg'] == 1 or  b.info['spg'] == 1:
             return False
         if abs(1-a.info['priVol']/b.info['priVol']) > self.dV:
             return False
