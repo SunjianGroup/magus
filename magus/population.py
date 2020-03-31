@@ -132,7 +132,7 @@ class Population:
         logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
         newpop = []
         # sort the pop before deleting duplicates
-        self.pop = sorted(self.pop, key=lambda x:x.info['enthalpy'] if 'enthalpy' in x.info['enthalpy'] else 100)
+        self.pop = sorted(self.pop, key=lambda x:x.info['enthalpy'] if 'enthalpy' in x.info else 100)
         for ind1 in self.pop:
             for ind2 in newpop:
                 if ind1==ind2:

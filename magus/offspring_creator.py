@@ -14,7 +14,7 @@ from .molecule import Molfilter
 import ase.io
 from .utils import *
 class OffspringCreator:
-    def __init__(self,tryNum=10):
+    def __init__(self,tryNum=3):
         self.tryNum = tryNum
         self.descriptor = type(self).__name__
 
@@ -212,6 +212,9 @@ class PermMutation(Mutation):
                 continue
             i = np.random.choice(s1list)
             j = np.random.choice(s2list)
+            if i == j:
+                n += 1
+                continue
             atoms[i].position,atoms[j].position = atoms[j].position,atoms[i].position
             indices.remove(i)
             indices.remove(j)
