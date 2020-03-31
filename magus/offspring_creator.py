@@ -7,7 +7,7 @@ import logging
 from ase import Atoms
 from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 from ase.neighborlist import NeighborList
-from ase.data import covalent_radii
+from ase.data import covalent_radii,chemical_symbols
 from .population import Population
 from .renew import match_lattice
 from .molecule import Molfilter
@@ -198,17 +198,22 @@ class PermMutation(Mutation):
             return None
 
         indices = list(range(len(atoms)))
-        for _ in range(numSwaps):
-            s1, s2 = np.random.choice(symList, 2, replace = False)
+        n = 0
+        while n < numSwaps:
+            s1, s2 = np.random.choice(symList, 2)
+            if s1 == s2 and s1 in chemical_symbols:
+                continue
             s1list = [index for index in indices if atoms[index].symbol==s1]
             s2list = [index for index in indices if atoms[index].symbol==s2]
             if len(s1list)==0 or len(s2list)==0:
-                break
+                n += 1
+                continue
             i = np.random.choice(s1list)
             j = np.random.choice(s2list)
             atoms[i].position,atoms[j].position = atoms[j].position,atoms[i].position
             indices.remove(i)
             indices.remove(j)
+            n += 1
         return ind(atoms)
 
 class LatticeMutation(Mutation):
