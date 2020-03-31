@@ -186,9 +186,6 @@ class PermMutation(Mutation):
 
         if ind.p.molDetector != 0:
             atoms = ind.molCryst
-        #TODO Molfilter need get_chemical_symbols().
-        if ind.p.molDetector != 0:
-            return None
 
         maxSwaps = int(fracSwaps*len(atoms))
         if maxSwaps == 0:

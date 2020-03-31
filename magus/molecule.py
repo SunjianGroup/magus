@@ -119,6 +119,9 @@ class Molfilter:
         masses = np.array([mol.mass for mol in self.mols])
         return masses
 
+    def get_chemical_symbols(self):
+        return [mol.symbol for mol in self.mols]
+
     def __len__(self):
         return len(self.mols)
 
