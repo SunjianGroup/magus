@@ -14,7 +14,7 @@ from .molecule import Molfilter
 import ase.io
 from .utils import *
 class OffspringCreator:
-    def __init__(self,tryNum=3):
+    def __init__(self,tryNum=10):
         self.tryNum = tryNum
         self.descriptor = type(self).__name__
 
@@ -22,7 +22,7 @@ class OffspringCreator:
         pass
 
 class Mutation(OffspringCreator):
-    def __init__(self, tryNum=3):
+    def __init__(self, tryNum=10):
         self.optype = 'Mutation'
         super().__init__(tryNum=tryNum)
 
@@ -68,7 +68,7 @@ class Mutation(OffspringCreator):
         return newind
 
 class Crossover(OffspringCreator):
-    def __init__(self, tryNum=3):
+    def __init__(self, tryNum=10):
         self.optype = 'Crossover'
         super().__init__(tryNum=tryNum)
 
@@ -190,7 +190,7 @@ class PermMutation(Mutation):
             atoms = ind.molCryst
 
         maxSwaps = int(fracSwaps*len(atoms))
-        if maxSwaps == 0:
+        if maxSwaps < 2:
             maxSwaps = 2
         numSwaps = np.random.randint(1, maxSwaps)
 
@@ -330,6 +330,27 @@ class RotateMutation(Mutation):
             if len(mol)>1 and np.random.rand() < self.p:
                 phi, theta, psi = np.random.uniform(-1,1,3)*np.pi*2
                 mol.rotate(phi,theta,psi)
+        return ind(atoms)
+
+class FormulaMutation(Mutation):
+    def __init__(self, symbols, p=0.5, tryNum=10):
+        self.p = p
+        self.symbols = symbols
+        super().__init__(tryNum=tryNum)
+
+    def mutate(self,ind):
+        """
+        Randomly change symbols, only used for variable formula search 
+        and unavailable for molecular crystals (chkMol should be False).
+        """
+        atoms = ind.atoms.copy()
+        symbols = self.symbols
+        #symList = list(set(symbols))
+        for atom in atoms:
+            if np.random.rand() < self.p:
+                otherSym = [s for s in symbols if s != atom.symbol]
+                atom.symbol = str(np.random.choice(otherSym))
+                
         return ind(atoms)
 
 class CutAndSplicePairing(Crossover):

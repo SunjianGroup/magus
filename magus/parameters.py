@@ -55,7 +55,7 @@ class magusParameters:
             'mlpredict': False,
             'useml': False,
             'addSym': False,
-            'randFrac': True,
+            'randFrac': 0.2,
             'chkMol': False,
             'chkSeed': True,
         }
@@ -118,12 +118,14 @@ class magusParameters:
             ripple = RippleMutation()
             slip = SlipMutation()
             rot = RotateMutation()
-            num = 2*int(self.parameters.popSize/6)+1
+            form = FormulaMutation(symbols=self.parameters.symbols)
+            num = 2*int((1-self.parameters.randFrac)*self.parameters.popSize/8)+1
             Requirement = []
             cutNum,slipNum,latNum,ripNum = [num]*4
             permNum = num if len(self.parameters.symbols) > 1 else 0
             rotNum = num if self.parameters.molDetector != 0 else 0
             #rotNum = num if self.parameters.molMode else 0
+            formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
 
             if self.parameters.useml:
                 self.get_MLCalculator()
@@ -134,7 +136,7 @@ class magusParameters:
                 softNum = 0
 
             Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
-                'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum}
+                'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 'formNum': formNum}
             checkParameters(self.parameters,self.parameters,Requirement,Default)
             numlist = [
                 self.parameters.cutNum,
@@ -144,8 +146,9 @@ class magusParameters:
                 self.parameters.slipNum,
                 self.parameters.rotNum,
                 self.parameters.softNum,
+                self.parameters.formNum,
                 ]
-            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft]
+            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"
