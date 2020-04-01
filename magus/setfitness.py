@@ -2,7 +2,6 @@ from __future__ import print_function, division
 import os
 import logging
 import numpy as np
-# from .renewstruct import find_spg
 from .utils import find_spg
 from .xrd import compare_xrd
 import copy

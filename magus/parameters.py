@@ -15,7 +15,6 @@ from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
 from .machinelearning import LRmodel
 from .queue import JobManager
-from .renew import BaseEA, BOEA
 from .population import Population
 #ML module
 #from .machinelearning import LRmodel

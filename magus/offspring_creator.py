@@ -9,7 +9,6 @@ from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 from ase.neighborlist import NeighborList
 from ase.data import covalent_radii,chemical_symbols
 from .population import Population
-from .renew import match_lattice
 from .molecule import Molfilter
 import ase.io
 from .utils import *
