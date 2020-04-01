@@ -439,7 +439,7 @@ class Individual:
                 exclude.append(random.choice([i,j]))
 
         if len(exclude) > 0:
-            save = [index for index in indices if index not in exclude]
+            save = [int(index) for index in indices if index not in exclude]
             mAts = atoms[save]
             mAts.info = atoms.info.copy()
         else:

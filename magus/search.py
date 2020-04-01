@@ -103,7 +103,7 @@ class Magus:
 
         goodpop.extend(relaxpop)
         goodPop = self.Population(goodpop,'goodPop',self.curgen)
-        # goodPop.del_duplicate()
+        goodPop.del_duplicate()
         goodPop.calc_dominators()
         goodPop.select(self.parameters.popSize)
         goodPop.save('good','')
