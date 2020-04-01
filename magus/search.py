@@ -32,7 +32,7 @@ class Magus:
         self.bestlen = []
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
-        
+
     def run(self):
         self.Initialize()
         for gen in range(self.parameters.numGen-1):
@@ -101,12 +101,20 @@ class Magus:
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
         self.bestPop.save('best',self.curgen)
 
+
         logging.info('construct goodPop')
-        goodPop = relaxPop
+        goodPop = self.goodPop
+        if self.parameters.goodSeed:
+            logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to goodPop without relaxation.".format(self.parameters.goodSeedFile))
+            goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
+            goodPop.extend(goodseedpop)
+
+        goodPop = goodPop + relaxPop
+        goodPop.calc_dominators()
         goodPop.select(self.parameters.popSize)
         goodPop.save('good','')
         goodPop.save('savegood')
-        self.goodPop.extend(goodPop)
+        self.goodPop = goodPop
 
         logging.info('construct keepPop')
         _, keeppop = goodPop.clustering(self.parameters.saveGood)

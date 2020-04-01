@@ -58,6 +58,8 @@ class magusParameters:
             'randFrac': 0.2,
             'chkMol': False,
             'chkSeed': True,
+            'goodSeed': False,
+            'goodSeedFile': '',
         }
         checkParameters(p,p,Requirement,Default)
 
@@ -119,7 +121,7 @@ class magusParameters:
             slip = SlipMutation()
             rot = RotateMutation()
             form = FormulaMutation(symbols=self.parameters.symbols)
-            num = 2*int((1-self.parameters.randFrac)*self.parameters.popSize/8)+1
+            num = 3*int((1-self.parameters.randFrac)*self.parameters.popSize/8)+1
             Requirement = []
             cutNum,slipNum,latNum,ripNum = [num]*4
             permNum = num if len(self.parameters.symbols) > 1 else 0

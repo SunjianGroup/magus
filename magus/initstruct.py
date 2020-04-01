@@ -38,7 +38,7 @@ class Generator:
             minVolume = np.linalg.det(cellpar_to_cell(minLattice))
         if self.p.maxLattice:
             maxLattice = self.p.maxLattice
-            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice)) 
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
         return minVolume,maxVolume,minLattice,maxLattice
 
     def Generate_ind(self,spg,numlist):
@@ -468,7 +468,7 @@ def build_mol_struct(
     return buildPop
 
 
-def read_seeds(parameters, seedFile):
+def read_seeds(parameters, seedFile, goodSeed=False):
     seedPop = []
     setSym = parameters.symbols
     setFrml = parameters.formula
@@ -477,13 +477,19 @@ def read_seeds(parameters, seedFile):
     calcType = parameters.calcType
 
     if os.path.exists(seedFile):
-        readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
+        if goodSeed:
+            readPop = ase.io.read(seedFile, index=':', format='traj')
+        else:
+            readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
         if len(readPop) > 0:
             logging.info("Reading Seeds ...")
 
         seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
         for ind in seedPop:
-            ind.info['origin'] = 'seed'
+            if goodSeed:
+                ind.info['origin'] = 'goodseed'
+            else:
+                ind.info['origin'] = 'seed'
     return seedPop
 
 
