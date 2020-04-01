@@ -463,7 +463,7 @@ class Individual:
         syms = atoms.get_chemical_symbols()
         #nowFrml = Counter(atoms.get_chemical_symbols())
         targetFrml = self.get_targetFrml()
-        logging.debug("Target formula: {}".format(targetFrml))
+        # logging.debug("Target formula: {}".format(targetFrml))
         if not targetFrml:
             self.atoms = None
             return False
