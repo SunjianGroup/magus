@@ -42,7 +42,7 @@ class magusParameters:
             'mlRelax':False,
             'symprec': 0.1,
             'bondRatio': 1.15,
-            'eleSize': 1,
+            'eleSize': 0,
             'fullEles': False,
             'setAlgo': 'ea',
             'volRatio': 2,

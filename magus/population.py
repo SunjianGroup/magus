@@ -27,7 +27,7 @@ class Population:
     """
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['resultsDir','calcType']
+        Requirement=['resultsDir','calcType','symbols']
         Default={}
         checkParameters(self.p,parameters,Requirement,Default)
         self.Individual = set_ind(parameters)
@@ -412,7 +412,7 @@ class Individual:
         #    logging.debug("Fail in check_distance")
         #if not check_mol:
         #    logging.debug("Fail in check_mol")
-        return check_cellpar and check_distance and check_mol
+        return check_cellpar and check_distance and check_mol and check_formula
 
     def sort(self):
         #indices = []
@@ -463,6 +463,7 @@ class Individual:
         syms = atoms.get_chemical_symbols()
         #nowFrml = Counter(atoms.get_chemical_symbols())
         targetFrml = self.get_targetFrml()
+        logging.debug("Target formula: {}".format(targetFrml))
         if not targetFrml:
             self.atoms = None
             return False

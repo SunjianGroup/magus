@@ -19,7 +19,11 @@ def var_fitness(Pop):
     pop = Pop.pop
     name = [ind.atoms.get_chemical_formula() for ind in pop]
     enth = [ind.atoms.info['enthalpy']*len(ind.atoms) for ind in pop]
-    refs = zip(name, enth)
+    refs = list(zip(name, enth))
+    symbols = Pop.p.symbols
+    # To make sure that the phase diagram can be constructed, we add elements with high energies.
+    for sym in symbols:
+        refs.append((sym, 100))
     pd = PhaseDiagram(refs, verbose=False)
     for ind in Pop.pop:
         refE = pd.decompose(ind.atoms.get_chemical_formula())[0]

@@ -37,8 +37,8 @@ class Mutation(OffspringCreator):
             newind.parents = [ind]
             if not chkMol:
                 newind.merge_atoms()
-                if not newind.check_distance():
-                    logging.debug("Too close atoms in merged ind!")
+                # if not newind.check_distance():
+                #     logging.debug("Too close atoms in merged ind!")
                 if newind.repair_atoms():
                     break
             else:
@@ -130,7 +130,7 @@ class SoftMutation(Mutation):
         hessian = np.zeros([3*N,3*N])
         for i in range(N):
             for j in range(3):
-                pos_ = np.copy(pos) 
+                pos_ = np.copy(pos)
                 pos_[i,j] += dx
                 atoms.set_positions(pos_)
                 f1 = atoms.get_forces().flatten()
@@ -325,7 +325,8 @@ class RotateMutation(Mutation):
 
     def mutate(self,ind):
         atoms = ind.atoms.copy()
-        atoms = Molfilter(atoms)
+        # atoms = Molfilter(atoms)
+        atoms = ind.molCryst
         for mol in atoms:
             if len(mol)>1 and np.random.rand() < self.p:
                 phi, theta, psi = np.random.uniform(-1,1,3)*np.pi*2
@@ -340,7 +341,7 @@ class FormulaMutation(Mutation):
 
     def mutate(self,ind):
         """
-        Randomly change symbols, only used for variable formula search 
+        Randomly change symbols, only used for variable formula search
         and unavailable for molecular crystals (chkMol should be False).
         """
         atoms = ind.atoms.copy()
@@ -350,7 +351,7 @@ class FormulaMutation(Mutation):
             if np.random.rand() < self.p:
                 otherSym = [s for s in symbols if s != atom.symbol]
                 atom.symbol = str(np.random.choice(otherSym))
-                
+
         return ind(atoms)
 
 class CutAndSplicePairing(Crossover):
@@ -547,7 +548,7 @@ class MLselect(PopGenerator):
     def __init__(self, numlist, oplist, calc,parameters):
         super().__init__(numlist, oplist, parameters)
         self.calc = calc
-    
+
     def select(self,Pop,num,k=0.3):
         predictE = []
         if num < len(Pop):
