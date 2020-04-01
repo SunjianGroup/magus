@@ -555,11 +555,15 @@ class FixInd(Individual):
         if Natoms < self.p.minAt or Natoms > self.p.maxAt:
             return False
 
-        symbols = a.get_chemical_symbols()
-        formula = np.array([symbols.count(s) for s in self.p.symbols])
+        # symbols = a.get_chemical_symbols()
+        # formula = np.array([symbols.count(s) for s in self.p.symbols])
+        formula = get_formula(a, self.p.symbols)
         numFrml = int(round(Natoms/sum(self.p.formula)))
         targetFrml = numFrml*np.array(self.p.formula)
         return np.all(targetFrml == formula)
+        # rank = np.linalg.matrix_rank(np.concatenate(([self.p.formula], [formula])))
+        # return rank == 1
+
 
     def get_targetFrml(self):
         atoms = self.atoms
@@ -611,8 +615,9 @@ class VarInd(Individual):
         if Natoms < self.p.minAt or Natoms > self.p.maxAt:
             return False
 
-        symbols = a.get_chemical_symbols()
-        formula = [symbols.count(s) for s in self.p.symbols]
+        # symbols = a.get_chemical_symbols()
+        # formula = [symbols.count(s) for s in self.p.symbols]
+        formula = get_formula(a, self.p.symbols)
         rank = np.linalg.matrix_rank(np.concatenate((self.p.formula, [formula])))
         return rank == self.rank
 

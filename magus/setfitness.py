@@ -15,7 +15,8 @@ def fix_fitness(Pop):
 
 
 def var_fitness(Pop):
-    pop = Pop.allPop.pop
+    # pop = Pop.allPopallPop.pop
+    pop = Pop.pop
     name = [ind.atoms.get_chemical_formula() for ind in pop]
     enth = [ind.atoms.info['enthalpy']*len(ind.atoms) for ind in pop]
     refs = zip(name, enth)

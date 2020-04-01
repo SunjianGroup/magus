@@ -86,14 +86,32 @@ class Magus:
 
         self.curPop = relaxPop
         self.allPop.extend(self.curPop)
-        self.goodPop = self.Population([],'goodPop',self.curgen)
-        self.keepPop = self.Population([],'keepPop',self.curgen)
+        # self.goodPop = self.Population([],'goodPop',self.curgen)
+        # self.keepPop = self.Population([],'keepPop',self.curgen)
         self.bestPop = self.Population([],'bestPop')
 
         relaxPop.calc_dominators()
         relaxPop.save('gen')
+
+
+        logging.info('construct goodPop')
+        goodpop = []
+        if self.parameters.goodSeed:
+            logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to goodPop without relaxation.".format(self.parameters.goodSeedFile))
+            goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
+            goodpop.extend(goodseedpop)
+
+        goodpop.extend(relaxpop)
+        goodPop = self.Population(goodpop,'goodPop',self.curgen)
+        # goodPop.del_duplicate()
+        goodPop.calc_dominators()
+        goodPop.select(self.parameters.popSize)
+        goodPop.save('good','')
+        goodPop.save('savegood')
+        self.goodPop = goodPop
+
         logging.info("best ind:")
-        bestind = relaxPop.bestind()
+        bestind = goodPop.bestind()
         self.bestPop.extend(bestind)
         self.bestlen.append(len(self.bestPop))
         for ind in bestind:
@@ -101,24 +119,10 @@ class Magus:
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
         self.bestPop.save('best',self.curgen)
 
-
-        logging.info('construct goodPop')
-        goodPop = self.goodPop
-        if self.parameters.goodSeed:
-            logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to goodPop without relaxation.".format(self.parameters.goodSeedFile))
-            goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
-            goodPop.extend(goodseedpop)
-
-        goodPop = goodPop + relaxPop
-        goodPop.calc_dominators()
-        goodPop.select(self.parameters.popSize)
-        goodPop.save('good','')
-        goodPop.save('savegood')
-        self.goodPop = goodPop
-
         logging.info('construct keepPop')
         _, keeppop = goodPop.clustering(self.parameters.saveGood)
-        self.keepPop.extend(keeppop)
+        # initialize keepPop here, so that the inds have identity
+        self.keepPop = self.Population(keeppop,'keepPop',self.curgen)
         self.keepPop.save('keep')
 
     def Onestep(self):
