@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-import os, subprocess, shutil, math, random, re, logging, fractions, sys, yaml
+import os, subprocess, shutil, math, random, re, logging, fractions, sys, yaml, itertools
 from collections import Counter
 import numpy as np
 import spglib
@@ -17,6 +17,8 @@ from scipy.optimize import root
 from scipy.spatial.distance import cdist, pdist
 from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
 from ase.utils.structure_comparator import SymmetryEquivalenceCheck
+from ase.build import make_supercell
+from ase.geometry import cell_to_cellpar,cellpar_to_cell
 try:
     from functools import reduce
 except ImportError:

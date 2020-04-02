@@ -6,7 +6,6 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from .initstruct import read_seeds,build_mol_struct
-from .readparm import *
 from .utils import *
 from .machinelearning import LRmodel
 from .parameters import magusParameters
