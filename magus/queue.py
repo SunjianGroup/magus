@@ -5,11 +5,12 @@ import logging
 import datetime
 
 class JobManager:
-    def __init__(self):
+    def __init__(self,verbose=False):
+        self.verbose = verbose
         self.jobs=[]
         self.history=[]
 
-    def bsub(self,command):
+    def bsub(self,command,name):
         job=dict()
         jobid=subprocess.check_output(command, shell=True).split()[1][1: -1]
         if type(jobid) is bytes:
@@ -17,6 +18,7 @@ class JobManager:
         job['id']=jobid
         job['workDir']=os.getcwd()
         job['subtime']=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        job['name']=name
         self.jobs.append(job)
 
     def checkjobs(self):
@@ -41,6 +43,8 @@ class JobManager:
                 return False
             else:
                 job['state'] = 'ERROR'
+            if self.verbose:
+                logging.debug('job {} id {} : {}'.format(job['name'],job['id'],job['state']))
         return True
     #TODO kill job after max waittime
     def WaitJobsDone(self,waitTime):
