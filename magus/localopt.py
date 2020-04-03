@@ -383,7 +383,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Vasp_%s\n"% (self.p.queueName, self.p.numCore, index))
+                "#BSUB -J %s_%s\n"% (self.p.queueName, self.p.numCore, self.p.jobName,index))
         f.write("{}\n".format(self.p.jobPrefix))
         f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
         f.close()
@@ -459,7 +459,7 @@ class GULPCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Gulp_%s\n"% (self.p.queueName, self.p.numCore, index))
+                "#BSUB -J %s_%s\n"% (self.p.queueName, self.p.numCore, self.p.jobName,index))
         f.write("{}\n".format(self.p.jobPrefix))
         f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
