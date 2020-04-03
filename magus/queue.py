@@ -24,6 +24,7 @@ class JobManager:
     def checkjobs(self):
         logging.debug("Checking jobs...")
         logging.debug(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        allDone = True
         for job in self.jobs:
             try:
                 stat = subprocess.check_output("bjobs %s | grep %s | awk '{print $3}'"% (job['id'], job['id']), shell=True)
@@ -37,15 +38,15 @@ class JobManager:
                 job['state'] = 'DONE'
             elif stat == 'PEND':
                 job['state'] = 'PEND'
-                return False
+                allDone = False
             elif stat == 'RUN':
                 job['state'] = 'RUN'
-                return False
+                allDone = False
             else:
                 job['state'] = 'ERROR'
             if self.verbose:
                 logging.debug('job {} id {} : {}'.format(job['name'],job['id'],job['state']))
-        return True
+        return allDone
     #TODO kill job after max waittime
     def WaitJobsDone(self,waitTime):
         while not self.checkjobs():
