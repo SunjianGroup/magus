@@ -175,6 +175,8 @@ class VarGenerator(Generator):
                 numlist = np.random.rand(len(self.p.symbols))
                 numlist *= numAt/np.sum(numlist)
                 nfm = np.rint(np.dot(numlist,self.p.invFrml)).astype(np.int)
+                if (nfm<0).any():
+                    continue
                 numlist = np.dot(nfm,self.p.formula)
                 # numlist = np.rint(np.dot(self.projection_matrix,numlist)).astype(np.int)
                 if np.sum(numlist) < self.p.minAt or np.sum(numlist) > self.p.maxAt or (self.p.fullEles and 0 in numlist) or np.sum(numlist<0)>0:
