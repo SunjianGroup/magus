@@ -85,6 +85,13 @@ class Magus:
             scfPop = self.Population(scfpop,'scfpop',self.curgen)
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
+        if self.parameters.goodSeed:
+            logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to relaxPop without relaxation.".format(self.parameters.goodSeedFile))
+            goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
+            relaxPop.extend(goodseedpop)
+            relaxPop.del_duplicate()
+            # relaxPop.check()
+
         self.curPop = relaxPop
         self.allPop.extend(self.curPop)
         # self.goodPop = self.Population([],'goodPop',self.curgen)
@@ -96,14 +103,10 @@ class Magus:
 
 
         logging.info('construct goodPop')
-        goodpop = []
-        if self.parameters.goodSeed:
-            logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to goodPop without relaxation.".format(self.parameters.goodSeedFile))
-            goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
-            goodpop.extend(goodseedpop)
-
-        goodpop.extend(relaxpop)
-        goodPop = self.Population(goodpop,'goodPop',self.curgen)
+        # goodpop = []
+        # goodpop.extend(relaxpop)
+        # goodPop = self.Population(goodpop,'goodPop',self.curgen)
+        goodPop = relaxPop
         goodPop.del_duplicate()
         goodPop.calc_dominators()
         goodPop.select(self.parameters.popSize)
