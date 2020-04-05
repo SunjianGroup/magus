@@ -18,7 +18,7 @@ if  __name__ == "__main__":
 
     calcs = []
     if calcNum == 0:
-        incars = ['INCAR_scf']
+        incars = ['INCAR_0']
     else:
         incars = ['INCAR_{}'.format(i) for i in range(1, calcNum+1)]
     for incar in incars:

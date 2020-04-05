@@ -97,8 +97,17 @@ class LRmodel(MachineLearning,ASECalculator):
         self.p = EmptyClass()
         
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':1.0}
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0}
         checkParameters(self.p,parameters,Requirement,Default)
+
+        train_property = []
+        if self.p.w_energy > 0:
+            train_property.append('energy')
+        if self.p.w_force > 0:
+            train_property.append('forces')
+        if self.p.w_stress > 0:
+            train_property.append('stress')
+        self.p.train_property = train_property
 
         p = copy.deepcopy(parameters)
         for key, val in parameters.MLCalculator.items():
@@ -165,7 +174,7 @@ class LRmodel(MachineLearning,ASECalculator):
                 newdata.append(data)
         if newdata:
             self.dataset.extend(newdata)
-            X,y,w = self.get_data(newdata)
+            X,y,w = self.get_data(newdata,self.p.train_property)
             if self.X is None:
                 self.X,self.y,self.w=X,y,w
             else:
@@ -185,14 +194,15 @@ class LRmodel(MachineLearning,ASECalculator):
         yp = self.reg.predict(X)
         mae_forces = mean_absolute_error(y, yp)
         r2_forces = self.reg.score(X, y, w)
-
+        """
         # Evaluate stress
         X,y,w = self.get_data(images,['stress'])
         yp = self.reg.predict(X)
         mae_stresses = mean_absolute_error(y, yp)
         r2_stresses = self.reg.score(X, y, w)
         #np.savez('stress',y=y,yp=yp)
-        return mae_energies, r2_energies, mae_forces, r2_forces ,mae_stresses ,r2_stresses
+        """
+        return mae_energies, r2_energies, mae_forces, r2_forces #,mae_stresses ,r2_stresses
 
     def get_fp(self,pop):
         for ind in pop:

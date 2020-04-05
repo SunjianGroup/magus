@@ -161,8 +161,8 @@ class SoftMutation(Mutation):
         atoms = ind.atoms.copy()
         atoms.set_calculator(self.calc)
 
-        if ind.p.is_mol:
-            atoms = Molfilter(atoms)
+        if ind.p.molDetector != 0:
+            atoms = ind.molCryst
         pos = atoms.get_positions()
         mode = self._get_modes(atoms)
         largest_norm = np.max(np.apply_along_axis(np.linalg.norm, 1, mode))

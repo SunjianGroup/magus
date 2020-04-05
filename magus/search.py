@@ -9,6 +9,7 @@ from .initstruct import read_seeds,build_mol_struct
 from .utils import *
 from .machinelearning import LRmodel
 from .parameters import magusParameters
+from .writeresults import write_results
 """
 Pop:class,poplulation
 pop:list,a list of atoms
@@ -26,7 +27,6 @@ class Magus:
         if self.parameters.useml:
             self.ML = parameters.get_MLCalculator()
 
-        self.parameters.save('allparameters.yaml')
         self.curgen = 1
         self.bestlen = []
         self.allPop = self.Population([],'allPop')
@@ -47,6 +47,8 @@ class Magus:
                 i+=1
             shutil.move("results", "results{}".format(i))
         os.mkdir("results")
+        self.parameters.save('allparameters.yaml')
+        self.parameters.save('results/allparameters.yaml')
 
         #shutil.copy("allParameters.yaml", "results/allParameters.yaml")
         logging.info("===== Generation {} =====".format(self.curgen))

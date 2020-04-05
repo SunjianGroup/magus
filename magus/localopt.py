@@ -339,7 +339,7 @@ class VaspCalculator(ABinitCalculator):
     def scf_serial(self,calcPop):
         self.cdcalcFold()
         calc = RelaxVasp()
-        calc.read_incar('INCAR_scf')
+        calc.read_incar('INCAR_0')
         calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10)
         scfPop = calc_vasp([calc], calcPop)
         os.chdir(self.p.workDir)
@@ -359,10 +359,10 @@ class VaspCalculator(ABinitCalculator):
         return relaxPop
 
     def scfjob(self,index):
-        shutil.copy("{}/inputFold/INCAR_scf".format(self.p.workDir),'INCAR_scf')
+        shutil.copy("{}/inputFold/INCAR_0".format(self.p.workDir),'INCAR_0')
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(self.p.setup))
-        jobName = self.p.jobPrefix + '_' + str(index)
+        jobName = self.p.jobPrefix + '_scf_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -377,7 +377,7 @@ class VaspCalculator(ABinitCalculator):
     def relaxjob(self,index):
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(self.p.setup))
-        jobName = self.p.jobPrefix + '_' + str(index)
+        jobName = self.p.jobPrefix + '_relax_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -431,7 +431,7 @@ class GULPCalculator(ABinitCalculator):
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
-        jobName = self.p.jobPrefix + '_' + str(index)
+        jobName = self.p.jobPrefix + '_scf_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -453,7 +453,7 @@ class GULPCalculator(ABinitCalculator):
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
-        jobName = self.p.jobPrefix + '_' + str(index)
+        jobName = self.p.jobPrefix + '_relax_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"

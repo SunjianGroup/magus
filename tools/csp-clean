@@ -1,4 +1,4 @@
 #!/bin/bash
 rm -f testlog currentStat.json ALL_DONE log.txt core.* allparameters.yaml
-rm -rf calcFold MLFold
+rm -rf calcFold mlFold
 #mv -f results/dataset.traj results/savedata.traj
