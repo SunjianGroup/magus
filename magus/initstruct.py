@@ -66,7 +66,7 @@ class Generator:
                 generator.AppendAtoms(int(numlist[i]), str(i), self.p.radius[i], False)
                 numbers.extend([atomic_numbers[self.p.symbols[i]]]*numlist[i])
 
-        label = generator.PreGenerate()
+        label = generator.PreGenerate(np.random.randint(1000))
         if label:
             cell = generator.GetLattice(0)
             cell = np.reshape(cell, (3,3))
@@ -295,7 +295,7 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
         generator.AppendAtoms(formula[i], "{}".format(i), radius[i], False)
         numbers.extend([i]*formula[i])
 
-    label = generator.PreGenerate()
+    label = generator.PreGenerate(np.random.randint(1000))
     if label:
         cell = generator.GetLattice(0)
         cell = np.reshape(cell, (3,3))
