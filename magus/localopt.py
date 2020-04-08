@@ -362,7 +362,8 @@ class VaspCalculator(ABinitCalculator):
         shutil.copy("{}/inputFold/INCAR_0".format(self.p.workDir),'INCAR_0')
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(self.p.setup))
-        jobName = self.p.jobPrefix + '_scf_' + str(index)
+        #jobName = self.p.jobPrefix + '_scf_' + str(index)
+        jobName = self.p.jobPrefix + '_s_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -377,7 +378,8 @@ class VaspCalculator(ABinitCalculator):
     def relaxjob(self,index):
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(self.p.setup))
-        jobName = self.p.jobPrefix + '_relax_' + str(index)
+        #jobName = self.p.jobPrefix + '_relax_' + str(index)
+        jobName = self.p.jobPrefix + '_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -431,7 +433,8 @@ class GULPCalculator(ABinitCalculator):
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
-        jobName = self.p.jobPrefix + '_scf_' + str(index)
+        #jobName = self.p.jobPrefix + '_scf_' + str(index)
+        jobName = self.p.jobPrefix + '_s_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -453,7 +456,8 @@ class GULPCalculator(ABinitCalculator):
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
-        jobName = self.p.jobPrefix + '_relax_' + str(index)
+        #jobName = self.p.jobPrefix + '_relax_' + str(index)
+        jobName = self.p.jobPrefix + '_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
