@@ -556,9 +556,12 @@ class FixInd(Individual):
         if Natoms < self.p.minAt or Natoms > self.p.maxAt:
             return False
 
-        # symbols = a.get_chemical_symbols()
-        # formula = np.array([symbols.count(s) for s in self.p.symbols])
-        formula = get_formula(a, self.p.symbols)
+        symbols = a.get_chemical_symbols()
+        for s in symbols:
+            if s not in self.p.symbols:
+                return False
+        formula = np.array([symbols.count(s) for s in self.p.symbols])
+        #formula = get_formula(a, self.p.symbols)
         numFrml = int(round(Natoms/sum(self.p.formula)))
         targetFrml = numFrml*np.array(self.p.formula)
         return np.all(targetFrml == formula)
@@ -616,16 +619,27 @@ class VarInd(Individual):
         if Natoms < self.p.minAt or Natoms > self.p.maxAt:
             return False
 
-        # symbols = a.get_chemical_symbols()
-        # formula = [symbols.count(s) for s in self.p.symbols]
-        formula = get_formula(a, self.p.symbols)
+        symbols = a.get_chemical_symbols()
+        for s in symbols:
+            if s not in self.p.symbols:
+                return False
+        formula = [symbols.count(s) for s in self.p.symbols]
+        #formula = get_formula(a, self.p.symbols)
         rank = np.linalg.matrix_rank(np.concatenate((self.p.formula, [formula])))
-        return rank == self.rank
+        if rank == self.rank:
+            coef = np.rint(np.dot(formula, self.invF)).astype(np.int)
+            newFrml = np.dot(coef, self.p.formula).astype(np.int)
+            return (coef>=0).all() and (newFrml == formula).all()
+        else:
+            return False
+        
 
     def get_targetFrml(self):
         symbols = self.atoms.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.p.symbols]
         coef = np.rint(np.dot(formula, self.invF)).astype(np.int)
+        # make sure that all elements in coef >= 0
+        coef[np.where(coef<0)] = 0 
         newFrml = np.dot(coef, self.p.formula).astype(np.int)
         bestFrml = newFrml.tolist()
         if self.p.minAt <= sum(bestFrml) <= self.p.maxAt:
