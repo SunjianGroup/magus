@@ -1,0 +1,255 @@
+import random, logging, os, sys, shutil, time, json
+import argparse
+import copy
+import numpy as np
+from ase.data import atomic_numbers
+from ase import Atoms, Atom
+import ase.io
+from .initstruct import read_seeds,build_mol_struct
+from .utils import *
+from .machinelearning import LRmodel
+from .parameters import magusParameters
+from .writeresults import write_results
+"""
+Pop:class,poplulation
+pop:list,a list of atoms
+Population:Population(pop) --> Pop
+"""
+#TODO build mol struct
+#TODO change read parameters
+class GOFEE:
+    def __init__(self,parameters):
+        self.parameters = parameters.parameters
+        self.Generator = parameters.get_AtomsGenerator()
+        self.Algo = parameters.get_PopGenerator()
+        self.MainCalculator = parameters.get_MainCalculator()
+        self.Population = parameters.get_Population()
+        if self.parameters.useml:
+            self.ML = parameters.get_MLCalculator()
+
+        self.curgen = 1
+        self.bestlen = []
+        self.allPop = self.Population([],'allPop')
+        self.Population.allPop = self.allPop
+
+    def run(self):
+        self.Initialize()
+        for gen in range(self.parameters.numGen-1):
+            self.Onestep()
+            #if gen > 5 and self.bestlen[gen] == self.bestlen[gen-5]:
+            #    logging.info('converged')
+            #    break
+
+    def Initialize(self):
+        if os.path.exists("results"):
+            i=1
+            while os.path.exists("results{}".format(i)):
+                i+=1
+            shutil.move("results", "results{}".format(i))
+        os.mkdir("results")
+        self.parameters.save('allparameters.yaml')
+        self.parameters.save('results/allparameters.yaml')
+
+        #shutil.copy("allParameters.yaml", "results/allParameters.yaml")
+        logging.info("===== Generation {} =====".format(self.curgen))
+        if not self.parameters.molMode:
+            initpop = self.Generator.Generate_pop(self.parameters.initSize,initpop=True)
+        else:
+            initpop = build_mol_struct(self.parameters.initSize, self.parameters.symbols,
+                self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula,
+                self.parameters.numFrml, self.parameters.spacegroup,
+                fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
+        initPop = self.Population(initpop,'initpop',self.curgen)
+        logging.info("initPop length: {}".format(len(initPop)))
+
+        #read seeds
+        seedpop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+        seedPop = self.Population(seedpop,'seedpop',self.curgen)
+        if self.parameters.chkSeed:
+            seedPop.check()
+        initPop.extend(seedPop)
+
+        initPop.save()
+
+        relaxpop = self.MainCalculator.relax(initPop.frames)
+        relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
+        # save raw pop before check and del_duplicates
+        relaxPop.save('raw')
+        relaxPop.check()
+        relaxPop.del_duplicate()
+
+        if self.parameters.useml:
+            self.ML.updatedataset(relaxPop.frames)
+            self.ML.train()
+            scfpop = self.MainCalculator.scf(relaxPop.frames)
+            scfPop = self.Population(scfpop,'scfpop',self.curgen)
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
+
+        if self.parameters.goodSeed:
+            logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to relaxPop without relaxation.".format(self.parameters.goodSeedFile))
+            goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
+            relaxPop.extend(goodseedpop)
+            relaxPop.del_duplicate()
+            # relaxPop.check()
+
+        self.curPop = relaxPop
+        self.allPop.extend(self.curPop)
+        # self.goodPop = self.Population([],'goodPop',self.curgen)
+        # self.keepPop = self.Population([],'keepPop',self.curgen)
+        self.bestPop = self.Population([],'bestPop')
+
+        relaxPop.calc_dominators()
+        relaxPop.save('gen')
+
+
+        logging.info('construct goodPop')
+        # goodpop = []
+        # goodpop.extend(relaxpop)
+        # goodPop = self.Population(goodpop,'goodPop',self.curgen)
+        goodPop = relaxPop
+        goodPop.del_duplicate()
+        goodPop.calc_dominators()
+        goodPop.select(self.parameters.popSize)
+        goodPop.save('good','')
+        goodPop.save('savegood')
+        self.goodPop = goodPop
+
+        logging.info("best ind:")
+        bestind = goodPop.bestind()
+        self.bestPop.extend(bestind)
+        self.bestlen.append(len(self.bestPop))
+        for ind in bestind:
+            logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
+        self.bestPop.save('best',self.curgen)
+
+        logging.info('construct keepPop')
+        _, keeppop = goodPop.clustering(self.parameters.saveGood)
+        # initialize keepPop here, so that the inds have identity
+        self.keepPop = self.Population(keeppop,'keepPop',self.curgen)
+        self.keepPop.save('keep')
+
+    def Onestep(self):
+        curPop = self.curPop
+        goodPop = self.goodPop
+        keepPop = self.keepPop
+        self.curgen+=1
+        logging.info("===== Generation {} =====".format(self.curgen))
+        #######  get next Pop  #######
+        # renew volRatio
+        volRatio = curPop.get_volRatio()
+        self.Generator.updatevolRatio(0.5*(volRatio + self.Generator.p.volRatio))
+
+        initPop = self.Algo.next_Pop(curPop + keepPop)
+        logging.info("Generated by Algo: {}".format(len(initPop)))
+        if len(initPop) < self.parameters.popSize:
+            logging.info("random structures:{}".format(self.parameters.popSize-len(initPop)))
+            if self.parameters.molMode:
+                addpop = build_mol_struct(self.parameters.popSize-len(initPop), self.parameters.symbols,
+                self.parameters.formula, self.parameters.inputMols, self.parameters.molFormula,
+                self.parameters.numFrml, self.parameters.spacegroup,
+                fixCell=self.parameters.fixCell, setCellPar=self.parameters.setCellPar)
+            else:
+                addpop = self.Generator.Generate_pop(self.parameters.popSize-len(initPop))
+            logging.debug("addpop: {}".format(len(addpop)))
+            initPop.extend(addpop)
+
+        #read seeds
+        seedpop = read_seeds(self.parameters, '{}/Seeds/POSCARS_{}'.format(self.parameters.workDir, self.curgen))
+        seedPop = self.Population(seedpop,'seedpop',self.curgen)
+        if self.parameters.chkSeed:
+            seedPop.check()
+        initPop.extend(seedPop)
+
+        # Save Initial
+        initPop.save()
+
+        #######  relax  #######
+
+        relaxpop = self.ML.relax(initPop.frames)
+        relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
+        relaxPop.check()
+
+        for _ in range(3):
+            try:
+                anew = self.select_with_acquisition(relaxPop, kappa)
+                anew = self.MainCalculator.scf([anew])[0]
+                a_add.append(anew)
+                if self.dualpoint:
+                    adp = self.get_dualpoint(anew)
+                    adp = self.evaluate(adp)
+                    a_add.append(adp)
+                break
+            except Exception as err:
+                kappa /=2
+                if self.master:
+                    traceback.print_exc(file=sys.stderr)
+        else:
+            raise RuntimeError('Evaluation failed repeatedly - It might help to constrain the atomic positions during search.')
+        self.gpr.memory.save_data(a_add)
+        # save raw date before checking
+        relaxPop.save('raw')
+        relaxPop.check()
+        # find spg before delete duplicate
+        relaxPop.find_spg()
+        relaxPop.del_duplicate()
+        self.allPop.extend(relaxPop)
+
+        #######  goodPop and keepPop  #######
+        logging.info('construct goodPop')
+        goodPop = relaxPop + goodPop + keepPop
+        goodPop.del_duplicate()
+        goodPop.calc_dominators()
+        goodPop.select(self.parameters.popSize)
+        goodPop.save('good','')
+        goodPop.save('savegood')
+        logging.info("good ind:")
+        for ind in goodPop.pop:
+            logging.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
+        logging.info("best ind:")
+        bestind = goodPop.bestind()
+        self.bestPop.extend(bestind)
+        self.bestlen.append(len(self.bestPop))
+        for ind in bestind:
+            logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
+        self.bestPop.save('best',self.curgen)
+        # keep best
+        logging.info('construct keepPop')
+        _, keepPop = goodPop.clustering(self.parameters.saveGood)
+        keepPop = self.Population(keepPop,'keeppop',self.curgen)
+        keepPop.save('keep')
+
+        curPop = relaxPop
+        curPop.del_duplicate()
+        curPop.save('gen')
+        self.curPop = curPop
+        self.goodPop = goodPop
+        self.keepPop = keepPop
+    
+    def select_with_acquisition(self, structures, kappa):
+        """ Method to select single most "promizing" candidate 
+        for first-principles evaluation according to the acquisition
+        function min(E-kappa*std(E)).
+        """
+        Epred = np.array([a.info['key_value_pairs']['Epred']
+                          for a in structures])
+        Epred_std = np.array([a.info['key_value_pairs']['Epred_std']
+                              for a in structures])
+        acquisition = Epred - kappa*Epred_std
+        index_select = np.argmin(acquisition)
+        return structures[index_select]
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
+args = parser.parse_args()
+if args.debug:
+    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+    logging.info('Debug mode')
+else:
+    logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
+
+parameters = magusParameters('input.yaml')
+m=Magus(parameters)
+m.run()

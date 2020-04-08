@@ -2,6 +2,8 @@ from __future__ import print_function, division
 from ase import Atoms
 import ase.io
 from .readvasp import *
+from .tolammps import Atomic
+from .readlmps import read_lammps_dump
 import sys, math, os, shutil, subprocess, logging, copy, yaml, traceback
 
 from ase.calculators.lj import LennardJones
@@ -162,23 +164,6 @@ class EMTCalculator(ASECalculator):
 
     def scf(self, calcPop):
         return super(EMTCalculator, self).scf(calcPop,self.calcs)
-
-class LAMMPSCalculator(ASECalculator):
-    # still have bugs
-    def __init__(self,parameters):
-        self.calcs = []
-        for i in range(1, parameters.calcNum + 1):
-            with open("{}/inputFold/lammps_{}".format(parameters.workDir, i)) as f:
-                cmds = f.readlines()
-            self.calcs.append(LAMMPSlib(lmpcmds=cmds, log_file='lammps.log'))
-            # calcs.append(LAMMPS(parameters=cmds))
-        return super(LAMMPSCalculator, self).__init__(parameters)
-
-    def relax(self, calcPop):
-        return super(LAMMPSCalculator, self).relax(calcPop,self.calcs)
-
-    def scf(self, calcPop):
-        return super(LAMMPSCalculator, self).scf(calcPop,self.calcs)
 
 class QUIPCalculator(ASECalculator):
     def __init__(self,parameters):
@@ -470,7 +455,82 @@ class GULPCalculator(ABinitCalculator):
 
         self.J.bsub('bsub < parallel.sh',jobName)
 
+class LammpsCalculator(ABinitCalculator):
+    def __init__(self, parameters,prefix='calcLammps'):
+        super().__init__(parameters,prefix)
+        Requirement = ['symbols']
+        Default = {'exeCmd':'','jobPrefix':'Lammps'}
+        checkParameters(self.p,parameters,Requirement,Default)
 
+    def scf_serial(self,calcPop):
+        self.cdcalcFold()
+
+        calcNum = 0
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
+
+        scfPop = calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir)
+        write_traj('optPop.traj', scfPop)
+        os.chdir(self.p.workDir)
+        return scfPop
+
+    def relax_serial(self,calcPop):
+        self.cdcalcFold()
+
+        calcNum = self.p.calcNum
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
+
+        relaxPop = calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir)
+        write_traj('optPop.traj', relaxPop)
+        os.chdir(self.p.workDir)
+        return relaxPop
+
+    def scfjob(self,index):
+        calcDic = {
+            'calcNum': 0,
+            'pressure': self.p.pressure,
+            'exeCmd': self.p.exeCmd,
+            'inputDir': "{}/inputFold".format(self.p.workDir),
+        }
+        with open('gulpSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+        jobName = self.p.jobPrefix + '_scf_' + str(index)
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
+        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.close()
+
+        self.J.bsub('bsub < parallel.sh',jobName)
+
+    def relaxjob(self,index):
+        calcDic = {
+            'calcNum': self.p.calcNum,
+            'pressure': self.p.pressure,
+            'exeCmd': self.p.exeCmd,
+            'inputDir': "{}/inputFold".format(self.p.workDir),
+        }
+        with open('gulpSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+        jobName = self.p.jobPrefix + '_relax_' + str(index)
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
+        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.close()
+
+        self.J.bsub('bsub < parallel.sh',jobName)
 
 def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
     optPop = []
@@ -651,3 +711,54 @@ def calc_vasp(
             # ind.info['initStruct'] = extract_atoms(initInd)
             newStructs.append(ind)
     return newStructs
+
+def calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir):
+    optPop = []
+    for n, ind in enumerate(calcPop):
+        if calcNum == 0:
+            ind = calc_lammps_once(0, ind, pressure, exeCmd, inputDir)
+            logging.debug("Structure %s scf" %(n))
+            if ind:
+                optPop.append(ind)
+            else:
+                logging.warning("fail in lammps scf")
+        else:
+            for i in range(1, calcNum + 1):
+                logging.debug("Structure %s Step %s" %(n, i))
+                ind = calc_lammps_once(i, ind, pressure, exeCmd, inputDir)
+            if ind:
+                optPop.append(ind)
+            else:
+                logging.warning("fail in lammps relax")
+    return optPop
+
+def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
+    """
+    exeCmd should be "lmp -in in.lammps"
+    """
+    if os.path.exists('output'):
+        os.remove('output')
+    try:
+        shutil.copy("in.lammps_{}".format(calcStep), "in.lammps")
+        #TODO more systems
+        Atomic(calcInd).dump('data')
+        exitcode = subprocess.call(exeCmd, shell=True)
+        if exitcode != 0:
+            raise RuntimeError('Lammps exited with exit code: %d.  ' % exitcode)
+        with open('data') as f:
+            struct = read_lammps_dump(f,numlist=calcInd.get_chemical_symbols())[-1]
+        volume = struct.get_volume()
+        energy = os.popen("grep energy energy.out | tail -1 | awk '{print $3}'").readlines()[0]
+        # the unit of pstress is kBar = GPa/10
+        enthalpy = energy + pressure * GPa * volume / 10
+        enthalpy = enthalpy/len(struct)
+
+        struct.info['enthalpy'] = round(enthalpy, 3)
+
+        # save energy, forces, stress for trainning potential
+        struct.info['energy'] = energy
+        return struct
+    except:
+        logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        logging.warning("Lammps fail")
+        return None
