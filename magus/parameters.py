@@ -188,7 +188,7 @@ class magusParameters:
             elif p.calculator == 'quip':
                 MainCalculator = QUIPCalculator(p)
             elif p.calculator == 'lammps':
-                MainCalculator = LAMMPSCalculator(p)
+                MainCalculator = LammpsCalculator(p)
             else:
                 raise Exception("Undefined calculator '{}'".format(p.calculator))
             self.MainCalculator = MainCalculator
