@@ -455,7 +455,7 @@ class GULPCalculator(ABinitCalculator):
 
         self.J.bsub('bsub < parallel.sh',jobName)
 
-class LAMMPSCalculator(ABinitCalculator):
+class LammpsCalculator(ABinitCalculator):
     def __init__(self, parameters,prefix='calcLammps'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
