@@ -18,7 +18,7 @@ def read_lammps_dump(f,timerange=None, order=True, atomsobj=Atoms,typelist=None,
             hi = []
             tilt = []
             id = []
-            types = []
+            symbols = []
             positions = []
             scaled_positions = []
             velocities = []
@@ -133,11 +133,11 @@ def read_lammps_dump(f,timerange=None, order=True, atomsobj=Atoms,typelist=None,
                                           quaternions=quaternions))
             elif len(positions):
                 images.append(atomsobj(
-                    symbols=types, positions=positions,
+                    symbols=symbols, positions=positions,
                     celldisp=celldisp, cell=cell))
             elif len(scaled_positions):
                 images.append(atomsobj(
-                    symbols=types, scaled_positions=scaled_positions,
+                    symbols=symbols, scaled_positions=scaled_positions,
                     celldisp=celldisp, cell=cell))
 
             if len(velocities):
