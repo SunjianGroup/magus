@@ -333,8 +333,9 @@ class RotateMutation(Mutation):
         return ind(atoms)
 
 class FormulaMutation(Mutation):
-    def __init__(self, symbols, p=0.5, tryNum=10):
-        self.p = p
+    def __init__(self, symbols, p1=0.5, p2=0.2, tryNum=10):
+        self.p1 = p1
+        self.p2 = p2
         self.symbols = symbols
         super().__init__(tryNum=tryNum)
 
@@ -344,14 +345,22 @@ class FormulaMutation(Mutation):
         and unavailable for molecular crystals (chkMol should be False).
         """
         atoms = ind.atoms.copy()
+        Nat = len(atoms)
         symbols = self.symbols
         #symList = list(set(symbols))
-        for atom in atoms:
-            if np.random.rand() < self.p:
+        rmInds = []
+        for i, atom in enumerate(atoms):
+            if np.random.rand() < self.p1:
                 otherSym = [s for s in symbols if s != atom.symbol]
                 atom.symbol = str(np.random.choice(otherSym))
-
-        return ind(atoms)
+                # Delete atoms randomly
+                if np.random.rand() < self.p2:
+                    rmInds.append(i)
+        saveInds = [j for j in range(Nat) if j not in rmInds]
+        if len(saveInds) > 0:
+            return ind(atoms[saveInds])
+        else:
+            return None
 
 class CutAndSplicePairing(Crossover):
     """ A cut and splice operator for bulk structures.
@@ -523,7 +532,7 @@ class PopGenerator:
 
         if self.p.calcType == 'var':
             newPop.check_full()
-        newPop.save('testnew')
+        #newPop.save('testnew')
         newPop.check()
         return newPop
 
