@@ -26,7 +26,7 @@ class MachineLearning:
 
 
 from .descriptor import ZernikeFp
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Lasso, BayesianRidge
 from sklearn.metrics import mean_absolute_error
 from ase.calculators.calculator import Calculator, all_changes
 from .localopt import ASECalculator
@@ -43,7 +43,8 @@ class LRCalculator(Calculator):
         with open(filename) as f:
             data = yaml.load(f)
         #TODO use bayesian linear regression to calculate uncertainty
-        self.reg = LinearRegression()
+        #self.reg = LinearRegression()
+        self.reg = BayesianRidge()
         self.reg.coef_=data['coef_']
         self.reg.intercept_ = data['intercept_']
         cutoff = data['cutoff']
@@ -159,7 +160,8 @@ class LRmodel(MachineLearning,ASECalculator):
 
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
-        self.reg = LinearRegression().fit(self.X, self.y, self.w)
+        #self.reg = LinearRegression().fit(self.X, self.y, self.w)
+        self.reg = BayesianRidge().fit(self.X, self.y)
         self.calc.reg = self.reg
         self.calc.save_calculator('{}/mlparameters'.format(self.p.mlDir))
         logging.info('training end')
