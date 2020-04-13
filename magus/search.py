@@ -79,9 +79,9 @@ class Magus:
         relaxPop.del_duplicate()
 
         if self.parameters.useml:
-            self.ML.updatedataset(relaxPop.frames)
+            self.ML.updatedataset(relaxPop.all_frames)
             self.ML.train()
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop.frames)[:4]))
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop.all_frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
             #logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
@@ -176,7 +176,7 @@ class Magus:
             logging.info("Using MainCalculator to relax survivals after ML relaxation")
             relaxpop = self.MainCalculator.relax(relaxPop.frames)
             relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-            self.ML.updatedataset(relaxPop.frames)
+            self.ML.updatedataset(relaxPop.all_frames)
             write_results(self.ML.dataset,'','dataset',self.parameters.mlDir)
             self.ML.train()
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop.frames)[:4]))

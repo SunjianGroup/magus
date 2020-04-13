@@ -44,6 +44,7 @@ class LRCalculator(Calculator):
             data = yaml.load(f)
         #TODO use bayesian linear regression to calculate uncertainty
         #self.reg = LinearRegression()
+        #self.reg = Lasso()
         self.reg = BayesianRidge()
         self.reg.coef_=data['coef_']
         self.reg.intercept_ = data['intercept_']
@@ -130,7 +131,7 @@ class LRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
         self.p = EmptyClass()
         
-        Requirement = ['mlDir']
+        Requirement = ['mlDir', 'maxDataset']
         Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0}
         checkParameters(self.p,parameters,Requirement,Default)
 
@@ -161,6 +162,7 @@ class LRmodel(MachineLearning,ASECalculator):
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
         #self.reg = LinearRegression().fit(self.X, self.y, self.w)
+        #self.reg = Lasso().fit(self.X, self.y)
         self.reg = BayesianRidge().fit(self.X, self.y)
         self.calc.reg = self.reg
         self.calc.save_calculator('{}/mlparameters'.format(self.p.mlDir))
@@ -199,10 +201,19 @@ class LRmodel(MachineLearning,ASECalculator):
         X=np.concatenate((n.reshape(-1,1),X),axis=1)
         return X,y,w
 
+    def dataNum(self):
+        return len(self.dataset)
+
+    def cleardataset(self):
+        self.dataset = []
+
     def updatedataset(self,images):
         alldata=copy.deepcopy(self.dataset)
         alldata.extend(images)
         alldata=del_duplicate(alldata)
+        if len(alldata) > self.p.maxDataset:
+            self.cleardataset()
+            alldata = alldata[-self.p.maxDataset:]
         newdata=[]
         for data in alldata:
             if data not in self.dataset:

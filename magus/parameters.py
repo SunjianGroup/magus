@@ -59,6 +59,7 @@ class magusParameters:
             'chkSeed': True,
             'goodSeed': False,
             'goodSeedFile': '',
+            'maxDataset': 500,
         }
         checkParameters(p,p,Requirement,Default)
 

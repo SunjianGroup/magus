@@ -108,6 +108,19 @@ class Population:
             pop.append(atoms)
         return pop
 
+    @property
+    def all_frames(self):
+        pop = []
+        for ind in self.pop:
+            atoms = ind.atoms.copy()
+            if 'trajs' in atoms.info:
+                traj = atoms.info['trajs'][-1]
+                for frame in traj:
+                    pop.append(read_atDict(frame))
+            else:
+                pop.append(atoms)
+        return pop
+
     def calc_dominators(self):
         self.calc_fitness()
         domLen = len(self.pop)

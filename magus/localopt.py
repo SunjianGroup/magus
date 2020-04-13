@@ -686,7 +686,9 @@ def calc_vasp_once(
     trajDict = [extract_atoms(ats) for ats in traj]
     if index == 0:
         struct.info['trajs'] = []
+        struct.info['relaxStep'] = []
     struct.info['trajs'].append(trajDict)
+    struct.info['relaxStep'].append(len(trajDict))
 
     logging.debug("VASP finish")
     return struct[:]
