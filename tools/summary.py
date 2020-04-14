@@ -37,7 +37,7 @@ showList = [
 #'utilVal',
 #'sigma',
 #'relaxD',
-#'fullSym',
+'fullSym',
 #'lengths',
 #'angles',
 ]
@@ -94,9 +94,11 @@ for i, at in enumerate(images):
     allRes.append(oneRes)
 
 table = pd.DataFrame(allRes, columns=showList)
-#print(table.sort_values('ehull', axis=0))
-print(table.sort_values('enthalpy', axis=0, ascending=False))
+sortdf = table.sort_values('enthalpy', axis=0, ascending=False, kind='mergesort')
+#sortdf = table.sort_values('ehull', axis=0, ascending=False, kind='mergesort')
 
+sortdf.index += 1
+print(sortdf)
     # outD = dict()
     # for feature in showList:
     #     outD[feature] = names[feature]

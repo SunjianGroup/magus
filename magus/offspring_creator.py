@@ -221,7 +221,7 @@ class PermMutation(Mutation):
         return ind(atoms)
 
 class LatticeMutation(Mutation):
-    def __init__(self, sigma=0.05, cellCut=1,tryNum=10):
+    def __init__(self, sigma=0.1, cellCut=1,tryNum=10):
         """
         sigma: Gauss distribution standard deviation
         cellCut: coefficient of gauss distribution in cell mutation
@@ -237,6 +237,10 @@ class LatticeMutation(Mutation):
         oldCell = atoms.get_cell()
 
         latGauss = np.random.normal(0, sigma,6) *cellCut
+        for i in range(6):
+            gau = latGauss[i]
+            if gau >= 1 or gau <= -1:
+                latGauss[i] = sigma    
         strain = np.array([
             [1+latGauss[0], latGauss[1]/2, latGauss[2]/2],
             [latGauss[1]/2, 1+latGauss[3], latGauss[4]/2],
@@ -290,7 +294,7 @@ class SlipMutation(Mutation):
         return ind(atoms)
 
 class RippleMutation(Mutation):
-    def __init__(self, rho=0.1, mu=1, eta=1,tryNum=10):
+    def __init__(self, rho=0.3, mu=2, eta=1,tryNum=10):
         self.rho = rho
         self.mu = mu
         self.eta = eta
@@ -318,7 +322,7 @@ class RippleMutation(Mutation):
         return ind(atoms)
 
 class RotateMutation(Mutation):
-    def __init__(self, p=0.5,tryNum=10):
+    def __init__(self, p=1,tryNum=10):
         self.p = p
         super().__init__(tryNum=tryNum)
 
