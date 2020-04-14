@@ -464,13 +464,25 @@ class PopGenerator:
         Default = {'chkMol': False,'addSym': False,'randFrac': 0.0}
         checkParameters(self.p,parameters,Requirement,Default)
 
-    def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
-        pairs = []
+    def clustering(self, clusterNum):
+        Pop = self.Pop
         labels,_ = Pop.clustering(clusterNum)
+        uqLabels = list(sorted(np.unique(labels)))
+        subpops = []
+        for label in uqLabels:
+            subpop = [ind for j,ind in enumerate(Pop.pop) if labels[j] == label]
+            subpops.append(subpop)
+
+        self.uqLabels = uqLabels
+        self.subpops = subpops
+
+    def get_pairs(self, crossNum, tryNum=50,k=0.3):
+        pairs = []
+        # labels,_ = Pop.clustering(clusterNum)
         fail = 0
         while len(pairs) < crossNum and fail < tryNum:
-            label = np.random.choice(np.unique(labels))
-            subpop = [ind for j,ind in enumerate(Pop.pop) if labels[j] == label]
+            label = np.random.choice(self.uqLabels)
+            subpop = self.subpops[label]
             if len(subpop) < 2:
                 fail+=1
                 continue
@@ -485,7 +497,8 @@ class PopGenerator:
             pairs.append(pair)
         return pairs
 
-    def get_inds(self,Pop,mutateNum,k=0.3):
+    def get_inds(self,mutateNum,k=0.3):
+        Pop = self.Pop
         dom = np.array([ind.info['dominators'] for ind in Pop.pop])
         edom = np.exp(-k*dom)
         p = edom/np.sum(edom)
@@ -506,12 +519,15 @@ class PopGenerator:
         if self.p.addSym:
             Pop.add_symmetry()
         newPop = Pop([],'initpop',Pop.gen+1)
+        # Clustering before crossover
+        self.Pop = Pop
+        self.clustering(saveGood)
         for op,num in zip(self.oplist,self.numlist):
             if num == 0:
                 continue
             logging.debug('name:{} num:{}'.format(op.descriptor,num))
             if op.optype == 'Mutation':
-                mutate_inds = self.get_inds(Pop,num)
+                mutate_inds = self.get_inds(num)
                 for i,ind in enumerate(mutate_inds):
                     if self.p.molDetector != 0 and not hasattr(newind, 'molCryst'):
                         ind.to_mol()
@@ -519,7 +535,8 @@ class PopGenerator:
                     if newind:
                         newPop.append(newind)
             elif op.optype == 'Crossover':
-                cross_pairs = self.get_pairs(Pop,num,saveGood)
+                # cross_pairs = self.get_pairs(Pop,num,saveGood)
+                cross_pairs = self.get_pairs(num)
                 for i,parents in enumerate(cross_pairs):
                     if self.p.molDetector != 0:
                         for ind in parents:
