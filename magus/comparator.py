@@ -4,10 +4,9 @@ from collections import Counter
 import spglib
 
 class Comparator:
-    def __init__(self,dE=0.01,dV=0.05,topri=False):
+    def __init__(self,dE=0.01,dV=0.05):
         self.dE = dE
         self.dV = dV
-        self.topri = topri
 
     def looks_like(self,aInd,bInd):
         for ind in [aInd, bInd]:
@@ -21,8 +20,10 @@ class Comparator:
             return False
         if abs(1-a.info['priVol']/b.info['priVol']) > self.dV:
             return False
-        if 'enthalpy' in a.info and 'enthalpy' in b.info:
-            if abs(a.info['enthalpy'] - b.info['enthalpy']) > self.dE:
+        #if 'enthalpy' in a.info and 'enthalpy' in b.info:
+        #    if abs(a.info['enthalpy'] - b.info['enthalpy']) > self.dE:
+        if 'energy' in a.info and 'energy' in b.info:
+            if abs(a.info['energy']/len(a) - b.info['energy']/len(b)) > self.dE:
                 return False
         return True
 

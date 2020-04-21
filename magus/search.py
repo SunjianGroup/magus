@@ -122,7 +122,8 @@ class Magus:
         for ind in bestind:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
-        self.bestPop.save('best',self.curgen)
+        self.bestPop.save('best','')
+        #self.bestPop.save('best',self.curgen)
 
         logging.info('construct keepPop')
         _, keeppop = goodPop.clustering(self.parameters.saveGood)
@@ -238,7 +239,8 @@ class Magus:
         for ind in bestind:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
-        self.bestPop.save('best',self.curgen)
+        self.bestPop.save('best','')
+        #self.bestPop.save('best',self.curgen)
         # keep best
         logging.info('construct keepPop')
         _, keepPop = goodPop.clustering(self.parameters.saveGood)
