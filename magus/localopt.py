@@ -34,7 +34,7 @@ from .queue import JobManager
 # from .rungulp import calc_gulp
 
 __all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
-    'EMTCalculator','GULPCalculator','LAMMPSCalculator','QUIPCalculator','ASECalculator']
+    'EMTCalculator','GULPCalculator','LammpsCalculator','QUIPCalculator','ASECalculator']
 class RelaxVasp(Vasp):
     """
     Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
@@ -347,7 +347,8 @@ class VaspCalculator(ABinitCalculator):
         shutil.copy("{}/inputFold/INCAR_0".format(self.p.workDir),'INCAR_0')
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(self.p.setup))
-        jobName = self.p.jobPrefix + '_scf_' + str(index)
+        #jobName = self.p.jobPrefix + '_scf_' + str(index)
+        jobName = self.p.jobPrefix + '_s_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -362,7 +363,8 @@ class VaspCalculator(ABinitCalculator):
     def relaxjob(self,index):
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(self.p.setup))
-        jobName = self.p.jobPrefix + '_relax_' + str(index)
+        #jobName = self.p.jobPrefix + '_relax_' + str(index)
+        jobName = self.p.jobPrefix + '_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -416,7 +418,8 @@ class GULPCalculator(ABinitCalculator):
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
-        jobName = self.p.jobPrefix + '_scf_' + str(index)
+        #jobName = self.p.jobPrefix + '_scf_' + str(index)
+        jobName = self.p.jobPrefix + '_s_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -438,7 +441,8 @@ class GULPCalculator(ABinitCalculator):
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
-        jobName = self.p.jobPrefix + '_relax_' + str(index)
+        #jobName = self.p.jobPrefix + '_relax_' + str(index)
+        jobName = self.p.jobPrefix + '_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
@@ -682,7 +686,9 @@ def calc_vasp_once(
     trajDict = [extract_atoms(ats) for ats in traj]
     if index == 0:
         struct.info['trajs'] = []
+        struct.info['relaxStep'] = []
     struct.info['trajs'].append(trajDict)
+    struct.info['relaxStep'].append(len(trajDict))
 
     logging.debug("VASP finish")
     return struct[:]
@@ -741,10 +747,12 @@ def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         exitcode = subprocess.call(exeCmd, shell=True)
         if exitcode != 0:
             raise RuntimeError('Lammps exited with exit code: %d.  ' % exitcode)
-        with open('data') as f:
-            struct = read_lammps_dump(f,numlist=calcInd.get_chemical_symbols())[-1]
+        numlist = [0]
+        numlist.extend(calcInd.get_chemical_symbols())
+        with open('out.dump') as f:
+            struct = read_lammps_dump(f,numlist=numlist)[-1]
         volume = struct.get_volume()
-        energy = os.popen("grep energy energy.out | tail -1 | awk '{print $3}'").readlines()[0]
+        energy = float(os.popen("grep energy energy.out | tail -1 | awk '{print $3}'").readlines()[0])
         # the unit of pstress is kBar = GPa/10
         enthalpy = energy + pressure * GPa * volume / 10
         enthalpy = enthalpy/len(struct)

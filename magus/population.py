@@ -3,6 +3,7 @@ import os,re,itertools,random
 from collections import Counter
 from scipy.spatial.distance import cdist, pdist
 import ase.io
+from ase import Atoms
 from ase.data import covalent_radii,atomic_numbers
 from ase.neighborlist import neighbor_list
 from ase.atom import Atom
@@ -108,6 +109,19 @@ class Population:
             pop.append(atoms)
         return pop
 
+    @property
+    def all_frames(self):
+        pop = []
+        for ind in self.pop:
+            atoms = ind.atoms.copy()
+            if 'trajs' in atoms.info:
+                traj = atoms.info['trajs'][-1]
+                for frame in traj:
+                    pop.append(read_atDict(frame))
+            else:
+                pop.append(atoms)
+        return pop
+
     def calc_dominators(self):
         self.calc_fitness()
         domLen = len(self.pop)
@@ -209,7 +223,7 @@ class Population:
 class Individual:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['formula','symbols','minAt','maxAt','symprec','molDetector','bondRatio','dRatio']
+        Requirement=['formula','symbols','minAt','maxAt','symprec','molDetector','bondRatio','dRatio','diffE','diffV']
         Default={'repairtryNum':3,'molMode':False,'chkMol':False,
             'minLattice':None,'maxLattice':None,'dRatio':0.7,'addSym':False}
         checkParameters(self.p,parameters,Requirement,Default)
@@ -219,7 +233,7 @@ class Individual:
         #TODO add more comparators
         from .comparator import FingerprintComparator, Comparator
         #self.comparator = FingerprintComparator()
-        self.comparator = Comparator()
+        self.comparator = Comparator(dE=self.p.diffE, dV=self.p.diffV)
 
         #fingerprint
         self.cf = ZernikeFp(parameters)
@@ -439,8 +453,11 @@ class Individual:
                 exclude.append(random.choice([i,j]))
 
         if len(exclude) > 0:
-            save = [int(index) for index in indices if index not in exclude]
-            mAts = atoms[save]
+            save = [index for index in indices if index not in exclude]
+            if len(save) > 0: 
+                mAts = atoms[save]
+            else:
+                mAts = Atoms(cell=atoms.get_cell, pbc=atoms.get_pbc())
             mAts.info = atoms.info.copy()
         else:
             mAts = atoms

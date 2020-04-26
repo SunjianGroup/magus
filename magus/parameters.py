@@ -59,6 +59,9 @@ class magusParameters:
             'chkSeed': True,
             'goodSeed': False,
             'goodSeedFile': '',
+            'maxDataset': 500,
+            'diffE': 0.01,
+            'diffV': 0.05,
         }
         checkParameters(p,p,Requirement,Default)
 
@@ -188,7 +191,7 @@ class magusParameters:
             elif p.calculator == 'quip':
                 MainCalculator = QUIPCalculator(p)
             elif p.calculator == 'lammps':
-                MainCalculator = LAMMPSCalculator(p)
+                MainCalculator = LammpsCalculator(p)
             else:
                 raise Exception("Undefined calculator '{}'".format(p.calculator))
             self.MainCalculator = MainCalculator
