@@ -1,6 +1,7 @@
 #ML module
 import os, logging,traceback,copy
 import numpy as np
+from scipy.linalg import cholesky, cho_solve, solve_triangular
 from ase import Atoms, Atom, units
 from ase.optimize import BFGS,FIRE
 from ase.units import GPa
@@ -26,7 +27,7 @@ class MachineLearning:
 
 
 from .descriptor import ZernikeFp
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Lasso, BayesianRidge
 from sklearn.metrics import mean_absolute_error
 from ase.calculators.calculator import Calculator, all_changes
 from .localopt import ASECalculator
@@ -43,7 +44,9 @@ class LRCalculator(Calculator):
         with open(filename) as f:
             data = yaml.load(f)
         #TODO use bayesian linear regression to calculate uncertainty
-        self.reg = LinearRegression()
+        #self.reg = LinearRegression()
+        #self.reg = Lasso()
+        self.reg = BayesianRidge()
         self.reg.coef_=data['coef_']
         self.reg.intercept_ = data['intercept_']
         cutoff = data['cutoff']
@@ -129,7 +132,7 @@ class LRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
         self.p = EmptyClass()
         
-        Requirement = ['mlDir']
+        Requirement = ['mlDir', 'maxDataset']
         Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0}
         checkParameters(self.p,parameters,Requirement,Default)
 
@@ -159,7 +162,9 @@ class LRmodel(MachineLearning,ASECalculator):
 
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
-        self.reg = LinearRegression().fit(self.X, self.y, self.w)
+        #self.reg = LinearRegression().fit(self.X, self.y, self.w)
+        #self.reg = Lasso().fit(self.X, self.y)
+        self.reg = BayesianRidge().fit(self.X, self.y)
         self.calc.reg = self.reg
         self.calc.save_calculator('{}/mlparameters'.format(self.p.mlDir))
         logging.info('training end')
@@ -197,10 +202,19 @@ class LRmodel(MachineLearning,ASECalculator):
         X=np.concatenate((n.reshape(-1,1),X),axis=1)
         return X,y,w
 
+    def dataNum(self):
+        return len(self.dataset)
+
+    def cleardataset(self):
+        self.dataset = []
+
     def updatedataset(self,images):
         alldata=copy.deepcopy(self.dataset)
         alldata.extend(images)
         alldata=del_duplicate(alldata)
+        if len(alldata) > self.p.maxDataset:
+            self.cleardataset()
+            alldata = alldata[-self.p.maxDataset:]
         newdata=[]
         for data in alldata:
             if data not in self.dataset:
@@ -237,102 +251,119 @@ class LRmodel(MachineLearning,ASECalculator):
         """
         return mae_energies, r2_energies, mae_forces, r2_forces #,mae_stresses ,r2_stresses
 
-    def get_fp(self,pop):
-        for ind in pop:
-            properties = ['energy']
-            for s in ['forces', 'stress']:
-                if s in ind.info:
-                    properties.append(s)
-            X,_,_ = self.get_data([ind], implemented_properties=properties)
-            ind.info['image_fp']=X[0,1:]
+    def relax(self,calcPop):
+        calcs = [self.calc]
+        return super().relax(calcPop,calcs)
+    
+    def scf(self,calcPop):
+        calcs = [self.calc]
+        return super().scf(calcPop,calcs)
+
+class Prior:
+    def energy(self):
+        return 0
+class GPRmodel(MachineLearning,ASECalculator):
+    def __init__(self,parameters):
+        self.p = EmptyClass()
+        
+        Requirement = ['mlDir']
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0}
+        checkParameters(self.p,parameters,Requirement,Default)
+
+        p = copy.deepcopy(parameters)
+        for key, val in parameters.MLCalculator.items():
+            setattr(p, key, val)
+        p.workDir = parameters.workDir
+        ASECalculator.__init__(self,p)
+
+        self.X = None
+        self.cf = ZernikeFp(parameters)
+        self.dataset = []
+
+        from .kernel import GaussKernel
+        self.kernel = GaussKernel()
+
+        self.prior = Prior()
+        if not os.path.exists(self.p.mlDir):
+            os.mkdir(self.p.mlDir)
+
+    def update_bias(self):
+        self.bias = np.mean(self.E - self.prior_values)
+
+    def train(self):
+        logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
+        K = self.kernel(self.X)
+        L = cholesky(K, lower=True)
+        
+        self.alpha = cho_solve((L, True), self.Y)
+        self.K_inv = cho_solve((L, True), np.eye(K.shape[0]))
+        self.K0 = self.kernel.kernel_value(self.X[0], self.X[0])
+        logging.info('training end')
+
+    def get_data(self,images):
+        X,E,p=[],[],[]
+        for atoms in images:
+            eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
+            X.append(np.mean(eFps,axis=0))
+            E.append(atoms.info['energy'])
+            p.append(self.prior.energy(atoms))
+
+        X=np.array(X)
+        E=np.array(E)
+        p=np.array(p)
+        return X,E,p
+
+    def updatedataset(self,images):
+        alldata=copy.deepcopy(self.dataset)
+        alldata.extend(images)
+        alldata=del_duplicate(alldata)
+        newdata=[]
+        for data in alldata:
+            if data not in self.dataset:
+                newdata.append(data)
+        if newdata:
+            self.dataset.extend(newdata)
+            X,E,prior_values = self.get_data(newdata)
+            if self.X is None:
+                self.X,self.E,self.prior_values=X,E,prior_values
+            else:
+                self.X=np.concatenate((self.X,X),axis=0)
+                self.E=np.concatenate((self.E,E),axis=0)
+                self.p=np.concatenate((self.prior_values,prior_values),axis=0)
+        self.update_bias()
+        self.Y = self.E - self.prior_values - self.bias
 
     def relax(self,calcPop):
         calcs = [self.calc]
         return super().relax(calcPop,calcs)
-        
 
     def scf(self,calcPop):
         calcs = [self.calc]
         return super().scf(calcPop,calcs)
 
-class GPRmodel(MachineLearning,ASECalculator):
-    def __init__(self, descriptor=None, kernel='double', prior=None, n_restarts_optimizer=1, template_structure=None):
-        if descriptor is None:
-            self.descriptor = Fingerprint()
-        else:
-            self.descriptor = descriptor
-        Nsplit_eta = None
-        if template_structure is not None:
-            self.descriptor.initialize_from_atoms(template_structure)
-            if hasattr(self.descriptor, 'use_angular'):
-                if self.descriptor.use_angular:
-                    Nsplit_eta = self.descriptor.Nelements_2body
-
-        if kernel is 'single':
-            self.kernel = GaussKernel(Nsplit_eta=Nsplit_eta)
-        elif kernel is 'double':
-            self.kernel = DoubleGaussKernel(Nsplit_eta=Nsplit_eta)
-        else:
-            self.kernel = kernel
-
-        if prior is None:
-            self.prior = RepulsivePrior()
-        else:
-            self.prior = prior
-
-        self.n_restarts_optimizer = n_restarts_optimizer
-
-        self.memory = gpr_memory(self.descriptor, self.prior)
-
-    def predict_energy(self, a, eval_std=False):
-        """Evaluate the energy predicted by the GPR-model.
-
-        parameters:
-
-        a: Atoms object
-            The structure to evaluate.
-
-        eval_std: bool
-            In addition to the force, predict also force contribution
-            arrising from including the standard deviation of the
-            predicted energy.
-        """
-        x = self.descriptor.get_feature(a)
+    def predict_energy(self, atoms, eval_std=False):
+        eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
+        x = np.sum(eFps,axis=0)
         k = self.kernel.kernel_vector(x, self.X)
-
-        E = np.dot(k,self.alpha) + self.bias + self.prior.energy(a)
-
+        E = np.dot(k,self.alpha) + self.bias + self.prior.energy(atoms)
         if eval_std:
-            # Lines 5 and 6 in GPML
             vk = np.dot(self.K_inv, k)
             E_std = np.sqrt(self.K0 - np.dot(k, vk))
             return E, E_std
         else:
             return E
 
-    def predict_forces(self, a, eval_with_energy_std=False):
-        """Evaluate the force predicted by the GPR-model.
-
-        parameters:
-
-        a: Atoms object
-            The structure to evaluate.
-
-        eval_with_energy_std: bool
-            In addition to the force, predict also force contribution
-            arrising from including the standard deviation of the
-            predicted energy.
-        """
-
+    def predict_forces(self, atoms, eval_with_energy_std=False):
         # Calculate descriptor and its gradient
-        x = self.descriptor.get_feature(a)
-        x_ddr = self.descriptor.get_featureGradient(a).T
+        eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
+        x = x = np.sum(eFps,axis=0)
+        x_ddr = fFps.T
 
         # Calculate kernel and its derivative
         k_ddx = self.kernel.kernel_jacobian(x, self.X)
         k_ddr = np.dot(k_ddx, x_ddr)
 
-        F = -np.dot(k_ddr.T, self.alpha) + self.prior.forces(a)
+        F = -np.dot(k_ddr.T, self.alpha) + self.prior.forces(atoms)
 
         if eval_with_energy_std:
             k = self.kernel.kernel_vector(x, self.X)
@@ -343,154 +374,3 @@ class GPRmodel(MachineLearning,ASECalculator):
             return F.reshape((-1,3)), F_std.reshape(-1,3)
         else:
             return F.reshape(-1,3)
-
-    def update_bias(self):
-        self.bias = np.mean(self.memory.energies - self.memory.prior_values)
-
-    def train(self, atoms_list=None, add_data=True):
-        if atoms_list is not None:
-            assert isinstance(atoms_list, list)
-            if not len(atoms_list) == 0:
-                self.memory.save_data(atoms_list, add_data)
-
-        self.update_bias()
-        self.E, self.X, self.prior_values = self.memory.get_data()
-        self.Y = self.E - self.prior_values - self.bias
-        
-        K = self.kernel(self.X)
-        L = cholesky(K, lower=True)
-        
-        self.alpha = cho_solve((L, True), self.Y)
-        self.K_inv = cho_solve((L, True), np.eye(K.shape[0]))
-        self.K0 = self.kernel.kernel_value(self.X[0], self.X[0])
-    
-    def optimize_hyperparameters(self, atoms_list=None, add_data=True, comm=None):
-        if self.n_restarts_optimizer == 0:
-            self.train(atoms_list)
-            return
-
-        if atoms_list is not None:
-            assert isinstance(atoms_list, list)
-            if not len(atoms_list) == 0:
-                self.memory.save_data(atoms_list, add_data)
-
-        self.update_bias()
-        self.E, self.X, self.prior_values = self.memory.get_data()
-        self.Y = self.E - self.prior_values - self.bias
-
-        results = []
-        for i in range(self.n_restarts_optimizer):
-            theta_initial = np.random.uniform(self.kernel.theta_bounds[:, 0],
-                                              self.kernel.theta_bounds[:, 1])
-            if i == 0:
-                # Make sure that the previously currently choosen
-                # hyperparameters are always tried as initial values.
-                if comm is not None:
-                    # But only on a single communicator, if multiple are present.
-                    if comm.rank == 0:
-                        theta_initial = self.kernel.theta
-                else:
-                    theta_initial = self.kernel.theta
-                        
-            res = self.constrained_optimization(theta_initial)
-            results.append(res)
-        index_min = np.argmin(np.array([r[1] for r in results]))
-        result_min = results[index_min]
-        
-        if comm is not None:
-        # Find best hyperparameters among all communicators and broadcast.
-            results_all = comm.gather(result_min, root=0)
-            if comm.rank == 0:
-                index_all_min = np.argmin(np.array([r[1] for r in results_all]))
-                result_min = results_all[index_all_min]
-            else:
-                result_min = None
-            result_min = comm.bcast(result_min, root=0)
-                
-        self.kernel.theta = result_min[0]
-        self.lml = -result_min[1]
-
-        self.train()
-    
-    def neg_log_marginal_likelihood(self, theta=None, eval_gradient=True):
-        if theta is not None:
-            self.kernel.theta = theta
-
-        if eval_gradient:
-            K, K_gradient = self.kernel(self.X, eval_gradient)
-        else:
-            K = self.kernel(self.X)
-
-        L = cholesky(K, lower=True)
-        alpha = cho_solve((L, True), self.Y)
-
-        lml = -0.5 * np.dot(self.Y, alpha)
-        lml -= np.sum(np.log(np.diag(L)))
-        lml -= K.shape[0]/2 * np.log(2*np.pi)
-        
-        if eval_gradient:
-            # Equation (5.9) in GPML
-            K_inv = cho_solve((L, True), np.eye(K.shape[0]))
-            tmp = np.einsum("i,j->ij", alpha, alpha) - K_inv
-
-            lml_gradient = 0.5*np.einsum("ij,kij->k", tmp, K_gradient)
-            return -lml, -lml_gradient
-        else:
-            return -lml
-
-    def constrained_optimization(self, theta_initial):
-        theta_opt, func_min, convergence_dict = \
-            fmin_l_bfgs_b(self.neg_log_marginal_likelihood,
-                          theta_initial,
-                          bounds=self.kernel.theta_bounds)
-        return theta_opt, func_min
-
-    def numerical_neg_lml(self, dx=1e-4):
-        N_data = self.X.shape[0]
-        theta = np.copy(self.kernel.theta)
-        N_hyper = len(theta)
-        lml_ddTheta = np.zeros((N_hyper))
-        for i in range(N_hyper):
-            theta_up = np.copy(theta)
-            theta_down = np.copy(theta)
-            theta_up[i] += 0.5*dx
-            theta_down[i] -= 0.5*dx
-
-            lml_up = self.neg_log_marginal_likelihood(theta_up, eval_gradient=False)
-            lml_down = self.neg_log_marginal_likelihood(theta_down, eval_gradient=False)
-            lml_ddTheta[i] = (lml_up - lml_down)/dx
-        return lml_ddTheta
-
-    def numerical_forces(self, a, dx=1e-4, eval_std=False):
-        Na, Nd = a.positions.shape
-        if not eval_std:
-            F = np.zeros((Na,Nd))
-            for ia in range(Na):
-                for idim in range(Nd):
-                    a_up = a.copy()
-                    a_down = a.copy()
-                    a_up.positions[ia,idim] += 0.5*dx
-                    a_down.positions[ia,idim] -= 0.5*dx
-                    
-                    E_up = self.predict_energy(a_up)
-                    E_down = self.predict_energy(a_down)
-                    F[ia,idim] = -(E_up - E_down)/dx
-            return F
-        else:
-            F = np.zeros((Na,Nd))
-            Fstd = np.zeros((Na,Nd))
-            for ia in range(Na):
-                for idim in range(Nd):
-                    a_up = a.copy()
-                    a_down = a.copy()
-                    a_up.positions[ia,idim] += 0.5*dx
-                    a_down.positions[ia,idim] -= 0.5*dx
-                    
-                    E_up, Estd_up = self.predict_energy(a_up, eval_std=True)
-                    E_down, Estd_down = self.predict_energy(a_down, eval_std=True)
-                    F[ia,idim] = -(E_up - E_down)/dx
-                    Fstd[ia,idim] = -(Estd_up - Estd_down)/dx
-            return F, Fstd
-
-    def get_calculator(self, kappa):
-        return gpr_calculator(self, kappa)

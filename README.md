@@ -124,64 +124,16 @@
 - `fpFold/fpsetup.yaml`: 计算结构指纹的设置，一般不用改动
 - `input.yaml`
 
-### input.yaml的设置
-
-- `input.yaml`例子：
-
-``` yaml
-calcType: fix
-calculator: vasp
-setAlgo: bayes
-xc: PBE
-popSize: 20
-numGen: 20
-minAt: 6
-maxAt: 12
-symbols: ['Ti', 'O']
-ppLabel: ['_sv', '']
-formula: [1, 2]
-dRatio: 0.7
-randFrac: 0.2
-saveGood: 5
-pressure: 0
-addSym: False
-calcNum: 5
-numParallel: 2
-numCore: 12
-queueName: e52692v2ib!
-waitTime: 200
-
-### Bayesian
-kappa: 2
-kappaLoop: 2
-scale: 0.0005
-parent_factor: 0.1
-
-### BBO
-grids: [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
-migrateFrac: 0.4
-mutateFrac: 0.4
-```
 
 #### 参数介绍
 
-- mode: 运行方式
-  
-  可用值: `serial` (串行), `parallel` (并行) 
 
 - calcType: 计算类型
 
   可用值:  `fix`（定组分）,`var`（变组分）
 
-- calculator: 结构优化程序
-  可用值: `vasp`, `gulp`, `cp2k`, `mopac`, `xtb`
-
 - setAlgo: 结构搜索算法
   可用值(大小写均可): `EA`(Evolutionary Algorithm), `BOEA`(Bayesian Optimization)
-
-- xc: 交换关联类型
-
-  可用值: `PBE`, `LDA`,`PW-91`
 
 - spacegroup: 随机结构的空间群
 
@@ -196,15 +148,11 @@ mutateFrac: 0.4
 
   例：['Ti', 'O'], 外层是方括号，每个元素用引号括起来
 
-- ppLabel: VASP赝势的后缀
-
-  例：['_sv', ''], 与symbols顺序一致，若无后缀则填入''
-
 - formula: 元素比例
 
   例： [1, 2]
 
-- fullEles: 若值为`True`,则产生的结构含有'symbols'中所有元素，只在变组分搜索时生效
+- fullEles: 若值为`True`,则产生的结构含有'symbols'中所有元素（只在变组分搜索时生效）
 - eleSize: 变组分搜索时，初代每种单质随机产生的结构数
 - volRatio: 随机产生结构时的体积参数
 - randFrac: 随机结构比例
@@ -214,31 +162,34 @@ mutateFrac: 0.4
 - addSym: 产生结构之前是否为父代加入对称性
 - molDetector: 结构演化时判断分子片段的方法
   可用值：0(不判断分子局域结构，默认值)  1(自动判断分子局域结构，建议使用)  2(使用Girvan-Newman算法划分局域结构)
-- exeCmd: 运行结构优化程序的命令（只有`calculator`为`gulp`时才需要）
-- calcNum: 结构优化次数
-- numParallel: 并行优化结构的数目
-- numCore: 结构优化使用的核数
-- queueName: 结构优化任务的队列
-- jobPrefix: 并行模式下任务脚本的前缀
-- waitTime: 检查结构优化任务的时间间隔(s)
-- maxRelaxTime: 一次结构优化最大运行时间(s)
 
-##### Bayesian Optimization 参数
+- MainCalculator 设置了局域优化的参数，以下是MainCalculator下属的参数，需要缩进：
 
-- parent_factor: 父代能量的系数，该参数越大，越接近进化算法
-- kappa: 2
-- kappaLoop: 2
-- scale: 0.0005
+    - mode: 运行方式
+  
+        可用值: `serial` (串行), `parallel` (并行) 
 
-  ​
+    - calculator: 结构优化程序
 
-##### BBO 参数
+        可用值: `vasp`, `gulp`, `lammps`, `emt`, `xtb`
 
-- grids: 切割晶胞的网格
-  例：[[2, 1, 1], [1, 2, 1], [1, 1, 2]], 两层方括号
+    - xc: 交换关联类型（仅用于VASP）
 
-- migrateFrac: 迁移操作产生结构的数目
-- mutateFrac: 变异算子产生结构的数目
+        可用值: `PBE`, `LDA`,`PW-91`
+
+    - ppLabel: VASP赝势的后缀
+    
+        例：['_sv', ''], 与symbols顺序一致，若无后缀则填入''
+
+    - exeCmd: 运行结构优化程序的命令
+    - calcNum: 结构优化次数
+    - numParallel: 并行优化结构的数目
+    - numCore: 结构优化使用的核数
+    - queueName: 结构优化任务的队列
+    - jobPrefix: 并行模式下任务脚本名的前缀
+    - waitTime: 检查结构优化任务的时间间隔(s)
+
+  
 
 #### 部分参数默认值
 - mode: serial
@@ -255,9 +206,8 @@ mutateFrac: 0.4
 - latDisps: list(range(1,5))
 - ripRho: [0.5, 1, 1.5, 2]
 - molDetector: 0
-- rotNum: 5
 
-更多默认参数见`readparm.py`
+更多默认参数见`parameters.py`
 
 ## 输出文件
 输出文件保存在`results`目录下，分为四种：
@@ -265,6 +215,7 @@ mutateFrac: 0.4
 - `pareto*.traj`: 每代最优结构
 - `keep*.traj`: 每代保留到下一代的结构
 - `good.traj`: 当前最好的`popSize`个结构
+- `best.traj`:  从第一代到当前代每代的最优结构
 
 提取结构信息需要`summary.py`, 运行方式：`summary.py good.traj`
 

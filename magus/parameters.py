@@ -59,6 +59,9 @@ class magusParameters:
             'chkSeed': True,
             'goodSeed': False,
             'goodSeedFile': '',
+            'maxDataset': 500,
+            'diffE': 0.01,
+            'diffV': 0.05,
         }
         checkParameters(p,p,Requirement,Default)
 
