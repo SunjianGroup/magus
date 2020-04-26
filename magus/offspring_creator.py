@@ -352,7 +352,49 @@ class FormulaMutation(Mutation):
                 atom.symbol = str(np.random.choice(otherSym))
 
         return ind(atoms)
+class RattleMutation(Mutation):
+    """Class to perform rattle mutations on structures.
+    Modified from GOFEE
 
+    Rattles a number of randomly selected atoms within a sphere 
+    of radius 'rattle_range' of their original positions.
+    
+    Parameters:
+    
+    p: float
+        possibility of rattle
+
+    rattle_range: float
+        The maximum distance within witch to rattle the
+        atoms. Atoms are rattled uniformly within a sphere of this
+        radius.  
+    """
+    def __init__(self, p=0.5, rattle_range=3, dRatio=0.7,tryNum=10):
+        self.p = p
+        self.rattle_range = rattle_range
+        self.dRatio = dRatio
+        super().__init__(tryNum=tryNum)
+
+    def mutate(self, ind):
+        """ Rattles atoms one at a time within a sphere of radius self.rattle_range.
+        """
+        atoms = ind.atoms.copy()
+        Natoms = len(atoms)
+        for i,atom in enumerate(atoms):
+            if np.random.rand() < self.p:
+                newatoms = [atoms[j] for j in range(Natoms) if j != i]
+                pos,symbol = atoms[i].postions,atoms[i].symbol
+                for _ in range(200):
+                    r = self.rattle_range * np.random.rand()**(1/3)
+                    theta = np.random.uniform(0,np.pi)
+                    phi = np.random.uniform(0,2*np.pi)
+                    newpos = pos + r*np.array([np.sin(theta)*np.cos(phi), 
+                                          np.sin(theta)*np.sin(phi),
+                                          np.cos(theta)])
+                    if check_new_atom_dist(newatoms, pos, symbol, self.dRatio):
+                        atoms[i].postion = newpos
+        return ind(atoms)
+       
 class CutAndSplicePairing(Crossover):
     """ A cut and splice operator for bulk structures.
 
