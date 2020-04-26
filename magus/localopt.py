@@ -60,7 +60,7 @@ class ASECalculator(Calculator):
     def __init__(self,parameters):
         super().__init__(parameters)
         Requirement = ['epsArr','stepArr','calcNum']
-        Default = {'optimizer':'bfgs','maxRelaxStep':0.1}
+        Default = {'optimizer':'bfgs','maxRelaxStep':0.1,'relaxLattice':True}
         checkParameters(self.p,parameters,Requirement,Default)
         assert len(self.p.epsArr) == self.p.calcNum
         assert len(self.p.stepArr) == self.p.calcNum
@@ -78,7 +78,10 @@ class ASECalculator(Calculator):
             for j, calc in enumerate(calcs):
                 ind.set_calculator(calc)
                 logging.debug("Structure {} Step {}".format(i, j))
-                ucf = ExpCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
+                if self.p.relaxLattice:
+                    ucf = ExpCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
+                else:
+                    ucf = ind
                 if self.p.optimizer == 'cg':
                     gopt = SciPyFminCG(ucf, logfile=logfile,trajectory='calc.traj')
                 elif self.p.optimizer == 'bfgs':
