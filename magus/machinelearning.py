@@ -260,7 +260,7 @@ class LRmodel(MachineLearning,ASECalculator):
         return super().scf(calcPop,calcs)
 
 class Prior:
-    def energy(self):
+    def energy(self,atoms):
         return 0
 class GPRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
@@ -304,7 +304,7 @@ class GPRmodel(MachineLearning,ASECalculator):
         X,E,p=[],[],[]
         for atoms in images:
             eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
-            X.append(np.mean(eFps,axis=0))
+            X.append(np.sum(eFps,axis=0))
             E.append(atoms.info['energy'])
             p.append(self.prior.energy(atoms))
 
