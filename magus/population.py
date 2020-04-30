@@ -457,7 +457,7 @@ class Individual:
             if len(save) > 0: 
                 mAts = atoms[save]
             else:
-                mAts = Atoms(cell=atoms.get_cell, pbc=atoms.get_pbc())
+                mAts = Atoms(cell=atoms.get_cell(), pbc=atoms.get_pbc())
             mAts.info = atoms.info.copy()
         else:
             mAts = atoms
