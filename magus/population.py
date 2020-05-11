@@ -70,7 +70,7 @@ class Population:
     def append(self,ind):
         if ind.__class__.__name__ == 'Atoms':
             ind = self.Individual(ind)
-
+        ind.info['identity'] = [self.name, len(self.pop)]
         self.pop.append(ind)
         return True
         #for ind_ in self.pop:

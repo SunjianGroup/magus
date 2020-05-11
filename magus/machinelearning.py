@@ -5,6 +5,7 @@ from scipy.linalg import cholesky, cho_solve, solve_triangular
 from ase import Atoms, Atom, units
 from ase.optimize import BFGS,FIRE
 from ase.units import GPa
+from ase.io import read,write
 from ase.constraints import UnitCellFilter,ExpCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
@@ -26,7 +27,7 @@ class MachineLearning:
         pass
 
 
-from .descriptor import ZernikeFp
+from .descriptor import ZernikeFp,GofeeFp
 from sklearn.linear_model import LinearRegression, Lasso, BayesianRidge
 from sklearn.metrics import mean_absolute_error
 from ase.calculators.calculator import Calculator, all_changes
@@ -123,9 +124,33 @@ class gpr_calculator(Calculator):
                 F = F - self.kappa*Fstd
             self.results['forces'] = F
 
+class bayeslr_calculator(Calculator):
+    implemented_properties = ['energy', 'forces']
+    default_parameters = {}
 
+    def __init__(self, bayeslr, kappa=None, **kwargs):
+        self.bayeslr = bayeslr
+        self.kappa = kappa
+        Calculator.__init__(self, **kwargs)
 
+    def calculate(self, atoms=None, properties=['energy', 'forces'], system_changes=['positions']):
+        Calculator.calculate(self, atoms, properties, system_changes)
 
+        if 'energy' in properties:
+            if self.kappa is None:
+                E = self.bayeslr.predict_energy(atoms, eval_std=False)
+            else:
+                E, Estd = self.bayeslr.predict_energy(atoms, eval_std=True)
+                E = E - self.kappa*Estd
+            self.results['energy'] = E
+
+        if 'forces' in properties:
+            if self.kappa is None:
+                F = self.bayeslr.predict_forces(atoms)
+            else:
+                F, Fstd = self.bayeslr.predict_forces(atoms, eval_with_energy_std=True)
+                F = F - self.kappa*Fstd
+            self.results['forces'] = F
 
 optimizers={'BFGS':BFGS,'FIRE':FIRE}
 class LRmodel(MachineLearning,ASECalculator):
@@ -184,7 +209,7 @@ class LRmodel(MachineLearning,ASECalculator):
                 except:
                     y.append(0.0)
             if 'forces' in implemented_properties:
-                fFps = np.sum(fFps, axis=0)
+                fFps = np.sum(fFps, axis=1)
                 X.extend(fFps.reshape(-1,totNd))
                 w.extend([self.p.w_force]*len(atoms)*3)
                 n.extend([0.0]*len(atoms)*3)
@@ -262,12 +287,15 @@ class LRmodel(MachineLearning,ASECalculator):
 class Prior:
     def energy(self,atoms):
         return 0
+    def forces(self,atoms):
+        return np.zeros_like(atoms.positions).reshape(-1)
+
 class GPRmodel(MachineLearning,ASECalculator):
-    def __init__(self,parameters):
+    def __init__(self,parameters,cf=None):
         self.p = EmptyClass()
         
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0}
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
@@ -277,7 +305,10 @@ class GPRmodel(MachineLearning,ASECalculator):
         ASECalculator.__init__(self,p)
 
         self.X = None
-        self.cf = ZernikeFp(parameters)
+        if cf:
+            self.cf = cf
+        else:
+            self.cf = GofeeFp(parameters)
         self.dataset = []
 
         from .kernel import GaussKernel
@@ -290,21 +321,44 @@ class GPRmodel(MachineLearning,ASECalculator):
     def update_bias(self):
         self.bias = np.mean(self.E - self.prior_values)
 
+    def update_mean_std(self):
+        if self.p.norm:
+            self.mean = np.mean(self.X,axis=0)
+            self.std = np.std(self.X,axis=0)
+        else:
+            self.mean,self.std = 0.0,1.0
+
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
-        K = self.kernel(self.X)
+        X_ = (self.X-self.mean)/self.std
+        K = self.kernel(X_)
         L = cholesky(K, lower=True)
         
         self.alpha = cho_solve((L, True), self.Y)
         self.K_inv = cho_solve((L, True), np.eye(K.shape[0]))
-        self.K0 = self.kernel.kernel_value(self.X[0], self.X[0])
+        self.K0 = self.kernel.kernel_value(X_[0], X_[0])
         logging.info('training end')
+
+    def get_loss(self,images):
+        # Evaluate energy
+        Ypredict = np.array([self.predict_energy(atoms) for atoms in images])
+        Y = np.array([atoms.info['energy'] for atoms in images])
+        mae_energies = np.mean(np.abs(Ypredict-Y))
+        r2_energies = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
+
+        # Evaluate force
+        Ypredict = np.array([self.predict_forces(atoms) for atoms in images])
+        Y = np.array([atoms.info['forces'] for atoms in images])
+        mae_forces = np.mean(np.abs(Ypredict-Y))
+        r2_forces = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
+
+        return mae_energies, r2_energies, mae_forces, r2_forces
 
     def get_data(self,images):
         X,E,p=[],[],[]
         for atoms in images:
             eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
-            X.append(np.sum(eFps,axis=0))
+            X.append(eFps)
             E.append(atoms.info['energy'])
             p.append(self.prior.energy(atoms))
 
@@ -329,22 +383,24 @@ class GPRmodel(MachineLearning,ASECalculator):
             else:
                 self.X=np.concatenate((self.X,X),axis=0)
                 self.E=np.concatenate((self.E,E),axis=0)
-                self.p=np.concatenate((self.prior_values,prior_values),axis=0)
+                self.prior_values=np.concatenate((self.prior_values,prior_values),axis=0)
         self.update_bias()
+        self.update_mean_std()
         self.Y = self.E - self.prior_values - self.bias
 
     def relax(self,calcPop):
-        calcs = [self.calc]
+        calcs = [self.get_calculator()]
         return super().relax(calcPop,calcs)
 
     def scf(self,calcPop):
-        calcs = [self.calc]
+        calcs = [self.get_calculator()]
         return super().scf(calcPop,calcs)
 
     def predict_energy(self, atoms, eval_std=False):
         eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
-        x = np.sum(eFps,axis=0)
-        k = self.kernel.kernel_vector(x, self.X)
+        x = (eFps-self.mean)/self.std
+        X_ = (self.X-self.mean)/self.std
+        k = self.kernel.kernel_vector(x, X_)
         E = np.dot(k,self.alpha) + self.bias + self.prior.energy(atoms)
         if eval_std:
             vk = np.dot(self.K_inv, k)
@@ -356,17 +412,18 @@ class GPRmodel(MachineLearning,ASECalculator):
     def predict_forces(self, atoms, eval_with_energy_std=False):
         # Calculate descriptor and its gradient
         eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
-        x = x = np.sum(eFps,axis=0)
-        x_ddr = fFps.T
+        x_ = (eFps - self.mean)/self.std
+        X_ = (self.X-self.mean)/self.std
+        x_ddr = fFps.T/self.std
 
         # Calculate kernel and its derivative
-        k_ddx = self.kernel.kernel_jacobian(x, self.X)
+        k_ddx = self.kernel.kernel_jacobian(x_, X_)
         k_ddr = np.dot(k_ddx, x_ddr)
 
         F = -np.dot(k_ddr.T, self.alpha) + self.prior.forces(atoms)
 
         if eval_with_energy_std:
-            k = self.kernel.kernel_vector(x, self.X)
+            k = self.kernel.kernel_vector(x_, X_)
             vk = np.dot(self.K_inv, k)
             g = self.K0 - np.dot(k.T, vk)
             assert g >= 0
@@ -374,3 +431,274 @@ class GPRmodel(MachineLearning,ASECalculator):
             return F.reshape((-1,3)), F_std.reshape(-1,3)
         else:
             return F.reshape(-1,3)
+
+    def get_calculator(self, kappa=0):
+        return gpr_calculator(self, kappa)
+
+    def neg_log_marginal_likelihood(self, theta=None, eval_gradient=True):
+        if theta is not None:
+            self.kernel.theta = theta
+
+        if eval_gradient:
+            K, K_gradient = self.kernel(self.X, eval_gradient)
+        else:
+            K = self.kernel(self.X)
+
+        L = cholesky(K, lower=True)
+        alpha = cho_solve((L, True), self.Y)
+
+        lml = -0.5 * np.dot(self.Y, alpha)
+        lml -= np.sum(np.log(np.diag(L)))
+        lml -= K.shape[0]/2 * np.log(2*np.pi)
+        
+        if eval_gradient:
+            # Equation (5.9) in GPML
+            K_inv = cho_solve((L, True), np.eye(K.shape[0]))
+            tmp = np.einsum("i,j->ij", alpha, alpha) - K_inv
+
+            lml_gradient = 0.5*np.einsum("ij,kij->k", tmp, K_gradient)
+            return -lml, -lml_gradient
+        else:
+            return -lml
+            
+    def numerical_forces(self, a, dx=1e-4, eval_std=False):
+        Na, Nd = a.positions.shape
+        if not eval_std:
+            F = np.zeros((Na,Nd))
+            for ia in range(Na):
+                for idim in range(Nd):
+                    a_up = a.copy()
+                    a_down = a.copy()
+                    a_up.positions[ia,idim] += 0.5*dx
+                    a_down.positions[ia,idim] -= 0.5*dx
+                    
+                    E_up = self.predict_energy(a_up)
+                    E_down = self.predict_energy(a_down)
+                    F[ia,idim] = -(E_up - E_down)/dx
+            return F
+        else:
+            F = np.zeros((Na,Nd))
+            Fstd = np.zeros((Na,Nd))
+            for ia in range(Na):
+                for idim in range(Nd):
+                    a_up = a.copy()
+                    a_down = a.copy()
+                    a_up.positions[ia,idim] += 0.5*dx
+                    a_down.positions[ia,idim] -= 0.5*dx
+                    
+                    E_up, Estd_up = self.predict_energy(a_up, eval_std=True)
+                    E_down, Estd_down = self.predict_energy(a_down, eval_std=True)
+                    F[ia,idim] = -(E_up - E_down)/dx
+                    Fstd[ia,idim] = -(Estd_up - Estd_down)/dx
+            return F, Fstd
+
+
+class BayesLRmodel(MachineLearning,ASECalculator):
+    def __init__(self,parameters,cf=None):
+        self.p = EmptyClass()
+        self.reg = BayesianRidge()
+        
+        Requirement = ['mlDir']
+        Default = {'w_energy':30.0,'w_force':-1.0,'w_stress':-1.0,'norm':False}
+        checkParameters(self.p,parameters,Requirement,Default)
+
+        train_property = []
+        if self.p.w_energy > 0:
+            train_property.append('energy')
+        if self.p.w_force > 0:
+            train_property.append('forces')
+            if self.p.norm:
+                logging.info('norm cannot be True when forces need train')
+                self.p.norm = False
+        if self.p.w_stress > 0:
+            train_property.append('stress')
+        self.p.train_property = train_property
+
+        p = copy.deepcopy(parameters)
+        for key, val in parameters.MLCalculator.items():
+            setattr(p, key, val)
+        p.workDir = parameters.workDir
+        ASECalculator.__init__(self,p)
+
+        self.X = None
+        if cf:
+            self.cf = cf
+        else:
+            self.cf = GofeeFp(parameters)
+        self.dataset = []
+
+        if not os.path.exists(self.p.mlDir):
+            os.mkdir(self.p.mlDir)
+
+    def get_loss(self,images):
+        # Evaluate energy
+        Ypredict = np.array([self.predict_energy(atoms) for atoms in images])
+        Y = np.array([atoms.info['energy'] for atoms in images])
+        mae_energies = np.mean(np.abs(Ypredict-Y))
+        r2_energies = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
+
+        # Evaluate force
+        Ypredict = np.array([self.predict_forces(atoms) for atoms in images])
+        Y = np.array([atoms.info['forces'] for atoms in images])
+        mae_forces = np.mean(np.abs(Ypredict-Y))
+        r2_forces = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
+
+        return mae_energies, r2_energies, mae_forces, r2_forces
+
+    def update_mean_std(self):
+        if self.p.norm:
+            self.mean = np.mean(self.X,axis=0)
+            self.std = np.std(self.X,axis=0)
+            self.std[np.where(self.std == 0.0)] = 1
+        else:
+            self.mean,self.std = 0.0,1.0
+
+    def train(self):
+        logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
+        self.reg.fit(self.X_, self.y,self.w)
+
+    def get_data(self,images,implemented_properties = ['energy', 'forces']):
+        X,y,w,n=[],[],[],[]
+        for atoms in images:
+            eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
+            totNd = len(eFps)
+            if 'energy' in implemented_properties:
+                X.append(eFps)
+                w.append(self.p.w_energy)
+                n.append(1.0)
+                y.append(atoms.info['energy'])
+            if 'forces' in implemented_properties:
+                X.extend(-fFps.reshape(-1,totNd))
+                w.extend([self.p.w_force]*len(atoms)*3)
+                n.extend([0.0]*len(atoms)*3)
+                y.extend(atoms.info['forces'].reshape(-1))
+            if 'stress' in implemented_properties:
+                sFps = np.sum(sFps, axis=0)
+                X.extend(sFps.reshape(-1,totNd))
+                w.extend([self.p.w_stress]*6)
+                n.extend([0.0]*6)
+                y.extend(atoms.info['stress'].reshape(-1))
+        X=np.array(X)
+        w=np.array(w)
+        y=np.array(y)
+        n=np.array(n)
+        X=np.concatenate((n.reshape(-1,1),X),axis=1)
+        return X,y,w
+
+    def dataNum(self):
+        return len(self.dataset)
+
+    def cleardataset(self):
+        self.dataset = []
+
+    def updatedataset(self,images):
+        write('{}/dataset.traj'.format(self.p.mlDir),self.dataset)
+        alldata=copy.deepcopy(self.dataset)
+        alldata.extend(images)
+        alldata=del_duplicate(alldata)
+        newdata=[]
+        for data in alldata:
+            if data not in self.dataset:
+                newdata.append(data)
+        if newdata:
+            self.dataset.extend(newdata)
+            X,y,w = self.get_data(newdata,self.p.train_property)
+            if self.X is None:
+                self.X,self.y,self.w=X,y,w
+            else:
+                self.X=np.concatenate((self.X,X),axis=0)
+                self.y=np.concatenate((self.y,y),axis=0)
+                self.w=np.concatenate((self.w,w),axis=0)
+        self.update_mean_std()
+        self.X_ = (self.X-self.mean)/self.std
+
+    def relax(self,calcPop):
+        calcs = [self.get_calculator()]
+        return super().relax(calcPop,calcs)
+
+    def scf(self,calcPop):
+        calcs = [self.get_calculator()]
+        return super().scf(calcPop,calcs)
+
+    def predict_energy(self, atoms, eval_std=False):
+        eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
+        X = np.ones(len(eFps)+1)
+        X[1:] = eFps
+        X_ = (X - self.mean)/self.std
+        result = self.reg.predict(X_.reshape(1,-1),eval_std)
+        if eval_std:
+            return result[0][0],result[1][0]
+        else:
+            return result[0]
+
+    def predict_forces(self, atoms, eval_with_energy_std=False):
+        # Calculate descriptor and its gradient
+        eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
+        X = np.zeros([3*len(atoms),len(eFps)+1])
+        X[:,1:] = -fFps
+        X_ = X/self.std
+        result = self.reg.predict(X_,eval_with_energy_std)
+        if eval_with_energy_std:
+            return result[0].reshape((len(atoms),3)),result[1].reshape((len(atoms),3))
+        else:
+            return result.reshape((len(atoms),3))
+            
+    def get_calculator(self, kappa=0):
+        return bayeslr_calculator(self, kappa)
+
+    def neg_log_marginal_likelihood(self, theta=None, eval_gradient=True):
+        if theta is not None:
+            self.kernel.theta = theta
+
+        if eval_gradient:
+            K, K_gradient = self.kernel(self.X, eval_gradient)
+        else:
+            K = self.kernel(self.X)
+
+        L = cholesky(K, lower=True)
+        alpha = cho_solve((L, True), self.Y)
+
+        lml = -0.5 * np.dot(self.Y, alpha)
+        lml -= np.sum(np.log(np.diag(L)))
+        lml -= K.shape[0]/2 * np.log(2*np.pi)
+        
+        if eval_gradient:
+            # Equation (5.9) in GPML
+            K_inv = cho_solve((L, True), np.eye(K.shape[0]))
+            tmp = np.einsum("i,j->ij", alpha, alpha) - K_inv
+
+            lml_gradient = 0.5*np.einsum("ij,kij->k", tmp, K_gradient)
+            return -lml, -lml_gradient
+        else:
+            return -lml
+            
+    def numerical_forces(self, a, dx=1e-4, eval_std=False):
+        Na, Nd = a.positions.shape
+        if not eval_std:
+            F = np.zeros((Na,Nd))
+            for ia in range(Na):
+                for idim in range(Nd):
+                    a_up = a.copy()
+                    a_down = a.copy()
+                    a_up.positions[ia,idim] += 0.5*dx
+                    a_down.positions[ia,idim] -= 0.5*dx
+                    
+                    E_up = self.predict_energy(a_up)
+                    E_down = self.predict_energy(a_down)
+                    F[ia,idim] = -(E_up - E_down)/dx
+            return F
+        else:
+            F = np.zeros((Na,Nd))
+            Fstd = np.zeros((Na,Nd))
+            for ia in range(Na):
+                for idim in range(Nd):
+                    a_up = a.copy()
+                    a_down = a.copy()
+                    a_up.positions[ia,idim] += 0.5*dx
+                    a_down.positions[ia,idim] -= 0.5*dx
+                    
+                    E_up, Estd_up = self.predict_energy(a_up, eval_std=True)
+                    E_down, Estd_down = self.predict_energy(a_down, eval_std=True)
+                    F[ia,idim] = -(E_up - E_down)/dx
+                    Fstd[ia,idim] = -(Estd_up - Estd_down)/dx
+            return F, Fstd

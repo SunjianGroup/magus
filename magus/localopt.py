@@ -112,10 +112,13 @@ class ASECalculator(Calculator):
                 # save energy, forces, stress for trainning potential
                 ind.info['energy'] = ind.get_potential_energy()
                 ind.info['forces'] = ind.get_forces()
-                ind.info['stress'] = ind.get_stress()
+                try:
+                    ind.info['stress'] = ind.get_stress()
+                except:
+                    pass
                 enthalpy = (ind.info['energy'] + self.p.pressure * ind.get_volume() * GPa)/len(ind)
                 ind.info['enthalpy'] = round(enthalpy, 3)
-
+                ind.wrap()
                 ind.set_calculator(None)
                 relaxPop.append(ind)
         os.chdir(self.p.workDir)
@@ -135,7 +138,10 @@ class ASECalculator(Calculator):
             try:
                 atoms.info['energy'] = atoms.get_potential_energy()
                 atoms.info['forces'] = atoms.get_forces()
-                atoms.info['stress'] = atoms.get_stress()
+                try:
+                    atoms.info['stress'] = atoms.get_stress()
+                except:
+                    pass
                 enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa)/len(atoms)
                 atoms.info['enthalpy'] = round(enthalpy, 3)
                 atoms.set_calculator(None)

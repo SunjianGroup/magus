@@ -49,10 +49,10 @@ class Generator:
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
         generator.threshold=self.p.dRatio
-        #generator.threshold=self.p.threshold
         generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
+        generator.GetConventional = True
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
         generator.minVolume = minVolume

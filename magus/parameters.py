@@ -13,7 +13,7 @@ from .localopt import *
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
-from .machinelearning import LRmodel
+from .machinelearning import LRmodel,GPRmodel,BayesLRmodel
 from .queue import JobManager
 from .population import Population
 #ML module
@@ -130,7 +130,7 @@ class magusParameters:
             rotNum = num if self.parameters.molDetector != 0 else 0
             #rotNum = num if self.parameters.molMode else 0
             formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
-
+            """
             if self.parameters.useml:
                 self.get_MLCalculator()
                 soft = SoftMutation(self.MLCalculator.calc)
@@ -138,7 +138,9 @@ class magusParameters:
             else:
                 soft = None
                 softNum = 0
-
+            """
+            soft = None
+            softNum = 0
             Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
                 'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 'formNum': formNum}
             checkParameters(self.parameters,self.parameters,Requirement,Default)
@@ -166,7 +168,13 @@ class magusParameters:
     def get_MLCalculator(self):
         if not hasattr(self,'MLCalculator'):
             if self.parameters.useml:
-                self.MLCalculator = LRmodel(self.parameters)
+                checkParameters(self.parameters,self.parameters,[],{'mlmodel':'GPR'})
+                if self.parameters.mlmodel == 'LR':
+                    self.MLCalculator = LRmodel(self.parameters)
+                elif self.parameters.mlmodel == 'GPR':
+                    self.MLCalculator = GPRmodel(self.parameters)
+                elif self.parameters.mlmodel == 'BayesLR':
+                    self.MLCalculator = BayesLRmodel(self.parameters)
             else:
                 self.MLCalculator = None
             self.parameters.MLCalculator = self.MLCalculator.p

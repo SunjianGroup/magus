@@ -47,7 +47,7 @@ class Mutation(OffspringCreator):
         else:
             logging.debug('fail {} in {}'.format(self.descriptor,ind.info['identity']))
             return None
-
+        logging.debug('success {} in {}'.format(self.descriptor,ind.info['identity']))
         # remove some parent infomation
         rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull']
         for k in rmkeys:
@@ -396,8 +396,9 @@ class RattleMutation(Mutation):
         Natoms = len(atoms)
         for i,atom in enumerate(atoms):
             if np.random.rand() < self.p:
-                newatoms = [atoms[j] for j in range(Natoms) if j != i]
-                pos,symbol = atoms[i].postions,atoms[i].symbol
+                newatoms = atoms.copy()
+                del newatoms[i]
+                pos,symbol = atoms[i].position,atoms[i].symbol
                 for _ in range(200):
                     r = self.rattle_range * np.random.rand()**(1/3)
                     theta = np.random.uniform(0,np.pi)
@@ -406,7 +407,8 @@ class RattleMutation(Mutation):
                                           np.sin(theta)*np.sin(phi),
                                           np.cos(theta)])
                     if check_new_atom_dist(newatoms, pos, symbol, self.dRatio):
-                        atoms[i].postion = newpos
+                        atoms[i].position = newpos
+                        break
         return ind(atoms)
        
 class CutAndSplicePairing(Crossover):
@@ -522,14 +524,16 @@ class PopGenerator:
 
         self.uqLabels = uqLabels
         self.subpops = subpops
-
-    def get_pairs(self, crossNum, tryNum=50,k=0.3):
+    def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
         pairs = []
-        # labels,_ = Pop.clustering(clusterNum)
+        labels,_ = Pop.clustering(clusterNum)
         fail = 0
         while len(pairs) < crossNum and fail < tryNum:
-            label = np.random.choice(self.uqLabels)
-            subpop = self.subpops[label]
+            #label = np.random.choice(self.uqLabels)
+            #subpop = self.subpops[label]
+            label = np.random.choice(np.unique(labels))
+            subpop = [ind for j,ind in enumerate(Pop.pop) if labels[j] == label]
+
             if len(subpop) < 2:
                 fail+=1
                 continue
@@ -544,8 +548,8 @@ class PopGenerator:
             pairs.append(pair)
         return pairs
 
-    def get_inds(self,mutateNum,k=0.3):
-        Pop = self.Pop
+    def get_inds(self,Pop,mutateNum,k=0.3):
+        #Pop = self.Pop
         dom = np.array([ind.info['dominators'] for ind in Pop.pop])
         edom = np.exp(-k*dom)
         p = edom/np.sum(edom)
@@ -560,21 +564,17 @@ class PopGenerator:
         Pop.calc_dominators()
         if self.p.calcType == 'var':
             Pop.check_full()
-        assert len(Pop) >= saveGood, \
-            "saveGood should be shorter than length of curPop!"
         #TODO move addsym to ind
         if self.p.addSym:
             Pop.add_symmetry()
         newPop = Pop([],'initpop',Pop.gen+1)
-        # Clustering before crossover
-        self.Pop = Pop
-        self.clustering(saveGood)
+
         for op,num in zip(self.oplist,self.numlist):
             if num == 0:
                 continue
             logging.debug('name:{} num:{}'.format(op.descriptor,num))
             if op.optype == 'Mutation':
-                mutate_inds = self.get_inds(num)
+                mutate_inds = self.get_inds(Pop,num)
                 for i,ind in enumerate(mutate_inds):
                     if self.p.molDetector != 0 and not hasattr(newind, 'molCryst'):
                         ind.to_mol()
@@ -583,7 +583,7 @@ class PopGenerator:
                         newPop.append(newind)
             elif op.optype == 'Crossover':
                 # cross_pairs = self.get_pairs(Pop,num,saveGood)
-                cross_pairs = self.get_pairs(num)
+                cross_pairs = self.get_pairs(Pop,num)
                 for i,parents in enumerate(cross_pairs):
                     if self.p.molDetector != 0:
                         for ind in parents:
