@@ -44,7 +44,7 @@ showList = [
 allRes = []
 
 for i, at in enumerate(images):
-    posname = "POSCAR_%s.vasp" %(i)
+    posname = "POSCAR_%s.vasp" %(i+1)
     ase.io.write(posname, at, direct = True, vasp5 = True)
     symmetry = spg.get_spacegroup(at, symprec)
     cellpar = np.round(at.get_cell_lengths_and_angles(), 2)
