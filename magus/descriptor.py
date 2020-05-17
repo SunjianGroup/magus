@@ -5,7 +5,7 @@ from ase.data import atomic_numbers
 from ase import io
 from . import lrpot
 from .utils import checkParameters
-from .fingerprint import Fingerprint
+#from .fingerprint import Fingerprint
 ##############################################################################
 """
 TODO Efps Ffps should be calculate separately
