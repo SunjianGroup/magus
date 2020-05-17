@@ -24,7 +24,7 @@ class ZernikeFp(CalculateFingerprints):
         Default = {'cutoff': 4.0,'nmax': 4,'lmax':None,'ncut':4,'diag':True,'eleParm':None}
         checkParameters(self,parameters,Requirement,Default)
         self.elems = [atomic_numbers[element] for element in self.symbols]
-        if not self.lmax:
+        if not self.lmax and self.lmax != 0:
             self.lmax = self.nmax
         assert self.lmax <= self.nmax
        
