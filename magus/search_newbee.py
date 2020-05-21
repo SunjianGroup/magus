@@ -22,9 +22,7 @@ class Magus:
     def __init__(self,parameters):
         self.parameters = parameters.parameters
         self.Generator = parameters.get_AtomsGenerator()
-        numlist = [30]
-        oplist = [RattleMutation(p=0.25,rattle_range=2,dRatio=1 )]
-        self.Algo = PopGenerator(numlist,oplist,self.parameters)
+        self.Algo = parameters.get_PopGenerator()
         self.MainCalculator = parameters.get_MainCalculator()
         self.Population = parameters.get_Population()
         if self.parameters.useml:
@@ -72,32 +70,22 @@ class Magus:
         if self.parameters.chkSeed:
             seedPop.check()
         initPop.extend(seedPop)
-
+        initpop = self.MainCalculator.scf(initPop.frames)
+        initPop = self.Population(initpop,'initpop',self.curgen)
+        initPop.check()
+        initPop.del_duplicate()
         initPop.save()
 
-        relaxpop = self.MainCalculator.relax(initPop.frames)
-        relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-        # save raw pop before check and del_duplicates
-        relaxPop.save('raw')
-        relaxPop.check()
-        relaxPop.del_duplicate()
-
         if self.parameters.useml:
-            self.ML.updatedataset(relaxPop.all_frames)
+            self.ML.updatedataset(initPop.all_frames)
             self.ML.train()
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop.all_frames)[:4]))
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.all_frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
             #logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
-        if self.parameters.goodSeed:
-            logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to relaxPop without relaxation.".format(self.parameters.goodSeedFile))
-            goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
-            relaxPop.extend(goodseedpop)
-            relaxPop.del_duplicate()
-            # relaxPop.check()
 
-        self.curPop = relaxPop
+        self.curPop = initPop
 
     def Onestep(self):
         curPop = self.curPop
@@ -162,6 +150,8 @@ class Magus:
 
         self.ML.updatedataset(a_add)
         self.ML.train()
+        logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
+            format(*self.ML.get_loss(self.curPop.all_frames)[:4]))
 
     def get_dualpoint(self, a, lmax=0.10, Fmax_flat=5):
         """Returns dual-point structure, i.e. the original structure

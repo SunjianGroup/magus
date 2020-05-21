@@ -141,6 +141,8 @@ class Population:
     def calc_fitness(self):
         for fit_calc in self.fit_calcs:
             fit_calc(self)
+        for ind in self.pop:
+            logging.debug(ind.info['fitness'])
 
     def del_duplicate(self):
         logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
@@ -287,7 +289,7 @@ class Individual:
     def fingerprint(self):
         if 'fingerprint' not in self.info:
             Efps = self.cf.get_all_fingerprints(self.atoms)[0]
-            self.info['fingerprint'] = np.mean(Efps,axis=0)
+            self.info['fingerprint'] = Efps
         return self.info['fingerprint']
 
     def find_spg(self):
@@ -360,7 +362,7 @@ class Individual:
         angles = np.arccos(np.sqrt(X-cos_**2)/sin_)/np.pi*180
 
         #return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
-        return (minLen < cellPar).all() and (cellPar < maxLen).all()
+        return (minLen <= cellPar).all() and (cellPar <= maxLen).all()
 
     def check_distance(self,atoms=None):
         """
@@ -420,12 +422,12 @@ class Individual:
         check_mol = True
         if self.p.chkMol:
             check_mol = self.check_mol(a)
-        #if not check_cellpar:
-        #    logging.debug("Fail in check_cellpar")
-        #if not check_distance:
-        #    logging.debug("Fail in check_distance")
-        #if not check_mol:
-        #    logging.debug("Fail in check_mol")
+        if not check_cellpar:
+            logging.debug("Fail in check_cellpar")
+        if not check_distance:
+            logging.debug("Fail in check_distance")
+        if not check_mol:
+            logging.debug("Fail in check_mol")
         return check_cellpar and check_distance and check_mol and check_formula
 
     def sort(self):
