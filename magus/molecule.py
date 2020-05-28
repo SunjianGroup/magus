@@ -3,6 +3,8 @@ from ase.data import atomic_numbers,covalent_radii,atomic_masses
 import numpy as np
 from collections import Counter
 from .utils import primitive_atoms2molcryst, primitive_atoms2communities
+from math import cos, sin
+
 class Atomset:
     def __init__(self,positions,symbols,tag):
         self.symbols = symbols
@@ -82,7 +84,7 @@ class Molfilter:
     def set_positions(self, positions, **kwargs):
         for i,mol in enumerate(self.mols):
             indices = np.where(self.tags == mol.tag)
-            self.atoms.positions[indices] = positions[i] - mol.position
+            self.atoms.positions[indices] = positions[i] + mol.relative_positions
             mol.position = positions[i]
 
     def get_scaled_positions(self):
@@ -104,6 +106,7 @@ class Molfilter:
     def get_atomic_numbers(self):
         return np.array([mol.number for mol in self.mols])
 
+    # TODO Unused code, and it is from ASE
     def get_forces(self, *args, **kwargs):
         f = self.atoms.get_forces()
         forces = np.zeros((self.n, 3))
@@ -115,6 +118,9 @@ class Molfilter:
     def get_masses(self):
         masses = np.array([mol.mass for mol in self.mols])
         return masses
+
+    def get_chemical_symbols(self):
+        return [mol.symbol for mol in self.mols]
 
     def __len__(self):
         return len(self.mols)

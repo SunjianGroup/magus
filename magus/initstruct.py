@@ -12,11 +12,12 @@ from .utils import *
 class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['symbols','formula','minAt','maxAt','spgs']
-        Default={'threshold':1.0,'maxAttempts':50,'method':2,
+        Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio']
+        Default={'threshold':1.0,'maxAttempts':50,'method':1,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
+        #radius = [self.p.dRatio*covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
 
     def updatevolRatio(self,volRatio):
@@ -24,7 +25,9 @@ class Generator:
         logging.debug("new volRatio: {}".format(self.p.volRatio))
 
     def getVolumeandLattice(self,numlist):
-        Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
+        naturalRadius = [covalent_radii[atomic_numbers[s]] for s in self.p.symbols]
+        Volume = np.sum(4*np.pi/3*np.array(naturalRadius)**3*np.array(numlist))*self.p.volRatio
+        #Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
         minVolume = Volume*0.5
         maxVolume = Volume*1.5
         minLattice= [2*np.max(self.p.radius)]*3+[60]*3
@@ -35,7 +38,7 @@ class Generator:
             minVolume = np.linalg.det(cellpar_to_cell(minLattice))
         if self.p.maxLattice:
             maxLattice = self.p.maxLattice
-            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice)) 
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
         return minVolume,maxVolume,minLattice,maxLattice
 
     def Generate_ind(self,spg,numlist):
@@ -45,10 +48,11 @@ class Generator:
         generator.spg = spg
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
-        generator.threshold=self.p.threshold
+        generator.threshold=self.p.dRatio
         generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
+        generator.GetConventional = True
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
         generator.minVolume = minVolume
@@ -62,7 +66,7 @@ class Generator:
                 generator.AppendAtoms(int(numlist[i]), str(i), self.p.radius[i], False)
                 numbers.extend([atomic_numbers[self.p.symbols[i]]]*numlist[i])
 
-        label = generator.PreGenerate()
+        label = generator.PreGenerate(np.random.randint(1000))
         if label:
             cell = generator.GetLattice(0)
             cell = np.reshape(cell, (3,3))
@@ -153,7 +157,7 @@ class VarGenerator(Generator):
         Default={'fullEles':True,'eleSize':1}
         checkParameters(self.p,parameters,Requirement,Default)
         # self.projection_matrix=np.dot(self.p.formula.T,np.linalg.pinv(self.p.formula.T))
-        self.p.invFrml = np.linalg.pinv(self.p.formula)
+        self.p.invFrml = np.linalg.pinv(self.p.formula).tolist()
 
     def afterprocessing(self,ind,numlist,nfm):
         ind.info['symbols'] = self.p.symbols
@@ -171,6 +175,9 @@ class VarGenerator(Generator):
                 numlist = np.random.rand(len(self.p.symbols))
                 numlist *= numAt/np.sum(numlist)
                 nfm = np.rint(np.dot(numlist,self.p.invFrml)).astype(np.int)
+                #if (nfm<0).any():
+                #    continue
+                nfm[np.where(nfm<0)] = 0
                 numlist = np.dot(nfm,self.p.formula)
                 # numlist = np.rint(np.dot(self.projection_matrix,numlist)).astype(np.int)
                 if np.sum(numlist) < self.p.minAt or np.sum(numlist) > self.p.maxAt or (self.p.fullEles and 0 in numlist) or np.sum(numlist<0)>0:
@@ -283,12 +290,13 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
     minLen = 2*max(radius)
     generator.SetLatticeMins(minLen, minLen, minLen, 60, 60, 60)
     generator.GetConventional = True
+    generator.UselocalCellTrans = 'n'
     numbers = []
     for i in range(numType):
         generator.AppendAtoms(formula[i], "{}".format(i), radius[i], False)
         numbers.extend([i]*formula[i])
 
-    label = generator.PreGenerate()
+    label = generator.PreGenerate(np.random.randint(1000))
     if label:
         cell = generator.GetLattice(0)
         cell = np.reshape(cell, (3,3))
@@ -298,7 +306,11 @@ def generate_centers_cell(formula, spg, radius, minVol, maxVol):
         wyckPos = np.reshape(wyckPos, (-1,3))
         wyckName = generator.GetWyckLabel(0)
         wyckNum = [int(n) for n in wyckName]
-        return label, cell, numbers, positions, wyckNum, wyckPos
+        if len(positions) == sum(formula):
+            return label, cell, numbers, positions, wyckNum, wyckPos
+        else:
+            logging.debug("Incorrect formula in generatenew")
+            return False, None, None, None, None, None
     else:
         return label, None, None, None, None, None
 
@@ -459,7 +471,7 @@ def build_mol_struct(
     return buildPop
 
 
-def read_seeds(parameters, seedFile):
+def read_seeds(parameters, seedFile, goodSeed=False):
     seedPop = []
     setSym = parameters.symbols
     setFrml = parameters.formula
@@ -468,13 +480,19 @@ def read_seeds(parameters, seedFile):
     calcType = parameters.calcType
 
     if os.path.exists(seedFile):
-        readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
+        if goodSeed:
+            readPop = ase.io.read(seedFile, index=':', format='traj')
+        else:
+            readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
         if len(readPop) > 0:
             logging.info("Reading Seeds ...")
 
         seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
         for ind in seedPop:
-            ind.info['origin'] = 'seed'
+            if goodSeed:
+                ind.info['origin'] = 'goodseed'
+            else:
+                ind.info['origin'] = 'seed'
     return seedPop
 
 

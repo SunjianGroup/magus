@@ -13,9 +13,8 @@ from .localopt import *
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
-from .machinelearning import LRmodel
+from .machinelearning import LRmodel,GPRmodel,BayesLRmodel
 from .queue import JobManager
-from .renew import BaseEA, BOEA
 from .population import Population
 #ML module
 #from .machinelearning import LRmodel
@@ -42,17 +41,27 @@ class magusParameters:
             'mlRelax':False,
             'symprec': 0.1,
             'bondRatio': 1.15,
-            'eleSize': 1,
+            'eleSize': 0,
             'fullEles': False,
             'setAlgo': 'ea',
             'volRatio': 2,
             'dRatio': 0.7,
             'molDetector': 0,
             'fixCell': False,
+            'setCellPar': None,
             'tourRatio': 0.1,
             'Algo': 'EA',
             'mlpredict': False,
             'useml': False,
+            'addSym': False,
+            'randFrac': 0.2,
+            'chkMol': False,
+            'chkSeed': True,
+            'goodSeed': False,
+            'goodSeedFile': '',
+            'maxDataset': 500,
+            'diffE': 0.01,
+            'diffV': 0.05,
         }
         checkParameters(p,p,Requirement,Default)
 
@@ -74,6 +83,8 @@ class magusParameters:
             assert hasattr(p,'molFile'), 'Please define molFile'
             assert hasattr(p,'molFormula'), 'Please define molFormula'
             mols = [ase.io.read("{}/{}".format(p.workDir, f), format='xyz') for f in p.molFile]
+            for mol in mols:
+                assert not mol.pbc.any(), "Please provide a molecule ranther than a periodic system!"
             molSymbols = set(reduce(lambda x,y: x+y, [ats.get_chemical_symbols() for ats in mols]))
             assert molSymbols == set(p.symbols), 'Please check the compositions of molecules'
             if p.molType == 'fix':
@@ -87,6 +98,8 @@ class magusParameters:
             minFrml = int(np.ceil(p.minAt/sum(p.formula)))
             maxFrml = int(p.maxAt/sum(p.formula))
             p.numFrml = list(range(minFrml, maxFrml + 1))
+        if p.chkMol:
+            assert p.molDetector==1, "If you want to check molecules, molDetector should be 1."
         self.parameters = p
 
     def get_AtomsGenerator(self):
@@ -109,12 +122,16 @@ class magusParameters:
             ripple = RippleMutation()
             slip = SlipMutation()
             rot = RotateMutation()
-            num = 2*int(self.parameters.popSize/3)+1
+            rattle = RattleMutation(p=0.25,rattle_range=4,dRatio=1)
+            form = FormulaMutation(symbols=self.parameters.symbols)
+            num = 3*int((1-self.parameters.randFrac)*self.parameters.popSize/8)+1
             Requirement = []
-            cutNum,slipNum,latNum,ripNum = [num]*4
+            cutNum,slipNum,latNum,ripNum,ratNum = [num]*5
             permNum = num if len(self.parameters.symbols) > 1 else 0
-            rotNum = num if self.parameters.molMode else 0
-
+            rotNum = num if self.parameters.molDetector != 0 else 0
+            #rotNum = num if self.parameters.molMode else 0
+            formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
+            """
             if self.parameters.useml:
                 self.get_MLCalculator()
                 soft = SoftMutation(self.MLCalculator.calc)
@@ -122,9 +139,12 @@ class magusParameters:
             else:
                 soft = None
                 softNum = 0
-
+            """
+            soft = None
+            softNum = 0
             Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
-                'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum}
+                'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 
+                'formNum': formNum,'ratNum':ratNum}
             checkParameters(self.parameters,self.parameters,Requirement,Default)
             numlist = [
                 self.parameters.cutNum,
@@ -134,8 +154,10 @@ class magusParameters:
                 self.parameters.slipNum,
                 self.parameters.rotNum,
                 self.parameters.softNum,
+                self.parameters.formNum,
+                self.parameters.ratNum,
                 ]
-            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft]
+            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"
@@ -149,7 +171,13 @@ class magusParameters:
     def get_MLCalculator(self):
         if not hasattr(self,'MLCalculator'):
             if self.parameters.useml:
-                self.MLCalculator = LRmodel(self.parameters)
+                checkParameters(self.parameters,self.parameters,[],{'mlmodel':'GPR'})
+                if self.parameters.mlmodel == 'LR':
+                    self.MLCalculator = LRmodel(self.parameters)
+                elif self.parameters.mlmodel == 'GPR':
+                    self.MLCalculator = GPRmodel(self.parameters)
+                elif self.parameters.mlmodel == 'BayesLR':
+                    self.MLCalculator = BayesLRmodel(self.parameters)
             else:
                 self.MLCalculator = None
             self.parameters.MLCalculator = self.MLCalculator.p
@@ -174,7 +202,7 @@ class magusParameters:
             elif p.calculator == 'quip':
                 MainCalculator = QUIPCalculator(p)
             elif p.calculator == 'lammps':
-                MainCalculator = LAMMPSCalculator(p)
+                MainCalculator = LammpsCalculator(p)
             else:
                 raise Exception("Undefined calculator '{}'".format(p.calculator))
             self.MainCalculator = MainCalculator

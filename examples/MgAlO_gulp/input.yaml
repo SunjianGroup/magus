@@ -16,7 +16,7 @@ eleSize: 0
 dRatio: 0.5
 volRatio: 3
 addSym: False
-
+chkMol: False
 
 #main calculator settings
 MainCalculator:
@@ -44,3 +44,4 @@ MainCalculator:
 
 
 ##ML
+#useml: True

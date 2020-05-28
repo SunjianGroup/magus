@@ -2,6 +2,8 @@ from __future__ import print_function, division
 from ase import Atoms
 import ase.io
 from .readvasp import *
+from .tolammps import Atomic
+from .readlmps import read_lammps_dump
 import sys, math, os, shutil, subprocess, logging, copy, yaml, traceback
 
 from ase.calculators.lj import LennardJones
@@ -32,56 +34,13 @@ from .queue import JobManager
 # from .rungulp import calc_gulp
 
 __all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
-    'EMTCalculator','GULPCalculator','LAMMPSCalculator','QUIPCalculator','ASECalculator']
+    'EMTCalculator','GULPCalculator','LammpsCalculator','QUIPCalculator','ASECalculator']
 class RelaxVasp(Vasp):
     """
     Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
     """
     def read_relaxed(self):
         return True
-    # def read_convergence(self):
-    #     """Method that checks whether a calculation has converged."""
-    #     converged = None
-    #     # First check electronic convergence
-    #     for line in open('OUTCAR', 'r'):
-    #         if 0:  # vasp always prints that!
-    #             if line.rfind('aborting loop') > -1:  # scf failed
-    #                 raise RuntimeError(line.strip())
-    #                 break
-    #         if line.rfind('EDIFF  ') > -1:
-    #             ediff = float(line.split()[2])
-    #         if line.rfind('total energy-change') > -1:
-    #             # I saw this in an atomic oxygen calculation. it
-    #             # breaks this code, so I am checking for it here.
-    #             if 'MIXING' in line:
-    #                 continue
-    #             split = line.split(':')
-    #             a = float(split[1].split('(')[0])
-    #             b = split[1].split('(')[1][0:-2]
-    #             # sometimes this line looks like (second number wrong format!):
-    #             # energy-change (2. order) :-0.2141803E-08  ( 0.2737684-111)
-    #             # we are checking still the first number so
-    #             # let's "fix" the format for the second one
-    #             if 'e' not in b.lower():
-    #                 # replace last occurrence of - (assumed exponent) with -e
-    #                 bsplit = b.split('-')
-    #                 bsplit[-1] = 'e' + bsplit[-1]
-    #                 b = '-'.join(bsplit).replace('-e', 'e-')
-    #             b = float(b)
-    #             if [abs(a), abs(b)] < [ediff, ediff]:
-    #                 converged = True
-    #             else:
-    #                 converged = False
-    #                 continue
-    #     # Then if ibrion in [1,2,3] check whether ionic relaxation
-    #     # condition been fulfilled
-    #     # if ((self.int_params['ibrion'] in [1, 2, 3] and
-    #     #      self.int_params['nsw'] not in [0])):
-    #     #     if not self.read_relaxed():
-    #     #         converged = False
-    #     #     else:
-    #     #         converged = True
-    #     return converged
 
 class Calculator:
     def __init__(self,parameters):
@@ -101,7 +60,7 @@ class ASECalculator(Calculator):
     def __init__(self,parameters):
         super().__init__(parameters)
         Requirement = ['epsArr','stepArr','calcNum']
-        Default = {'optimizer':'bfgs','maxRelaxStep':0.1}
+        Default = {'optimizer':'bfgs','maxRelaxStep':0.1,'relaxLattice':True}
         checkParameters(self.p,parameters,Requirement,Default)
         assert len(self.p.epsArr) == self.p.calcNum
         assert len(self.p.stepArr) == self.p.calcNum
@@ -119,7 +78,10 @@ class ASECalculator(Calculator):
             for j, calc in enumerate(calcs):
                 ind.set_calculator(calc)
                 logging.debug("Structure {} Step {}".format(i, j))
-                ucf = ExpCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
+                if self.p.relaxLattice:
+                    ucf = ExpCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
+                else:
+                    ucf = ind
                 if self.p.optimizer == 'cg':
                     gopt = SciPyFminCG(ucf, logfile=logfile,trajectory='calc.traj')
                 elif self.p.optimizer == 'bfgs':
@@ -150,10 +112,13 @@ class ASECalculator(Calculator):
                 # save energy, forces, stress for trainning potential
                 ind.info['energy'] = ind.get_potential_energy()
                 ind.info['forces'] = ind.get_forces()
-                ind.info['stress'] = ind.get_stress()
+                try:
+                    ind.info['stress'] = ind.get_stress()
+                except:
+                    pass
                 enthalpy = (ind.info['energy'] + self.p.pressure * ind.get_volume() * GPa)/len(ind)
                 ind.info['enthalpy'] = round(enthalpy, 3)
-
+                ind.wrap()
                 ind.set_calculator(None)
                 relaxPop.append(ind)
         os.chdir(self.p.workDir)
@@ -173,7 +138,10 @@ class ASECalculator(Calculator):
             try:
                 atoms.info['energy'] = atoms.get_potential_energy()
                 atoms.info['forces'] = atoms.get_forces()
-                atoms.info['stress'] = atoms.get_stress()
+                try:
+                    atoms.info['stress'] = atoms.get_stress()
+                except:
+                    pass
                 enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa)/len(atoms)
                 atoms.info['enthalpy'] = round(enthalpy, 3)
                 atoms.set_calculator(None)
@@ -205,23 +173,6 @@ class EMTCalculator(ASECalculator):
 
     def scf(self, calcPop):
         return super(EMTCalculator, self).scf(calcPop,self.calcs)
-
-class LAMMPSCalculator(ASECalculator):
-    # still have bugs
-    def __init__(self,parameters):
-        self.calcs = []
-        for i in range(1, parameters.calcNum + 1):
-            with open("{}/inputFold/lammps_{}".format(parameters.workDir, i)) as f:
-                cmds = f.readlines()
-            self.calcs.append(LAMMPSlib(lmpcmds=cmds, log_file='lammps.log'))
-            # calcs.append(LAMMPS(parameters=cmds))
-        return super(LAMMPSCalculator, self).__init__(parameters)
-
-    def relax(self, calcPop):
-        return super(LAMMPSCalculator, self).relax(calcPop,self.calcs)
-
-    def scf(self, calcPop):
-        return super(LAMMPSCalculator, self).scf(calcPop,self.calcs)
 
 class QUIPCalculator(ASECalculator):
     def __init__(self,parameters):
@@ -288,9 +239,9 @@ class ABinitCalculator(Calculator):
             self.relax = self.relax_serial
         elif self.p.mode == 'parallel':
             Requirement = ['queueName','numCore','numParallel']
-            Default = {'jobPrefix':'','waitTime':200}
+            Default = {'Preprocessing':'','waitTime':200,'verbose':False}
             checkParameters(self.p,parameters,Requirement,Default)
-            self.J=JobManager()
+            self.J=JobManager(self.p.verbose)
             self.scf = self.scf_parallel
             self.relax = self.relax_parallel
             self.prefix=prefix
@@ -373,7 +324,7 @@ class VaspCalculator(ABinitCalculator):
     def __init__(self,parameters,prefix='calcVasp'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
-        Default = {'xc':'PBE'}
+        Default = {'xc':'PBE','jobPrefix':'Vasp'}
         checkParameters(self.p,parameters,Requirement,Default)
         self.p.ppLabel = parameters.ppLabel if hasattr(parameters,'ppLabel') \
             else['' for _ in parameters.symbols]
@@ -382,7 +333,7 @@ class VaspCalculator(ABinitCalculator):
     def scf_serial(self,calcPop):
         self.cdcalcFold()
         calc = RelaxVasp()
-        calc.read_incar('INCAR_scf')
+        calc.read_incar('INCAR_0')
         calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10)
         scfPop = calc_vasp([calc], calcPop)
         os.chdir(self.p.workDir)
@@ -402,41 +353,43 @@ class VaspCalculator(ABinitCalculator):
         return relaxPop
 
     def scfjob(self,index):
-        shutil.copy("{}/inputFold/INCAR_scf".format(self.p.workDir),'INCAR_scf')
+        shutil.copy("{}/inputFold/INCAR_0".format(self.p.workDir),'INCAR_0')
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(self.p.setup))
-
+        #jobName = self.p.jobPrefix + '_scf_' + str(index)
+        jobName = self.p.jobPrefix + '_s_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Vasp_%s\n"% (self.p.queueName, self.p.numCore, index))
-        f.write("{}\n".format(self.p.jobPrefix))
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
         f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
         f.close()
-        self.J.bsub('bsub < parallel.sh')
+        self.J.bsub('bsub < parallel.sh',jobName)
 
     def relaxjob(self,index):
         with open('vaspSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(self.p.setup))
-
+        #jobName = self.p.jobPrefix + '_relax_' + str(index)
+        jobName = self.p.jobPrefix + '_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Vasp_%s\n"% (self.p.queueName, self.p.numCore, index))
-        f.write("{}\n".format(self.p.jobPrefix))
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
         f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
         f.close()
-        self.J.bsub('bsub < parallel.sh')
+        self.J.bsub('bsub < parallel.sh',jobName)
 
 class GULPCalculator(ABinitCalculator):
     def __init__(self, parameters,prefix='calcGulp'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
-        Default = {'exeCmd':''}
+        Default = {'exeCmd':'','jobPrefix':'Gulp'}
         checkParameters(self.p,parameters,Requirement,Default)
 
     def scf_serial(self,calcPop):
@@ -474,18 +427,19 @@ class GULPCalculator(ABinitCalculator):
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
-
+        #jobName = self.p.jobPrefix + '_scf_' + str(index)
+        jobName = self.p.jobPrefix + '_s_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Gulp_%s\n"% (self.p.queueName, self.p.numCore, index))
-        f.write("{}\n".format(self.p.jobPrefix))
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
         f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
 
-        self.J.bsub('bsub < parallel.sh')
+        self.J.bsub('bsub < parallel.sh',jobName)
 
     def relaxjob(self,index):
         calcDic = {
@@ -496,20 +450,96 @@ class GULPCalculator(ABinitCalculator):
         }
         with open('gulpSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))
-
+        #jobName = self.p.jobPrefix + '_relax_' + str(index)
+        jobName = self.p.jobPrefix + '_' + str(index)
         f = open('parallel.sh', 'w')
         f.write("#BSUB -q %s\n"
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J Gulp_%s\n"% (self.p.queueName, self.p.numCore, index))
-        f.write("{}\n".format(self.p.jobPrefix))
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
         f.write("python -m magus.rungulp gulpSetup.yaml")
         f.close()
 
-        self.J.bsub('bsub < parallel.sh')
+        self.J.bsub('bsub < parallel.sh',jobName)
 
+class LammpsCalculator(ABinitCalculator):
+    def __init__(self, parameters,prefix='calcLammps'):
+        super().__init__(parameters,prefix)
+        Requirement = ['symbols']
+        Default = {'exeCmd':'','jobPrefix':'Lammps'}
+        checkParameters(self.p,parameters,Requirement,Default)
 
+    def scf_serial(self,calcPop):
+        self.cdcalcFold()
+
+        calcNum = 0
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
+
+        scfPop = calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir)
+        write_traj('optPop.traj', scfPop)
+        os.chdir(self.p.workDir)
+        return scfPop
+
+    def relax_serial(self,calcPop):
+        self.cdcalcFold()
+
+        calcNum = self.p.calcNum
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
+
+        relaxPop = calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir)
+        write_traj('optPop.traj', relaxPop)
+        os.chdir(self.p.workDir)
+        return relaxPop
+
+    def scfjob(self,index):
+        calcDic = {
+            'calcNum': 0,
+            'pressure': self.p.pressure,
+            'exeCmd': self.p.exeCmd,
+            'inputDir': "{}/inputFold".format(self.p.workDir),
+        }
+        with open('gulpSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+        jobName = self.p.jobPrefix + '_scf_' + str(index)
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
+        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.close()
+
+        self.J.bsub('bsub < parallel.sh',jobName)
+
+    def relaxjob(self,index):
+        calcDic = {
+            'calcNum': self.p.calcNum,
+            'pressure': self.p.pressure,
+            'exeCmd': self.p.exeCmd,
+            'inputDir': "{}/inputFold".format(self.p.workDir),
+        }
+        with open('gulpSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+        jobName = self.p.jobPrefix + '_relax_' + str(index)
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
+        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.close()
+
+        self.J.bsub('bsub < parallel.sh',jobName)
 
 def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
     optPop = []
@@ -594,6 +624,7 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         optInd.info['energy'] = energy
         optInd.info['enthalpy'] = round(enthalpy/len(optInd), 3)
 
+        #TODO The following code are adapted from ASE, need modification
         with open('output') as f:
             lines = f.readlines()
         for i,line in enumerate(lines):
@@ -664,7 +695,9 @@ def calc_vasp_once(
     trajDict = [extract_atoms(ats) for ats in traj]
     if index == 0:
         struct.info['trajs'] = []
+        struct.info['relaxStep'] = []
     struct.info['trajs'].append(trajDict)
+    struct.info['relaxStep'].append(len(trajDict))
 
     logging.debug("VASP finish")
     return struct[:]
@@ -690,69 +723,55 @@ def calc_vasp(
             newStructs.append(ind)
     return newStructs
 
-def read_gulp_results(filename):
+def calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir):
+    optPop = []
+    for n, ind in enumerate(calcPop):
+        if calcNum == 0:
+            ind = calc_lammps_once(0, ind, pressure, exeCmd, inputDir)
+            logging.debug("Structure %s scf" %(n))
+            if ind:
+                optPop.append(ind)
+            else:
+                logging.warning("fail in lammps scf")
+        else:
+            for i in range(1, calcNum + 1):
+                logging.debug("Structure %s Step %s" %(n, i))
+                ind = calc_lammps_once(i, ind, pressure, exeCmd, inputDir)
+            if ind:
+                optPop.append(ind)
+            else:
+                logging.warning("fail in lammps relax")
+    return optPop
 
-    with open(filename) as f:
-        lines = f.readlines()
-    for i, line in enumerate(lines):
-        m = re.match(r'\s*Total lattice energy\s*=\s*(\S+)\s*eV', line)
-        if m:
-            energy = float(m.group(1))
+def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
+    """
+    exeCmd should be "lmp -in in.lammps"
+    """
+    if os.path.exists('output'):
+        os.remove('output')
+    try:
+        shutil.copy("in.lammps_{}".format(calcStep), "in.lammps")
+        #TODO more systems
+        Atomic(calcInd).dump('data')
+        exitcode = subprocess.call(exeCmd, shell=True)
+        if exitcode != 0:
+            raise RuntimeError('Lammps exited with exit code: %d.  ' % exitcode)
+        numlist = [0]
+        numlist.extend(calcInd.get_chemical_symbols())
+        with open('out.dump') as f:
+            struct = read_lammps_dump(f,numlist=numlist)[-1]
+        volume = struct.get_volume()
+        energy = float(os.popen("grep energy energy.out | tail -1 | awk '{print $3}'").readlines()[0])
+        # the unit of pstress is kBar = GPa/10
+        enthalpy = energy + pressure * GPa * volume / 10
+        enthalpy = enthalpy/len(struct)
 
-        elif line.find('Final Cartesian derivatives') != -1:
-            s = i + 5
-            forces = []
-            while(True):
-                s = s + 1
-                if lines[s].find("------------") != -1:
-                    break
-                if lines[s].find(" s ") != -1:
-                    continue
-                g = lines[s].split()[3:6]
-                G = [-float(x) * eV / Ang for x in g]
-                forces.append(G)
-            forces = np.array(forces)
+        struct.info['enthalpy'] = round(enthalpy, 3)
 
-        elif line.find('Final internal derivatives') != -1:
-            s = i + 5
-            forces = []
-            while(True):
-                s = s + 1
-                if lines[s].find("------------") != -1:
-                    break
-                g = lines[s].split()[3:6]
-
-                    # Uncomment the section below to separate the numbers when there is no space between them, in the case of long numbers. This prevents the code to break if numbers are too big.
-
-                '''for t in range(3-len(g)):
-                    g.append(' ')
-                for j in range(2):
-                    min_index=[i+1 for i,e in enumerate(g[j][1:]) if e == '-']
-                    if j==0 and len(min_index) != 0:
-                        if len(min_index)==1:
-                            g[2]=g[1]
-                            g[1]=g[0][min_index[0]:]
-                            g[0]=g[0][:min_index[0]]
-                        else:
-                            g[2]=g[0][min_index[1]:]
-                            g[1]=g[0][min_index[0]:min_index[1]]
-                            g[0]=g[0][:min_index[0]]
-                            break
-                    if j==1 and len(min_index) != 0:
-                        g[2]=g[1][min_index[0]:]
-                        g[1]=g[1][:min_index[0]]'''
-
-                G = [-float(x) * eV / Ang for x in g]
-                forces.append(G)
-            forces = np.array(forces)
-
-        elif line.find('Final stress tensor components') != -1:
-            res=[0.,0.,0.,0.,0.,0.]
-            for j in range(3):
-                var=lines[i+j+3].split()[1]
-                res[j]=float(var)
-                var=lines[i+j+3].split()[3]
-                res[j+3]=float(var)
-            stress=np.array(res)
-
-    return energy, forces, stress
+        # save energy, forces, stress for trainning potential
+        struct.info['energy'] = energy
+        return struct
+    except:
+        logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        logging.warning("Lammps fail")
+        return None

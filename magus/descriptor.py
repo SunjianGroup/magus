@@ -5,8 +5,11 @@ from ase.data import atomic_numbers
 from ase import io
 from . import lrpot
 from .utils import checkParameters
+#from .fingerprint import Fingerprint
 ##############################################################################
-
+"""
+TODO Efps Ffps should be calculate separately
+"""
 class CalculateFingerprints:
     def __init__(self):
         pass
@@ -21,7 +24,7 @@ class ZernikeFp(CalculateFingerprints):
         Default = {'cutoff': 4.0,'nmax': 4,'lmax':None,'ncut':4,'diag':True,'eleParm':None}
         checkParameters(self,parameters,Requirement,Default)
         self.elems = [atomic_numbers[element] for element in self.symbols]
-        if not self.lmax:
+        if not self.lmax and self.lmax != 0:
             self.lmax = self.nmax
         assert self.lmax <= self.nmax
        
@@ -74,4 +77,21 @@ class ZernikeFp(CalculateFingerprints):
             sFps[i] = np.array(self.part.GetsFps()).reshape(3,3,totNd) #returns list of length (3,3,totNd)
         sFps = sFps[:,[0,1,2,1,0,0],[0,1,2,2,2,1],:]
         sFps = np.zeros_like(sFps)
+
+        eFps = np.sum(eFps,axis=0)
+        fFps = -np.sum(fFps,axis=0).reshape(Nat*3,totNd)
+        return eFps, fFps , sFps
+
+class GofeeFp(CalculateFingerprints):
+    def __init__(self, parameters):
+        #self.fingerprint = Fingerprint()
+        if hasattr(parameters,'descriptor_parm'):
+            self.fingerprint = Fingerprint(**parameters.descriptor_parm)
+        else:
+            self.fingerprint = Fingerprint()
+
+    def get_all_fingerprints(self,atoms):
+        eFps = self.fingerprint.get_feature(atoms)
+        fFps = self.fingerprint.get_featureGradient(atoms)
+        sFps = 0
         return eFps, fFps , sFps

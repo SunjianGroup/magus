@@ -1,8 +1,9 @@
 import numpy as np
-import os,re,itertools
+import os,re,itertools,random
 from collections import Counter
 from scipy.spatial.distance import cdist, pdist
 import ase.io
+from ase import Atoms
 from ase.data import covalent_radii,atomic_numbers
 from ase.neighborlist import neighbor_list
 from ase.atom import Atom
@@ -27,7 +28,7 @@ class Population:
     """
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['resultsDir','calcType']
+        Requirement=['resultsDir','calcType','symbols']
         Default={}
         checkParameters(self.p,parameters,Requirement,Default)
         self.Individual = set_ind(parameters)
@@ -69,7 +70,7 @@ class Population:
     def append(self,ind):
         if ind.__class__.__name__ == 'Atoms':
             ind = self.Individual(ind)
-
+        ind.info['identity'] = [self.name, len(self.pop)]
         self.pop.append(ind)
         return True
         #for ind_ in self.pop:
@@ -108,6 +109,19 @@ class Population:
             pop.append(atoms)
         return pop
 
+    @property
+    def all_frames(self):
+        pop = []
+        for ind in self.pop:
+            atoms = ind.atoms.copy()
+            if 'trajs' in atoms.info:
+                traj = atoms.info['trajs'][-1]
+                for frame in traj:
+                    pop.append(read_atDict(frame))
+            else:
+                pop.append(atoms)
+        return pop
+
     def calc_dominators(self):
         self.calc_fitness()
         domLen = len(self.pop)
@@ -127,10 +141,14 @@ class Population:
     def calc_fitness(self):
         for fit_calc in self.fit_calcs:
             fit_calc(self)
+        for ind in self.pop:
+            logging.debug(ind.info['fitness'])
 
     def del_duplicate(self):
         logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
         newpop = []
+        # sort the pop before deleting duplicates
+        self.pop = sorted(self.pop, key=lambda x:x.info['enthalpy'] if 'enthalpy' in x.info else 100)
         for ind1 in self.pop:
             for ind2 in newpop:
                 if ind1==ind2:
@@ -144,6 +162,7 @@ class Population:
         logging.info("check population {}, popsize:{}".format(self.name,len(self.pop)))
         checkpop = []
         for ind in self.pop:
+            #logging.debug("checking {}".format(ind.info['identity']))
             if ind.check():
                 checkpop.append(ind)
         logging.info("check survival: {}".format(len(checkpop)))
@@ -206,8 +225,8 @@ class Population:
 class Individual:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['formula','symbols','minAt','maxAt','symprec','molDetector','bondRatio','dRatio']
-        Default={'repairtryNum':10,'is_mol':False,'chkMol':False,
+        Requirement=['formula','symbols','minAt','maxAt','symprec','molDetector','bondRatio','dRatio','diffE','diffV']
+        Default={'repairtryNum':3,'molMode':False,'chkMol':False,
             'minLattice':None,'maxLattice':None,'dRatio':0.7,'addSym':False}
         checkParameters(self.p,parameters,Requirement,Default)
         # if self.p.addSym:
@@ -216,16 +235,20 @@ class Individual:
         #TODO add more comparators
         from .comparator import FingerprintComparator, Comparator
         #self.comparator = FingerprintComparator()
-        self.comparator = Comparator()
+        self.comparator = Comparator(dE=self.p.diffE, dV=self.p.diffV)
 
         #fingerprint
         self.cf = ZernikeFp(parameters)
 
-        if self.p.is_mol:
+        if self.p.molMode:
             assert hasattr(parameters,'molList')
             self.inputMols = [Atoms(**molInfo) for molInfo in parameters.molList]
+            self.molCounters = [Counter(inMol.get_chemical_symbols()) for inMol in self.inputMols]
+
         else:
             self.inputMols = []
+            self.molCounters = []
+        #Sometimes self.inputFormulas are wrong, so I use Counter instead. -hgao
         self.inputFormulas = []
         for mol in self.inputMols:
             s = []
@@ -238,6 +261,8 @@ class Individual:
                     s.append(str(n))
             s = ''.join(s)
             self.inputFormulas.append(s)
+
+        #logging.debug('self.inputFormulas: {}'.format(self.inputFormulas))
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self,obj)
@@ -264,7 +289,7 @@ class Individual:
     def fingerprint(self):
         if 'fingerprint' not in self.info:
             Efps = self.cf.get_all_fingerprints(self.atoms)[0]
-            self.info['fingerprint'] = np.mean(Efps,axis=0)
+            self.info['fingerprint'] = Efps
         return self.info['fingerprint']
 
     def find_spg(self):
@@ -336,8 +361,8 @@ class Individual:
         X = np.sum(cos_**2)-2*cos_[0]*cos_[1]*cos_[2]
         angles = np.arccos(np.sqrt(X-cos_**2)/sin_)/np.pi*180
 
-        return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
-        # return (minLen < cellPar).all() and (cellPar < maxLen).all()
+        #return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
+        return (minLen <= cellPar).all() and (cellPar <= maxLen).all()
 
     def check_distance(self,atoms=None):
         """
@@ -378,9 +403,11 @@ class Individual:
         else:
             a = atoms.copy()
 
-        molCryst = Molfilter(atoms, coef=self.p.bondRatio)
+        molCryst = Molfilter(a, coef=self.p.bondRatio)
         for mol in molCryst:
-            if mol.symbol not in self.inputFormulas:
+            molCt = Counter(mol.symbols)
+            if molCt not in self.molCounters:
+            #if mol.symbol not in self.inputFormulas:
                 return False
         return True
 
@@ -391,21 +418,33 @@ class Individual:
             a = atoms.copy()
         check_cellpar = self.check_cellpar(a)
         check_distance = self.check_distance(a)
-        check_mol = self.check_mol(a) if self.p.chkMol else True
-        return check_cellpar and check_distance and check_mol
+        check_formula = self.check_formula(a)
+        check_mol = True
+        if self.p.chkMol:
+            check_mol = self.check_mol(a)
+        if not check_cellpar:
+            logging.debug("Fail in check_cellpar")
+        if not check_distance:
+            logging.debug("Fail in check_distance")
+        if not check_mol:
+            logging.debug("Fail in check_mol")
+        return check_cellpar and check_distance and check_mol and check_formula
 
     def sort(self):
-        indices = []
-        for s in self.p.symbols:
-            indices.extend([i for i,atom in enumerate(self.atoms) if atom.symbol==s])
+        #indices = []
+        #for s in self.p.symbols:
+        #    indices.extend([i for i,atom in enumerate(self.atoms) if atom.symbol==s])
+        numbers = self.atoms.get_atomic_numbers()
+        indices = sorted(range(len(self.atoms)), key=lambda x:numbers[x])
         self.atoms = self.atoms[indices]
 
-    def merge_atoms(self, tolerance=0.3,):
+    def merge_atoms(self):
         """
         TODO threshold
         if a pair of atoms are too close, merge them.
         """
         atoms = self.atoms
+        tolerance = self.p.dRatio
         cutoffs = [tolerance * covalent_radii[num] for num in atoms.get_atomic_numbers()]
         nl = neighbor_list("ij", atoms, cutoffs)
         indices = list(range(len(atoms)))
@@ -413,11 +452,14 @@ class Individual:
 
         for i, j in zip(*nl):
             if i not in exclude and not j in exclude:
-                exclude.append(np.random.choice([i,j]))
+                exclude.append(random.choice([i,j]))
 
         if len(exclude) > 0:
             save = [index for index in indices if index not in exclude]
-            mAts = atoms[save]
+            if len(save) > 0: 
+                mAts = atoms[save]
+            else:
+                mAts = Atoms(cell=atoms.get_cell(), pbc=atoms.get_pbc())
             mAts.info = atoms.info.copy()
         else:
             mAts = atoms
@@ -428,7 +470,8 @@ class Individual:
         sybls: a list of symbols
         toFrml: a list of formula after repair
         """
-        if not self.needrepair:
+        #if not self.needrepair():
+        if self.check_formula():
             self.sort()
             return True
         if len(self.atoms) == 0:
@@ -439,6 +482,7 @@ class Individual:
         syms = atoms.get_chemical_symbols()
         #nowFrml = Counter(atoms.get_chemical_symbols())
         targetFrml = self.get_targetFrml()
+        # logging.debug("Target formula: {}".format(targetFrml))
         if not targetFrml:
             self.atoms = None
             return False
@@ -456,10 +500,13 @@ class Individual:
             if toadd:
                 #if some symbols need to add, change symbol directly
                 add_symbol = np.random.choice(list(toadd.keys()))
-                repatoms[del_index].symbol = add_symbol
-                toadd[add_symbol] -= 1
-                if toadd[add_symbol] == 0:
-                    toadd.pop(add_symbol)
+                remain_index = [i for i in range(len(repatoms)) if i != del_index]
+                pos = repatoms.positions[del_index]
+                if check_new_atom_dist(repatoms[remain_index], pos, add_symbol, dRatio):
+                    repatoms[del_index].symbol = add_symbol
+                    toadd[add_symbol] -= 1
+                    if toadd[add_symbol] == 0:
+                        toadd.pop(add_symbol)
             else:
                 del repatoms[del_index]
             toremove[del_symbol] -= 1
@@ -469,8 +516,8 @@ class Individual:
             add_symbol = np.random.choice(list(toadd.keys()))
             for _ in range(self.p.repairtryNum):
                 # select a center atoms
-                centerAt = repatoms[np.random.randint(0,len(repatoms)-1)]
-                basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[s]]
+                centerAt = repatoms[np.random.randint(0,len(repatoms))]
+                basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[add_symbol]]
                 # random position in spherical coordination
                 radius = basicR * (dRatio + np.random.uniform(0,0.3))
                 theta = np.random.uniform(0,np.pi)
@@ -504,6 +551,7 @@ class FixInd(Individual):
         newind.comparator = self.comparator
         newind.cf = self.cf
         newind.inputMols = self.inputMols
+        newind.molCounters = self.molCounters
         newind.inputFormulas = self.inputFormulas
 
         if atoms.__class__.__name__ == 'Molfilter':
@@ -515,17 +563,30 @@ class FixInd(Individual):
         newind.info['fitness'] = {}
         return newind
 
-    def needrepair(self):
-        #check if atoms need repair
-        Natoms = len(self.atoms)
+    #def needrepair(self):
+    #    #check if atoms need repair
+    def check_formula(self, atoms=None):
+        # check if the current formual is right
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        Natoms = len(a)
         if Natoms < self.p.minAt or Natoms > self.p.maxAt:
             return False
 
-        symbols = self.atoms.get_chemical_symbols()
+        symbols = a.get_chemical_symbols()
+        for s in symbols:
+            if s not in self.p.symbols:
+                return False
         formula = np.array([symbols.count(s) for s in self.p.symbols])
+        #formula = get_formula(a, self.p.symbols)
         numFrml = int(round(Natoms/sum(self.p.formula)))
         targetFrml = numFrml*np.array(self.p.formula)
         return np.all(targetFrml == formula)
+        # rank = np.linalg.matrix_rank(np.concatenate(([self.p.formula], [formula])))
+        # return rank == 1
+
 
     def get_targetFrml(self):
         atoms = self.atoms
@@ -565,20 +626,39 @@ class VarInd(Individual):
         newind.info['fitness'] = {}
         return newind
 
-    def needrepair(self):
-        #check if atoms need repair
-        Natoms = len(self.atoms)
+    #def needrepair(self):
+    #    #check if atoms need repair
+    def check_formula(self, atoms=None):
+        # check if the current formual is right
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        Natoms = len(a)
         if Natoms < self.p.minAt or Natoms > self.p.maxAt:
             return False
-        symbols = self.atoms.get_chemical_symbols()
+
+        symbols = a.get_chemical_symbols()
+        for s in symbols:
+            if s not in self.p.symbols:
+                return False
         formula = [symbols.count(s) for s in self.p.symbols]
+        #formula = get_formula(a, self.p.symbols)
         rank = np.linalg.matrix_rank(np.concatenate((self.p.formula, [formula])))
-        return rank == self.rank
+        if rank == self.rank:
+            coef = np.rint(np.dot(formula, self.invF)).astype(np.int)
+            newFrml = np.dot(coef, self.p.formula).astype(np.int)
+            return (coef>=0).all() and (newFrml == formula).all()
+        else:
+            return False
+        
 
     def get_targetFrml(self):
         symbols = self.atoms.get_chemical_symbols()
         formula = [symbols.count(s) for s in self.p.symbols]
         coef = np.rint(np.dot(formula, self.invF)).astype(np.int)
+        # make sure that all elements in coef >= 0
+        coef[np.where(coef<0)] = 0 
         newFrml = np.dot(coef, self.p.formula).astype(np.int)
         bestFrml = newFrml.tolist()
         if self.p.minAt <= sum(bestFrml) <= self.p.maxAt:

@@ -17,7 +17,7 @@ Population:Population(pop) --> Pop
 """
 #TODO build mol struct
 #TODO change read parameters
-class Magus:
+class GOFEE:
     def __init__(self,parameters):
         self.parameters = parameters.parameters
         self.Generator = parameters.get_AtomsGenerator()
@@ -79,12 +79,11 @@ class Magus:
         relaxPop.del_duplicate()
 
         if self.parameters.useml:
-            self.ML.updatedataset(relaxPop.all_frames)
+            self.ML.updatedataset(relaxPop.frames)
             self.ML.train()
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop.all_frames)[:4]))
-            #scfpop = self.MainCalculator.scf(relaxPop.frames)
-            #scfPop = self.Population(scfpop,'scfpop',self.curgen)
-            #logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
+            scfpop = self.MainCalculator.scf(relaxPop.frames)
+            scfPop = self.Population(scfpop,'scfpop',self.curgen)
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
         if self.parameters.goodSeed:
             logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to relaxPop without relaxation.".format(self.parameters.goodSeedFile))
@@ -122,8 +121,7 @@ class Magus:
         for ind in bestind:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
-        self.bestPop.save('best','')
-        #self.bestPop.save('best',self.curgen)
+        self.bestPop.save('best',self.curgen)
 
         logging.info('construct keepPop')
         _, keeppop = goodPop.clustering(self.parameters.saveGood)
@@ -167,51 +165,28 @@ class Magus:
         initPop.save()
 
         #######  relax  #######
-        if self.parameters.mlRelax:
-            relaxpop = self.ML.relax(initPop.frames)
-            relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-            relaxPop.save("mlraw")
-            relaxPop.check()
-            relaxPop.del_duplicate()
-            relaxPop.save("mlgen")
-            logging.info("Using MainCalculator to relax survivals after ML relaxation")
-            relaxpop = self.MainCalculator.relax(relaxPop.frames)
-            relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-            self.ML.updatedataset(relaxPop.all_frames)
-            write_results(self.ML.dataset,'','dataset',self.parameters.mlDir)
-            self.ML.train()
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop.frames)[:4]))
-            #for _ in range(10):
-                #relaxpop = self.ML.relax(initPop.frames)
-                #relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-                #relaxPop.check()
-                #scfpop = self.MainCalculator.scf(relaxPop.frames)
-                #loss = self.ML.get_loss(scfpop)
-                #logging.info('ML Gen{}\tEnergy Error:{}'.format(_,loss[1]))
-                #break
-                #if loss[1]>0.8:
-                #    logging.info('Good fit, ml relax adapt')
-                #    break
-                #logging.info('Bad fit, retraining...')
-                #self.ML.updatedataset(scfpop)
-                #write_results(self.ML.dataset,'','dataset',self.parameters.mlDir)
-                #self.ML.train()
-            #else:
-            #    logging.info('Cannot fit, turn to main calculator')
-            #    relaxpop = self.MainCalculator.relax(initPop.frames)
-            #    relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-        else:
-            relaxpop = self.MainCalculator.relax(initPop.frames)
-            if self.parameters.useml:
-                loss = self.ML.get_loss(relaxpop)
-                logging.info('ML Energy Error:{}'.format(loss[1]))
-                #if loss[1]<0.8:
-                #    logging.info('Bad fit, retraining...')
-                #    self.ML.updatedataset(relaxpop)
-                #    write_results(self.ML.dataset,'','dataset',self.parameters.mlDir)
-                #    self.ML.train()
-            relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
 
+        relaxpop = self.ML.relax(initPop.frames)
+        relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
+        relaxPop.check()
+
+        for _ in range(3):
+            try:
+                anew = self.select_with_acquisition(relaxPop, kappa)
+                anew = self.MainCalculator.scf([anew])[0]
+                a_add.append(anew)
+                if self.dualpoint:
+                    adp = self.get_dualpoint(anew)
+                    adp = self.evaluate(adp)
+                    a_add.append(adp)
+                break
+            except Exception as err:
+                kappa /=2
+                if self.master:
+                    traceback.print_exc(file=sys.stderr)
+        else:
+            raise RuntimeError('Evaluation failed repeatedly - It might help to constrain the atomic positions during search.')
+        self.gpr.memory.save_data(a_add)
         # save raw date before checking
         relaxPop.save('raw')
         relaxPop.check()
@@ -239,8 +214,7 @@ class Magus:
         for ind in bestind:
             logging.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
-        self.bestPop.save('best','')
-        #self.bestPop.save('best',self.curgen)
+        self.bestPop.save('best',self.curgen)
         # keep best
         logging.info('construct keepPop')
         _, keepPop = goodPop.clustering(self.parameters.saveGood)
@@ -253,6 +227,19 @@ class Magus:
         self.curPop = curPop
         self.goodPop = goodPop
         self.keepPop = keepPop
+    
+    def select_with_acquisition(self, structures, kappa):
+        """ Method to select single most "promizing" candidate 
+        for first-principles evaluation according to the acquisition
+        function min(E-kappa*std(E)).
+        """
+        Epred = np.array([a.info['key_value_pairs']['Epred']
+                          for a in structures])
+        Epred_std = np.array([a.info['key_value_pairs']['Epred_std']
+                              for a in structures])
+        acquisition = Epred - kappa*Epred_std
+        index_select = np.argmin(acquisition)
+        return structures[index_select]
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)

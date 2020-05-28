@@ -14,10 +14,11 @@ import numpy as np
 savePri = 0
 saveStd = 0
 
-pd.options.display.max_rows = 300
+pd.options.display.max_rows = 200
 
 filename = sys.argv[1]
-symprec = 0.1
+symprec = 0.5
+# images = read_yaml(filename)
 images = ase.io.read(filename, format='traj', index=':')
 
 names = locals()
@@ -26,25 +27,23 @@ showList = [
 'enthalpy',
 #'ehull',
 #'predictE',
-'parentE',
-#'parents',
+#'parentE',
 #'symbols',
 #'formula',
-#'dominators',
 #'gap',
 #'volume',
 'origin',
 #'utilVal',
 #'sigma',
 #'relaxD',
-'fullSym',
+#'fullSym',
 #'lengths',
 #'angles',
 ]
 allRes = []
 
 for i, at in enumerate(images):
-    posname = "POSCAR_%s.vasp" %(i+1)
+    posname = "POSCAR_%s.vasp" %(i)
     ase.io.write(posname, at, direct = True, vasp5 = True)
     symmetry = spg.get_spacegroup(at, symprec)
     cellpar = np.round(at.get_cell_lengths_and_angles(), 2)
@@ -94,11 +93,9 @@ for i, at in enumerate(images):
     allRes.append(oneRes)
 
 table = pd.DataFrame(allRes, columns=showList)
-sortdf = table.sort_values('enthalpy', axis=0, ascending=False, kind='mergesort')
-#sortdf = table.sort_values('ehull', axis=0, ascending=False, kind='mergesort')
+#print(table.sort_values('ehull', axis=0))
+print(table.sort_values('enthalpy', axis=0))
 
-sortdf.index += 1
-print(sortdf)
     # outD = dict()
     # for feature in showList:
     #     outD[feature] = names[feature]

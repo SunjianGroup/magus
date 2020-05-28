@@ -1,11 +1,12 @@
 from __future__ import print_function, division
-import os, subprocess, shutil, math, random, re, logging, fractions, sys, yaml
+import os, subprocess, shutil, math, random, re, logging, fractions, sys, yaml, itertools
 from collections import Counter
 import numpy as np
 import spglib
 from numpy import pi, sin, cos, sqrt
 import networkx as nx
 from ase import Atoms
+from ase.geometry import wrap_positions
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_numbers, covalent_radii
 from ase.neighborlist import neighbor_list
@@ -16,6 +17,8 @@ from scipy.optimize import root
 from scipy.spatial.distance import cdist, pdist
 from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
 from ase.utils.structure_comparator import SymmetryEquivalenceCheck
+from ase.build import make_supercell
+from ase.geometry import cell_to_cellpar,cellpar_to_cell
 try:
     from functools import reduce
 except ImportError:
@@ -659,13 +662,15 @@ def compare_structure_energy(Pop, diffE=0.01, diffV=0.05, ltol=0.1, stol=0.1, an
                 continue
 
             # compare enthalpy
-            if compareE and abs(s0.info['enthalpy'] - s1.info['enthalpy']) > diffE:
+            #if compareE and abs(s0.info['enthalpy'] - s1.info['enthalpy']) > diffE:
+            if compareE and abs(s0.info['energy'] - s1.info['energy']) > diffE:
                 continue
 
             # remove one of them
             if i not in rmIndices and j not in rmIndices:
                 if compareE:
-                    rmIndices.append(i if s0.info['enthalpy'] > s1.info['enthalpy'] else j)
+                    rmIndices.append(i if s0.info['energy'] > s1.info['energy'] else j)
+                    #rmIndices.append(i if s0.info['enthalpy'] > s1.info['enthalpy'] else j)
                 else:
                     rmIndices.append(random.choice([i,j]))
 
@@ -745,14 +750,14 @@ def check_dist(pop, threshold=0.7):
     return checkPop
 
 def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
-
+    newPosition = wrap_positions([newPosition],atoms.cell)[0]
     supAts = atoms * (3,3,3)
     rs = [covalent_radii[num] for num in supAts.get_atomic_numbers()]
     rnew = covalent_radii[atomic_numbers[newSymbol]]
     # Place the new atoms in the centeral cell
     cell = atoms.get_cell()
-    centerPos = newPosition+ np.dot(cell,[1,1,1])
-    distArr = cdist([centerPos], supAts.get_positions())[0]
+    centerPos = newPosition+ np.dot([1,1,1],cell)
+    distArr = cdist([centerPos], supAts.get_positions(wrap=True))[0]
 
     for i, dist in enumerate(distArr):
         if dist/(rs[i]+rnew) < threshold:
@@ -984,3 +989,66 @@ def checkParameters(instance,parameters,Requirement=[],Default={}):
             setattr(instance,key,Default[key])
         else:
             setattr(instance,key,getattr(parameters,key))
+
+def match_lattice(atoms1,atoms2):
+    """lattice matching , 10.1016/j.scib.2019.02.009
+    
+    Arguments:
+        atoms1 {atoms} -- atoms1
+        atoms2 {atoms} -- atoms2
+    
+    Returns:
+        atoms,atoms,float,float -- two best matched atoms in z direction
+    """
+    def match_fitness(a1,b1,a2,b2):
+        #za lao shi you shu zhi cuo wu
+        a1,b1,a2,b2 = np.round([a1,b1,a2,b2],3)
+        a1x = np.linalg.norm(a1)
+        a2x = np.linalg.norm(a2)
+        if a1x*a2x ==0:
+            return 1000
+        b1x = a1@b1/a1x
+        b2x = a2@b2/a2x
+        b1y = np.sqrt(b1@b1 - b1x**2)
+        b2y = np.sqrt(b2@b2 - b2x**2)
+        if b1y*b2y == 0:
+            return 1000
+        exx = (a2x-a1x)/a1x
+        eyy = (b2y-b1y)/b1y
+        exy = b2x/b1y-a2x/a1x*b1x/b1y
+        return np.abs(exx)+np.abs(eyy)+np.abs(exy)
+    
+    def to_matrix(hkl1,hkl2):
+        hklrange = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
+        hklrange = [np.array(_) for _ in hklrange]
+        for hkl3 in hklrange:
+            M = np.array([hkl1,hkl2,hkl3])
+            if np.linalg.det(M)>0:
+                break
+        return M
+
+    def standard_cell(atoms):
+        newcell = cellpar_to_cell(cell_to_cellpar(atoms.cell))
+        T = np.linalg.inv(atoms.cell)@newcell
+        atoms.positions = atoms.positions@T
+        atoms.cell = newcell
+        return atoms
+        
+    cell1,cell2 = atoms1.cell[:],atoms2.cell[:]
+    hklrange = [(1,0,0),(0,1,0),(0,0,1),(1,-1,0),(1,1,0),(1,0,-1),(1,0,1),(0,1,-1),(0,1,1),(2,0,0),(0,2,0),(0,0,2)]
+    #TODO ba cut cell jian qie ti ji bu fen gei gai le 
+    hklrange = [(1,0,0),(0,1,0),(0,0,1)]
+    hklrange = [np.array(_) for _ in hklrange]
+    minfitness = 1000
+    for hkl1,hkl2 in itertools.permutations(hklrange,2):
+        for hkl3,hkl4 in itertools.permutations(hklrange,2):
+            a1,b1,a2,b2 = hkl1@cell1,hkl2@cell1,hkl3@cell2,hkl4@cell2
+            fitness = match_fitness(a1,b1,a2,b2)
+            if fitness<minfitness:
+                minfitness = fitness
+                bestfit = hkl1,hkl2,hkl3,hkl4
+    newatoms1 = standard_cell(make_supercell(atoms1,to_matrix(bestfit[0],bestfit[1])))
+    newatoms2 = standard_cell(make_supercell(atoms2,to_matrix(bestfit[2],bestfit[3])))
+    ratio1 = newatoms1.get_volume()/atoms1.get_volume()
+    ratio2 = newatoms2.get_volume()/atoms2.get_volume()
+    return newatoms1,newatoms2,ratio1,ratio2
