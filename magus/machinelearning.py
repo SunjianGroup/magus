@@ -495,12 +495,12 @@ class GPRmodel(MachineLearning,ASECalculator):
 
 
 class BayesLRmodel(MachineLearning,ASECalculator):
-    def __init__(self,parameters,cf=None):
+    def __init__(self,parameters):
         self.p = EmptyClass()
         self.reg = BayesianRidge()
         
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':-1.0,'w_stress':-1.0,'norm':False}
+        Default = {'w_energy':30.0,'w_force':-1.0,'w_stress':-1.0,'norm':False,'cf':'gofee'}
         checkParameters(self.p,parameters,Requirement,Default)
 
         train_property = []
@@ -522,10 +522,10 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         ASECalculator.__init__(self,p)
 
         self.X = None
-        if cf:
-            self.cf = cf
-        else:
+        if self.p.cf == 'gofee':
             self.cf = GofeeFp(parameters)
+        elif self.p.cf == 'zernike':
+            self.cf = ZernikeFp(parameters)
         self.dataset = []
 
         if not os.path.exists(self.p.mlDir):

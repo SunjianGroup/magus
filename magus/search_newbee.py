@@ -33,6 +33,7 @@ class Magus:
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
         self.kappa = 2
+        self.dualpoint = True
 
     def run(self):
         self.Initialize()
@@ -130,10 +131,14 @@ class Magus:
             try:
                 anew = self.select_with_acquisition(relaxpop, kappa)
                 anew = self.evaluate(anew)
+                logging.info('xixi')
+                logging.info('lowest: {}'.format(anew.info['energy']))
                 a_add.append(anew)
                 if self.dualpoint:
+                    logging.info('yeah!')
                     adp = self.get_dualpoint(anew)
                     adp = self.evaluate(adp)
+                    logging.info('dual: {}'.format(adp.info['energy']))
                     a_add.append(adp)
                 break
             except Exception as err:
@@ -164,7 +169,7 @@ class Magus:
         with force until Fmax = Fmax_flat, after which it remains
         constant as lmax.
         """
-        F = a.get_forces()
+        F = self.ML.predict_forces(a)
         a_dp = a.copy()
 
         # Calculate and set new positions
@@ -186,6 +191,7 @@ class Magus:
         for atoms in structures:
             preE,stdE = self.ML.predict_energy(atoms,True)
             acquisition.append(preE-kappa*stdE)
+            logging.info('preE:{} stdE:{} ac:{}'.format(preE,stdE,preE-kappa*stdE))
         index_select = np.argmin(acquisition)
         return structures[index_select]
 
