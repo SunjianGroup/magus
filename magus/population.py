@@ -351,8 +351,11 @@ class Individual:
         else:
             a = atoms.copy()
 
-        minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
-        maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
+        #minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
+        #maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
+        minLen = [0,0,0,45,45,45]
+        maxLen = [100,100,100,135,135,135]
+
         minLen,maxLen = np.array([minLen,maxLen])
         cellPar = a.get_cell_lengths_and_angles()
 
