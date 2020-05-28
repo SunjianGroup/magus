@@ -582,8 +582,8 @@ class PopGenerator:
                     if newind:
                         newPop.append(newind)
             elif op.optype == 'Crossover':
-                # cross_pairs = self.get_pairs(Pop,num,saveGood)
-                cross_pairs = self.get_pairs(Pop,num)
+                cross_pairs = self.get_pairs(Pop,num,saveGood)
+                #cross_pairs = self.get_pairs(Pop,num)
                 for i,parents in enumerate(cross_pairs):
                     if self.p.molDetector != 0:
                         for ind in parents:
