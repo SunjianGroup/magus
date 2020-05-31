@@ -62,6 +62,7 @@ class magusParameters:
             'maxDataset': 500,
             'diffE': 0.01,
             'diffV': 0.05,
+            #'ratNum': 0,
         }
         checkParameters(p,p,Requirement,Default)
 
