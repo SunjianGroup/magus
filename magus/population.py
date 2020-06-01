@@ -141,8 +141,6 @@ class Population:
     def calc_fitness(self):
         for fit_calc in self.fit_calcs:
             fit_calc(self)
-        for ind in self.pop:
-            logging.debug(ind.info['fitness'])
 
     def del_duplicate(self):
         logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
@@ -151,7 +149,7 @@ class Population:
         self.pop = sorted(self.pop, key=lambda x:x.info['enthalpy'] if 'enthalpy' in x.info else 100)
         for ind1 in self.pop:
             for ind2 in newpop:
-                if ind1==ind2:
+                if ind1 == ind2:
                     break
             else:
                 newpop.append(ind1)
@@ -351,8 +349,11 @@ class Individual:
         else:
             a = atoms.copy()
 
-        minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
-        maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
+        #minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
+        #maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
+        
+        minLen = [0,0,0,45,45,45]
+        maxLen = [100,100,100,135,135,135]
         minLen,maxLen = np.array([minLen,maxLen])
         cellPar = a.get_cell_lengths_and_angles()
 
