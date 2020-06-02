@@ -12,7 +12,7 @@ from .utils import *
 class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio']
+        Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar']
         Default={'threshold':1.0,'maxAttempts':50,'method':1,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
@@ -38,6 +38,11 @@ class Generator:
             minVolume = np.linalg.det(cellpar_to_cell(minLattice))
         if self.p.maxLattice:
             maxLattice = self.p.maxLattice
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
+        if self.p.fixCell:
+            minLattice = self.p.setCellPar
+            minVolume = np.linalg.det(cellpar_to_cell(minLattice))
+            maxLattice = [l+0.01 for l in minLattice]
             maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
         return minVolume,maxVolume,minLattice,maxLattice
 

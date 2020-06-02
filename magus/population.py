@@ -351,10 +351,10 @@ class Individual:
         else:
             a = atoms.copy()
 
-        #minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
-        #maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
-        minLen = [0,0,0,45,45,45]
-        maxLen = [100,100,100,135,135,135]
+        minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
+        maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
+        #minLen = [0,0,0,45,45,45]
+        #maxLen = [100,100,100,135,135,135]
 
         minLen,maxLen = np.array([minLen,maxLen])
         cellPar = a.get_cell_lengths_and_angles()
@@ -479,6 +479,7 @@ class Individual:
             return True
         if len(self.atoms) == 0:
             self.atoms = None
+            logging.debug("Empty crystal after merging!")
             return False
         atoms = self.atoms
         dRatio = self.p.dRatio
@@ -487,6 +488,7 @@ class Individual:
         targetFrml = self.get_targetFrml()
         # logging.debug("Target formula: {}".format(targetFrml))
         if not targetFrml:
+            logging.debug("Cannot get target formula: {}".format(targetFrml))
             self.atoms = None
             return False
         toadd, toremove = {} , {}
