@@ -1,0 +1,10 @@
+space
+1
+species
+Mo 0.0
+B  0.0
+lennard epsilon
+B B   1.000 1.50 0.0 10.0
+Mo B  1.250 2.25 0.0 15.0
+Mo Mo 1.000 3.00 0.0 20.0
+maxcyc 850

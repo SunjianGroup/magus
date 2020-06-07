@@ -1,0 +1,16 @@
+INCAR created by Atomic Simulation Environment
+ KSPACING = 0.628000
+ SIGMA = 0.100000
+ POTIM = 0.020000
+ EDIFF = 1.00e-04
+ EDIFFG = 1.00e-03
+ PREC = Normal
+ GGA = PE
+ ISMEAR = 1
+ ISTART = 0
+ NSW = 0
+ IBRION = 2
+ NPAR = 4
+ ISIF = 2
+ LCHARG = .FALSE.
+ LWAVE = .FALSE.

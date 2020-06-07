@@ -1,0 +1,47 @@
+calcType: fix
+pressure: 100
+initSize: 40
+popSize: 40
+numGen: 60
+saveGood: 2
+
+#structure parameters
+minAt: 28
+maxAt: 28
+symbols: ['Mg','Al','O']
+formula: [4,8,16]
+fullEles: True
+eleSize: 0
+
+dRatio: 0.5
+volRatio: 3
+addSym: False
+chkMol: False
+
+#main calculator settings
+MainCalculator:
+ calculator: gulp
+ mode: parallel
+ calcNum: 4
+ #ase settings
+ #epsArr: [0.5]
+ #stepArr: [30]
+ maxRelaxStep: 0.5
+ #mainoptimizer: fire
+ 
+ #vasp settings
+ #xc: PBE
+ #ppLabel: ['']
+ 
+ #gulp settings
+ exeCmd: gulp < input > output
+ #parallel settings
+ numParallel: 8
+ numCore: 4
+ #queueName: e52692v2ib!
+ queueName: e5v3ib
+ waitTime: 60
+
+
+##ML
+#useml: True

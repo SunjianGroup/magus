@@ -1,0 +1,53 @@
+calcType: fix
+pressure: 0
+
+#structure parameters
+
+popSize: 30
+numGen: 30
+minAt: 50
+maxAt: 50
+symbols: ['Sr', 'Ti', 'O']
+#ppLabel: ['', '']
+formula: [1,1,3]
+saveGood: 4
+
+dRatio: 0.5
+volRatio: 3
+addSym: False
+
+randFrac: 0.3
+molDetector: 2
+
+#main calculator settings
+maincalculator:
+ calculator: gulp
+ mode: serial
+ calcNum: 4
+ #ase settings
+ #epsArr: [0.5]
+ #stepArr: [30]
+ #maxRelaxStep: 0.5
+ #mainoptimizer: fire
+ 
+ #vasp settings
+ #xc: PBE
+ #ppLabel: ['']
+ 
+ #gulp settings
+ exeCmd: gulp < input > output
+ #parallel settings
+ #numParallel: 8
+ #numCore: 4
+ #queueName: e52692v2ib!
+ #queueName: e5v3ib
+ #waitTime: 60
+
+
+##ML
+MLpath: MLfold
+mloptimizer: fire
+mlrelaxNum: 1
+mlepsArr: [0.5]
+mlstepArr: [50]
+mlmaxRelaxStep: 0.5

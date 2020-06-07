@@ -1,0 +1,7 @@
+#BSUB -J new-vasp-p
+#BSUB -n 1
+#BSUB -e err
+#BSUB -o out
+#BSUB -q e52692v2ib!
+
+python -m magus.search --debug

@@ -37,14 +37,14 @@ showList = [
 #'utilVal',
 #'sigma',
 #'relaxD',
-'fullSym',
+#'fullSym',
 #'lengths',
 #'angles',
 ]
 allRes = []
 
 for i, at in enumerate(images):
-    posname = "POSCAR_%s.vasp" %(i+1)
+    posname = "POSCAR_%s.vasp" %(i)
     ase.io.write(posname, at, direct = True, vasp5 = True)
     symmetry = spg.get_spacegroup(at, symprec)
     cellpar = np.round(at.get_cell_lengths_and_angles(), 2)
@@ -94,11 +94,9 @@ for i, at in enumerate(images):
     allRes.append(oneRes)
 
 table = pd.DataFrame(allRes, columns=showList)
-sortdf = table.sort_values('enthalpy', axis=0, ascending=False, kind='mergesort')
-#sortdf = table.sort_values('ehull', axis=0, ascending=False, kind='mergesort')
+#print(table.sort_values('ehull', axis=0))
+print(table.sort_values('enthalpy', axis=0, ascending=False))
 
-sortdf.index += 1
-print(sortdf)
     # outD = dict()
     # for feature in showList:
     #     outD[feature] = names[feature]

@@ -80,7 +80,7 @@ def simple_calc_vasp_parallel(parameters):
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
                 "#BSUB -J Vasp_%s\n"% (queueName, numCore, i))
-        f.write("python -m csp.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj > vasplog".format(calcNum, xc, pressure))
+        f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj > vasplog".format(calcNum, xc, pressure))
         f.close()
 
         jobID = subprocess.check_output("bsub < parallel.sh", shell=True).split()[1]

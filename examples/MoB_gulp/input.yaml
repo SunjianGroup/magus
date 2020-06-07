@@ -1,0 +1,48 @@
+calcType: var
+pressure: 0
+initSize: 60
+popSize: 60
+numGen: 80
+saveGood: 5
+
+#structure parameters
+minAt: 8
+maxAt: 18
+symbols: ['Mo','B']
+formula: [[1,0],[0,1]]
+fullEles: False
+eleSize: 2
+
+dRatio: 0.5
+volRatio: 3
+addSym: False
+
+randFrac: 0.3
+molDetector: 2
+
+#main calculator settings
+Maincalculator:
+ calculator: gulp
+ mode: serial
+ calcNum: 4
+ #ase settings
+ #epsArr: [0.5]
+ #stepArr: [30]
+ #maxRelaxStep: 0.5
+ #mainoptimizer: fire
+ 
+ #vasp settings
+ #xc: PBE
+ #ppLabel: ['']
+ 
+ #gulp settings
+ exeCmd: gulp < input > output
+ #parallel settings
+ #numParallel: 8
+ #numCore: 4
+ #queueName: e52692v2ib!
+ #queueName: e5v3ib
+ #waitTime: 60
+
+
+##ML
