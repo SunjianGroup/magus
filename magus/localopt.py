@@ -19,7 +19,7 @@ from .writeresults import write_traj
 from .utils import *
 from ase.units import GPa, eV, Ang
 try:
-    from xtb import GFN0, GFN1
+    from xtb.ase.calculator import XTB
     from ase.constraints import ExpCellFilter
     from quippy.potential import Potential as QUIP
 except:
@@ -112,6 +112,10 @@ class ASECalculator(Calculator):
                 # save energy, forces, stress for trainning potential
                 ind.info['energy'] = ind.get_potential_energy()
                 ind.info['forces'] = ind.get_forces()
+                maxF = np.max(ind.info['forces'])
+                if maxF > 5.0:
+                    logging.warning('Force too lipu')
+                    continue
                 try:
                     ind.info['stress'] = ind.get_stress()
                 except:
@@ -193,10 +197,7 @@ class XTBCalculator(ASECalculator):
         self.calcs = []
         for i in range(1, parameters.calcNum + 1):
             xtbParams = yaml.load(open("{}/inputFold/xtb_{}.yaml".format(parameters.workDir, i)))
-            if xtbParams['type'] == 0:
-                calc = GFN0(**xtbParams)
-            elif xtbParams['type'] == 1:
-                calc = GFN1(**xtbParams)
+            calc = XTB(**xtbParams)
             self.calcs.append(calc)
         return super(XTBCalculator, self).__init__(parameters)
 

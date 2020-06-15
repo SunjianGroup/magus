@@ -1,7 +1,7 @@
 import numpy as np
 from . import GenerateNew
 from ase.data import atomic_numbers, covalent_radii
-from ase import Atoms
+from ase import Atoms,build
 from ase.spacegroup import Spacegroup
 from ase.geometry import cellpar_to_cell,cell_to_cellpar
 from scipy.spatial.distance import cdist, pdist
@@ -64,14 +64,39 @@ class Generator:
         generator.maxVolume = maxVolume
         generator.SetLatticeMins(minLattice[0], minLattice[1], minLattice[2], minLattice[3], minLattice[4], minLattice[5])
         generator.SetLatticeMaxes(maxLattice[0], maxLattice[1], maxLattice[2], maxLattice[3], maxLattice[4], maxLattice[5])
-
         numbers=[]
         for i in range(numType):
             if numlist[i] > 0:
-                generator.AppendAtoms(int(numlist[i]), str(i), self.p.radius[i], False)
-                numbers.extend([atomic_numbers[self.p.symbols[i]]]*numlist[i])
+                if self.p.moledule:
+                    mole = self.p.inputMols[i]
+                    if len(mole) > 1:
+                        radius = np.array([covalent_radii[atomic_numbers[atom.symbol]] for atom in mole])
+                        radius = np.array(list({}.fromkeys(radius).keys()))
+                        positions = mole.positions.reshape(-1)
+                        symbols = mole.get_chemical_symbols()
+                        uni_symbols = list({}.fromkeys(symbols).keys())
+                        assert len(uni_symbols)<5 
+                        #TODO char array
+                        na,nb,nc,nd = [uni_symbols[i] if i<len(uni_symbols) else '0' for i in range(4)]
+                        numinfo = np.array([symbols.count(s) for s in uni_symbols],dtype=float)
+
+                        generator.AppendMoles(int(numlist[i]),mole.get_chemical_formula()\
+                            ,radius, positions, numinfo, na,nb,nc,nd)
+
+                        number = sum([num for num in [[atomic_numbers[s]]*int(n)*numlist[i] \
+                            for s,n in zip(uni_symbols,numinfo)]],[])
+                        numbers.extend(number)
+                    else:
+                        symbol = mole.get_chemical_symbols()[0]
+                        radius = covalent_radii[atomic_numbers[symbol]]
+                        generator.AppendAtoms(int(numlist[i]), symbol, radius, False)
+                        numbers.extend([atomic_numbers[symbol]]*numlist[i])
+                else:
+                    generator.AppendAtoms(int(numlist[i]), str(i), self.p.radius[i], False)
+                    numbers.extend([atomic_numbers[self.p.symbols[i]]]*numlist[i])
 
         label = generator.PreGenerate(np.random.randint(1000))
+
         if label:
             cell = generator.GetLattice(0)
             cell = np.reshape(cell, (3,3))
@@ -79,7 +104,7 @@ class Generator:
             positions = np.reshape(positions, (-1, 3))
             positions = np.dot(positions,cell)
             atoms = ase.Atoms(cell=cell, positions=positions, numbers=numbers, pbc=1)
-
+            atoms = build.sort(atoms)
             return label, atoms
         else:
             return label, None
@@ -151,8 +176,51 @@ class LayerGenerator(BaseGenerator):
         super().afterprocessing(ind,nfm)
         #self.addVacuumlayer(ind)
 
-class MoleculeGenerator(BaseGenerator):
-    pass
+class MoleculeGenerator(Generator):
+    def __init__(self,parameters):
+        super().__init__(parameters)
+        Requirement=['inputMols','molFormula','numFrml']
+        Default = {'moledule':True}
+        checkParameters(self.p,parameters,Requirement,Default)
+
+    def afterprocessing(self,ind,nfm):
+        ind.info['symbols'] = self.p.symbols
+        ind.info['formula'] = self.p.formula
+        ind.info['numOfFormula'] = nfm
+        ind.info['parentE'] = 0
+        ind.info['origin'] = 'random'
+        return ind
+
+    def Generate_pop(self,popSize,initpop=False):
+        buildPop = []
+        tryNum=0
+        while tryNum<self.p.maxtryNum*popSize and popSize > len(buildPop):
+            nfm = np.random.choice(self.p.numFrml)
+            spg = np.random.choice(self.p.spgs)
+            numlist=np.array(self.p.molFormula)*nfm
+            label,ind = self.Generate_ind(spg,numlist)
+            if label:
+                self.afterprocessing(ind,nfm)
+                buildPop.append(ind)
+            else:
+                tryNum+=1
+
+        # Allow P1 structure
+        if popSize > len(buildPop):
+            for _ in range(popSize - len(buildPop)):
+                nfm = np.random.choice(self.p.numFrml)
+                spg = np.random.choice(self.p.spgs)
+                numlist=np.array(self.p.molFormula)*nfm
+                label,ind = self.Generate_ind(spg,numlist)
+                if label:
+                    self.afterprocessing(ind,nfm)
+                    buildPop.append(ind)
+                else:
+                    label,ind = self.Generate_ind(1,numlist)
+                    if label:
+                        self.afterprocessing(ind,nfm)
+                        buildPop.append(ind)
+        return buildPop
 
 
 class VarGenerator(Generator):
@@ -217,263 +285,6 @@ class VarGenerator(Generator):
                             continue
         return buildPop
 
-def equivalent_sites_rots(spg, scaled_positions, symprec=1e-3):
-    """Returns equivalent sites and the relative rotations.
-
-        Parameters:
-
-        spg: init | ASE's Spacegroup
-            spacegroup
-
-        scaled_positions: list | array
-            One non-equivalent site given in unit cell coordinates.
-
-        symprec: float
-            Minimum "distance" betweed two sites in scaled coordinates
-            before they are counted as the same site.
-
-        Returns:
-
-        sites: array
-            A NumPy array of equivalent sites.
-        rots: list
-            A list containing possible rotations for all equilvalent sites.
-    """
-
-    if isinstance(spg, int):
-        spgObj = Spacegroup(spg)
-    else:
-        spgObj = spg
-
-    assert isinstance(spgObj, Spacegroup)
-
-    pos = np.array(scaled_positions)
-
-    sites = []
-    rotsArr = []
-
-    for rot, trans in spgObj.get_symop():
-        site = np.mod(np.dot(rot, pos) + trans, 1.)
-        if not sites:
-            sites.append(site)
-            rots = [rot]
-            rotsArr.append(rots)
-            continue
-        t = site - sites
-        mask = np.all((abs(t) < symprec) | (abs(abs(t) - 1.0) < symprec), axis=1)
-        if np.any(mask):
-            inds = np.argwhere(mask).flatten()
-            for ind in inds:
-                rotsArr[ind].append(rot)
-        else:
-            sites.append(site)
-            rots = [rot]
-            rotsArr.append(rots)
-
-    return np.array(sites), rotsArr
-
-
-
-
-def generate_centers_cell(formula, spg, radius, minVol, maxVol):
-    assert len(formula) == len(radius)
-    print(formula, spg, radius, minVol, maxVol)
-    numType = len(formula)
-    generator = GenerateNew.Info()
-    generator.spg = spg
-    generator.spgnumber = 1
-    if minVol:
-        generator.minVolume = minVol
-    if maxVol:
-        generator.maxVolume = maxVol
-        maxLen = maxVol**(1./3)
-        generator.SetLatticeMaxes(maxLen, maxLen, maxLen, 120, 120 ,120)
-    generator.maxAttempts = 500
-    generator.threshold=1
-    generator.method=2
-    generator.forceMostGeneralWyckPos=False
-    minLen = 2*max(radius)
-    generator.SetLatticeMins(minLen, minLen, minLen, 60, 60, 60)
-    generator.GetConventional = True
-    generator.UselocalCellTrans = 'n'
-    numbers = []
-    for i in range(numType):
-        generator.AppendAtoms(formula[i], "{}".format(i), radius[i], False)
-        numbers.extend([i]*formula[i])
-
-    label = generator.PreGenerate(np.random.randint(1000))
-    if label:
-        cell = generator.GetLattice(0)
-        cell = np.reshape(cell, (3,3))
-        positions = generator.GetPosition(0)
-        positions = np.reshape(positions, (-1, 3))
-        wyckPos = generator.GetWyckPos(0)
-        wyckPos = np.reshape(wyckPos, (-1,3))
-        wyckName = generator.GetWyckLabel(0)
-        wyckNum = [int(n) for n in wyckName]
-        if len(positions) == sum(formula):
-            return label, cell, numbers, positions, wyckNum, wyckPos
-        else:
-            logging.debug("Incorrect formula in generatenew")
-            return False, None, None, None, None, None
-    else:
-        return label, None, None, None, None, None
-
-def mol_radius_and_rltPos(atoms):
-    pos = atoms.get_positions()
-    center = pos.mean(0)
-    dists = cdist([center], pos)
-    radius = dists.max()
-    rltPos = pos - center
-    return radius, rltPos
-
-def generate_one_mol_crystal(molFormula, spg, radius, rltPosList, molNumList, minVol=None, maxVol=None, fixCell = False, setCellPar = None,):
-    assert len(radius) == len(molFormula) == len(rltPosList) == len(molNumList)
-    # numType = len(molFormula)
-    label, cell, molIndices, centers, wyckNum, wyckPos = generate_centers_cell(molFormula, spg, radius, minVol, maxVol)
-    if fixCell:
-        cell = cellpar_to_cell(setCellPar)
-    # spgOb = Spacegroup(spg)
-    # rotations = spgOb.get_rotations()
-    # rotations = [r for r in rotations if (np.dot(r, r.T)==np.eye(3)).all()]
-    #logging.debug(radius)
-    #logging.debug("{}\t{}\t{}".format(spg, minVol, maxVol))
-    # print(pdist(np.dot(centers, cell)))
-    if label:
-        # tmpAts = Atoms(cell=cell, scaled_positions=centers, numbers=[1]*len(molIndices), pbc=1)
-        # print(tmpAts.get_all_distances(mic=True))
-        numList = []
-        posList = []
-        for i, molInd in enumerate(wyckNum):
-            randMat = rand_rotMat()
-            wyckSite = wyckPos[i]
-            sites, rotsArr = equivalent_sites_rots(spg, wyckSite)
-            for pos, rots in zip(sites, rotsArr):
-                numList.append(molNumList[molInd])
-                molPos = np.dot(pos, cell) + np.dot(rltPosList[molInd], np.dot(randMat, random.choice(rots)))
-                posList.append(molPos)
-
-        # for i, molInd in enumerate(molIndices):
-        #     numList.append(molNumList[molInd])
-        #     molPos = np.dot(centers[i], cell) + np.dot(rltPosList[molInd], np.dot(randMat, random.choice(rotations)))
-        #     # molPos = np.dot(centers[i], cell) + np.dot(rltPosList[molInd], randMat)
-        #     posList.append(molPos)
-        pos = np.concatenate(posList, axis=0)
-        numbers = np.concatenate(numList, axis=0)
-        argsort = np.argsort(numbers)
-        numbers = numbers[argsort]
-        pos = pos[argsort]
-        atoms = Atoms(cell=cell, positions=pos, numbers=numbers, pbc=1)
-        return atoms
-    else:
-        return None
-
-def generate_mol_crystal_list(molList, molFormula, spgList, numStruct, smallRadius=False, fixCell = False, setCellPar = None,):
-    assert len(molList) == len(molFormula)
-    radius = []
-    molNumList = []
-    rltPosList = []
-    meanVol = 0
-    if smallRadius:
-        rCoef = random.uniform(0.5, 1)
-    else:
-        rCoef = 1
-    for i, mol in enumerate(molList):
-        numbers = mol.get_atomic_numbers()
-        rmol, rltPos = mol_radius_and_rltPos(mol)
-        rAt = covalent_radii[numbers].max()
-        rmol += rAt
-        radius.append(rCoef*rmol)
-        molNumList.append(numbers)
-        rltPosList.append(rltPos)
-        vol = 4*np.pi / 3 * rmol**3
-        meanVol += vol * molFormula[i]
-
-    minVol = 0.5*meanVol
-    maxVol = 3*meanVol
-
-    molPop = []
-    for _ in range(numStruct):
-        spg = random.choice(spgList)
-        # atoms = generate_one_mol_crystal(molFormula, spg, radius, rltPosList, molNumList,)
-        atoms = generate_one_mol_crystal(molFormula, spg, radius, rltPosList, molNumList,minVol, maxVol,fixCell=fixCell, setCellPar=setCellPar)
-        if atoms:
-            molPop.append(atoms)
-
-    return molPop
-
-def build_mol_struct(
-    popSize,
-    symbols,
-    formula,
-    inputMols,
-    molFormula,
-    numFrml = [1],
-    spgs = range(1,231),
-    tryNum = 10,
-    bondRatio = 1.1,
-    fixCell = False,
-    setCellPar = None,
-):
-    buildPop = []
-    for nfm in numFrml:
-        numStruct = popSize//len(numFrml)
-        if numStruct == 0:
-            break
-        inputMolFrml = [nfm*frml for frml in molFormula]
-        # randomPop = generate_mol_crystal_list(inputMols, inputMolFrml, spgs, numStruct, smallRadius=False, fixCell=fixCell, setCellPar=setCellPar)
-        randomPop = generate_mol_crystal_list(inputMols, inputMolFrml, spgs, numStruct, smallRadius=True, fixCell=fixCell, setCellPar=setCellPar)
-        for ind in randomPop:
-            ind.info['symbols'] = symbols
-            ind.info['formula'] = formula
-            ind.info['numOfFormula'] = nfm
-            ind.info['molFormula'] = molFormula
-            ind.info['parentE'] = 0
-            ind.info['origin'] = 'random'
-        buildPop.extend(randomPop)
-
-    buildPop = check_mol_pop(buildPop, inputMols, bondRatio)
-
-     # Build structure to fill buildPop
-    for _ in range(tryNum):
-        if popSize <= len(buildPop):
-            break
-        randomPop = []
-        for _ in range(popSize - len(buildPop)):
-            nfm = random.choice(numFrml)
-            inputMolFrml = [nfm*frml for frml in molFormula]
-            randomPop.extend(generate_mol_crystal_list(inputMols, inputMolFrml, spgs, 1, smallRadius=True,fixCell=fixCell, setCellPar=setCellPar))
-            if len(randomPop) > 0:
-                randomPop[-1].info['numOfFormula'] = nfm
-                randomPop[-1].info['symbols'] = symbols
-                randomPop[-1].info['formula'] = formula
-                randomPop[-1].info['molFormula'] = molFormula
-                randomPop[-1].info['parentE'] = 0
-                randomPop[-1].info['origin'] = 'random'
-        randomPop = check_mol_pop(randomPop, inputMols, bondRatio)
-        buildPop.extend(randomPop)
-
-    logging.debug("Build {} molecular crystals with small radius.".format(len(buildPop)))
-
-    # Build large-radius structure to fill buildPop
-    for _ in range(tryNum):
-        if popSize <= len(buildPop):
-            break
-        randomPop = []
-        for _ in range(popSize - len(buildPop)):
-            nfm = random.choice(numFrml)
-            inputMolFrml = [nfm*frml for frml in molFormula]
-            randomPop.extend(generate_mol_crystal_list(inputMols, inputMolFrml, spgs, 1,fixCell=fixCell, setCellPar=setCellPar))
-            if len(randomPop) > 0:
-                randomPop[-1].info['numOfFormula'] = nfm
-                randomPop[-1].info['symbols'] = symbols
-                randomPop[-1].info['formula'] = formula
-                randomPop[-1].info['molFormula'] = molFormula
-                randomPop[-1].info['parentE'] = 0
-                randomPop[-1].info['origin'] = 'random'
-        buildPop.extend(randomPop)
-
-    return buildPop
 
 
 def read_seeds(parameters, seedFile, goodSeed=False):

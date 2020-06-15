@@ -13,10 +13,12 @@
 - ASE
 - spglib
 - pandas
-- networkx
+- networkx（2.1版本）
 - boost
 
-
+### 可选项
+- xtb （当前使用的为6.3版本）
+- gofee （可使用oganov的fingerprint）
 
 
 
