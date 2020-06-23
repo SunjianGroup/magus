@@ -12,7 +12,7 @@ from .utils import *
 class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar']
+        Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio']
         Default={'threshold':1.0,'maxAttempts':50,'method':1,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
@@ -53,7 +53,10 @@ class Generator:
         generator.spg = spg
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
-        generator.threshold=self.p.dRatio
+        if self.p.moledule:
+            generator.threshold=self.p.bondRatio
+        else:
+            generator.threshold=self.p.dRatio
         generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
