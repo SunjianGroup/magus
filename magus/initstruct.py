@@ -12,7 +12,7 @@ from .utils import *
 class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
-        Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio']
+        Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
         Default={'threshold':1.0,'maxAttempts':50,'method':1,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
@@ -53,7 +53,7 @@ class Generator:
         generator.spg = spg
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
-        if self.p.moledule:
+        if self.p.molMode:
             generator.threshold=self.p.bondRatio
         else:
             generator.threshold=self.p.dRatio
@@ -70,7 +70,7 @@ class Generator:
         numbers=[]
         for i in range(numType):
             if numlist[i] > 0:
-                if self.p.moledule:
+                if self.p.molMode:
                     mole = self.p.inputMols[i]
                     if len(mole) > 1:
                         radius = np.array([covalent_radii[atomic_numbers[atom.symbol]] for atom in mole])
@@ -183,7 +183,7 @@ class MoleculeGenerator(Generator):
     def __init__(self,parameters):
         super().__init__(parameters)
         Requirement=['inputMols','molFormula','numFrml']
-        Default = {'moledule':True}
+        Default = {'molMode':True}
         checkParameters(self.p,parameters,Requirement,Default)
 
     def afterprocessing(self,ind,nfm):
