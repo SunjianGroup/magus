@@ -20,7 +20,13 @@ from .utils import *
 from ase.units import GPa, eV, Ang
 try:
     from xtb.ase.calculator import XTB
+except:
+    pass
+try:
     from ase.constraints import ExpCellFilter
+except:
+    pass
+try:
     from quippy.potential import Potential as QUIP
 except:
     pass
