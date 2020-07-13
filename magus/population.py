@@ -149,7 +149,7 @@ class Population:
         self.pop = sorted(self.pop, key=lambda x:x.info['enthalpy'] if 'enthalpy' in x.info else 100)
         for ind1 in self.pop:
             for ind2 in newpop:
-                if ind1==ind2:
+                if ind1 == ind2:
                     break
             else:
                 newpop.append(ind1)
@@ -287,7 +287,7 @@ class Individual:
     def fingerprint(self):
         if 'fingerprint' not in self.info:
             Efps = self.cf.get_all_fingerprints(self.atoms)[0]
-            self.info['fingerprint'] = np.mean(Efps,axis=0)
+            self.info['fingerprint'] = Efps
         return self.info['fingerprint']
 
     def find_spg(self):
@@ -349,8 +349,11 @@ class Individual:
         else:
             a = atoms.copy()
 
-        minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
-        maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
+        #minLen = self.p.minLattice if self.p.minLattice else [0,0,0,45,45,45]
+        #maxLen = self.p.maxLattice if self.p.maxLattice else [100,100,100,135,135,135]
+        
+        minLen = [0,0,0,45,45,45]
+        maxLen = [100,100,100,135,135,135]
         minLen,maxLen = np.array([minLen,maxLen])
         cellPar = a.get_cell_lengths_and_angles()
 
@@ -360,7 +363,7 @@ class Individual:
         angles = np.arccos(np.sqrt(X-cos_**2)/sin_)/np.pi*180
 
         #return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
-        return (minLen < cellPar).all() and (cellPar < maxLen).all()
+        return (minLen <= cellPar).all() and (cellPar <= maxLen).all()
 
     def check_distance(self,atoms=None):
         """
@@ -420,12 +423,12 @@ class Individual:
         check_mol = True
         if self.p.chkMol:
             check_mol = self.check_mol(a)
-        #if not check_cellpar:
-        #    logging.debug("Fail in check_cellpar")
-        #if not check_distance:
-        #    logging.debug("Fail in check_distance")
-        #if not check_mol:
-        #    logging.debug("Fail in check_mol")
+        if not check_cellpar:
+            logging.debug("Fail in check_cellpar")
+        if not check_distance:
+            logging.debug("Fail in check_distance")
+        if not check_mol:
+            logging.debug("Fail in check_mol")
         return check_cellpar and check_distance and check_mol and check_formula
 
     def sort(self):

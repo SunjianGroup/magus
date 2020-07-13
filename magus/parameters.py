@@ -122,10 +122,11 @@ class magusParameters:
             ripple = RippleMutation()
             slip = SlipMutation()
             rot = RotateMutation()
+            rattle = RattleMutation(p=0.25,rattle_range=4,dRatio=1)
             form = FormulaMutation(symbols=self.parameters.symbols)
             num = 3*int((1-self.parameters.randFrac)*self.parameters.popSize/8)+1
             Requirement = []
-            cutNum,slipNum,latNum,ripNum = [num]*4
+            cutNum,slipNum,latNum,ripNum,ratNum = [num]*5
             permNum = num if len(self.parameters.symbols) > 1 else 0
             rotNum = num if self.parameters.molDetector != 0 else 0
             #rotNum = num if self.parameters.molMode else 0
@@ -142,7 +143,8 @@ class magusParameters:
             soft = None
             softNum = 0
             Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
-                'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 'formNum': formNum}
+                'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 
+                'formNum': formNum,'ratNum':ratNum}
             checkParameters(self.parameters,self.parameters,Requirement,Default)
             numlist = [
                 self.parameters.cutNum,
@@ -153,8 +155,9 @@ class magusParameters:
                 self.parameters.rotNum,
                 self.parameters.softNum,
                 self.parameters.formNum,
+                self.parameters.ratNum,
                 ]
-            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form]
+            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"

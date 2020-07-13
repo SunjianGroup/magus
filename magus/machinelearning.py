@@ -323,7 +323,7 @@ class GPRmodel(MachineLearning,ASECalculator):
         self.p = EmptyClass()
         
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False}
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False,'cf':'gofee'}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
@@ -333,10 +333,10 @@ class GPRmodel(MachineLearning,ASECalculator):
         ASECalculator.__init__(self,p)
 
         self.X = None
-        if cf:
-            self.cf = cf
-        else:
+        if self.p.cf == 'gofee':
             self.cf = GofeeFp(parameters)
+        elif self.p.cf == 'zernike':
+            self.cf = ZernikeFp(parameters)
         self.dataset = []
 
         from .kernel import GaussKernel
@@ -353,6 +353,7 @@ class GPRmodel(MachineLearning,ASECalculator):
         if self.p.norm:
             self.mean = np.mean(self.X,axis=0)
             self.std = np.std(self.X,axis=0)
+            self.std[np.where(self.std == 0.0)] = 1
         else:
             self.mean,self.std = 0.0,1.0
 
@@ -442,7 +443,7 @@ class GPRmodel(MachineLearning,ASECalculator):
         eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
         x_ = (eFps - self.mean)/self.std
         X_ = (self.X-self.mean)/self.std
-        x_ddr = fFps.T/self.std
+        x_ddr = (fFps/self.std).T
 
         # Calculate kernel and its derivative
         k_ddx = self.kernel.kernel_jacobian(x_, X_)
@@ -522,12 +523,12 @@ class GPRmodel(MachineLearning,ASECalculator):
 
 
 class BayesLRmodel(MachineLearning,ASECalculator):
-    def __init__(self,parameters,cf=None):
+    def __init__(self,parameters):
         self.p = EmptyClass()
         self.reg = BayesianRidge()
         
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':-1.0,'w_stress':-1.0,'norm':False}
+        Default = {'w_energy':30.0,'w_force':-1.0,'w_stress':-1.0,'norm':False,'cf':'gofee'}
         checkParameters(self.p,parameters,Requirement,Default)
 
         train_property = []
@@ -549,10 +550,10 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         ASECalculator.__init__(self,p)
 
         self.X = None
-        if cf:
-            self.cf = cf
-        else:
+        if self.p.cf == 'gofee':
             self.cf = GofeeFp(parameters)
+        elif self.p.cf == 'zernike':
+            self.cf = ZernikeFp(parameters)
         self.dataset = []
 
         if not os.path.exists(self.p.mlDir):

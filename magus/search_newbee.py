@@ -22,9 +22,7 @@ class Magus:
     def __init__(self,parameters):
         self.parameters = parameters.parameters
         self.Generator = parameters.get_AtomsGenerator()
-        numlist = [30]
-        oplist = [RattleMutation(p=0.25,rattle_range=2,dRatio=1 )]
-        self.Algo = PopGenerator(numlist,oplist,self.parameters)
+        self.Algo = parameters.get_PopGenerator()
         self.MainCalculator = parameters.get_MainCalculator()
         self.Population = parameters.get_Population()
         if self.parameters.useml:
@@ -35,6 +33,8 @@ class Magus:
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
         self.kappa = 2
+        self.dualpoint = True
+        self.min_certainty = 0.7
 
     def run(self):
         self.Initialize()
@@ -72,32 +72,22 @@ class Magus:
         if self.parameters.chkSeed:
             seedPop.check()
         initPop.extend(seedPop)
-
+        initpop = self.MainCalculator.scf(initPop.frames)
+        initPop = self.Population(initpop,'initpop',self.curgen)
+        initPop.check()
+        initPop.del_duplicate()
         initPop.save()
 
-        relaxpop = self.MainCalculator.relax(initPop.frames)
-        relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-        # save raw pop before check and del_duplicates
-        relaxPop.save('raw')
-        relaxPop.check()
-        relaxPop.del_duplicate()
-
         if self.parameters.useml:
-            self.ML.updatedataset(relaxPop.all_frames)
+            self.ML.updatedataset(initPop.all_frames)
             self.ML.train()
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop.all_frames)[:4]))
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.all_frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
             #logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
-        if self.parameters.goodSeed:
-            logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to relaxPop without relaxation.".format(self.parameters.goodSeedFile))
-            goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
-            relaxPop.extend(goodseedpop)
-            relaxPop.del_duplicate()
-            # relaxPop.check()
 
-        self.curPop = relaxPop
+        self.curPop = initPop
 
     def Onestep(self):
         curPop = self.curPop
@@ -136,6 +126,9 @@ class Magus:
         #######  relax  #######
         kappa = self.kappa
         relaxpop = self.ML.relax(initPop.frames)
+        relaxpop.extend(self.ML.relax(self.curPop.frames))
+        relaxpop = self.remove_rabbish(relaxpop)
+
         ase.io.write('results/MLrelax{}.traj'.format(self.curgen),relaxpop)
         a_add = []
         for _ in range(3):
@@ -156,12 +149,20 @@ class Magus:
         anew = a_add[index_lowest]
         anew.info['predictE'],anew.info['stdE'] = self.ML.predict_energy(anew,True)
         anew.info['identity'] = len(self.curPop)
-        self.curPop.append(anew)
+        self.add(self.curPop,anew)
         logging.info('new structrue:\n energy:{}\tpredict:{}\tstd:{}'\
             .format(anew.info['energy'],anew.info['predictE'],anew.info['stdE']))
 
         self.ML.updatedataset(a_add)
         self.ML.train()
+        logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
+            format(*self.ML.get_loss(self.curPop.all_frames)[:4]))
+        logging.info("Energy of population:\n")
+        for ind in self.curPop:
+            logging.info("{strFrml} energy: {energy}, spg: {spg}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.atoms.info))
+
+        
 
     def get_dualpoint(self, a, lmax=0.10, Fmax_flat=5):
         """Returns dual-point structure, i.e. the original structure
@@ -174,7 +175,7 @@ class Magus:
         with force until Fmax = Fmax_flat, after which it remains
         constant as lmax.
         """
-        F = a.get_forces()
+        F = self.ML.predict_forces(a)
         a_dp = a.copy()
 
         # Calculate and set new positions
@@ -198,6 +199,30 @@ class Magus:
             acquisition.append(preE-kappa*stdE)
         index_select = np.argmin(acquisition)
         return structures[index_select]
+
+    def add(self,Pop,atoms):
+        E = self.ML.predict_energy(atoms)
+        Pop.append(atoms)
+        Pop.del_duplicate()
+
+        if len(Pop) > self.parameters.popSize:
+            Pop.calc_dominators()
+            Pop.select(self.parameters.popSize)
+
+    def remove_rabbish(self,pop):
+        newpop = []
+        min_certainty = self.min_certainty
+        for _ in range(5):
+            for atoms in pop:
+                _,certainty = self.ML.predict_energy(atoms,True)
+                certainty /= np.sqrt(self.ML.K0)
+                if certainty < self.min_certainty:
+                    newpop.append(atoms)
+            if len(newpop) > 0:
+                break
+            else:
+                min_certainty = min_certainty + (1-min_certainty)/2
+        return newpop
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)

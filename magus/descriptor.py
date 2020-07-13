@@ -24,7 +24,7 @@ class ZernikeFp(CalculateFingerprints):
         Default = {'cutoff': 4.0,'nmax': 4,'lmax':None,'ncut':4,'diag':True,'eleParm':None}
         checkParameters(self,parameters,Requirement,Default)
         self.elems = [atomic_numbers[element] for element in self.symbols]
-        if not self.lmax:
+        if not self.lmax and self.lmax != 0:
             self.lmax = self.nmax
         assert self.lmax <= self.nmax
        
@@ -77,6 +77,9 @@ class ZernikeFp(CalculateFingerprints):
             sFps[i] = np.array(self.part.GetsFps()).reshape(3,3,totNd) #returns list of length (3,3,totNd)
         sFps = sFps[:,[0,1,2,1,0,0],[0,1,2,2,2,1],:]
         sFps = np.zeros_like(sFps)
+
+        eFps = np.sum(eFps,axis=0)
+        fFps = -np.sum(fFps,axis=0).reshape(Nat*3,totNd)
         return eFps, fFps , sFps
 
 class GofeeFp(CalculateFingerprints):
