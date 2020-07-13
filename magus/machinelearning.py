@@ -124,6 +124,34 @@ class gpr_calculator(Calculator):
                 F = F - self.kappa*Fstd
             self.results['forces'] = F
 
+class torch_gpr_calculator(Calculator):
+    implemented_properties = ['energy', 'forces', 'stress']
+    default_parameters = {}
+
+    def __init__(self, gpr, kappa=None, **kwargs):
+        self.gpr = gpr
+        self.kappa = kappa
+        Calculator.__init__(self, **kwargs)
+
+    def calculate(self, atoms=None, properties=['energy', 'forces', 'stress'], system_changes=['positions']):
+        Calculator.calculate(self, atoms, properties, system_changes)
+
+        if 'energy' in properties:
+            if self.kappa is None:
+                E = self.gpr.predict_energy(atoms, eval_std=False)
+            else:
+                E, Estd = self.gpr.predict_energy(atoms, eval_std=True)
+                E = E - self.kappa*Estd
+            self.results['energy'] = E
+
+        if 'forces' in properties:
+            F = self.gpr.predict_forces(atoms)
+            self.results['forces'] = F
+
+        if 'stress' in properties:
+            S = self.gpr.predict_stress(atoms)
+            self.results['stress'] = S
+
 class bayeslr_calculator(Calculator):
     implemented_properties = ['energy', 'forces']
     default_parameters = {}
@@ -209,7 +237,7 @@ class LRmodel(MachineLearning,ASECalculator):
                 except:
                     y.append(0.0)
             if 'forces' in implemented_properties:
-                fFps = np.sum(fFps, axis=1)
+                fFps = np.sum(fFps, axis=0)
                 X.extend(fFps.reshape(-1,totNd))
                 w.extend([self.p.w_force]*len(atoms)*3)
                 n.extend([0.0]*len(atoms)*3)
@@ -702,3 +730,133 @@ class BayesLRmodel(MachineLearning,ASECalculator):
                     F[ia,idim] = -(E_up - E_down)/dx
                     Fstd[ia,idim] = -(Estd_up - Estd_down)/dx
             return F, Fstd
+
+
+class pytorchGPRmodel(MachineLearning,ASECalculator):
+    def __init__(self,parameters):
+        self.p = EmptyClass()
+        Requirement = ['mlDir']
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False}
+        checkParameters(self.p,parameters,Requirement,Default)
+
+        p = copy.deepcopy(parameters)
+        for key, val in parameters.MLCalculator.items():
+            setattr(p, key, val)
+        p.workDir = parameters.workDir
+        ASECalculator.__init__(self,p)
+
+        if not os.path.exists(self.p.mlDir):
+            os.mkdir(self.p.mlDir)
+
+        from ani.environment import ASEEnvironment
+        from ani.cutoff import CosineCutoff
+        from ani.jjnet import Representation
+        from ani.dataloader import AtomsData
+        from ani.gpr import DataSet, GPR, RBF
+        from torch.utils.data import DataLoader
+        import torch
+        from ani.dataloader import get_dict, _collate_aseatoms
+
+        cutoff = parameters.cutoff
+        n_radius = parameters.n_radius
+        n_angular = parameters.n_angular
+        self.environment_provider = ASEEnvironment(cutoff)
+        cut_fn = CosineCutoff(cutoff)
+        representation = Representation(n_radius,n_angular,cut_fn)
+
+        d = DataSet(self.environment_provider, representation)
+
+        kern = RBF()
+        self.model = GPR(representation, kern)
+        self.model.connect_dataset(d)
+        descriptor_parameters, hyper_parameters = [], []
+        for key, value in model.named_parameters():
+            if 'etas' in key or 'rss' in key:
+                descriptor_parameters.append(value)
+            else:
+                hyper_parameters.append(value)
+
+        self.hyper_optimizer = torch.optim.Adam(hyper_parameters)
+        self.descriptor_optimizer = torch.optim.Adam(descriptor_parameters)
+
+    def train(self, epoch = 10000):
+        for i in range(epoch):
+            loss = self.model.compute_log_likelihood()
+            self.hyper_optimizer.zero_grad()
+            loss.backward()
+            self.hyper_optimizer.step()
+            if i % 50 == 0:
+                obj = model.compute_log_likelihood()
+                self.descriptor_optimizer.zero_grad()
+                obj.backward()
+                self.descriptor_optimizer.step()
+
+    def get_loss(self,images):
+        batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider) \
+            for atoms in images])
+        predict_energy, std = model(batch_data)
+        predict_energy = predict_energy.view(-1)
+        predict_forces = -torch.autograd.grad(
+            predict_energy.sum(),
+            batch_data['positions'],
+            create_graph=True,
+            retain_graph=True
+        )[0]
+        predict_stress = torch.autograd.grad(
+            predict_energy.sum(),
+            batch_data['scaling'],
+            create_graph=True,
+            retain_graph=True
+        )[0][:, [0, 1, 2, 1, 0, 0], [0, 1, 2, 2, 2, 1]] / batch_data['volume']
+        predict_energy = predict_energy.detach().numpy()
+        predict_forces = predict_forces.detach().numpy()
+        predict_stress = predict_stress.detach().numpy()
+        target_energy = batch_data['energy'].numpy()
+        target_forces = batch_data['forces'].numpy()
+        target_stress = batch_data['stress'].numpy()
+        mae_energies = np.mean(np.abs(predict_energy - target_energy))
+        r2_energies = 1 - np.sum((predict_energy - target_energy)**2) / \
+            np.sum((target_energy - np.mean(target_energy))**2)
+        mae_forces = np.mean(np.abs(predict_forces - target_forces))
+        r2_forces = 1 - np.sum((predict_forces - target_forces)**2) / \
+            np.sum((target_forces - np.mean(target_forces))**2)
+        mae_stress = np.mean(np.abs(predict_stress - target_stress))
+        r2_stress = 1 - np.sum((predict_stress - target_stress)**2) / \
+            np.sum((target_stress - np.mean(target_stress))**2)
+
+        return mae_energies, r2_energies, mae_forces, r2_forces, mae_stress, r2_stress
+
+    def updatedataset(self,images):
+        self.model.dataset.update_dataset(images)
+
+    def relax(self,calcPop):
+        calcs = [self.get_calculator()]
+        return super().relax(calcPop,calcs)
+
+    def scf(self,calcPop):
+        calcs = [self.get_calculator()]
+        return super().scf(calcPop,calcs)
+
+    def predict_energy(self, atoms, eval_std=False):
+        batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
+        E, E_std = model(batch_data)
+        E = E.item()
+        if eval_std:
+            return E, E_std
+        else:
+            return E
+
+    def predict_forces(self, atoms, eval_with_energy_std=False):
+        batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
+        E, E_std = model(batch_data)
+        F = -torch.autograd.grad(E,batch_data['positions'])[0]
+        return F.squeeze().detach().numpy()
+
+    def predict_stress(self, atoms, eval_with_energy_std=False):
+        batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
+        E, E_std = model(batch_data)
+        S = torch.autograd.grad(E,batch_data['scaling'])[0][:, [0, 1, 2, 1, 0, 0], [0, 1, 2, 2, 2, 1]] / batch_data['volume']
+        return S.squeeze().detach().numpy()
+
+    def get_calculator(self, kappa=0):
+        return torch_gpr_calculator(self, kappa)
