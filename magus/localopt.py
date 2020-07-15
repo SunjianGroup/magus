@@ -19,8 +19,8 @@ from .writeresults import write_traj
 from .utils import *
 from ase.units import GPa, eV, Ang
 try:
-    from xtb import GFN0, GFN1
     from ase.constraints import ExpCellFilter
+    from xtb import GFN0, GFN1
     from quippy.potential import Potential as QUIP
 except:
     pass

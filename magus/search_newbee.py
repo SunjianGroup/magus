@@ -143,7 +143,7 @@ class Magus:
                 break
             except Exception as err:
                 kappa /=2
-        
+        ase.io.write('toadd.traj',a_add) 
         # Add structure to population
         index_lowest = np.argmin([a.info['energy'] for a in a_add])
         anew = a_add[index_lowest]
@@ -154,7 +154,7 @@ class Magus:
             .format(anew.info['energy'],anew.info['predictE'],anew.info['stdE']))
 
         self.ML.updatedataset(a_add)
-        self.ML.train()
+        self.ML.train(epoch=1000)
         logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
             format(*self.ML.get_loss(self.curPop.all_frames)[:4]))
         logging.info("Energy of population:\n")
@@ -190,12 +190,14 @@ class Magus:
         candidate.
         """
         a = self.MainCalculator.scf([a])[0]
+        logging.debug('trueE: {}'.format(a.info['energy']))
         return a
 
     def select_with_acquisition(self, structures, kappa):
         acquisition = []
         for atoms in structures:
             preE,stdE = self.ML.predict_energy(atoms,True)
+            logging.debug('preE:{}\tstdE:{}'.format(preE,stdE))
             acquisition.append(preE-kappa*stdE)
         index_select = np.argmin(acquisition)
         return structures[index_select]
@@ -203,11 +205,14 @@ class Magus:
     def add(self,Pop,atoms):
         E = self.ML.predict_energy(atoms)
         Pop.append(atoms)
+        logging.debug('len:{}'.format(len(Pop)))
         Pop.del_duplicate()
+        logging.debug('len:{}'.format(len(Pop)))
 
         if len(Pop) > self.parameters.popSize:
             Pop.calc_dominators()
             Pop.select(self.parameters.popSize)
+            logging.debug('len:{}'.format(len(Pop)))  
 
     def remove_rabbish(self,pop):
         newpop = []

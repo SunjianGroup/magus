@@ -13,6 +13,17 @@ from ase.data import atomic_numbers
 from .utils import *
 import copy
 import yaml
+try:
+    from ani.environment import ASEEnvironment
+    from ani.cutoff import CosineCutoff
+    from ani.jjnet import Representation,BehlerG1
+    from ani.dataloader import AtomsData
+    from ani.gpr import DataSet, GPR, RBF
+    from torch.utils.data import DataLoader
+    import torch
+    from ani.dataloader import get_dict, _collate_aseatoms
+except:
+    pass
 class MachineLearning:
     def __init__(self):
         pass
@@ -737,7 +748,7 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False}
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False,'cutoff': 5.0,'n_radius':30,'n_angular':0}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
@@ -749,21 +760,16 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
         if not os.path.exists(self.p.mlDir):
             os.mkdir(self.p.mlDir)
 
-        from ani.environment import ASEEnvironment
-        from ani.cutoff import CosineCutoff
-        from ani.jjnet import Representation
-        from ani.dataloader import AtomsData
-        from ani.gpr import DataSet, GPR, RBF
-        from torch.utils.data import DataLoader
-        import torch
-        from ani.dataloader import get_dict, _collate_aseatoms
-
-        cutoff = parameters.cutoff
-        n_radius = parameters.n_radius
-        n_angular = parameters.n_angular
+        cutoff = self.p.cutoff
+        n_radius = self.p.n_radius
+        n_angular = self.p.n_angular
         self.environment_provider = ASEEnvironment(cutoff)
         cut_fn = CosineCutoff(cutoff)
         representation = Representation(n_radius,n_angular,cut_fn)
+        #TODO gai tian lai shou shi ni
+        etas = torch.load('parameter.pkl')['representation.RDF.etas']
+        rss = torch.load('parameter.pkl')['representation.RDF.rss']
+        representation.RDF = BehlerG1(30,cut_fn,etas,rss,False)
 
         d = DataSet(self.environment_provider, representation)
 
@@ -771,7 +777,7 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
         self.model = GPR(representation, kern)
         self.model.connect_dataset(d)
         descriptor_parameters, hyper_parameters = [], []
-        for key, value in model.named_parameters():
+        for key, value in self.model.named_parameters():
             if 'etas' in key or 'rss' in key:
                 descriptor_parameters.append(value)
             else:
@@ -780,22 +786,27 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
         self.hyper_optimizer = torch.optim.Adam(hyper_parameters)
         self.descriptor_optimizer = torch.optim.Adam(descriptor_parameters)
 
-    def train(self, epoch = 10000):
+    def train(self, epoch = 30000):
         for i in range(epoch):
             loss = self.model.compute_log_likelihood()
             self.hyper_optimizer.zero_grad()
             loss.backward()
             self.hyper_optimizer.step()
-            if i % 50 == 0:
-                obj = model.compute_log_likelihood()
-                self.descriptor_optimizer.zero_grad()
-                obj.backward()
-                self.descriptor_optimizer.step()
+            #if i % 50 == 0:
+            #    obj = self.model.compute_log_likelihood()
+            #    self.descriptor_optimizer.zero_grad()
+            #    obj.backward()
+            #    self.descriptor_optimizer.step()
+            if i % 500 == 0:
+                logging.debug('epoch:{}\tloss:{}'.format(i,loss.item()))
+        #TODO yi hou zhao ni suan zhang
+        tmp = self.model.kern.variance.detach().numpy()
+        self.K0 = np.log(1 + np.exp(tmp))
 
     def get_loss(self,images):
         batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider) \
             for atoms in images])
-        predict_energy, std = model(batch_data)
+        predict_energy, std = self.model(batch_data)
         predict_energy = predict_energy.view(-1)
         predict_forces = -torch.autograd.grad(
             predict_energy.sum(),
@@ -840,8 +851,8 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
 
     def predict_energy(self, atoms, eval_std=False):
         batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
-        E, E_std = model(batch_data)
-        E = E.item()
+        E, E_std = self.model(batch_data)
+        E, E_std = E.item(), E_std.item()
         if eval_std:
             return E, E_std
         else:
@@ -849,13 +860,13 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
 
     def predict_forces(self, atoms, eval_with_energy_std=False):
         batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
-        E, E_std = model(batch_data)
+        E, E_std = self.model(batch_data)
         F = -torch.autograd.grad(E,batch_data['positions'])[0]
         return F.squeeze().detach().numpy()
 
     def predict_stress(self, atoms, eval_with_energy_std=False):
         batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
-        E, E_std = model(batch_data)
+        E, E_std = self.model(batch_data)
         S = torch.autograd.grad(E,batch_data['scaling'])[0][:, [0, 1, 2, 1, 0, 0], [0, 1, 2, 2, 2, 1]] / batch_data['volume']
         return S.squeeze().detach().numpy()
 
