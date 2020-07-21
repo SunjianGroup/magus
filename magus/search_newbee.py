@@ -80,12 +80,11 @@ class Magus:
 
         if self.parameters.useml:
             self.ML.updatedataset(initPop.all_frames)
-            self.ML.train()
+            self.ML.train(epoch1=1000, epoch2=30000)
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.all_frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
             #logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
-
 
         self.curPop = initPop
 
@@ -154,15 +153,13 @@ class Magus:
             .format(anew.info['energy'],anew.info['predictE'],anew.info['stdE']))
 
         self.ML.updatedataset(a_add)
-        self.ML.train(epoch=1000)
+        self.ML.train(epoch1=50, epoch2=1000)
         logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
             format(*self.ML.get_loss(self.curPop.all_frames)[:4]))
         logging.info("Energy of population:\n")
         for ind in self.curPop:
             logging.info("{strFrml} energy: {energy}, spg: {spg}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.atoms.info))
-
-        
 
     def get_dualpoint(self, a, lmax=0.10, Fmax_flat=5):
         """Returns dual-point structure, i.e. the original structure

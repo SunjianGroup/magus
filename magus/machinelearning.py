@@ -15,13 +15,13 @@ import copy
 import yaml
 try:
     from ani.environment import ASEEnvironment
+    from ani.kernel import RBF
     from ani.cutoff import CosineCutoff
-    from ani.jjnet import Representation,BehlerG1
-    from ani.dataloader import AtomsData
-    from ani.gpr import DataSet, GPR, RBF
+    from ani.model import ANI, GPR
+    from ani.dataloader import AtomsData, convert_frames
+    from ani.symmetry_functions import BehlerG1, CombinationRepresentation
     from torch.utils.data import DataLoader
     import torch
-    from ani.dataloader import get_dict, _collate_aseatoms
 except:
     pass
 class MachineLearning:
@@ -661,64 +661,24 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
         n_angular = self.p.n_angular
         self.environment_provider = ASEEnvironment(cutoff)
         cut_fn = CosineCutoff(cutoff)
-        representation = Representation(n_radius,n_angular,cut_fn)
-        #TODO gai tian lai shou shi ni
-        etas = torch.load('parameter.pkl')['representation.RDF.etas']
-        rss = torch.load('parameter.pkl')['representation.RDF.rss']
-        representation.RDF = BehlerG1(30,cut_fn,etas,rss,False)
 
-        d = DataSet(self.environment_provider, representation)
-
+        rdf = BehlerG1(n_radius, cut_fn)
+        representation = CombinationRepresentation(rdf)
+        self.ani_model = ANI(representation)
         kern = RBF()
         self.model = GPR(representation, kern)
-        self.model.connect_dataset(d)
-        descriptor_parameters, hyper_parameters = [], []
-        for key, value in self.model.named_parameters():
-            if 'etas' in key or 'rss' in key:
-                descriptor_parameters.append(value)
-            else:
-                hyper_parameters.append(value)
 
-        self.hyper_optimizer = torch.optim.Adam(hyper_parameters)
-        self.descriptor_optimizer = torch.optim.Adam(descriptor_parameters)
-
-    def train(self, epoch = 30000):
-        for i in range(epoch):
-            loss = self.model.compute_log_likelihood()
-            self.hyper_optimizer.zero_grad()
-            loss.backward()
-            self.hyper_optimizer.step()
-            #if i % 50 == 0:
-            #    obj = self.model.compute_log_likelihood()
-            #    self.descriptor_optimizer.zero_grad()
-            #    obj.backward()
-            #    self.descriptor_optimizer.step()
-            if i % 500 == 0:
-                logging.debug('epoch:{}\tloss:{}'.format(i,loss.item()))
-        #TODO yi hou zhao ni suan zhang
+    def train(self, epoch1=1000, epoch2=30000):
+        self.ani_model.train(epoch1)
+        self.model.train(epoch2)
         tmp = self.model.kern.variance.detach().numpy()
         self.K0 = np.log(1 + np.exp(tmp))
 
     def get_loss(self,images):
-        batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider) \
-            for atoms in images])
-        predict_energy, std = self.model(batch_data)
-        predict_energy = predict_energy.view(-1)
-        predict_forces = -torch.autograd.grad(
-            predict_energy.sum(),
-            batch_data['positions'],
-            create_graph=True,
-            retain_graph=True
-        )[0]
-        predict_stress = torch.autograd.grad(
-            predict_energy.sum(),
-            batch_data['scaling'],
-            create_graph=True,
-            retain_graph=True
-        )[0][:, [0, 1, 2, 1, 0, 0], [0, 1, 2, 2, 2, 1]] / batch_data['volume']
-        predict_energy = predict_energy.detach().numpy()
-        predict_forces = predict_forces.detach().numpy()
-        predict_stress = predict_stress.detach().numpy()
+        batch_data = convert_frames(images, self.environment_provider)
+        predict_energy = self.model.get_energies(batch_data).detach().numpy()
+        predict_forces = self.model.get_forces(batch_data).detach().numpy()
+        predict_stress = self.model.get_stresses(batch_data).detach().numpy()
         target_energy = batch_data['energy'].numpy()
         target_forces = batch_data['forces'].numpy()
         target_stress = batch_data['stress'].numpy()
@@ -731,11 +691,11 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
         mae_stress = np.mean(np.abs(predict_stress - target_stress))
         r2_stress = 1 - np.sum((predict_stress - target_stress)**2) / \
             np.sum((target_stress - np.mean(target_stress))**2)
-
         return mae_energies, r2_energies, mae_forces, r2_forces, mae_stress, r2_stress
 
     def updatedataset(self,images):
-        self.model.dataset.update_dataset(images)
+        self.model.update_dataset(images)
+        self.ani_model.update_dataset(images)
 
     def relax(self,calcPop):
         calcs = [self.get_calculator()]
@@ -746,24 +706,22 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
         return super().scf(calcPop,calcs)
 
     def predict_energy(self, atoms, eval_std=False):
-        batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
-        E, E_std = self.model(batch_data)
+        batch_data = convert_frames([atoms], self.environment_provider)
+        E, E_std = self.model.get_energies(batch_data, True)
         E, E_std = E.item(), E_std.item()
         if eval_std:
             return E, E_std
         else:
             return E
 
-    def predict_forces(self, atoms, eval_with_energy_std=False):
-        batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
-        E, E_std = self.model(batch_data)
-        F = -torch.autograd.grad(E,batch_data['positions'])[0]
+    def predict_forces(self, atoms):
+        batch_data = convert_frames([atoms], self.environment_provider)
+        F = self.model.get_forces(batch_data)
         return F.squeeze().detach().numpy()
 
     def predict_stress(self, atoms, eval_with_energy_std=False):
-        batch_data = _collate_aseatoms([get_dict(atoms, self.environment_provider)])
-        E, E_std = self.model(batch_data)
-        S = torch.autograd.grad(E,batch_data['scaling'])[0][:, [0, 1, 2, 1, 0, 0], [0, 1, 2, 2, 2, 1]] / batch_data['volume']
+        batch_data = convert_frames([atoms], self.environment_provider)
+        S = self.model.get_stresses(batch_data)
         return S.squeeze().detach().numpy()
 
     def get_calculator(self, kappa=0):
