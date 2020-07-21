@@ -164,7 +164,7 @@ class torch_gpr_calculator(Calculator):
             self.results['stress'] = S
 
 class bayeslr_calculator(Calculator):
-    implemented_properties = ['energy', 'forces']
+    implemented_properties = ['energy', 'forces', 'stress']
     default_parameters = {}
 
     def __init__(self, bayeslr, kappa=None, **kwargs):
@@ -172,7 +172,7 @@ class bayeslr_calculator(Calculator):
         self.kappa = kappa
         Calculator.__init__(self, **kwargs)
 
-    def calculate(self, atoms=None, properties=['energy', 'forces'], system_changes=['positions']):
+    def calculate(self, atoms=None, properties=['energy', 'forces', 'stress'], system_changes=['positions']):
         Calculator.calculate(self, atoms, properties, system_changes)
 
         if 'energy' in properties:
@@ -187,7 +187,7 @@ class bayeslr_calculator(Calculator):
             if self.kappa is None:
                 F = self.bayeslr.predict_forces(atoms)
             else:
-                F, Fstd = self.bayeslr.predict_forces(atoms, eval_with_energy_std=True)
+                F, Fstd = self.bayeslr.predict_forces(atoms, eval_std=True)
                 F = F - self.kappa*Fstd
             self.results['forces'] = F
 
@@ -539,7 +539,8 @@ class BayesLRmodel(MachineLearning,ASECalculator):
 
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
-        self.reg.fit(self.X_, self.y,self.w)
+        self.reg.fit(self.X, self.y,self.w)
+        self.K0 = self.reg.predict(self.X, True)[1].mean()**2
 
     def get_data(self,images,implemented_properties = ['energy', 'forces']):
         X,y,w,n=[],[],[],[]
@@ -606,7 +607,7 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
         X = np.ones(len(eFps)+1)
         X[1:] = eFps
-        result = self.reg.predict(X_.reshape(1,-1),eval_std)
+        result = self.reg.predict(X.reshape(1,-1),eval_std)
         if eval_std:
             return result[0][0],result[1][0]
         else:
@@ -617,7 +618,7 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         eFps, fFps, sFps = self.cf.get_all_fingerprints(atoms)
         X = np.zeros([3*len(atoms),len(eFps)+1])
         X[:,1:] = -fFps
-        result = self.reg.predict(X_,eval_std)
+        result = self.reg.predict(X,eval_std)
         if eval_std:
             return result[0].reshape((len(atoms),3)),result[1].reshape((len(atoms),3))
         else:
@@ -629,7 +630,7 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         X = np.zeros([6,len(eFps)+1])
         X[:,1:] = np.sum(sFps, axis=0)
 
-        result = self.reg.predict(X_,eval_std)
+        result = self.reg.predict(X,eval_std)
         if eval_std:
             return result[0].reshape(6),result[1].reshape(6)
         else:
