@@ -664,15 +664,18 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
 
         rdf = BehlerG1(n_radius, cut_fn)
         representation = CombinationRepresentation(rdf)
-        self.ani_model = ANI(representation)
-        kern = RBF()
-        self.model = GPR(representation, kern)
+        self.ani_model = ANI(representation, self.environment_provider)
+        kern = RBF(representation.dimension)
+        self.model = GPR(representation, kern, self.environment_provider)
 
     def train(self, epoch1=1000, epoch2=30000):
         self.ani_model.train(epoch1)
+        self.model.recompute_X_array()
         self.model.train(epoch2)
-        tmp = self.model.kern.variance.detach().numpy()
-        self.K0 = np.log(1 + np.exp(tmp))
+        tmp = self.model.kern.variance.get().detach().numpy()
+        self.K0 = tmp
+        torch.save(self.ani_model.state_dict(), 'parameter-ani.pkl')
+        torch.save(self.model.state_dict(), 'parameter-gpr.pkl')
 
     def get_loss(self,images):
         batch_data = convert_frames(images, self.environment_provider)

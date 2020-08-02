@@ -11,6 +11,7 @@ from .machinelearning import LRmodel
 from .parameters import magusParameters
 from .writeresults import write_results
 from .offspring_creator import RattleMutation,PopGenerator
+import torch
 """
 Pop:class,poplulation
 pop:list,a list of atoms
@@ -32,7 +33,7 @@ class Magus:
         self.bestlen = []
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
-        self.kappa = 2
+        self.kappa = 5
         self.dualpoint = True
         self.min_certainty = 0.7
 
@@ -79,9 +80,9 @@ class Magus:
         initPop.save()
 
         if self.parameters.useml:
-            self.ML.updatedataset(initPop.all_frames)
+            self.ML.updatedataset(initPop.frames)
             self.ML.train(epoch1=1000, epoch2=30000)
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.all_frames)[:4]))
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
             #logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
@@ -124,6 +125,8 @@ class Magus:
 
         #######  relax  #######
         kappa = self.kappa
+        # debug
+        torch.save(self.ML.model.state_dict(), 'parameter-new.pkl')
         relaxpop = self.ML.relax(initPop.frames)
         relaxpop.extend(self.ML.relax(self.curPop.frames))
         relaxpop = self.remove_rabbish(relaxpop)
@@ -155,7 +158,7 @@ class Magus:
         self.ML.updatedataset(a_add)
         self.ML.train(epoch1=50, epoch2=1000)
         logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
-            format(*self.ML.get_loss(self.curPop.all_frames)[:4]))
+            format(*self.ML.get_loss(self.curPop.frames)[:4]))
         logging.info("Energy of population:\n")
         for ind in self.curPop:
             logging.info("{strFrml} energy: {energy}, spg: {spg}"\
