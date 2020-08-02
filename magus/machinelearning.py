@@ -19,7 +19,7 @@ try:
     from ani.cutoff import CosineCutoff
     from ani.model import ANI, GPR
     from ani.dataloader import AtomsData, convert_frames
-    from ani.symmetry_functions import BehlerG1, CombinationRepresentation
+    from ani.symmetry_functions import BehlerG1, Zernike, CombinationRepresentation
     from torch.utils.data import DataLoader
     import torch
 except:
@@ -644,7 +644,9 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False,'cutoff': 5.0,'n_radius':30,'n_angular':0}
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False,
+        'cutoff': 5.0,'n_radius':30,'n_angular':0,'n_max':8,'l_max':8,'diag':False,
+        'n_cut':2}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
@@ -659,22 +661,28 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
         cutoff = self.p.cutoff
         n_radius = self.p.n_radius
         n_angular = self.p.n_angular
+        n_max = self.p.n_max
+        l_max = self.p.l_max
+        diag = self.p.diag
         self.environment_provider = ASEEnvironment(cutoff)
         cut_fn = CosineCutoff(cutoff)
 
-        rdf = BehlerG1(n_radius, cut_fn)
-        representation = CombinationRepresentation(rdf)
-        self.ani_model = ANI(representation, self.environment_provider)
-        kern = RBF(representation.dimension)
+        elements = tuple(set([atomic_numbers[element] for element in self.symbols]))
+        # rdf = BehlerG1(n_radius, cut_fn)
+        zer = Zernike(elements,n_max,l_max,diag,cutoff,n_cut)
+        representation = CombinationRepresentation(zer)
+        # self.ani_model = ANI(representation, self.environment_provider)
+        # kern = RBF(representation.dimension)
+        keran = RBF()
         self.model = GPR(representation, kern, self.environment_provider)
 
     def train(self, epoch1=1000, epoch2=30000):
-        self.ani_model.train(epoch1)
-        self.model.recompute_X_array()
+        # self.ani_model.train(epoch1)
+        # self.model.recompute_X_array()
         self.model.train(epoch2)
         tmp = self.model.kern.variance.get().detach().numpy()
         self.K0 = tmp
-        torch.save(self.ani_model.state_dict(), 'parameter-ani.pkl')
+        # torch.save(self.ani_model.state_dict(), 'parameter-ani.pkl')
         torch.save(self.model.state_dict(), 'parameter-gpr.pkl')
 
     def get_loss(self,images):

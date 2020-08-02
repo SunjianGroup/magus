@@ -81,7 +81,7 @@ class Magus:
 
         if self.parameters.useml:
             self.ML.updatedataset(initPop.frames)
-            self.ML.train(epoch1=1000, epoch2=30000)
+            self.ML.train(epoch1=1000, epoch2=500)
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
@@ -156,7 +156,7 @@ class Magus:
             .format(anew.info['energy'],anew.info['predictE'],anew.info['stdE']))
 
         self.ML.updatedataset(a_add)
-        self.ML.train(epoch1=50, epoch2=1000)
+        self.ML.train(epoch1=50, epoch2=10)
         logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
             format(*self.ML.get_loss(self.curPop.frames)[:4]))
         logging.info("Energy of population:\n")
