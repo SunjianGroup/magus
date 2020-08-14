@@ -22,6 +22,7 @@ try:
     from ani.symmetry_functions import BehlerG1, Zernike, CombinationRepresentation
     from torch.utils.data import DataLoader
     import torch
+    from ani.prior import *
 except:
     pass
 class MachineLearning:
@@ -664,17 +665,19 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
         n_max = self.p.n_max
         l_max = self.p.l_max
         diag = self.p.diag
+        n_cut = self.p.n_cut
         self.environment_provider = ASEEnvironment(cutoff)
         cut_fn = CosineCutoff(cutoff)
 
-        elements = tuple(set([atomic_numbers[element] for element in self.symbols]))
+        elements = tuple(set([atomic_numbers[element] for element in parameters.symbols]))
         # rdf = BehlerG1(n_radius, cut_fn)
         zer = Zernike(elements,n_max,l_max,diag,cutoff,n_cut)
         representation = CombinationRepresentation(zer)
         # self.ani_model = ANI(representation, self.environment_provider)
-        # kern = RBF(representation.dimension)
-        keran = RBF()
-        self.model = GPR(representation, kern, self.environment_provider)
+        kern = RBF(representation.dimension)
+        # kern = RBF()
+        prior = RepulsivePrior(r_max=cutoff)
+        self.model = GPR(representation, kern, self.environment_provider, prior)
 
     def train(self, epoch1=1000, epoch2=30000):
         # self.ani_model.train(epoch1)
@@ -706,7 +709,7 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
 
     def updatedataset(self,images):
         self.model.update_dataset(images)
-        self.ani_model.update_dataset(images)
+        # self.ani_model.update_dataset(images)
 
     def relax(self,calcPop):
         calcs = [self.get_calculator()]

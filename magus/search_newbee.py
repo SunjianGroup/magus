@@ -81,7 +81,7 @@ class Magus:
 
         if self.parameters.useml:
             self.ML.updatedataset(initPop.frames)
-            self.ML.train(epoch1=1000, epoch2=500)
+            self.ML.train(epoch1=1000, epoch2=50000)
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
@@ -156,7 +156,7 @@ class Magus:
             .format(anew.info['energy'],anew.info['predictE'],anew.info['stdE']))
 
         self.ML.updatedataset(a_add)
-        self.ML.train(epoch1=50, epoch2=10)
+        self.ML.train(epoch1=50, epoch2=5000)
         logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
             format(*self.ML.get_loss(self.curPop.frames)[:4]))
         logging.info("Energy of population:\n")
@@ -233,7 +233,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
 args = parser.parse_args()
 if args.debug:
-    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(asctime)s  %(message)s",datefmt='%H:%M:%S')
     logging.info('Debug mode')
 else:
     logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
