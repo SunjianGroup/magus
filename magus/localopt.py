@@ -71,20 +71,26 @@ class ASECalculator(Calculator):
         checkParameters(self.p,parameters,Requirement,Default)
         assert len(self.p.epsArr) == self.p.calcNum
         assert len(self.p.stepArr) == self.p.calcNum
+        self.p.numParallel = mp.cpu_count()
 
+    def scf(self, calcPop, calcs):
         if self.p.mode == 'serial':
-            self.scf = self.scf_serial
-            self.relax = self.relax_serial
+            return self.scf_serial(calcPop, calcs)
         elif self.p.mode == 'parallel':
-            self.p.numParallel = int(mp.cpu_count())
-            self.scf = self.scf_parallel
-            self.relax = self.relax_parallel
+            return self.scf_parallel(calcPop, calcs)
         else:
             raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
 
-    def relax_serial(self, calcPop ,calcs):
+    def relax(self, calcPop, calcs):
+        if self.p.mode == 'serial':
+            return self.relax_serial(calcPop, calcs)
+        elif self.p.mode == 'parallel':
+            return self.relax_parallel(calcPop, calcs)
+        else:
+            raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
+
+    def relax_serial(self, calcPop, calcs, logfile='aserelax.log', trajname='calc.traj'):
         self.cdcalcFold()
-        logfile = 'aserelax.log'
         relaxPop = []
         errorPop = []
         for i, ind in enumerate(calcPop):
@@ -96,16 +102,16 @@ class ASECalculator(Calculator):
                 else:
                     ucf = ind
                 if self.p.optimizer == 'cg':
-                    gopt = SciPyFminCG(ucf, logfile=logfile,trajectory='calc.traj')
+                    gopt = SciPyFminCG(ucf, logfile=logfile,trajectory=trajname)
                 elif self.p.optimizer == 'bfgs':
-                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory='calc.traj')
+                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory=trajname)
                 elif self.p.optimizer == 'lbfgs':
-                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory='calc.traj')
+                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory=trajname)
                 elif self.p.optimizer == 'fire':
-                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep,trajectory='calc.traj')
+                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep,trajectory=trajname)
                 try:
                     label = gopt.run(fmax=self.p.epsArr[j], steps=self.p.stepArr[j])
-                    traj = ase.io.read('calc.traj',':')
+                    traj = ase.io.read(trajname,':')
                     # save relax steps
                     logging.debug('{} relax steps: {}'.format(self.__class__.__name__,len(traj)))
                 except Converged:
@@ -196,7 +202,7 @@ class ASECalculator(Calculator):
             runArray.append(tmpList)
 
         pool = mp.Pool(numParallel)
-        results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs)) \
+        results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs, 'ase{}.log'.format(i), 'calc{}.traj'.format(i))) \
             for i in range(numParallel)]
         scfPop = [ind for p in results for ind in p.get()]
         os.chdir(self.p.workDir)
