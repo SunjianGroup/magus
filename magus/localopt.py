@@ -30,6 +30,7 @@ from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from .queue import JobManager
+import multiprocessing as mp
 # from .runvasp import calc_vasp
 # from .rungulp import calc_gulp
 
@@ -50,6 +51,12 @@ class Calculator:
         Default = {'pressure':0}
         checkParameters(self.p,parameters,Requirement,Default)
 
+    def cdcalcFold(self):
+        os.chdir(self.p.workDir)
+        if not os.path.exists('calcFold'):
+            shutil.copytree('inputFold', 'calcFold')
+        os.chdir('calcFold')
+
     def relax(self,calcPop):
         pass
 
@@ -60,17 +67,23 @@ class ASECalculator(Calculator):
     def __init__(self,parameters):
         super().__init__(parameters)
         Requirement = ['epsArr','stepArr','calcNum']
-        Default = {'optimizer':'bfgs','maxRelaxStep':0.1,'relaxLattice':True}
+        Default = {'optimizer':'bfgs','maxRelaxStep':0.1,'relaxLattice':True,'mode':'serial'}
         checkParameters(self.p,parameters,Requirement,Default)
         assert len(self.p.epsArr) == self.p.calcNum
         assert len(self.p.stepArr) == self.p.calcNum
 
-    def relax(self, calcPop ,calcs):
-        os.chdir(self.p.workDir)
-        if not os.path.exists('calcFold'):
-            # os.mkdir('calcFold')
-            shutil.copytree("{}/inputFold".format(self.p.workDir), "calcFold")
-        os.chdir('calcFold')
+        if self.p.mode == 'serial':
+            self.scf = self.scf_serial
+            self.relax = self.relax_serial
+        elif self.p.mode == 'parallel':
+            self.p.numParallel = int(mp.cpu_count())
+            self.scf = self.scf_parallel
+            self.relax = self.relax_parallel
+        else:
+            raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
+
+    def relax_serial(self, calcPop ,calcs):
+        self.cdcalcFold()
         logfile = 'aserelax.log'
         relaxPop = []
         errorPop = []
@@ -124,13 +137,8 @@ class ASECalculator(Calculator):
         os.chdir(self.p.workDir)
         return relaxPop
 
-    def scf(self, calcPop, calcs):
-        os.chdir(self.p.workDir)
-        if not os.path.exists('calcFold'):
-            # os.mkdir('calcFold')
-            shutil.copytree("{}/inputFold".format(self.p.workDir), "calcFold")
-        os.chdir('calcFold')
-
+    def scf_serial(self, calcPop, calcs):
+        self.cdcalcFold()
         scfPop = []
         for ind in calcPop:
             atoms=copy.deepcopy(ind)
@@ -151,6 +159,49 @@ class ASECalculator(Calculator):
                 pass
         os.chdir(self.p.workDir)
         return scfPop
+
+    def scf_parallel(self, calcPop, calcs):
+        self.cdcalcFold()
+        numParallel = self.p.numParallel
+        popLen = len(calcPop)
+        eachLen = popLen//numParallel
+        remainder = popLen%numParallel
+
+        runArray = []
+        for i in range(numParallel):
+            tmpList = [ i + numParallel*j for j in range(eachLen)]
+            if i < remainder:
+                tmpList.append(numParallel*eachLen + i)
+            runArray.append(tmpList)
+
+        pool = mp.Pool(numParallel)
+        results = [pool.apply_async(self.scf_serial, args=([calcPop[j] for j in runArray[i]], calcs)) \
+            for i in range(numParallel)]
+        scfPop = [ind for p in results for ind in p.get()]
+        os.chdir(self.p.workDir)
+        return scfPop
+
+    def relax_parallel(self, calcPop, calcs):
+        self.cdcalcFold()
+        numParallel = self.p.numParallel
+        popLen = len(calcPop)
+        eachLen = popLen//numParallel
+        remainder = popLen%numParallel
+
+        runArray = []
+        for i in range(numParallel):
+            tmpList = [ i + numParallel*j for j in range(eachLen)]
+            if i < remainder:
+                tmpList.append(numParallel*eachLen + i)
+            runArray.append(tmpList)
+
+        pool = mp.Pool(numParallel)
+        results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs)) \
+            for i in range(numParallel)]
+        scfPop = [ind for p in results for ind in p.get()]
+        os.chdir(self.p.workDir)
+        return scfPop
+
 
 class LJCalculator(ASECalculator):
     def __init__(self,parameters):
