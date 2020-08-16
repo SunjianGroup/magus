@@ -641,7 +641,7 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         return bayeslr_calculator(self, kappa)
 
 
-class pytorchGPRmodel(MachineLearning,ASECalculator):
+class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement = ['mlDir']
