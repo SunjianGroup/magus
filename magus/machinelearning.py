@@ -722,7 +722,7 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
     def predict_energy(self, atoms, eval_std=False):
         batch_data = convert_frames([atoms], self.environment_provider)
         E, E_std = self.model.get_energies(batch_data, True)
-        E, E_std = E.item(), E_std.item()
+        E, E_std = E.detach().item(), E_std.detach().item()
         if eval_std:
             return E, E_std
         else:
@@ -740,3 +740,20 @@ class pytorchGPRmodel(MachineLearning,ASECalculator):
 
     def get_calculator(self, kappa=0):
         return torch_gpr_calculator(self, kappa)
+
+    def save_model(self, filename):
+        torch.save(self.model.state_dict(), '{}/{}.pt'.format(self.p.mlDir, filename))
+        L, V = self.model.L.numpy(), self.model.V.numpy()
+        mean, std = self.model.mean.numpy(), self.model.std.numpy()
+        X_array = self.model.X_array.numpy()
+        np.savez('{}/{}.npz'.format(self.p.mlDir, filename),L=L,V=V,mean=mean,std=std,X_array=X_array)
+    
+    def load_model(self, filename):
+        state_dict = torch.load('{}/{}.pt'.format(self.p.mlDir, filename))
+        d = np.load('{}/{}.npz'.format(self.p.mlDir, filename))
+        self.model.load_state_dict(state_dict)
+        self.model.L = torch.tensor(d['L'])
+        self.model.V = torch.tensor(d['V'])
+        self.model.mean = torch.tensor(d['mean'])
+        self.model.std = torch.tensor(d['std'])
+        self.model.X_array = torch.tensor(d['X_array'])
