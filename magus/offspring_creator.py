@@ -93,6 +93,7 @@ class Crossover(OffspringCreator):
             logging.debug('fail {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
             return None
 
+        logging.debug('success {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
         # remove some parent infomation
         rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull']
         for k in rmkeys:
@@ -576,7 +577,8 @@ class PopGenerator:
             if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(Pop,num)
                 for i,ind in enumerate(mutate_inds):
-                    if self.p.molDetector != 0 and not hasattr(newind, 'molCryst'):
+                    #if self.p.molDetector != 0 and not hasattr(newind, 'molCryst'):
+                    if self.p.molDetector != 0 and not hasattr(ind, 'molCryst'):
                         ind.to_mol()
                     newind = op.get_new_individual(ind, chkMol=self.p.chkMol)
                     if newind:

@@ -538,9 +538,13 @@ class Individual:
             else:
                 self.atoms = None
                 return False
-        self.atoms = repatoms
-        self.sort()
-        return True
+        if len(repatoms) > 0:
+            self.atoms = repatoms
+            self.sort()
+            return True
+        else:
+            self.atoms = None
+            return False
 
     def to_mol(self):
         """
