@@ -166,7 +166,7 @@ class magusParameters:
                 self.parameters.formNum,
                 self.parameters.ratNum,
                 ]
-            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle]
+            oplist = [cutandsplice,lattice,perm,ripple,slip,rot,soft,form,rattle]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"
