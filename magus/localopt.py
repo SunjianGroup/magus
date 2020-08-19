@@ -34,8 +34,8 @@ import multiprocessing as mp
 # from .runvasp import calc_vasp
 # from .rungulp import calc_gulp
 
-__all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
-    'EMTCalculator','GULPCalculator','LammpsCalculator','QUIPCalculator','ASECalculator']
+#__all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
+#    'EMTCalculator','GULPCalculator','LammpsCalculator','QUIPCalculator','ASECalculator']
 class RelaxVasp(Vasp):
     """
     Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
@@ -695,6 +695,7 @@ class MLCalculator_tmp(ABinitCalculator):
             'epsArr': self.p.epsArr,
             'stepArr': self.p.stepArr,
             'relaxLattice': self.p.relaxLattice,
+            'optimizer': self.p.optimizer,
         }
 
         with open('MLSetup.yaml', 'w') as setupF:
@@ -713,7 +714,7 @@ class MLCalculator_tmp(ABinitCalculator):
 
     def relaxjob(self,index):
         calcDic = {
-            'calcNum': 0,
+            'calcNum': self.p.calcNum,
             'pressure': self.p.pressure,
             'workDir': self.p.workDir,
             'maxRelaxStep': self.p.maxRelaxStep,
@@ -722,6 +723,7 @@ class MLCalculator_tmp(ABinitCalculator):
             'epsArr': self.p.epsArr,
             'stepArr': self.p.stepArr,
             'relaxLattice': self.p.relaxLattice,
+            'optimizer': self.p.optimizer,
         }
         with open('MLSetup.yaml', 'w') as setupF:
             setupF.write(yaml.dump(calcDic))

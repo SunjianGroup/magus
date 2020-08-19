@@ -10,8 +10,12 @@ from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from .utils import *
 from ase.units import GPa, eV, Ang
+import copy
+
 
 if  __name__ == "__main__":
+    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(asctime)s  %(message)s",datefmt='%H:%M:%S')
+
     calcDic = yaml.load(open(sys.argv[1]))
     calcNum = calcDic['calcNum']
     pressure = calcDic['pressure']
@@ -22,20 +26,22 @@ if  __name__ == "__main__":
     epsArr = calcDic['epsArr'] 
     stepArr = calcDic['stepArr'] 
     relaxLattice = calcDic['relaxLattice'] 
-
-    initPop = ase.io.read('initPop.traj', index=':', format='traj')
+    optimizer = calcDic['optimizer']
+    calcPop = ase.io.read('initPop.traj', index=':', format='traj')
+    logging.info('read initPop')
 
     p = magusParameters('{}/input.yaml'.format(workDir))
     mlc = p.get_MLCalculator()
-    mlc.load_model('{}/mlFold/para')
+    mlc.p.mlDir = '{}/mlFold'.format(workDir)
+    mlc.load_model('para')
+    logging.info('load model')
     calc = mlc.get_calculator()
-    optPop = []
-    for n, ind in enumerate(calcPop):
-        if calcNum == 0:
+    if calcNum == 0:
+        for n, ind in enumerate(calcPop):
             scfPop = []
             for ind in calcPop:
                 atoms=copy.deepcopy(ind)
-                atoms.set_calculator(calcs[0])
+                atoms.set_calculator(calc)
                 try:
                     atoms.info['energy'] = atoms.get_potential_energy()
                     atoms.info['forces'] = atoms.get_forces()
@@ -50,52 +56,53 @@ if  __name__ == "__main__":
                     logging.debug('{} scf steps: 0'.format(self.__class__.__name__))
                 except:
                     pass
-        else:
-            relaxPop = []
-            errorPop = []
-            for i, ind in enumerate(calcPop):
-                for j in range(len(calcNum)):
-                    ind.set_calculator(calc)
-                    logging.debug("Structure {} Step {}".format(i, j))
-                    if relaxLattice:
-                        ucf = ExpCellFilter(ind, scalar_pressure=pressure*GPa)
-                    else:
-                        ucf = ind
-                    if optimizer == 'cg':
-                        gopt = SciPyFminCG(ucf, logfile=logfile,trajectory=trajname)
-                    elif optimizer == 'bfgs':
-                        gopt = BFGS(ucf, logfile=logfile, maxstep=maxRelaxStep,trajectory=trajname)
-                    elif optimizer == 'lbfgs':
-                        gopt = LBFGS(ucf, logfile=logfile, maxstep=maxRelaxStep,trajectory=trajname)
-                    elif optimizer == 'fire':
-                        gopt = FIRE(ucf, logfile=logfile, maxmove=maxRelaxStep,trajectory=trajname)
-                    try:
-                        label = gopt.run(fmax=epsArr[j], steps=stepArr[j])
-                        traj = ase.io.read(trajname,':')
-                        # save relax steps
-                        logging.debug('{} relax steps: {}'.format(self.__class__.__name__,len(traj)))
-                    except Converged:
-                        pass
-                    except TimeoutError:
-                        errorPop.append(ind)
-                        logging.warning("Calculator:{} relax Timeout".format(self.__class__.__name__))
-                        continue
-                    except:
-                        errorPop.append(ind)
-                        logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
-                        logging.warning("Calculator:{} relax fail".format(self.__class__.__name__))
-                        continue
-
+        write_traj('optPop.traj', scfPop)
+    else:
+        relaxPop = []
+        errorPop = []
+        for i, ind in enumerate(calcPop):
+            for j in range(calcNum):
+                ind.set_calculator(calc)
+                logging.debug("Structure {} Step {}".format(i, j))
+                if relaxLattice:
+                    ucf = ExpCellFilter(ind, scalar_pressure=pressure*GPa)
                 else:
-                    ind.info['energy'] = ind.get_potential_energy()
-                    ind.info['forces'] = ind.get_forces()
-                    try:
-                        ind.info['stress'] = ind.get_stress()
-                    except:
-                        pass
-                    enthalpy = (ind.info['energy'] + pressure * ind.get_volume() * GPa)/len(ind)
-                    ind.info['enthalpy'] = round(enthalpy, 3)
-                    ind.wrap()
-                    ind.set_calculator(None)
-                    relaxPop.append(ind)
-    write_traj('optPop.traj', optPop)
+                    ucf = ind
+                if optimizer == 'cg':
+                    gopt = SciPyFminCG(ucf, logfile=logfile,trajectory=trajname)
+                elif optimizer == 'bfgs':
+                    gopt = BFGS(ucf, logfile=logfile, maxstep=maxRelaxStep,trajectory=trajname)
+                elif optimizer == 'lbfgs':
+                    gopt = LBFGS(ucf, logfile=logfile, maxstep=maxRelaxStep,trajectory=trajname)
+                elif optimizer == 'fire':
+                    gopt = FIRE(ucf, logfile=logfile, maxmove=maxRelaxStep,trajectory=trajname)
+                try:
+                    label = gopt.run(fmax=epsArr[j], steps=stepArr[j])
+                    traj = ase.io.read(trajname,':')
+                    # save relax steps
+                    logging.debug('{} relax steps: {}'.format(mlc.__class__.__name__,len(traj)))
+                except Converged:
+                    pass
+                except TimeoutError:
+                    errorPop.append(ind)
+                    logging.warning("Calculator:{} relax Timeout".format(mlc.__class__.__name__))
+                    continue
+                except:
+                    errorPop.append(ind)
+                    logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                    logging.warning("Calculator:{} relax fail".format(mlc.__class__.__name__))
+                    continue
+
+            else:
+                ind.info['energy'] = ind.get_potential_energy()
+                ind.info['forces'] = ind.get_forces()
+                try:
+                    ind.info['stress'] = ind.get_stress()
+                except:
+                    pass
+                enthalpy = (ind.info['energy'] + pressure * ind.get_volume() * GPa)/len(ind)
+                ind.info['enthalpy'] = round(enthalpy, 3)
+                ind.wrap()
+                ind.set_calculator(None)
+                relaxPop.append(ind)
+        write_traj('optPop.traj', relaxPop)

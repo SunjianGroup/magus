@@ -43,7 +43,7 @@ from .descriptor import ZernikeFp,GofeeFp
 from sklearn.linear_model import LinearRegression, Lasso, BayesianRidge
 from sklearn.metrics import mean_absolute_error
 from ase.calculators.calculator import Calculator, all_changes
-from .localopt import ASECalculator
+from .localopt import ASECalculator, MLCalculator_tmp
 class LRCalculator(Calculator):
     implemented_properties = ['energy', 'forces', 'stress']
     nolabel = True
@@ -647,14 +647,14 @@ class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
         Requirement = ['mlDir']
         Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False,
         'cutoff': 5.0,'n_radius':30,'n_angular':0,'n_max':8,'l_max':8,'diag':False,
-        'n_cut':2}
+        'n_cut':2,'prior':None}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
         for key, val in parameters.MLCalculator.items():
             setattr(p, key, val)
         p.workDir = parameters.workDir
-        ASECalculator.__init__(self,p)
+        MLCalculator_tmp.__init__(self,p)
 
         if not os.path.exists(self.p.mlDir):
             os.mkdir(self.p.mlDir)
@@ -675,8 +675,10 @@ class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
         representation = CombinationRepresentation(zer)
         # self.ani_model = ANI(representation, self.environment_provider)
         kern = RBF(representation.dimension)
-        # kern = RBF()
-        prior = RepulsivePrior(r_max=cutoff)
+        if self.p.prior is None:
+            prior = None
+        elif self.p.prior == 'repulsive':    
+            prior = RepulsivePrior(r_max=cutoff)
         self.model = GPR(representation, kern, self.environment_provider, prior)
 
     def train(self, epoch1=1000, epoch2=30000):
@@ -685,8 +687,6 @@ class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
         self.model.train(epoch2)
         tmp = self.model.kern.variance.get().detach().numpy()
         self.K0 = tmp
-        # torch.save(self.ani_model.state_dict(), 'parameter-ani.pkl')
-        torch.save(self.model.state_dict(), 'parameter-gpr.pkl')
 
     def get_loss(self,images):
         batch_data = convert_frames(images, self.environment_provider)

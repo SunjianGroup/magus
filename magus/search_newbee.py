@@ -82,6 +82,7 @@ class Magus:
         if self.parameters.useml:
             self.ML.updatedataset(initPop.frames)
             self.ML.train(epoch1=1000, epoch2=50000)
+            self.ML.save_model('para')
             logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
@@ -126,8 +127,9 @@ class Magus:
         #######  relax  #######
         kappa = self.kappa
         # debug
-        torch.save(self.ML.model.state_dict(), 'parameter-new.pkl')
+        logging.info('relax new pop')
         relaxpop = self.ML.relax(initPop.frames)
+        logging.info('recalculate current pop')
         relaxpop.extend(self.ML.relax(self.curPop.frames))
         relaxpop = self.remove_rabbish(relaxpop)
 
@@ -157,6 +159,7 @@ class Magus:
 
         self.ML.updatedataset(a_add)
         self.ML.train(epoch1=50, epoch2=5000)
+        self.ML.save_model('para')
         logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
             format(*self.ML.get_loss(self.curPop.frames)[:4]))
         logging.info("Energy of population:\n")
