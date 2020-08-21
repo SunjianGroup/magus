@@ -20,7 +20,7 @@ def quotient_graph(atoms, coefficient=1.1):
     for i in range(len(atoms)):
         G.add_node(i)
 
-    for i, j, S in zip(*neighbor_list('ijS', atoms, cutoffs)):
+    for i, j, S in zip(*neighbor_list('ijS', atoms, cutoffs,max_nbins=10)):
         if i <= j:
             G.add_edge(i,j, vector=S, direction=(i,j))
 

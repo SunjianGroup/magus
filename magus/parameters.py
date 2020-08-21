@@ -10,7 +10,7 @@ from functools import reduce
 import numpy as np
 import copy
 from .localopt import *
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,build_mol_struct
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
 from .machinelearning import LRmodel,GPRmodel,BayesLRmodel
@@ -81,9 +81,11 @@ class magusParameters:
         p.spgs = expandSpg
 
         if p.molMode:
+            from ase import build
             assert hasattr(p,'molFile'), 'Please define molFile'
             assert hasattr(p,'molFormula'), 'Please define molFormula'
-            mols = [ase.io.read("{}/{}".format(p.workDir, f), format='xyz') for f in p.molFile]
+            mols = [build.sort(ase.io.read("{}/{}".format(p.workDir, f), format='xyz')) for f in p.molFile]
+
             for mol in mols:
                 assert not mol.pbc.any(), "Please provide a molecule ranther than a periodic system!"
             molSymbols = set(reduce(lambda x,y: x+y, [ats.get_chemical_symbols() for ats in mols]))
@@ -106,9 +108,15 @@ class magusParameters:
     def get_AtomsGenerator(self):
         if not hasattr(self,'AtomsGenerator'):
             if self.parameters.calcType == 'fix':
-                AtomsGenerator = BaseGenerator(self.parameters)
+                if self.parameters.molMode:
+                    AtomsGenerator = MoleculeGenerator(self.parameters)
+                else:
+                    AtomsGenerator = BaseGenerator(self.parameters)
             elif self.parameters.calcType == 'var':
-                AtomsGenerator = VarGenerator(self.parameters)
+                if self.parameters.molMode:
+                    raise Exception("Ni deng hui , zhe ge hai mei jia ne")
+                else:
+                    AtomsGenerator = VarGenerator(self.parameters)
             else:
                 raise Exception("Undefined calcType '{}'".format(self.parameters.calcType))
             self.AtomsGenerator = AtomsGenerator
@@ -158,7 +166,7 @@ class magusParameters:
                 self.parameters.formNum,
                 self.parameters.ratNum,
                 ]
-            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle]
+            oplist = [cutandsplice,lattice,perm,ripple,slip,rot,soft,form,rattle]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"

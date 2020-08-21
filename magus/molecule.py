@@ -4,6 +4,7 @@ import numpy as np
 from collections import Counter
 from .utils import primitive_atoms2molcryst, primitive_atoms2communities
 from math import cos, sin
+import logging
 
 class Atomset:
     def __init__(self,positions,symbols,tag):
@@ -81,9 +82,16 @@ class Molfilter:
         cop_pos = np.array([mol.position for mol in self.mols])
         return cop_pos
 
-    def set_positions(self, positions, **kwargs):
+    def set_positions(self, positions):
+        #logging.debug(self.tags)
         for i,mol in enumerate(self.mols):
-            indices = np.where(self.tags == mol.tag)
+            indices = np.where(self.tags == mol.tag)[0]
+            #logging.debug("mol pos shape")
+            #logging.debug(mol.tag)
+            #logging.debug(positions[i].shape)
+            #logging.debug(mol.relative_positions.shape)
+            #logging.debug(self.atoms.positions[indices].shape)
+            #logging.debug(indices)
             self.atoms.positions[indices] = positions[i] + mol.relative_positions
             mol.position = positions[i]
 
@@ -99,9 +107,10 @@ class Molfilter:
     def set_cell(self, cell):
         cell = np.array(cell)
         scl_pos = self.get_scaled_positions()
-        new_pos = np.dot(scl_pos, cell)
+        #new_pos = np.dot(scl_pos, cell)
         self.atoms.set_cell(cell)
-        self.set_positions(new_pos)
+        self.set_scaled_positions(scl_pos)
+        #self.set_positions(new_pos)
 
     def get_atomic_numbers(self):
         return np.array([mol.number for mol in self.mols])

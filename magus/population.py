@@ -364,8 +364,8 @@ class Individual:
         X = np.sum(cos_**2)-2*cos_[0]*cos_[1]*cos_[2]
         angles = np.arccos(np.sqrt(X-cos_**2)/sin_)/np.pi*180
 
-        #return (minLen < cellPar).all() and (cellPar < maxLen).all() and (angles>45).all()
-        return (minLen <= cellPar).all() and (cellPar <= maxLen).all()
+        return (minLen <= cellPar).all() and (cellPar <= maxLen).all() and (angles>=30).all()
+        #return (minLen <= cellPar).all() and (cellPar <= maxLen).all()
 
     def check_distance(self,atoms=None):
         """
@@ -449,7 +449,7 @@ class Individual:
         atoms = self.atoms
         tolerance = self.p.dRatio
         cutoffs = [tolerance * covalent_radii[num] for num in atoms.get_atomic_numbers()]
-        nl = neighbor_list("ij", atoms, cutoffs)
+        nl = neighbor_list("ij", atoms, cutoffs,max_nbins=10)
         indices = list(range(len(atoms)))
         exclude = []
 
@@ -538,9 +538,13 @@ class Individual:
             else:
                 self.atoms = None
                 return False
-        self.atoms = repatoms
-        self.sort()
-        return True
+        if len(repatoms) > 0:
+            self.atoms = repatoms
+            self.sort()
+            return True
+        else:
+            self.atoms = None
+            return False
 
     def to_mol(self):
         """
