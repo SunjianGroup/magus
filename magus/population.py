@@ -220,7 +220,12 @@ class Population:
         # self.calc_dominators()
         dominators = np.array([ind.info['dominators'] for ind in self.pop])
         best_i = np.where(dominators == np.min(dominators))[0]
-        return [self.pop[i] for i in best_i]
+        bestInds = [self.pop[i] for i in best_i]
+        # Write generation of bestind
+        for ind in bestInds:
+            ind.info['gen'] = self.gen
+        return  bestInds
+        #return [self.pop[i] for i in best_i]
 
 class Individual:
     def __init__(self,parameters):
