@@ -35,10 +35,9 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
-from .queue import JobManager
+from .queuemanage import JobManager
 import multiprocessing as mp
-# from .runvasp import calc_vasp
-# from .rungulp import calc_gulp
+
 
 #__all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
 #    'EMTCalculator','GULPCalculator','LammpsCalculator','QUIPCalculator','ASECalculator']
@@ -429,7 +428,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
+        f.write("python -m magus.runscripts.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh',jobName)
 
@@ -445,7 +444,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
+        f.write("python -m magus.runscripts.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh',jobName)
 
@@ -500,7 +499,7 @@ class GULPCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.write("python -m magus.runscripts.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)
@@ -523,7 +522,7 @@ class GULPCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.write("python -m magus.runscripts.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)
@@ -578,7 +577,7 @@ class LammpsCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.write("python -m magus.runscripts.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)
@@ -600,7 +599,7 @@ class LammpsCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.write("python -m magus.runscripts.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)
@@ -715,7 +714,7 @@ class MLCalculator_tmp(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runml MLSetup.yaml")
+        f.write("python -m magus.runscripts.runml MLSetup.yaml")
         f.close()
         self.J.bsub('bsub < parallel.sh',jobName)
 
@@ -742,7 +741,7 @@ class MLCalculator_tmp(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runML MLSetup.yaml")
+        f.write("python -m magus.runscripts.runML MLSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)

@@ -39,7 +39,7 @@ class MachineLearning:
         pass
 
 
-from .descriptor import ZernikeFp,GofeeFp
+from .descriptor import ZernikeFp
 from sklearn.linear_model import LinearRegression, Lasso, BayesianRidge
 from sklearn.metrics import mean_absolute_error
 from ase.calculators.calculator import Calculator, all_changes
@@ -339,7 +339,7 @@ class GPRmodel(MachineLearning,ASECalculator):
         self.p = EmptyClass()
         
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False,'cf':'gofee'}
+        Default = {'w_energy':30.0,'w_force':1.0,'w_stress':-1.0,'norm':False,'cf':'zernike'}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
@@ -350,7 +350,7 @@ class GPRmodel(MachineLearning,ASECalculator):
 
         self.X = None
         if self.p.cf == 'gofee':
-            self.cf = GofeeFp(parameters)
+            raise Exception('Shi da bian le, da ren')
         elif self.p.cf == 'zernike':
             self.cf = ZernikeFp(parameters)
         self.dataset = []
@@ -486,7 +486,7 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         self.reg = BayesianRidge()
         
         Requirement = ['mlDir']
-        Default = {'w_energy':30.0,'w_force':-1.0,'w_stress':-1.0,'norm':False,'cf':'gofee'}
+        Default = {'w_energy':30.0,'w_force':-1.0,'w_stress':-1.0,'norm':False,'cf':'zernike'}
         checkParameters(self.p,parameters,Requirement,Default)
 
         train_property = []
@@ -509,7 +509,7 @@ class BayesLRmodel(MachineLearning,ASECalculator):
 
         self.X = None
         if self.p.cf == 'gofee':
-            self.cf = GofeeFp(parameters)
+            raise Exception('Shi da bian le, da ren')
         elif self.p.cf == 'zernike':
             self.cf = ZernikeFp(parameters)
         self.dataset = []

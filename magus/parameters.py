@@ -14,7 +14,7 @@ from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
 from .machinelearning import LRmodel,GPRmodel,BayesLRmodel,pytorchGPRmodel
-from .queue import JobManager
+from .queuemanage import JobManager
 from .population import Population
 #ML module
 #from .machinelearning import LRmodel

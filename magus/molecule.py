@@ -157,30 +157,6 @@ class Molfilter:
         atoms = Atoms(symbols=symbols,positions=positions,pbc=self.atoms.pbc,cell=self.atoms.cell)
         return atoms
 
-# #TODO from ase, need to change
-# def isolate_components(atoms, kcutoff=None):
-#     if kcutoff is None:
-#         intervals = analyze_dimensionality(atoms, method='RDA', merge=False)
-#         m = intervals[0]
-#         if m.b == float("inf"):
-#             kcutoff = m.a + 0.1
-#         else:
-#             kcutoff = (m.a + m.b) / 2
-#     data = {}
-#     components, all_visited, ranks = traverse_graph(atoms, kcutoff)
-
-#     for k, v in all_visited.items():
-#         if v is None:
-#             continue
-#         v = sorted(list(v))
-#         key = tuple(np.unique([c for c, offset in v]))
-#         for c in key:
-#             components[np.where(components == c)] = key[0]
-#             if c in all_visited.keys():
-#                 all_visited[c] = None
-
-#     return components
-
 
 if __name__ == '__main__':
     from magus.population import Individual
