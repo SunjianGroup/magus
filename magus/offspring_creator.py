@@ -3,7 +3,7 @@ Base module for all operators that create offspring.
 steal from ase.ga
 """
 import numpy as np
-import logging
+import logging, copy
 from ase import Atoms
 from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 from ase.neighborlist import NeighborList
@@ -93,6 +93,7 @@ class Crossover(OffspringCreator):
             logging.debug('fail {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
             return None
 
+        logging.debug('success {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
         # remove some parent infomation
         rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull']
         for k in rmkeys:
@@ -162,7 +163,7 @@ class SoftMutation(Mutation):
         atoms.set_calculator(self.calc)
 
         if ind.p.molDetector != 0:
-            atoms = ind.molCryst
+            atoms = copy.deepcopy(ind.molCryst)
         pos = atoms.get_positions()
         mode = self._get_modes(atoms)
         largest_norm = np.max(np.apply_along_axis(np.linalg.norm, 1, mode))
@@ -186,7 +187,8 @@ class PermMutation(Mutation):
         atoms = ind.atoms.copy()
 
         if ind.p.molDetector != 0:
-            atoms = ind.molCryst
+            #atoms = ind.molCryst
+            atoms = copy.deepcopy(ind.molCryst)
 
         maxSwaps = int(fracSwaps*len(atoms))
         if maxSwaps < 2:
@@ -252,7 +254,8 @@ class LatticeMutation(Mutation):
         cellPar[:3] = [length*ratio**(1/3) for length in cellPar[:3]]
 
         if ind.p.molDetector != 0:
-            atoms = ind.molCryst
+            #atoms = ind.molCryst
+            atoms = copy.deepcopy(ind.molCryst)
             atoms.set_cell(cellpar_to_cell(cellPar))
         else:
             atoms.set_cell(cellPar, scale_atoms=True)
@@ -279,7 +282,8 @@ class SlipMutation(Mutation):
         atoms = ind.atoms.copy()
 
         if ind.p.molDetector != 0:
-            atoms = ind.molCryst
+            #atoms = ind.molCryst
+            atoms = copy.deepcopy(ind.molCryst)
 
 
         scl_pos = atoms.get_scaled_positions()
@@ -307,7 +311,8 @@ class RippleMutation(Mutation):
         atoms = ind.atoms.copy()
 
         if ind.p.molDetector != 0:
-            atoms = ind.molCryst
+            #atoms = ind.molCryst
+            atoms = copy.deepcopy(ind.molCryst)
 
         scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
@@ -329,7 +334,8 @@ class RotateMutation(Mutation):
     def mutate(self,ind):
         atoms = ind.atoms.copy()
         # atoms = Molfilter(atoms)
-        atoms = ind.molCryst
+        #atoms = ind.molCryst
+        atoms = copy.deepcopy(ind.molCryst)
         for mol in atoms:
             if len(mol)>1 and np.random.rand() < self.p:
                 phi, theta, psi = np.random.uniform(-1,1,3)*np.pi*2
@@ -444,18 +450,19 @@ class CutAndSplicePairing(Crossover):
         cutAtoms = Atoms(cell=cutCellPar,pbc = True,)
 
         if ind1.p.molDetector != 0:
-            atoms1 = ind1.molCryst
-            atoms2 = ind2.molCryst
+            atoms1 = copy.deepcopy(ind1.molCryst)
+            atoms2 = copy.deepcopy(ind2.molCryst)
             cutAtoms = Molfilter(cutAtoms, ind1.p.molDetector, ind1.p.bondRatio)
 
 
         scaled_positions = []
         cutPos = [0, 0.5+self.cutDisp*np.random.uniform(-0.5, 0.5), 1]
+        axis = np.random.choice([0,1,2])
 
         for n, atoms in enumerate([atoms1, atoms2]):
             spositions = atoms.get_scaled_positions()
             for i,atom in enumerate(atoms):
-                if cutPos[n] <= spositions[i, 2] < cutPos[n+1]:
+                if cutPos[n] <= spositions[i, axis] < cutPos[n+1]:
                     cutAtoms.append(atom)
                     scaled_positions.append(spositions[i])
         if len(scaled_positions) == 0:
@@ -576,8 +583,10 @@ class PopGenerator:
             if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(Pop,num)
                 for i,ind in enumerate(mutate_inds):
-                    if self.p.molDetector != 0 and not hasattr(newind, 'molCryst'):
-                        ind.to_mol()
+                    #if self.p.molDetector != 0 and not hasattr(newind, 'molCryst'):
+                    if self.p.molDetector != 0:
+                        if not hasattr(ind, 'molCryst'):
+                            ind.to_mol()
                     newind = op.get_new_individual(ind, chkMol=self.p.chkMol)
                     if newind:
                         newPop.append(newind)
@@ -676,7 +685,7 @@ if __name__ == '__main__':
     ripple = RippleMutation()
     slip = SlipMutation()
 
-    oplist = [soft,cutandsplice,perm,lattice,ripple,slip]
+    oplist = [soft,cutandsplice,lattice,perm,ripple,slip]
     numlist = [10,10,10,10,10,10]
     popgen = PopGenerator(numlist,oplist,p)
     newpop = popgen.next_pop(pop)

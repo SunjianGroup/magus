@@ -13,10 +13,12 @@
 - ASE
 - spglib
 - pandas
-- networkx
+- networkx（2.1版本）
 - boost
 
-
+### 可选项
+- xtb （当前使用的为6.3版本）
+- gofee （可使用oganov的fingerprint）
 
 
 
@@ -149,8 +151,8 @@
   例：['Ti', 'O'], 外层是方括号，每个元素用引号括起来
 
 - formula: 元素比例
-
-  例： [1, 2]
+  
+  例： [1, 2] (定组分),[[1,0],[0,1]] (变组分)
 
 - fullEles: 若值为`True`,则产生的结构含有'symbols'中所有元素（只在变组分搜索时生效）
 - eleSize: 变组分搜索时，初代每种单质随机产生的结构数
@@ -224,8 +226,16 @@
 ## 计算流程
 计算示例在`examples/`文件夹下。请复制示例到其他目录运行。任务脚本为`job`,`runserial`,`runpara`.
 
+<<<<<<< HEAD
+以 **TiO**$_2$结构搜索为例：
+
+- 运行`csp-prepare`, 产生 `fpFold`, `inputFold`目录以及`summary.py`
+
+- 准备输入文件`input.yaml`（如上所示）和`INCAR_*`(1-5), 把`INCAR_*`放入`inputFold`/
+=======
 进行新的搜索时注意：
 - 运行`csp-prepare`可以产生`inputFold`,`Seeds`目录以及`summary.py`
+>>>>>>> 0e35f48cef38ce45af3183180f8f81ec6f4438f4
 
 - 确认在`~/.bashrc`中已经加载了anaconda模块
 

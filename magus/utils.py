@@ -734,7 +734,7 @@ def check_dist_individual(ind, threshold):
 
     if checkAng and checkVec:
         cutoffs = [rad*threshold for rad in radius]
-        nl = neighbor_list('i', ind, cutoffs)
+        nl = neighbor_list('i', ind, cutoffs,max_nbins=10)
         return len(nl) == 0
     else:
         return False

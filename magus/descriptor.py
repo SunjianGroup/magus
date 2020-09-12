@@ -54,7 +54,7 @@ class ZernikeFp(CalculateFingerprints):
         self.part.totNd=totNd
         self.part.SetNat(Nat)
 
-        nl = neighbor_list('ijdD', atoms, self.cutoff)
+        nl = neighbor_list('ijdD', atoms, self.cutoff,max_nbins=10)
         sortNl = [[] for _ in range(Nat)]
         for i,j,d,D in zip(*nl):                                 #All numbers must be double here
             sortNl[i].extend([i*1.0, j*1.0, d, D[0],D[1],D[2],atoms.numbers[j]])
