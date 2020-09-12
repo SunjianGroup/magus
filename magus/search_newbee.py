@@ -11,6 +11,7 @@ from .machinelearning import LRmodel
 from .parameters import magusParameters
 from .writeresults import write_results
 from .offspring_creator import RattleMutation,PopGenerator
+import torch
 """
 Pop:class,poplulation
 pop:list,a list of atoms
@@ -32,8 +33,9 @@ class Magus:
         self.bestlen = []
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
-        self.kappa = 2
+        self.kappa = 5
         self.dualpoint = True
+        self.min_certainty = 0.7
 
     def run(self):
         self.Initialize()
@@ -78,13 +80,13 @@ class Magus:
         initPop.save()
 
         if self.parameters.useml:
-            self.ML.updatedataset(initPop.all_frames)
-            self.ML.train()
-            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.all_frames)[:4]))
+            self.ML.updatedataset(initPop.frames)
+            self.ML.train(epoch1=1000, epoch2=50000)
+            self.ML.save_model('para')
+            logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(initPop.frames)[:4]))
             #scfpop = self.MainCalculator.scf(relaxPop.frames)
             #scfPop = self.Population(scfpop,'scfpop',self.curgen)
             #logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
-
 
         self.curPop = initPop
 
@@ -124,39 +126,46 @@ class Magus:
 
         #######  relax  #######
         kappa = self.kappa
+        # debug
+        logging.info('relax new pop')
         relaxpop = self.ML.relax(initPop.frames)
+        logging.info('recalculate current pop')
+        relaxpop.extend(self.ML.relax(self.curPop.frames))
+        relaxpop = self.remove_rabbish(relaxpop)
+
         ase.io.write('results/MLrelax{}.traj'.format(self.curgen),relaxpop)
         a_add = []
         for _ in range(3):
             try:
                 anew = self.select_with_acquisition(relaxpop, kappa)
                 anew = self.evaluate(anew)
-                logging.info('xixi')
-                logging.info('lowest: {}'.format(anew.info['energy']))
                 a_add.append(anew)
                 if self.dualpoint:
-                    logging.info('yeah!')
                     adp = self.get_dualpoint(anew)
                     adp = self.evaluate(adp)
-                    logging.info('dual: {}'.format(adp.info['energy']))
                     a_add.append(adp)
                 break
             except Exception as err:
                 kappa /=2
-        
+        ase.io.write('toadd.traj',a_add) 
         # Add structure to population
         index_lowest = np.argmin([a.info['energy'] for a in a_add])
         anew = a_add[index_lowest]
         anew.info['predictE'],anew.info['stdE'] = self.ML.predict_energy(anew,True)
         anew.info['identity'] = len(self.curPop)
-        self.curPop.append(anew)
+        self.add(self.curPop,anew)
         logging.info('new structrue:\n energy:{}\tpredict:{}\tstd:{}'\
             .format(anew.info['energy'],anew.info['predictE'],anew.info['stdE']))
 
         self.ML.updatedataset(a_add)
-        self.ML.train()
+        self.ML.train(epoch1=50, epoch2=5000)
+        self.ML.save_model('para')
         logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".\
-            format(*self.ML.get_loss(self.curPop.all_frames)[:4]))
+            format(*self.ML.get_loss(self.curPop.frames)[:4]))
+        logging.info("Energy of population:\n")
+        for ind in self.curPop:
+            logging.info("{strFrml} energy: {energy}, spg: {spg}"\
+                .format(strFrml=ind.atoms.get_chemical_formula(), **ind.atoms.info))
 
     def get_dualpoint(self, a, lmax=0.10, Fmax_flat=5):
         """Returns dual-point structure, i.e. the original structure
@@ -184,22 +193,50 @@ class Magus:
         candidate.
         """
         a = self.MainCalculator.scf([a])[0]
+        logging.debug('trueE: {}'.format(a.info['energy']))
         return a
 
     def select_with_acquisition(self, structures, kappa):
         acquisition = []
         for atoms in structures:
             preE,stdE = self.ML.predict_energy(atoms,True)
+            logging.debug('preE:{}\tstdE:{}'.format(preE,stdE))
             acquisition.append(preE-kappa*stdE)
-            logging.info('preE:{} stdE:{} ac:{}'.format(preE,stdE,preE-kappa*stdE))
         index_select = np.argmin(acquisition)
         return structures[index_select]
+
+    def add(self,Pop,atoms):
+        E = self.ML.predict_energy(atoms)
+        Pop.append(atoms)
+        logging.debug('len:{}'.format(len(Pop)))
+        Pop.del_duplicate()
+        logging.debug('len:{}'.format(len(Pop)))
+
+        if len(Pop) > self.parameters.popSize:
+            Pop.calc_dominators()
+            Pop.select(self.parameters.popSize)
+            logging.debug('len:{}'.format(len(Pop)))  
+
+    def remove_rabbish(self,pop):
+        newpop = []
+        min_certainty = self.min_certainty
+        for _ in range(5):
+            for atoms in pop:
+                _,certainty = self.ML.predict_energy(atoms,True)
+                certainty /= np.sqrt(self.ML.K0)
+                if certainty < self.min_certainty:
+                    newpop.append(atoms)
+            if len(newpop) > 0:
+                break
+            else:
+                min_certainty = min_certainty + (1-min_certainty)/2
+        return newpop
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
 args = parser.parse_args()
 if args.debug:
-    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(asctime)s  %(message)s",datefmt='%H:%M:%S')
     logging.info('Debug mode')
 else:
     logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")

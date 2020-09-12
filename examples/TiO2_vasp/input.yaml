@@ -6,8 +6,8 @@ numGen: 60
 saveGood: 1
 
 #structure parameters
-minAt: 6
-maxAt: 12
+minAt: 24
+maxAt: 24
 symbols: ['Ti','O']
 formula: [1,2]
 fullEles: True
@@ -22,7 +22,7 @@ addSym: False
 MainCalculator:
  calculator: vasp
  mode: parallel
- calcNum: 4
+ calcNum: 5
  #ase settings
  #epsArr: [0.5]
  #stepArr: [30]
@@ -37,7 +37,7 @@ MainCalculator:
  #exeCmd: gulp < input > output
  
  #parallel settings
- numParallel: 2
+ numParallel: 5
  numCore: 6
  queueName: e52692v2ib!
  #queueName: e5v3ib

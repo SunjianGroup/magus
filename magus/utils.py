@@ -1052,3 +1052,4 @@ def match_lattice(atoms1,atoms2):
     ratio1 = newatoms1.get_volume()/atoms1.get_volume()
     ratio2 = newatoms2.get_volume()/atoms2.get_volume()
     return newatoms1,newatoms2,ratio1,ratio2
+
