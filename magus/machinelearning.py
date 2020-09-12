@@ -525,8 +525,12 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         r2_energies = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
 
         # Evaluate force
-        Ypredict = np.array([self.predict_forces(atoms) for atoms in images])
-        Y = np.array([atoms.info['forces'] for atoms in images])
+        Ypredict, Y = [], []
+        for atoms in images:
+            Ypredict.extend(list(self.predict_forces(atoms).reshape(-1)))
+            Y.extend(list(atoms.info['forces'].reshape(-1)))
+        Ypredict = np.array(Ypredict)
+        Y = np.array(Y)
         mae_forces = np.mean(np.abs(Ypredict-Y))
         r2_forces = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
 
@@ -536,7 +540,7 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         mae_stress = np.mean(np.abs(Ypredict-Y))
         r2_stress = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
 
-        return mae_energies, r2_energies, mae_forces, r2_forces
+        return mae_energies, r2_energies, mae_forces, r2_forces, mae_stress, r2_stress
 
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
