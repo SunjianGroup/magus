@@ -246,11 +246,11 @@ class Magus:
         self.keepPop = keepPop
     
     def update_parameters(self):
-        if self.MainCalculator.p.mode = 'parallel':
+        if self.MainCalculator.p.mode == 'parallel':
             with open('results/allparameters.yaml') as f:
                 d = yaml.load(f)
             if d['MainCalculator']['queueName'] != self.MainCalculator.p.queueName:
-                logging.warning('Be careful, {} is replaced by {}'.format(self.MainCalculator.p.queueName, d['MainCalculator']['queueName']))
+                logging.warning('*****************\nBe careful, {} is replaced by {}\n*****************'.format(self.MainCalculator.p.queueName, d['MainCalculator']['queueName']))
                 self.MainCalculator.p.queueName = d['MainCalculator']['queueName']
 
 

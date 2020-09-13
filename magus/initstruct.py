@@ -16,7 +16,7 @@ class Generator:
         Default={'threshold':1.0,'maxAttempts':50,'method':1,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
-        radius = [covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
+        radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         #radius = [self.p.dRatio*covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
 

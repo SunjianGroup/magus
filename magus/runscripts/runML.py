@@ -2,13 +2,13 @@ import sys, os,shutil,subprocess,logging,traceback
 import yaml
 import ase.io
 from ase.spacegroup import crystal
-from .writeresults import write_traj
-from .parameters import magusParameters
+from magus.writeresults import write_traj
+from magus.parameters import magusParameters
 from ase.constraints import ExpCellFilter
 from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
-from .utils import *
+from magus.utils import *
 from ase.units import GPa, eV, Ang
 import copy
 

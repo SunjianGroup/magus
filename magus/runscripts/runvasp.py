@@ -3,10 +3,10 @@ from ase.calculators.vasp import Vasp
 import ase.io
 import logging
 
-from .writeresults import write_traj
-from .readvasp import *
-from .utils import *
-from .localopt import calc_vasp, RelaxVasp
+from magus.writeresults import write_traj
+from magus.readvasp import *
+from magus.utils import *
+from magus.localopt import calc_vasp, RelaxVasp
 
 
 
