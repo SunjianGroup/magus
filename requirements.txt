@@ -1,0 +1,9 @@
+PyYAML
+--index-url https://pypi.python.org/simple/
+numpy
+ase>=3.19
+networkx==2.1
+scipy
+scikit-learn
+spglib
+pandas

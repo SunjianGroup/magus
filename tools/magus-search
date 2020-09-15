@@ -1,0 +1,18 @@
+#!/usr/bin/env python
+import argparse
+from magus.parameters import magusParameters
+import logging
+from magus.search import Magus
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
+args = parser.parse_args()
+if args.debug:
+    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+    logging.info('Debug mode')
+else:
+    logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
+
+parameters = magusParameters('input.yaml')
+m=Magus(parameters)
+m.run()

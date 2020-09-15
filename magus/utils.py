@@ -25,14 +25,28 @@ except ImportError:
     pass
 
 
-def todict(p):
+def toyaml(p):
     if isinstance(p,EmptyClass):
         d = {}
         for key,value in p.__dict__.items():
-            d[key] = todict(value)
+            d[key] = toyaml(value)
         return d
-    else:
+    if isinstance(p, dict):
+        d = {}
+        for key,value in p.items():
+            d[key] = toyaml(value)
+        return d
+    elif isinstance(p, list):
+        l = []
+        for value in p:
+            l.append(toyaml(value))
+        return l
+    elif isinstance(p, int) or isinstance(p, float) or isinstance(p, bool) or isinstance(p, str) or p is None:
         return p
+    else:
+        return None
+         
+
 class EmptyClass:
     def attach(self,other):
         if not isinstance(other,EmptyClass):
@@ -42,7 +56,7 @@ class EmptyClass:
                 setattr(self,key,value)
 
     def save(self,filename):
-        d = todict(self)
+        d = toyaml(self)
         with open(filename,'w') as f:
             yaml.dump(d,f)
 

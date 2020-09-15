@@ -634,6 +634,7 @@ class VarInd(Individual):
             atoms = atoms.to_atoms()
         atoms.wrap()
         newind.atoms = atoms
+        newind.sort()
         newind.info = {'numOfFormula':1}
         newind.info['fitness'] = {}
         return newind

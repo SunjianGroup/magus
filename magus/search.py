@@ -253,16 +253,16 @@ class Magus:
                 logging.warning('*****************\nBe careful, {} is replaced by {}\n*****************'.format(self.MainCalculator.p.queueName, d['MainCalculator']['queueName']))
                 self.MainCalculator.p.queueName = d['MainCalculator']['queueName']
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
+    args = parser.parse_args()
+    if args.debug:
+        logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+        logging.info('Debug mode')
+    else:
+        logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
-args = parser.parse_args()
-if args.debug:
-    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
-    logging.info('Debug mode')
-else:
-    logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
-
-parameters = magusParameters('input.yaml')
-m=Magus(parameters)
-m.run()
+    parameters = magusParameters('input.yaml')
+    m=Magus(parameters)
+    m.run()

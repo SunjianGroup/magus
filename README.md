@@ -10,7 +10,7 @@
 - Numpy
 - Scipy
 - scikit-learn
-- ASE
+- ASE （>=3.18)
 - spglib
 - pandas
 - networkx（2.1版本）
@@ -18,38 +18,45 @@
 
 ### 可选项
 - xtb （当前使用的为6.3版本）
-- gofee （可使用oganov的fingerprint）
-
-
+- pytorch
 
 
 
 ### 安装过程
 
-#### 注意事项
-2019.9.3 唐楼集群的`anaconda/3`有问题，请用`anaconda/3-5.0.1`。
-
-- 克隆库到本地:
+#### 下载
+  克隆库到本地:
   ```shell
   git clone git@git.nju.edu.cn:gaaooh/magus.git
   ```
   或者下载压缩包。
-  
+
   假设Magus的路径为`/your/path/magus`.
-  
+
   由于项目中包含了子项目，所以第一次使用时要在项目的主目录下(`/your/path/magus`)初始化并更新：
   ```shell
   git submodule init
   git submodule update
   ```
-
-
-- 加载`Anaconda`:
+#### 加载环境
+  加载`Anaconda`:
 
   ```shell
-  module add anaconda/3
+  module add anaconda/3-5.0.1
   ```
-
+- 推荐写入`~/.bashrc`,否则需要在任务脚本中加入anaconda，如`module add anaconda/3-5.0.1`，并将`Preprocessing`也设为`module add anaconda/3-5.0.1`
+- 2020.2019.9.3 唐楼集群的`anaconda/3`有问题，请用`anaconda/3-5.0.1`。
+  
+#### 简易安装
+  ```shell
+  cd /your/path/magus
+  pip install -r requirements.txt
+  pip install . --user
+  ```
+- 若未使用虚拟环境则需加入 `--user` 参数
+- 若希望使用自己安装的conda需要修改setup.py
+- 使用此方法无需再进行 **开发者安装**
+#### 开发者安装
 - 在`~/.bashrc`中设置路径：
 
   ```shell
@@ -57,17 +64,39 @@
   export CSP_TOOLS=/your/path/magus/tools
   export PATH=$PATH:$CSP_TOOLS
   ```
+- 编译库文件
 
-- 设置`ASE`的VASP calculator:
+  - `GenerateNew.so`
+      源文件在在`magus/generatenew`中。编译时需要用python库的头文件。如果使用集群上的`anaconda/3` 模块，编译命令为：
+      ```shell
+      g++ -std=c++11 -I/fs00/software/anaconda/3/include -I/fs00/software/anaconda/3/include/python3.6m -L/fs00/software/anaconda/3/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
+      ```
+      若使用`anaconda/3-5.0.1` 模块，编译命令为：
+      ```shell
+      g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include -I/fs00/software/anaconda/3-5.0.1/include/python3.6m -L/fs00/software/anaconda/3-5.0.1/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
+      ```
+      可以参考子项目的的README文件。
+      编译生成的`GenerateNew.so`需要放在`magus/`目录下。
 
-  建一个`run_vasp.py`:
+  - `lrpot.so`
+      源文件在在`magus/lrpot`中。编译时需要用python库的头文件。
+      若使用`anaconda/3-5.0.1` 模块，编译命令为：
+      ``` shell
+      g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include -I/fs00/software/anaconda/3-5.0.1/include/python3.6m -L/fs00/software/anaconda/3-5.0.1/lib -lboost_python -lboost_numpy -lpython3.6m lrpot.cpp -o lrpot.so -shared -fPIC
+      ```
+      可以参考子项目的的README文件。
+      编译生成的`lrpot.so`需要放在`magus/`目录下。
+
+  
+#### 设置ase的vasp接口
+- 建一个`run_vasp.py`:
 
   ```python
   import subprocess
   exitcode = subprocess.call("mpiexec.hydra /your/path/to/vasp", shell=True)
   ```
 
-  建立`mypps`目录存放vasp赝势，可以用软连接：
+- 建立`mypps`目录存放vasp赝势，可以用软连接：
 
   ```
   mypps/
@@ -94,28 +123,6 @@
 
 **注意：`run_vasp.py`和`mypps`不要放在`magus`目录下**
 
-- 编译库文件
-
-  - `GenerateNew.so`
-      源文件在在`magus/generatenew`中。编译时需要用python库的头文件。如果使用集群上的`anaconda/3` 模块，编译命令为：
-      ```shell
-      g++ -std=c++11 -I/fs00/software/anaconda/3/include -I/fs00/software/anaconda/3/include/python3.6m -L/fs00/software/anaconda/3/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
-      ```
-      若使用`anaconda/3-5.0.1` 模块，编译命令为：
-      ```shell
-      g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include -I/fs00/software/anaconda/3-5.0.1/include/python3.6m -L/fs00/software/anaconda/3-5.0.1/lib -lboost_python -lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
-      ```
-      可以参考子项目的的README文件。
-      编译生成的`GenerateNew.so`需要放在`magus/`目录下。
-
-  - `lrpot.so`
-      源文件在在`magus/lrpot`中。编译时需要用python库的头文件。
-      若使用`anaconda/3-5.0.1` 模块，编译命令为：
-      ``` shell
-      g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include -I/fs00/software/anaconda/3-5.0.1/include/python3.6m -L/fs00/software/anaconda/3-5.0.1/lib -lboost_python -lboost_numpy -lpython3.6m lrpot.cpp -o lrpot.so -shared -fPIC
-      ```
-      可以参考子项目的的README文件。
-      编译生成的`lrpot.so`需要放在`magus/`目录下。
 
 
 
@@ -133,9 +140,6 @@
 - calcType: 计算类型
 
   可用值:  `fix`（定组分）,`var`（变组分）
-
-- setAlgo: 结构搜索算法
-  可用值(大小写均可): `EA`(Evolutionary Algorithm), `BOEA`(Bayesian Optimization)
 
 - spacegroup: 随机结构的空间群
 
@@ -168,7 +172,7 @@
 - MainCalculator 设置了局域优化的参数，以下是MainCalculator下属的参数，需要缩进：
 
     - mode: 运行方式
-  
+    
         可用值: `serial` (串行), `parallel` (并行) 
 
     - calculator: 结构优化程序
@@ -183,19 +187,28 @@
     
         例：['_sv', ''], 与symbols顺序一致，若无后缀则填入''
 
-    - exeCmd: 运行结构优化程序的命令
+    - exeCmd: 运行结构优化程序的命令(gulp, lammps)
+    
     - calcNum: 结构优化次数
+    
     - numParallel: 并行优化结构的数目
+    
     - numCore: 结构优化使用的核数
-    - queueName: 结构优化任务的队列
+    
+    - queueName: 结构优化任务的队列，如中途需要更换队列可进入results/allparameters.yaml中修改
+    
     - jobPrefix: 并行模式下任务脚本名的前缀
+    
+    - verbose: bool log中是否显示详细队列信息
+    
     - waitTime: 检查结构优化任务的时间间隔(s)
+    
+    - Preprocessing: 提交计算脚本时前缀，如未将conda环境加入环境变量需要设置
 
   
 
 #### 部分参数默认值
 - mode: serial
-- setAlgo: ea
 - spacegroup: list(range(1, 231))
 - eleSize: 1
 - fullEles: False
@@ -211,6 +224,8 @@
 
 更多默认参数见`parameters.py`
 
+
+
 ## 输出文件
 输出文件保存在`results`目录下，分为四种：
 - `gen*.traj`: 每代所有结构
@@ -223,24 +238,33 @@
 
 
 
+
+
 ## 计算流程
 计算示例在`examples/`文件夹下。请复制示例到其他目录运行。任务脚本为`job`,`runserial`,`runpara`.
 
-<<<<<<< HEAD
-以 **TiO**$_2$结构搜索为例：
 
-- 运行`csp-prepare`, 产生 `fpFold`, `inputFold`目录以及`summary.py`
+以  **TiO<sub>2</sub>**  结构搜索为例：
 
+- 运行`magus-clean`清除之前搜索留存的文件
+- 运行`magus-prepare`, 产生 `fpFold`, `inputFold`目录以及`summary.py`
 - 准备输入文件`input.yaml`（如上所示）和`INCAR_*`(1-5), 把`INCAR_*`放入`inputFold`/
-=======
+- 提交`magus-search`
+- 使用`magus-summary results/good.traj`进行分析
+
 进行新的搜索时注意：
-- 运行`csp-prepare`可以产生`inputFold`,`Seeds`目录以及`summary.py`
->>>>>>> 0e35f48cef38ce45af3183180f8f81ec6f4438f4
-
+- 运行`magus-prepare`可以产生`inputFold`,`Seeds`目录以及`summary.py`
 - 确认在`~/.bashrc`中已经加载了anaconda模块
-
-- 若不想在`~/.bashrc`中加载anaconda模块，则需要在任务脚本中加入anaconda，如`module add anaconda/3`，并将`jobPrefix`也设为`module add anaconda/3`
-
 - 运行过程中的输出信息保存在`log.txt`中，所有结构信息都保存在`results`目录下
-
 - 用vasp优化时，需要在INCAR文件中设置KSPACING
+
+
+
+
+
+## 常见问题
+- 无缘无故被terminated，可尝试在提交任务时加入：
+  ```
+  export OMP_NUM_THREADS=1
+  export MKL_NUM_THREADS=1
+  ```
