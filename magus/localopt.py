@@ -294,8 +294,8 @@ class ASEGULPCalculator(ASECalculator):
 class ABinitCalculator(Calculator):
     def __init__(self,parameters,prefix):
         super().__init__(parameters)
-        Requirement = ['mode','calcNum']
-        Default = {}
+        Requirement = ['calcNum']
+        Default = {'mode':'parallel'}
         checkParameters(self.p,parameters,Requirement,Default)
         if self.p.mode == 'serial':
             self.scf = self.scf_serial

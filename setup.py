@@ -39,7 +39,7 @@ setup(
     author="Gao Hao, Wang Junjie, Han Yu, DC, Sun Jian",
     email="gaaooh@126.com",
     url="https://git.nju.edu.cn/gaaooh/magus",
-    packages=find_packages('magus'),
+    packages=find_packages(),
     scripts=[
         #"tools/csp-clean","tools/csp-search","tools/csp-prepare","tools/csp-summary",
         "tools/magus-clean","tools/magus-search","tools/magus-prepare","tools/magus-summary",

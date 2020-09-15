@@ -51,7 +51,7 @@
   ```shell
   cd /your/path/magus
   pip install -r requirements.txt
-  pip install . --user
+  pip install . 
   ```
 - 若未使用虚拟环境则需加入 `--user` 参数
 - 若希望使用自己安装的conda需要修改setup.py
