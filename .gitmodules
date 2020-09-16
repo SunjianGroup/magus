@@ -4,3 +4,7 @@
 [submodule "generatenew"]
 	path = generatenew
 	url = git@git.nju.edu.cn:HanYu/generatenew.git
+
+[submodule "moveatom"]
+	path = moveatom
+	url = git@git.nju.edu.cn:HanYu/moveatom.git
