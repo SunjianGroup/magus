@@ -13,7 +13,6 @@ import logging
 from sklearn import cluster
 from .descriptor import ZernikeFp
 import copy
-from .setfitness import set_fit_calcs
 from .molecule import Molfilter
 
 def set_ind(parameters):
@@ -32,7 +31,6 @@ class Population:
         Default={}
         checkParameters(self.p,parameters,Requirement,Default)
         self.Individual = set_ind(parameters)
-        self.fit_calcs = set_fit_calcs(parameters)
 
     def __iter__(self):
         for i in self.pop:
@@ -140,7 +138,7 @@ class Population:
 
     def calc_fitness(self):
         for fit_calc in self.fit_calcs:
-            fit_calc(self)
+            fit_calc.calc(self)
 
     def del_duplicate(self):
         logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))

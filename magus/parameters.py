@@ -16,6 +16,7 @@ from .utils import *
 from .machinelearning import LRmodel,GPRmodel,BayesLRmodel,pytorchGPRmodel
 from .queuemanage import JobManager
 from .population import Population
+from .fitness import fit_dict
 #ML module
 #from .machinelearning import LRmodel
 from .offspring_creator import *
@@ -220,9 +221,22 @@ class magusParameters:
             self.parameters.MainCalculator = self.MainCalculator.p
         return self.MainCalculator
 
+    def get_FitnessCalculator(self):
+        if not hasattr(self,'FitnessCalculator'):
+            self.FitnessCalculator = []
+            if hasattr(self,parameters, 'Fitness'):
+                for fitness in self.parameters.Fitness:
+                    self.FitnessCalculator.append(fit_dict[fitness])
+            elif self.parameters.calcType == 'fix':
+                self.FitnessCalculator.append(fit_dict['Enthalpy'])
+            elif self.parameters.calcType == 'var':
+                self.FitnessCalculator.append(fit_dict['Ehull'])
+        return self.FitnessCalculator
+
     def get_Population(self):
         if not hasattr(self,'Population'):
             self.Population = Population(self.parameters)
+            self.Population.fit_calcs = self.get_FitnessCalculator()
             self.parameters.attach(self.Population.p)
         return self.Population
 
