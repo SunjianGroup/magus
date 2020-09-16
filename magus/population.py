@@ -15,12 +15,15 @@ from .descriptor import ZernikeFp
 import copy
 from .setfitness import set_fit_calcs
 from .molecule import Molfilter
+from ase.constraints import FixAtoms
 
 def set_ind(parameters):
     if parameters.calcType == 'fix':
         return FixInd(parameters)
     if parameters.calcType == 'var':
         return VarInd(parameters)
+    if parameters.calcType == 'rcs':
+        return RcsInd(parameters)
 
 class Population:
     """
@@ -207,6 +210,23 @@ class Population:
     def add_symmetry(self):
         for ind in self.pop:
             ind.add_symmetry()
+
+    '''function in reconstract'''
+    def removebulk_relaxable_vacuum(self):        
+        #removevacuum(self):
+        self.pop = list(map(lambda ind:ind.addvacuum(add=-1), self.pop)) 
+        #removebulklayer(self):
+        self.pop = list(map(lambda ind:ind.removextralayer('bulk'), self.pop))  
+        #removerelaxablelayer(self):
+        self.pop = list(map(lambda ind:ind.removextralayer('relaxable'), self.pop))  
+
+    def addbulk_relaxable_vacuum(self):
+        #addrelaxablelayer(self):
+        self.pop = list(map(lambda ind:ind.addextralayer('relaxable'), self.pop))  
+        #addbulklayer(self):
+        self.pop = list(map(lambda ind:ind.addextralayer('bulk'), self.pop))  
+        #addvacuum(self):
+        self.pop = list(map(lambda ind:ind.addvacuum(add=1), self.pop))  
 
     def select(self,n):
         # self.calc_dominators()
@@ -434,6 +454,8 @@ class Individual:
             logging.debug("Fail in check_distance")
         if not check_mol:
             logging.debug("Fail in check_mol")
+        if not check_formula:
+            logging.debug("Fail in check_formula")
         return check_cellpar and check_distance and check_mol and check_formula
 
     def sort(self):
@@ -700,3 +722,174 @@ class VarInd(Individual):
             a = atoms.copy()
         # return super().check(atoms=a) and self.check_full(atoms=a)
         return super().check(atoms=a)
+
+class RcsInd(Individual):
+    def __init__(self, parameters):
+        super().__init__(parameters)
+        default= {'bulk_layernum':3 , 'range':0.5, 'relaxable_layernum':3,  'rcsatomrange':0.5, 'rcs_layernum':2.5, 'vacuum':7 }
+        checkParameters(self.p,parameters, Requirement=['layerfile'], Default=default )
+        self.minAt = self.p.minAt 
+        self.maxAt = self.p.maxAt
+
+    def __call__(self,atoms):
+        newind = self.__new__(self.__class__)
+        newind.p = self.p
+
+        newind.minAt = self.minAt
+        newind.maxAt = self.maxAt
+
+        newind.comparator = self.comparator
+        newind.cf = self.cf
+        newind.inputMols = self.inputMols
+        newind.molCounters = self.molCounters
+        newind.inputFormulas = self.inputFormulas
+
+        if atoms.__class__.__name__ == 'Molfilter':
+            atoms = atoms.to_atoms()
+        atoms.wrap()
+        newind.atoms = atoms
+        newind.sort()
+        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
+        newind.info['fitness'] = {}
+        return newind
+
+    #def needrepair(self):
+    #    #check if atoms need repair
+    def check_formula(self, atoms=None):
+        # check if the current formual is right
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        Natoms = len(a)
+        if Natoms < self.minAt or Natoms > self.maxAt:
+            logging.info("minAt={} , maxAt={}, Natoms={}".format(self.minAt, self.maxAt, Natoms))
+            return False
+
+        symbols = a.get_chemical_symbols()
+        for s in symbols:
+            if s not in self.p.symbols:
+                return False
+
+        formula = np.array([symbols.count(s) for s in self.p.symbols])
+        #formula = get_formula(a, self.p.symbols)
+        numFrml = int(round(Natoms/sum(self.p.formula)))
+        targetFrml = numFrml*np.array(self.p.formula)
+        return np.all(targetFrml == formula)
+        # rank = np.linalg.matrix_rank(np.concatenate(([self.p.formula], [formula])))
+        # return rank == 1
+        
+
+    def get_targetFrml(self):
+        atoms = self.atoms
+        Natoms = len(atoms)
+        if self.p.minAt <= Natoms <= self.p.maxAt :
+            numFrml = int(round(Natoms/sum(self.p.formula)))
+        else:
+            numFrml = int(round(np.mean([ind.info['numOfFormula'] for ind in self.parents])))
+        self.info['formula'] = self.p.formula
+        self.info['numOfFormula'] = numFrml
+        targetFrml = {s:numFrml*i for s,i in zip(self.p.symbols,self.p.formula)}
+        return targetFrml
+
+    def addextralayer(self, type):
+    
+        extratoms=self.p.layerfile
+        if type=='relaxable':
+            layernum=self.p.relaxable_layernum
+            FixExtraAtoms=False
+            change_Minat_Maxat=True
+        elif type=='bulk':
+            layernum=self.p.bulk_layernum
+            FixExtraAtoms=True
+            change_Minat_Maxat=True
+
+        newind=self.copy()
+        atoms_top=newind.atoms.copy()
+        atoms_bottom=ase.io.read(extratoms)
+        
+        if change_Minat_Maxat:
+            newind.minAt += len(atoms_bottom)*layernum
+            newind.maxAt += len(atoms_bottom)*layernum
+
+        newcell=atoms_top.get_cell()
+        newcell[2]+=atoms_bottom.get_cell()[2]*layernum
+        newind.atoms.set_cell(newcell)
+        trans=[atoms_bottom.get_cell()[2]*layernum]*len(atoms_top)
+        newind.atoms.translate(trans)
+
+        for layer in range(layernum):
+            atoms=atoms_bottom.copy()
+            trans=[atoms_bottom.get_cell()[2]*layer]*len(atoms_bottom)
+            atoms.translate(trans)
+            newind.atoms+=atoms
+
+        if FixExtraAtoms:
+            c = FixAtoms(indices=range( len(self.atoms) , len(newind.atoms) ))
+            newind.atoms.set_constraint(c)
+
+        if 'numOfFormula' in newind.info:
+            newind.info['numOfFormula'] =int(round(len(newind.atoms)/sum(self.p.formula)))
+        #newind.info['fitness'] = {}
+        if 'fingerprint' in newind.info:
+            Efps = newind.cf.get_all_fingerprints(newind.atoms)[0]
+            newind.info['fingerprint'] = Efps
+        if 'spg' in newind.info:
+            newind.find_spg()
+
+        return newind
+
+    def removextralayer(self, type):
+        newind=self.copy()
+
+        extratoms=self.p.layerfile
+        if type=='relaxable':
+            layernum=self.p.relaxable_layernum
+            change_Minat_Maxat=True
+        elif type=='bulk':
+            layernum=self.p.bulk_layernum
+            change_Minat_Maxat=True
+            
+        atoms_bottom=ase.io.read(extratoms)
+        newcell=newind.atoms.get_cell()
+
+        if change_Minat_Maxat:
+            newind.minAt -= len(atoms_bottom)*layernum
+            newind.maxAt -= len(atoms_bottom)*layernum
+
+        newcell[2]-=atoms_bottom.get_cell()[2]*layernum
+        newind.atoms.set_cell(newcell)
+        trans=[atoms_bottom.get_cell()[2]*layernum*(-1)]*len(newind.atoms)
+        newind.atoms.translate(trans)
+
+        #pos=newind.atoms.get_scaled_positions(wrap=False)
+        #del newind.atoms[[atom.index for atom in newind.atoms if pos[atom.index][2]<0]]
+
+        vertical_dis = newind.atoms.get_scaled_positions(wrap=False)[ : , 2 ].copy()
+        indices = sorted(range(len(newind.atoms)), key=lambda x:vertical_dis[x])
+        indices = indices[ len(atoms_bottom)*layernum :  ]
+        newind.atoms = newind.atoms[indices]
+
+
+        if 'numOfFormula' in newind.info:
+            newind.info['numOfFormula'] =int(round(len(newind.atoms)/sum(self.p.formula)))
+        #newind.info['fitness'] = {}
+        if 'fingerprint' in newind.info:
+            Efps = newind.cf.get_all_fingerprints(newind.atoms)[0]
+            newind.info['fingerprint'] = Efps
+        if 'spg' in newind.info:
+            newind.find_spg()
+
+        return newind
+
+    def addvacuum(self, add):
+        vacuum=self.p.vacuum*add
+        newind=self.copy()
+
+        newcell=newind.atoms.get_cell()
+        newcell[2]+=[0,0,vacuum*2]
+        newind.atoms.set_cell(newcell)
+        trans=[[0,0,vacuum]]*len(newind.atoms)
+        newind.atoms.translate(trans)
+
+        return newind

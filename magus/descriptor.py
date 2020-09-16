@@ -3,7 +3,7 @@ import numpy as np
 from ase.neighborlist import NeighborList, neighbor_list, NewPrimitiveNeighborList
 from ase.data import atomic_numbers
 from ase import io
-import lrpot
+from . import lrpot
 from .utils import checkParameters
 ##############################################################################
 """

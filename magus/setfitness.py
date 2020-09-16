@@ -40,4 +40,6 @@ def set_fit_calcs(parameters):
         calcs.append(fix_fitness)
     if parameters.calcType == 'var':
         calcs.append(var_fitness)
+    if parameters.calcType=='rcs':
+        calcs.append(fix_fitness)
     return calcs

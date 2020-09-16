@@ -10,7 +10,7 @@ from functools import reduce
 import numpy as np
 import copy
 from .localopt import *
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator, ReconstructGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
 from .machinelearning import LRmodel,GPRmodel,BayesLRmodel,pytorchGPRmodel
@@ -64,6 +64,16 @@ class magusParameters:
             'diffV': 0.05,
             #'ratNum': 0,
         }
+        if p.calcType=='rcs':
+            logging.info("rcs mode: \nlayerfile= "+p.layerfile)
+            Requirement.append('layerfile')
+            Default['bulk_layernum']=3
+            Default['range']=0.5
+            Default['relaxable_layernum']=3
+            Default['rcsatomrange']=0.5
+            Default['rcs_layernum']=2.5
+            Default['vacuum']=7
+            
         checkParameters(p,p,Requirement,Default)
 
         # p.initSize = p.popSize
@@ -79,7 +89,10 @@ class magusParameters:
                 assert 1 <= s1 < s2 <= 230, 'Please check the format of spacegroup'
                 expandSpg.extend(list(range(s1, s2+1)))
         p.spgs = expandSpg
-
+        
+        if p.calcType=='rcs':
+            p.originlayer=p.workDir+'/'+p.layerfile
+            
         if p.molMode:
             from ase import build
             assert hasattr(p,'molFile'), 'Please define molFile'
@@ -117,6 +130,10 @@ class magusParameters:
                     raise Exception("Ni deng hui , zhe ge hai mei jia ne")
                 else:
                     AtomsGenerator = VarGenerator(self.parameters)
+
+            elif self.parameters.calcType == 'rcs':
+                AtomsGenerator = ReconstructGenerator(self.parameters)
+                
             else:
                 raise Exception("Undefined calcType '{}'".format(self.parameters.calcType))
             self.AtomsGenerator = AtomsGenerator
@@ -140,6 +157,9 @@ class magusParameters:
             rotNum = num if self.parameters.molDetector != 0 else 0
             #rotNum = num if self.parameters.molMode else 0
             formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
+            if self.parameters.calcType=='rcs':
+                latNum=0
+
             """
             if self.parameters.useml:
                 self.get_MLCalculator()

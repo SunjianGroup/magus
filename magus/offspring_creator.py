@@ -569,6 +569,11 @@ class PopGenerator:
     def generate(self,Pop,saveGood):
         # calculate dominators before checking formula
         Pop.calc_dominators()
+
+        #remove bulk_layer and relaxable_layer before crossover and mutation
+        if self.p.calcType=='rcs':
+            Pop.removebulk_relaxable_vacuum()
+            
         if self.p.calcType == 'var':
             Pop.check_full()
         #TODO move addsym to ind
@@ -605,6 +610,8 @@ class PopGenerator:
 
         if self.p.calcType == 'var':
             newPop.check_full()
+        if self.p.calcType=='rcs':
+            newPop.addbulk_relaxable_vacuum()
         #newPop.save('testnew')
         newPop.check()
         return newPop

@@ -1,5 +1,5 @@
 import numpy as np
-import GenerateNew
+from . import GenerateNew
 from ase.data import atomic_numbers, covalent_radii
 from ase import Atoms,build
 from ase.spacegroup import Spacegroup
@@ -8,6 +8,8 @@ from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
 from .utils import *
+from .reconstruct import reconstruct
+from .population import RcsInd
 
 class Generator:
     def __init__(self,parameters):
@@ -314,6 +316,63 @@ def read_seeds(parameters, seedFile, goodSeed=False):
                 ind.info['origin'] = 'seed'
     return seedPop
 
+
+class ReconstructGenerator(Generator):
+    def __init__(self,parameters):
+        super().__init__(parameters)
+        minFrml = int(np.ceil(self.p.minAt/sum(self.p.formula)))
+        maxFrml = int(self.p.maxAt/sum(self.p.formula))
+        self.p.numFrml = list(range(minFrml, maxFrml + 1))
+        self.originlayer=parameters.layerfile
+        self.range=parameters.range
+        self.num_layer=int(parameters.rcs_layernum)
+        self.extratom=parameters.rcs_layernum-self.num_layer
+        self.extratomrange=parameters.range
+        self.ind=RcsInd(parameters)
+
+    def afterprocessing(self,ind,nfm):
+        ind.info['symbols'] = self.p.symbols
+        ind.info['formula'] = self.p.formula
+        ind.info['numOfFormula'] = nfm
+        ind.info['parentE'] = 0
+        ind.info['origin'] = 'random'
+        return ind
+
+    def reconstruct(self):
+        c=reconstruct(self.range, self.num_layer, self.originlayer, self.extratom, self.extratomrange)
+        label, pos=c.reconstr()
+        numbers=[]
+        if label:
+            for i in range(len(c.atomnum)):
+                numbers.extend([atomic_numbers[c.atomname[i]]]*c.atomnum[i])
+            cell=c.lattice
+            pos=np.dot(pos,cell)
+            atoms = ase.Atoms(cell=cell, positions=pos, numbers=numbers, pbc=1)
+            
+            return label, atoms
+        else:
+            return label, None
+
+
+    def Generate_pop(self,popSize,initpop=False):
+        buildPop = []
+        tryNum=0
+        while tryNum<self.p.maxtryNum*popSize and popSize > len(buildPop):
+            nfm = np.random.choice(self.p.numFrml)
+            spg = 1
+            numlist=np.array(self.p.formula)*nfm
+            label,ind = self.reconstruct()
+            if label:
+                self.afterprocessing(ind,nfm)
+                ind=self.ind(ind)
+                ind = ind.addextralayer('relaxable')
+                ind = ind.addextralayer('bulk')
+                ind = ind.addvacuum(add=1)
+                buildPop.append(ind.atoms)
+            else:
+                tryNum+=1
+
+        return buildPop
 
 #test
 if __name__ == '__main__':
