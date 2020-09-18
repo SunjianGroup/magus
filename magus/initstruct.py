@@ -1,5 +1,8 @@
 import numpy as np
-import GenerateNew
+try:
+    from . import GenerateNew
+except:
+    import GenerateNew
 from ase.data import atomic_numbers, covalent_radii
 from ase import Atoms,build
 from ase.spacegroup import Spacegroup
