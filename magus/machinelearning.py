@@ -35,8 +35,30 @@ class MachineLearning:
     def updatedataset(self,images):
         pass
 
-    def getloss(self,images):
-        pass
+    def get_loss(self,images):
+        # Evaluate energy
+        Ypredict = np.array([self.predict_energy(atoms)/len(atoms) for atoms in images])
+        Y = np.array([atoms.info['energy']/len(atoms) for atoms in images])
+        mae_energies = np.mean(np.abs(Ypredict-Y))
+        r2_energies = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
+
+        # Evaluate force
+        Ypredict, Y = [], []
+        for atoms in images:
+            Ypredict.extend(list(self.predict_forces(atoms).reshape(-1)))
+            Y.extend(list(atoms.info['forces'].reshape(-1)))
+        Ypredict = np.array(Ypredict)
+        Y = np.array(Y)
+        mae_forces = np.mean(np.abs(Ypredict-Y))
+        r2_forces = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
+
+        # Evaluate stress
+        Ypredict = np.array([self.predict_stress(atoms) for atoms in images])
+        Y = np.array([atoms.info['stress'] for atoms in images])
+        mae_stress = np.mean(np.abs(Ypredict-Y))
+        r2_stress = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
+
+        return mae_energies, r2_energies, mae_forces, r2_forces, mae_stress, r2_stress
 
 
 from .descriptor import ZernikeFp
@@ -194,6 +216,34 @@ class bayeslr_calculator(Calculator):
 
         if 'stress' in properties:
             S = self.bayeslr.predict_stress(atoms)
+            self.results['stress'] = S
+
+class multinn_calculator(Calculator):
+    implemented_properties = ['energy', 'forces', 'stress']
+    default_parameters = {}
+
+    def __init__(self, model, kappa=None, **kwargs):
+        self.model = model
+        self.kappa = kappa
+        Calculator.__init__(self, **kwargs)
+
+    def calculate(self, atoms=None, properties=['energy', 'forces', 'stress'], system_changes=['positions']):
+        Calculator.calculate(self, atoms, properties, system_changes)
+
+        if 'energy' in properties:
+            if self.kappa is None:
+                E = self.model.predict_energy(atoms, eval_std=False)
+            else:
+                E, Estd = self.model.predict_energy(atoms, eval_std=True)
+                E = E - self.kappa*Estd
+            self.results['energy'] = E
+
+        if 'forces' in properties:
+            F = self.model.predict_forces(atoms)
+            self.results['forces'] = F
+
+        if 'stress' in properties:
+            S = self.model.predict_stress(atoms)
             self.results['stress'] = S
 
 optimizers={'BFGS':BFGS,'FIRE':FIRE}
@@ -517,31 +567,6 @@ class BayesLRmodel(MachineLearning,ASECalculator):
         if not os.path.exists(self.p.mlDir):
             os.mkdir(self.p.mlDir)
 
-    def get_loss(self,images):
-        # Evaluate energy
-        Ypredict = np.array([self.predict_energy(atoms) for atoms in images])
-        Y = np.array([atoms.info['energy'] for atoms in images])
-        mae_energies = np.mean(np.abs(Ypredict-Y))
-        r2_energies = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
-
-        # Evaluate force
-        Ypredict, Y = [], []
-        for atoms in images:
-            Ypredict.extend(list(self.predict_forces(atoms).reshape(-1)))
-            Y.extend(list(atoms.info['forces'].reshape(-1)))
-        Ypredict = np.array(Ypredict)
-        Y = np.array(Y)
-        mae_forces = np.mean(np.abs(Ypredict-Y))
-        r2_forces = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
-
-        # Evaluate stress
-        Ypredict = np.array([self.predict_stress(atoms) for atoms in images])
-        Y = np.array([atoms.info['stress'] for atoms in images])
-        mae_stress = np.mean(np.abs(Ypredict-Y))
-        r2_stress = 1 - np.sum((Y - Ypredict)**2)/np.sum((Y- np.mean(Y))**2)
-
-        return mae_energies, r2_energies, mae_forces, r2_forces, mae_stress, r2_stress
-
     def train(self):
         logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
         self.reg.fit(self.X, self.y,self.w)
@@ -692,25 +717,6 @@ class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
         tmp = self.model.kern.variance.get().detach().numpy()
         self.K0 = tmp
 
-    def get_loss(self,images):
-        batch_data = convert_frames(images, self.environment_provider)
-        predict_energy = self.model.get_energies(batch_data).detach().numpy()
-        predict_forces = self.model.get_forces(batch_data).detach().numpy()
-        predict_stress = self.model.get_stresses(batch_data).detach().numpy()
-        target_energy = batch_data['energy'].numpy()
-        target_forces = batch_data['forces'].numpy()
-        target_stress = batch_data['stress'].numpy()
-        mae_energies = np.mean(np.abs(predict_energy - target_energy))
-        r2_energies = 1 - np.sum((predict_energy - target_energy)**2) / \
-            np.sum((target_energy - np.mean(target_energy))**2)
-        mae_forces = np.mean(np.abs(predict_forces - target_forces))
-        r2_forces = 1 - np.sum((predict_forces - target_forces)**2) / \
-            np.sum((target_forces - np.mean(target_forces))**2)
-        mae_stress = np.mean(np.abs(predict_stress - target_stress))
-        r2_stress = 1 - np.sum((predict_stress - target_stress)**2) / \
-            np.sum((target_stress - np.mean(target_stress))**2)
-        return mae_energies, r2_energies, mae_forces, r2_forces, mae_stress, r2_stress
-
     def updatedataset(self,images):
         self.model.update_dataset(images)
         # self.ani_model.update_dataset(images)
@@ -761,3 +767,125 @@ class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
         self.model.mean = torch.tensor(d['mean'])
         self.model.std = torch.tensor(d['std'])
         self.model.X_array = torch.tensor(d['X_array'])
+
+
+class MultiNNmodel(MachineLearning, MLCalculator_tmp):
+    def __init__(self,parameters):
+        self.p = EmptyClass()
+        Requirement = ['mlDir']
+        Default = {'w_energy':30.0, 'w_forces':1.0, 'w_stress':-1.0, 'n_bagging':5,
+            'cutoff': 4.0, 'n_radius':30, 'n_angular':10,}
+        checkParameters(self.p,parameters,Requirement,Default)
+
+        p = copy.deepcopy(parameters)
+        for key, val in parameters.MLCalculator.items():
+            setattr(p, key, val)
+        p.workDir = parameters.workDir
+        MLCalculator_tmp.__init__(self,p)
+
+        if not os.path.exists(self.p.mlDir):
+            os.mkdir(self.p.mlDir)
+
+        elements = tuple(set([atomic_numbers[element] for element in parameters.symbols]))
+
+        cutoff = self.p.cutoff
+        n_radius = self.p.n_radius
+        n_angular = self.p.n_angular
+        self.environment_provider = ASEEnvironment(cutoff)
+        cut_fn = CosineCutoff(cutoff)
+
+        rss = torch.linspace(0.5, cutoff - 0.5, n_radius)
+        etas = 0.5 * torch.ones_like(rss) / (rss[1] - rss[0]) ** 2
+        rdf = BehlerG1(elements, n_radius, cut_fn, etas=etas, rss=rss, train_para=False)
+        etas = 0.5 / torch.linspace(1, cutoff - 0.5, n_angular) ** 2
+        adf = BehlerG3(elements, n_angular, cut_fn, etas=etas)
+        representation = CombinationRepresentation(rdf)
+
+        n_bagging = self.p.n_bagging
+        nets = []
+        self.optimizers = []
+
+        for _ in range(n_bagging):
+            indices = np.random.choice(n_split, n_split, replace=True)
+            train_subset = Subset(train_data, indices)
+            train_loader = DataLoader(train_subset, batch_size=16, shuffle=True, collate_fn=_collate_aseatoms)
+            model = ANI(representation, elements, [50, 50])
+            nets.append(model)
+            optimizer = torch.optim.Adam(model.parameters())
+            self.optimizers.append(optimizer)
+
+        self.model = NNEnsemble(nets)
+        self.datasets = AtomsData([], environment_provider)
+        self.sub_datasets = [Subset(self.datasets, []) for _ in range(n_bagging)]
+
+    def train(self, epoch=200):
+        w_energy, w_forces, w_stress = self.p.w_energy, self.p.w_forces, self.p.w_stress
+        for model, sub_dataset, optimizer in zip(self.model.models, self.sub_datasets, self.optimizers):
+            data_loader = DataLoader(sub_dataset, batch_size=16, shuffle=True, collate_fn=_collate_aseatoms)
+            for i in range(epoch):
+                for i_batch, batch_data in enumerate(data_loader):
+                    loss, energy_loss, force_loss, stress_loss = torch.zeros(4)
+                    if w_energy > 0.:
+                        predict_energy = model.get_energies(batch_data) / batch_data['n_atoms']
+                        target_energy = batch_data['energy'] / batch_data['n_atoms']
+                        energy_loss = torch.mean((predict_energy - target_energy) ** 2)
+
+                    if w_forces > 0.:
+                        predict_forces = model.get_forces(batch_data)
+                        target_forces = batch_data['forces']
+                        force_loss = torch.mean(torch.sum(
+                            (predict_forces - target_forces) ** 2, 1) / batch_data['n_atoms'].unsqueeze(-1))
+
+                    if w_stress > 0.:
+                        predict_stress = model.get_stresses(batch_data)
+                        target_stress = batch_data['stress']
+                        stress_loss = torch.mean((predict_stress - target_stress) ** 2)
+
+                    loss += w_energy * energy_loss + w_forces * force_loss + w_stress * stress_loss
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+    def updatedataset(self,images):
+        self.datasets.extend(images)
+        n_frames = len(images)
+        for sub_dataset in self.sub_datasets:
+            sub_dataset.indices.extend(list(np.random.choice(n_frames, n_frames, replace=True)))
+
+    def relax(self,calcPop):
+        calcs = [self.get_calculator()]
+        return super().relax(calcPop,calcs)
+
+    def scf(self,calcPop):
+        calcs = [self.get_calculator()]
+        return super().scf(calcPop,calcs)
+
+    def predict_energy(self, atoms, eval_std=False):
+        batch_data = convert_frames([atoms], self.environment_provider)
+        E, E_std = self.model.get_energies(batch_data, True)
+        E, E_std = E.detach().item(), E_std.detach().item()
+        if eval_std:
+            return E, E_std
+        else:
+            return E
+
+    def predict_forces(self, atoms):
+        batch_data = convert_frames([atoms], self.environment_provider)
+        F = self.model.get_forces(batch_data).squeeze().detach().numpy()
+        return F
+
+    def predict_stress(self, atoms, eval_with_energy_std=False):
+        batch_data = convert_frames([atoms], self.environment_provider)
+        S = self.model.get_stresses(batch_data).squeeze().detach().numpy()
+        return S
+
+    def get_calculator(self, kappa=0):
+        return multinn_calculator(self, kappa)
+
+    def save_model(self, filename):
+        torch.save(self.model.state_dict(), '{}/{}.pt'.format(self.p.mlDir, filename))
+    
+    def load_model(self, filename):
+        state_dict = torch.load('{}/{}.pt'.format(self.p.mlDir, filename))
+        self.model.load_state_dict(state_dict)

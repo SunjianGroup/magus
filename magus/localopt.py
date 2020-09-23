@@ -35,12 +35,16 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
+from ase.atoms import Atoms
 from .queuemanage import JobManager
+from .population import Individual
 import multiprocessing as mp
 
 
 #__all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
 #    'EMTCalculator','GULPCalculator','LammpsCalculator','QUIPCalculator','ASECalculator']
+# TODO 
+# Clean up some duplicate code
 class RelaxVasp(Vasp):
     """
     Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
@@ -62,6 +66,21 @@ class Calculator:
             shutil.copytree('inputFold', 'calcFold')
         os.chdir('calcFold')
 
+    def pre_processing(self, calcPop):
+        if isinstance(calcPop[0], Individual):
+            self.atomstype = 'Individual'
+            return calcPop.frames
+        elif isinstance(calcPop[0], Atoms):
+            self.atomstype = 'Atoms'
+            self.Pop = calcPop
+            return calcPop
+    
+    def post_processing(self, pop):
+        if self.atomstype == 'Atoms':
+            return pop
+        elif self.atomstype == 'Individual':
+            return self.Pop(pop)
+
     def relax(self,calcPop):
         pass
 
@@ -79,20 +98,27 @@ class ASECalculator(Calculator):
         self.p.numParallel = mp.cpu_count()
 
     def scf(self, calcPop, calcs):
+        calcpop = self.pre_processing(calcPop)
         if self.p.mode == 'serial':
-            return self.scf_serial(calcPop, calcs)
+            scfpop = self.scf_serial(calcpop, calcs)
         elif self.p.mode == 'parallel':
-            return self.scf_parallel(calcPop, calcs)
+            scfpop = self.scf_parallel(calcpop, calcs)
         else:
-            raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
+            raise Exception("'{}' shi ge sha mo shi".format(self.p.mode))
+        scfPop = self.post_processing(scfpop)
+        return scfPop
+
 
     def relax(self, calcPop, calcs):
+        calcpop = self.pre_processing(calcPop)
         if self.p.mode == 'serial':
-            return self.relax_serial(calcPop, calcs)
+            relaxpop = self.relax_serial(calcpop, calcs)
         elif self.p.mode == 'parallel':
-            return self.relax_parallel(calcPop, calcs)
+            relaxpop = self.relax_parallel(calcpop, calcs)
         else:
-            raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
+            raise Exception("'{}' shi ge sha mo shi".format(self.p.mode))
+        relaxPop = self.post_processing(relaxpop)
+        return relaxPop
 
     def relax_serial(self, calcPop, calcs, logfile='aserelax.log', trajname='calc.traj'):
         self.cdcalcFold()
@@ -298,18 +324,15 @@ class ABinitCalculator(Calculator):
         Default = {'mode':'parallel'}
         checkParameters(self.p,parameters,Requirement,Default)
         if self.p.mode == 'serial':
-            self.scf = self.scf_serial
-            self.relax = self.relax_serial
+            pass
         elif self.p.mode == 'parallel':
             Requirement = ['queueName','numCore','numParallel']
             Default = {'Preprocessing':'','waitTime':200,'verbose':False}
             checkParameters(self.p,parameters,Requirement,Default)
             self.J=JobManager(self.p.verbose)
-            self.scf = self.scf_parallel
-            self.relax = self.relax_parallel
             self.prefix=prefix
         else:
-            raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
+            raise Exception("'{}' shi ge sha mo shi".format(self.p.mode))
 
     def cdcalcFold(self):
         os.chdir(self.p.workDir)
@@ -318,6 +341,28 @@ class ABinitCalculator(Calculator):
             # logging.debug('make calcFold')
             shutil.copytree('inputFold', 'calcFold')
         os.chdir('calcFold')
+    
+    def scf(self, calcPop):
+        calcpop = self.pre_processing(calcPop)
+        if self.p.mode == 'serial':
+            scfpop = self.scf_serial(calcpop)
+        elif self.p.mode == 'parallel':
+            scfpop = self.scf_parallel(calcpop)
+        else:
+            raise Exception("'{}' shi ge sha mo shi".format(self.p.mode))
+        scfPop = self.post_processing(scfpop)
+        return scfPop
+
+    def relax(self, calcPop):
+        calcpop = self.pre_processing(calcPop)
+        if self.p.mode == 'serial':
+            relaxpop = self.relax_serial(calcpop)
+        elif self.p.mode == 'parallel':
+            relaxpop = self.relax_parallel(calcpop)
+        else:
+            raise Exception("'{}' shi ge sha mo shi".format(self.p.mode))
+        relaxPop = self.post_processing(relaxpop)
+        return relaxPop
 
     def scf_serial(self,calcPop):
         pass

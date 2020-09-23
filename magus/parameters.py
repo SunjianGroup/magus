@@ -13,7 +13,7 @@ from .localopt import *
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
-from .machinelearning import LRmodel,GPRmodel,BayesLRmodel,pytorchGPRmodel
+from .machinelearning import LRmodel,GPRmodel,BayesLRmodel,pytorchGPRmodel,MultiNNmodel
 from .queuemanage import JobManager
 from .population import Population
 from .fitness import fit_dict
@@ -190,6 +190,8 @@ class magusParameters:
                     self.MLCalculator = pytorchGPRmodel(self.parameters)
                 elif self.parameters.mlmodel == 'BayesLR':
                     self.MLCalculator = BayesLRmodel(self.parameters)
+                elif self.parameters.mlmodel == 'MultiNN':
+                    self.MLCalculator = MultiNNmodel(self.parameters)
             else:
                 self.MLCalculator = None
             self.parameters.MLCalculator = self.MLCalculator.p
