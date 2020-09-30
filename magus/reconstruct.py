@@ -51,20 +51,20 @@ class move:
 #m.Rotate(1, 1, 6, 0, 0.5, 100)
 
 class reconstruct:
-    def __init__(self, range, num_layer, originlayer, extratom=0.5, extratomrange=None):
+    def __init__(self, moverange, num_layer, originlayer, threshold, maxattempts):
         self.originlayer=originlayer
-        self.range=range
-        self.layernum=num_layer+1
-        self.atoms = ase.io.read(self.originlayer)
+        self.range=moverange
+        self.layernum=num_layer
+        self.threshold = threshold
+        self.maxattempts = maxattempts
+
+        self.atoms =self.originlayer.copy()
+
         self.pos=[]
         self.atomname=[]
         self.atomnum=[]
         self.shifts=[]
-        self.extratom=extratom
-        if not extratomrange:
-            self.extratomrange=range
-        else:
-            self.extratomrange=extratomrange
+
 
     def reconstr(self):
         self.lattice=np.array(self.atoms.get_cell())
@@ -76,11 +76,11 @@ class reconstruct:
         for i in range(len(unique)):
             atomnum=np.sum(atomicnum==unique[i])
             self.atomname.append(atomname[t[i]])
-            self.atomnum.append(atomnum*(self.layernum-1))
+            self.atomnum.append(atomnum)
             pos=np.array(self.atoms.get_scaled_positions())
             atompos=[]
             shift1=[]
-            for layer in range(self.layernum-1):
+            for layer in range(self.layernum):
                 p=pos[t[i]:t[i]+atomnum].copy()
                 for a in p:
                     a[2]+=layer
@@ -93,20 +93,6 @@ class reconstruct:
 
             shift1=np.array(shift1).flatten()
             shift1*=self.range
-       
-            shift2=[]
-            #add extra atoms below
-            p=pos[t[i]:t[i]+atomnum].copy()
-            for a in p:
-                if(a[2]<=self.extratom):
-                    a[2]+=(self.layernum-1)
-                    a[2]/=self.layernum
-                    atompos=np.append(atompos, a)
-                    self.atomnum[-1]+=1
-                    shift2.append(a[2]*self.extratomrange)
-
-            shift2=np.array(shift2).flatten()
-            shift1=np.append(shift1, shift2)
 
             self.shifts.append(shift1)
 
@@ -117,7 +103,7 @@ class reconstruct:
             
         m=move(self.pos, self.shifts, self.atomnum, self.atomname, self.lattice)
             
-        label = m.Shift(0.5, 100)
+        label = m.Shift(self.threshold, self.maxattempts)
         self.positions=m.GetPos()
         
         self.positions=np.array(self.positions).reshape(sum(self.atomnum),3)

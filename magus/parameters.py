@@ -67,12 +67,15 @@ class magusParameters:
         if p.calcType=='rcs':
             logging.info("rcs mode: \nlayerfile= "+p.layerfile)
             Requirement.append('layerfile')
+            Requirement.append('cutslices')
             Default['bulk_layernum']=3
             Default['range']=0.5
             Default['relaxable_layernum']=3
             Default['rcsatomrange']=0.5
-            Default['rcs_layernum']=2.5
+            Default['rcs_layernum']=2
             Default['vacuum']=7
+            Default['rcs_x']=1
+            Default['rcs_y']=1
             
         checkParameters(p,p,Requirement,Default)
 
@@ -186,7 +189,7 @@ class magusParameters:
                 self.parameters.formNum,
                 self.parameters.ratNum,
                 ]
-            oplist = [cutandsplice,lattice,perm,ripple,slip,rot,soft,form,rattle]
+            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"

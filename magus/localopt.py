@@ -32,7 +32,7 @@ except:
     pass
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from ase.constraints import UnitCellFilter
+from ase.constraints import UnitCellFilter, FixAtoms
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from .queuemanage import JobManager
@@ -452,7 +452,7 @@ class GULPCalculator(ABinitCalculator):
     def __init__(self, parameters,prefix='calcGulp'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
-        Default = {'exeCmd':'','jobPrefix':'Gulp'}
+        Default = {'exeCmd':'','jobPrefix':'Gulp','fixcell':False}
         checkParameters(self.p,parameters,Requirement,Default)
 
     def scf_serial(self,calcPop):
@@ -462,8 +462,8 @@ class GULPCalculator(ABinitCalculator):
         exeCmd = self.p.exeCmd
         pressure = self.p.pressure
         inputDir = "{}/inputFold".format(self.p.workDir)
-
-        scfPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
+        fixcell = self.p.fixcell
+        scfPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir , fixcell)
         write_traj('optPop.traj', scfPop)
         os.chdir(self.p.workDir)
         return scfPop
@@ -475,8 +475,8 @@ class GULPCalculator(ABinitCalculator):
         exeCmd = self.p.exeCmd
         pressure = self.p.pressure
         inputDir = "{}/inputFold".format(self.p.workDir)
-
-        relaxPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir)
+        fixcell = self.p.fixcell
+        relaxPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir, fixcell)
         write_traj('optPop.traj', relaxPop)
         os.chdir(self.p.workDir)
         return relaxPop
@@ -486,6 +486,7 @@ class GULPCalculator(ABinitCalculator):
             'calcNum': 0,
             'pressure': self.p.pressure,
             'exeCmd': self.p.exeCmd,
+            'fixcell': self.p.fixcell,
             'inputDir': "{}/inputFold".format(self.p.workDir),
         }
         with open('gulpSetup.yaml', 'w') as setupF:
@@ -509,6 +510,7 @@ class GULPCalculator(ABinitCalculator):
             'calcNum': self.p.calcNum,
             'pressure': self.p.pressure,
             'exeCmd': self.p.exeCmd,
+            'fixcell': self.p.fixcell,
             'inputDir': "{}/inputFold".format(self.p.workDir),
         }
         with open('gulpSetup.yaml', 'w') as setupF:
@@ -746,11 +748,11 @@ class MLCalculator_tmp(ABinitCalculator):
 
         self.J.bsub('bsub < parallel.sh',jobName)
 
-def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
+def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir, fixcell = False):
     optPop = []
     for n, ind in enumerate(calcPop):
         if calcNum == 0:
-            ind = calc_gulp_once(0, ind, pressure, exeCmd, inputDir)
+            ind = calc_gulp_once(0, ind, pressure, exeCmd, inputDir, fixcell)
             logging.debug("Structure %s scf" %(n))
             if ind:
                 optPop.append(ind)
@@ -759,7 +761,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
         else:
             for i in range(1, calcNum + 1):
                 logging.debug("Structure %s Step %s" %(n, i))
-                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir)
+                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir, fixcell)
             if ind:
                 optPop.append(ind)
                 shutil.copy('output', "gulp_out-{}-{}".format(n, i))
@@ -768,13 +770,15 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
     return optPop
 
 
-def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
+def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir, fixcell = False):
     """
     exeCmd should be "gulp < input > output"
     """
     if os.path.exists('output'):
         os.remove('output')
     try:
+        constraints = calcInd.constraints.copy()
+
         # for f in os.listdir(inputDir):
         #     filepath = "{}/{}".format(inputDir, f)
         #     if os.path.isfile(filepath):
@@ -784,10 +788,25 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         with open('input', 'a') as gulpIn:
             gulpIn.write('cell\n')
             a, b, c, alpha, beta, gamma = calcInd.get_cell_lengths_and_angles()
-            gulpIn.write("%g %g %g %g %g %g\n" %(a, b, c, alpha, beta, gamma))
+            if fixcell ==True :
+                gulpIn.write("%g %g %g %g %g %g 0 0 0 0 0 0\n" %(a, b, c, alpha, beta, gamma))
+            else :
+                gulpIn.write("%g %g %g %g %g %g\n" %(a, b, c, alpha, beta, gamma))
+
             gulpIn.write('fractional\n')
-            for atom in calcInd:
-                gulpIn.write("%s %.6f %.6f %.6f\n" %(atom.symbol, atom.a, atom.b, atom.c))
+
+            if constraints:
+                flags = np.zeros((len(calcInd)), dtype=bool)
+                for constr in calcInd.constraints:
+                    flags[constr.index] = True
+                for atom in calcInd:
+                    if flags[atom.index]==True:
+                        gulpIn.write("%s %.6f %.6f %.6f %.6f 1.0 0 0 0 0\n" %(atom.symbol, atom.a, atom.b, atom.c, atom.charge))
+                    else:
+                        gulpIn.write("%s %.6f %.6f %.6f %.6f 1.0 0 1 1 1\n" %(atom.symbol, atom.a, atom.b, atom.c, atom.charge))
+            else:
+                for atom in calcInd:
+                    gulpIn.write("%s %.6f %.6f %.6f\n" %(atom.symbol, atom.a, atom.b, atom.c))
             gulpIn.write('\n')
 
             with open("ginput_{}".format(calcStep), 'r') as gin:
@@ -812,6 +831,8 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
 
         cellpar = output[cellIndex].split()
         cellpar = [float(par) for par in cellpar]
+        if len(cellpar)>6:
+            cellpar = cellpar[:6]
 
         pos = []
         for line in output[posIndex:posIndex + len(calcInd)]:
@@ -847,6 +868,10 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
             forces.append(G)
         forces = np.array(forces)
         optInd.info['forces'] = forces
+
+        if constraints:
+            optInd.set_constraint(constraints)
+
         return optInd
 
     except:

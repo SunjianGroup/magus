@@ -213,12 +213,13 @@ class Population:
 
     '''function in reconstract'''
     def removebulk_relaxable_vacuum(self):        
-        #removevacuum(self):
-        self.pop = list(map(lambda ind:ind.addvacuum(add=-1), self.pop)) 
+        
         #removebulklayer(self):
         self.pop = list(map(lambda ind:ind.removextralayer('bulk'), self.pop))  
         #removerelaxablelayer(self):
         self.pop = list(map(lambda ind:ind.removextralayer('relaxable'), self.pop))  
+        #removevacuum(self):
+        self.pop = list(map(lambda ind:ind.addvacuum(add=-1), self.pop)) 
 
     def addbulk_relaxable_vacuum(self):
         #addrelaxablelayer(self):
@@ -420,6 +421,7 @@ class Individual:
                 x1 = np.where(nums == type1)
                 x2 = np.where(nums == type2)
                 if np.min(distances[x1].T[x2]) < (covalent_radii[type1]+covalent_radii[type2])*threshold:
+                    logging.info("distance: {} < threshold {}".format(np.min(distances[x1].T[x2]) , (covalent_radii[type1]+covalent_radii[type2])*threshold))
                     return False
         return True
 
@@ -509,9 +511,10 @@ class Individual:
         atoms = self.atoms
         dRatio = self.p.dRatio
         syms = atoms.get_chemical_symbols()
-        #nowFrml = Counter(atoms.get_chemical_symbols())
+        nowFrml = Counter(atoms.get_chemical_symbols())
+        logging.debug("Repairatoms: now formula: {}".format(nowFrml))
         targetFrml = self.get_targetFrml()
-        # logging.debug("Target formula: {}".format(targetFrml))
+        logging.debug("Target formula: {}".format(targetFrml))
         if not targetFrml:
             logging.debug("Cannot get target formula: {}".format(targetFrml))
             self.atoms = None
@@ -726,8 +729,8 @@ class VarInd(Individual):
 class RcsInd(Individual):
     def __init__(self, parameters):
         super().__init__(parameters)
-        default= {'bulk_layernum':3 , 'range':0.5, 'relaxable_layernum':3,  'rcsatomrange':0.5, 'rcs_layernum':2.5, 'vacuum':7 }
-        checkParameters(self.p,parameters, Requirement=['layerfile'], Default=default )
+        default= {'range':0.5,  'vacuum':7 }
+        checkParameters(self.p,parameters, Requirement=[], Default=default )
         self.minAt = self.p.minAt 
         self.maxAt = self.p.maxAt
 
@@ -772,57 +775,67 @@ class RcsInd(Individual):
                 return False
 
         formula = np.array([symbols.count(s) for s in self.p.symbols])
-        #formula = get_formula(a, self.p.symbols)
-        numFrml = int(round(Natoms/sum(self.p.formula)))
-        targetFrml = numFrml*np.array(self.p.formula)
-        return np.all(targetFrml == formula)
-        # rank = np.linalg.matrix_rank(np.concatenate(([self.p.formula], [formula])))
-        # return rank == 1
-        
 
-    def get_targetFrml(self):
-        atoms = self.atoms
-        Natoms = len(atoms)
-        if self.p.minAt <= Natoms <= self.p.maxAt :
+        if self.minAt == self.p.minAt:
+            
             numFrml = int(round(Natoms/sum(self.p.formula)))
+            targetFrml = numFrml*np.array(self.p.formula)
+            
         else:
-            numFrml = int(round(np.mean([ind.info['numOfFormula'] for ind in self.parents])))
-        self.info['formula'] = self.p.formula
+            target = self.get_targetFrml()
+            targetFrml = []
+            for s in self.p.symbols:
+                targetFrml.append(target[s] if s in target else 0)
+            targetFrml = np.array(targetFrml)
+                
+
+        if np.all(targetFrml == formula):
+            return True
+        else:
+            logging.info("targetFrml={} , nowformula={}, symbols={}".format(targetFrml, formula, self.p.symbols))
+            return False
+
+        #return np.all(targetFrml == formula)
+        
+    def get_targetFrml(self):
+        benchmark = ase.io.read("layerslices.traj", index='2', format='traj')
+        symbol, formula = symbols_and_formula(benchmark)
+
+        
+        numFrml = int(round(len(benchmark)/sum(formula)))
+        
+        self.info['formula'] = formula
         self.info['numOfFormula'] = numFrml
-        targetFrml = {s:numFrml*i for s,i in zip(self.p.symbols,self.p.formula)}
+        targetFrml = {s:numFrml*i for s,i in zip(symbol,formula)}
+
         return targetFrml
 
     def addextralayer(self, type):
     
-        extratoms=self.p.layerfile
+        change_Minat_Maxat=True
+        pop=ase.io.read("layerslices.traj", index=':', format='traj')
         if type=='relaxable':
-            layernum=self.p.relaxable_layernum
             FixExtraAtoms=False
-            change_Minat_Maxat=True
+            extratoms=pop[1]
         elif type=='bulk':
-            layernum=self.p.bulk_layernum
             FixExtraAtoms=True
-            change_Minat_Maxat=True
+            extratoms=pop[0]
 
         newind=self.copy()
         atoms_top=newind.atoms.copy()
-        atoms_bottom=ase.io.read(extratoms)
+        atoms_bottom=extratoms.copy()
         
         if change_Minat_Maxat:
-            newind.minAt += len(atoms_bottom)*layernum
-            newind.maxAt += len(atoms_bottom)*layernum
+            newind.minAt += len(atoms_bottom)
+            newind.maxAt += len(atoms_bottom)
 
         newcell=atoms_top.get_cell()
-        newcell[2]+=atoms_bottom.get_cell()[2]*layernum
+        newcell[2]+=atoms_bottom.get_cell()[2]
         newind.atoms.set_cell(newcell)
-        trans=[atoms_bottom.get_cell()[2]*layernum]*len(atoms_top)
+        trans=[atoms_bottom.get_cell()[2]]*len(atoms_top)
         newind.atoms.translate(trans)
 
-        for layer in range(layernum):
-            atoms=atoms_bottom.copy()
-            trans=[atoms_bottom.get_cell()[2]*layer]*len(atoms_bottom)
-            atoms.translate(trans)
-            newind.atoms+=atoms
+        newind.atoms+=atoms_bottom
 
         if FixExtraAtoms:
             c = FixAtoms(indices=range( len(self.atoms) , len(newind.atoms) ))
@@ -841,25 +854,24 @@ class RcsInd(Individual):
 
     def removextralayer(self, type):
         newind=self.copy()
-
-        extratoms=self.p.layerfile
+        pop=ase.io.read("layerslices.traj", index=':', format='traj')
+        change_Minat_Maxat=True
+        
         if type=='relaxable':
-            layernum=self.p.relaxable_layernum
-            change_Minat_Maxat=True
+            extratoms=pop[1]
         elif type=='bulk':
-            layernum=self.p.bulk_layernum
-            change_Minat_Maxat=True
+            extratoms=pop[0]
             
-        atoms_bottom=ase.io.read(extratoms)
+        atoms_bottom=extratoms.copy()
         newcell=newind.atoms.get_cell()
 
         if change_Minat_Maxat:
-            newind.minAt -= len(atoms_bottom)*layernum
-            newind.maxAt -= len(atoms_bottom)*layernum
+            newind.minAt -= len(atoms_bottom)
+            newind.maxAt -= len(atoms_bottom)
 
-        newcell[2]-=atoms_bottom.get_cell()[2]*layernum
+        newcell[2]-=atoms_bottom.get_cell()[2]
         newind.atoms.set_cell(newcell)
-        trans=[atoms_bottom.get_cell()[2]*layernum*(-1)]*len(newind.atoms)
+        trans=[atoms_bottom.get_cell()[2]*(-1)]*len(newind.atoms)
         newind.atoms.translate(trans)
 
         #pos=newind.atoms.get_scaled_positions(wrap=False)
@@ -867,7 +879,8 @@ class RcsInd(Individual):
 
         vertical_dis = newind.atoms.get_scaled_positions(wrap=False)[ : , 2 ].copy()
         indices = sorted(range(len(newind.atoms)), key=lambda x:vertical_dis[x])
-        indices = indices[ len(atoms_bottom)*layernum :  ]
+
+        indices = indices[ len(atoms_bottom) :  ]
         newind.atoms = newind.atoms[indices]
 
 

@@ -304,7 +304,7 @@ def read_seeds(parameters, seedFile, goodSeed=False):
         if goodSeed:
             readPop = ase.io.read(seedFile, index=':', format='traj')
         else:
-            readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
+            readPop = ase.io.read(seedFile, index=':', format='traj')
         if len(readPop) > 0:
             logging.info("Reading Seeds ...")
 
@@ -324,11 +324,74 @@ class ReconstructGenerator(Generator):
         maxFrml = int(self.p.maxAt/sum(self.p.formula))
         self.p.numFrml = list(range(minFrml, maxFrml + 1))
         self.originlayer=parameters.layerfile
+
+        if os.path.exists("layerslices.traj"):
+            pass
+        else:
+            totlayer = parameters.bulk_layernum + parameters.relaxable_layernum + parameters.rcs_layernum
+            full = int(totlayer/parameters.cutslices)
+            part = totlayer - full*parameters.cutslices
+
+            originatoms = ase.io.read(self.originlayer)
+            atoms=originatoms.copy()
+
+            rcs_x=parameters.rcs_x
+            rcs_y=parameters.rcs_y
+            cell=originatoms.get_cell().copy()
+            cell[0]*= rcs_x
+            cell[1]*= rcs_y
+
+            supercell = [rcs_x , rcs_y , full+1]
+            for i in range(3):
+                for x in range(1, supercell[i]):
+                    atoms_tmp=originatoms.copy()
+                    trans=[originatoms.get_cell()[i]*x]*len(atoms_tmp)
+                    atoms_tmp.translate(trans)
+                    atoms+=atoms_tmp
+
+                originatoms = atoms.copy()
+            
+            atoms.set_cell(cell)
+            originatoms = atoms.copy()
+            
+            pop= []
+            
+            slicenum= [parameters.bulk_layernum , parameters.relaxable_layernum , parameters.rcs_layernum]
+            
+            for num in slicenum:
+                cell = originatoms.get_cell().copy()
+                cell[2] = cell[2]*num/parameters.cutslices
+                atoms.set_cell(cell)
+
+                pos = atoms.get_scaled_positions(wrap=False).copy()
+                index=[]
+                for atom in atoms:
+                    if pos[atom.index][2]>=0 and pos[atom.index][2]<1 :
+                        index.append(atom.index)
+
+                layerslice = atoms[index] .copy()
+                pop.append(layerslice)
+
+                trans=[ cell[2]*(-1) ]*len(atoms)
+                atoms.translate(trans)
+
+            #add extravacuum to rcs_layer  
+            
+            cell = pop[2].get_cell()
+            cell[2]*=1.2
+            pop[2].set_cell(cell)
+            
+            logging.info("save cutslices into file layerslices.traj")
+            ase.io.write("layerslices.traj",pop,format='traj')
+
+            #todo : add direction
+            
         self.range=parameters.range
-        self.num_layer=int(parameters.rcs_layernum)
-        self.extratom=parameters.rcs_layernum-self.num_layer
-        self.extratomrange=parameters.range
+        self.num_layer=1
         self.ind=RcsInd(parameters)
+        self.threshold = parameters.dRatio
+        self.maxAttempts = 1000
+        
 
     def afterprocessing(self,ind,nfm):
         ind.info['symbols'] = self.p.symbols
@@ -339,7 +402,9 @@ class ReconstructGenerator(Generator):
         return ind
 
     def reconstruct(self):
-        c=reconstruct(self.range, self.num_layer, self.originlayer, self.extratom, self.extratomrange)
+        
+        layer = ase.io.read("layerslices.traj", index=2, format='traj')
+        c=reconstruct(self.range, self.num_layer, layer, self.threshold, self.maxAttempts)
         label, pos=c.reconstr()
         numbers=[]
         if label:
