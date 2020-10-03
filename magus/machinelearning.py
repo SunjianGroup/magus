@@ -17,10 +17,10 @@ try:
     from ani.environment import ASEEnvironment
     from ani.kernel import RBF
     from ani.cutoff import CosineCutoff
-    from ani.model import ANI, GPR
-    from ani.dataloader import AtomsData, convert_frames
-    from ani.symmetry_functions import BehlerG1, Zernike, CombinationRepresentation
-    from torch.utils.data import DataLoader
+    from ani.model import *
+    from ani.dataloader import AtomsData, convert_frames,_collate_aseatoms
+    from ani.symmetry_functions import BehlerG1, BehlerG3, Zernike, CombinationRepresentation
+    from torch.utils.data import DataLoader, Subset
     import torch
     from ani.prior import *
 except:
@@ -33,6 +33,9 @@ class MachineLearning:
         pass
 
     def updatedataset(self,images):
+        pass
+
+    def save_dataset(self):
         pass
 
     def get_loss(self,images):
@@ -774,7 +777,7 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
         self.p = EmptyClass()
         Requirement = ['mlDir']
         Default = {'w_energy':30.0, 'w_forces':1.0, 'w_stress':-1.0, 'n_bagging':5,
-            'cutoff': 4.0, 'n_radius':30, 'n_angular':10,}
+            'cutoff': 4.0, 'n_radius':30, 'n_angular':10, 'epoch_init':500, 'epoch_step':100}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
@@ -806,23 +809,24 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
         self.optimizers = []
 
         for _ in range(n_bagging):
-            indices = np.random.choice(n_split, n_split, replace=True)
-            train_subset = Subset(train_data, indices)
-            train_loader = DataLoader(train_subset, batch_size=16, shuffle=True, collate_fn=_collate_aseatoms)
             model = ANI(representation, elements, [50, 50])
             nets.append(model)
             optimizer = torch.optim.Adam(model.parameters())
             self.optimizers.append(optimizer)
 
         self.model = NNEnsemble(nets)
-        self.datasets = AtomsData([], environment_provider)
-        self.sub_datasets = [Subset(self.datasets, []) for _ in range(n_bagging)]
+        self.dataset = AtomsData([], self.environment_provider)
+        self.sub_datasets = [Subset(self.dataset, []) for _ in range(n_bagging)]
 
-    def train(self, epoch=200):
+    def train(self, n_epoch=200):
+        logging.info('{} in dataset,training begin!'.format(len(self.dataset)))
         w_energy, w_forces, w_stress = self.p.w_energy, self.p.w_forces, self.p.w_stress
-        for model, sub_dataset, optimizer in zip(self.model.models, self.sub_datasets, self.optimizers):
+        for i, (model, sub_dataset, optimizer) in enumerate(zip(self.model.models, self.sub_datasets, self.optimizers)):
+            logging.info('training subnet {}'.format(i))
             data_loader = DataLoader(sub_dataset, batch_size=16, shuffle=True, collate_fn=_collate_aseatoms)
-            for i in range(epoch):
+            for epoch in range(n_epoch):
+                if epoch % 50 == 0:
+                    logging.info('epoch: {}'.format(epoch))
                 for i_batch, batch_data in enumerate(data_loader):
                     loss, energy_loss, force_loss, stress_loss = torch.zeros(4)
                     if w_energy > 0.:
@@ -846,9 +850,10 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
+        logging.info('training end')
 
     def updatedataset(self,images):
-        self.datasets.extend(images)
+        self.dataset.extend(images)
         n_frames = len(images)
         for sub_dataset in self.sub_datasets:
             sub_dataset.indices.extend(list(np.random.choice(n_frames, n_frames, replace=True)))
@@ -889,3 +894,6 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
     def load_model(self, filename):
         state_dict = torch.load('{}/{}.pt'.format(self.p.mlDir, filename))
         self.model.load_state_dict(state_dict)
+
+    def save_dataset(self, filename='dataset'):
+        write('{}/{}.traj'.format(self.p.mlDir, filename), self.dataset.frames)

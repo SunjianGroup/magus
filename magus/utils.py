@@ -1067,3 +1067,8 @@ def match_lattice(atoms1,atoms2):
     ratio2 = newatoms2.get_volume()/atoms2.get_volume()
     return newatoms1,newatoms2,ratio1,ratio2
 
+def get_radius(mol):
+    center = np.mean(mol.positions, 0)
+    radius = covalent_radii[mol.get_atomic_numbers()]
+    distance = np.linalg.norm(mol.positions - center, axis=1)
+    return np.max(distance + radius)

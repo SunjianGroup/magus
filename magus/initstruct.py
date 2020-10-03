@@ -1,5 +1,8 @@
 import numpy as np
-import GenerateNew
+try:
+    from . import GenerateNew
+except:
+    import GenerateNew
 from ase.data import atomic_numbers, covalent_radii
 from ase import Atoms,build
 from ase.spacegroup import Spacegroup
@@ -17,7 +20,6 @@ class Generator:
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
-        #radius = [self.p.dRatio*covalent_radii[atomic_numbers[atom]] for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
 
     def updatevolRatio(self,volRatio):
@@ -25,9 +27,7 @@ class Generator:
         logging.debug("new volRatio: {}".format(self.p.volRatio))
 
     def getVolumeandLattice(self,numlist):
-        naturalRadius = [covalent_radii[atomic_numbers[s]] for s in self.p.symbols]
-        Volume = np.sum(4*np.pi/3*np.array(naturalRadius)**3*np.array(numlist))*self.p.volRatio
-        #Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
+        Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
         minVolume = Volume*0.5
         maxVolume = Volume*1.5
         minLattice= [2*np.max(self.p.radius)]*3+[60]*3
@@ -185,6 +185,8 @@ class MoleculeGenerator(Generator):
         Requirement=['inputMols','molFormula','numFrml']
         Default = {'molMode':True}
         checkParameters(self.p,parameters,Requirement,Default)
+        radius = [get_radius(mol) for mol in self.p.inputMols]
+        checkParameters(self.p,parameters,[],{'radius':radius})
 
     def afterprocessing(self,ind,nfm):
         ind.info['symbols'] = self.p.symbols

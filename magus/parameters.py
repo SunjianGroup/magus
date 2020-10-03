@@ -226,7 +226,7 @@ class magusParameters:
     def get_FitnessCalculator(self):
         if not hasattr(self,'FitnessCalculator'):
             self.FitnessCalculator = []
-            if hasattr(self,parameters, 'Fitness'):
+            if hasattr(self.parameters, 'Fitness'):
                 for fitness in self.parameters.Fitness:
                     self.FitnessCalculator.append(fit_dict[fitness])
             elif self.parameters.calcType == 'fix':

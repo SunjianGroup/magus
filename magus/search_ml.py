@@ -31,6 +31,7 @@ class Magus:
         self.bestlen = []
         self.allPop = self.Population([],'allPop')
         self.Population.allPop = self.allPop
+        self.kappa = 1.0
 
     def run(self):
         self.Initialize()
@@ -70,34 +71,35 @@ class Magus:
         initPop.save('initPop', self.curgen)
 
         scfpop = self.MainCalculator.scf(initPop.frames)
-        scfPop = self.Population(initpop,'scfPop',self.curgen)
+        scfPop = self.Population(scfpop,'scfPop',self.curgen)
         scfPop.check()
         scfPop.del_duplicate()
         scfPop.save('scfPop', self.curgen)
 
         self.ML.updatedataset(scfPop.frames)
-        self.ML.train(epoch=50)
+        self.ML.train(n_epoch=self.ML.p.epoch_init)
         self.ML.save_model('para')
-        logging.info("loss:\nenergy_rmse:{}\tenergy_r2:{}\nforce_rmse:{}\tforce_r2:{}"\
-            .format(*self.ML.get_loss(initPop.frames)[:4]))
+        self.ML.save_dataset()
+        logging.info("loss:\nenergy_rmse:{}\tenergy_r2:{}\n"
+            "force_rmse:{}\tforce_r2:{}".format(*self.ML.get_loss(scfPop.frames)[:4]))
 
         self.curPop = scfPop
 
         if self.parameters.goodSeed:
             logging.info("Please be careful when you set goodSeed=True. \nThe structures in {} will be add to relaxPop without relaxation.".format(self.parameters.goodSeedFile))
             goodseedpop = read_seeds(self.parameters,'{}/Seeds/{}'.format(self.parameters.workDir, self.parameters.goodSeedFile), goodSeed=self.parameters.goodSeed)
-            relaxPop.extend(goodseedpop)
-            relaxPop.del_duplicate()
+            scfPop.extend(goodseedpop)
+            scfPop.del_duplicate()
             # relaxPop.check()
 
         self.allPop.extend(self.curPop)
         self.bestPop = self.Population([],'bestPop')
 
-        relaxPop.calc_dominators()
-        relaxPop.save('gen', self.curgen)
+        scfPop.calc_dominators()
+        scfPop.save('gen', self.curgen)
 
         logging.info('construct goodPop')
-        goodPop = relaxPop
+        goodPop = scfPop
         goodPop.del_duplicate()
         goodPop.calc_dominators()
         goodPop.select(self.parameters.popSize)
@@ -123,6 +125,7 @@ class Magus:
     def Onestep(self):
         #TODO make update parameters more reasonable
         self.update_parameters()
+        kappa = self.kappa
         curPop = self.curPop
         goodPop = self.goodPop
         keepPop = self.keepPop
@@ -157,7 +160,6 @@ class Magus:
         relaxPop.save("mlraw", self.curgen)
         relaxPop.check()
         relaxPop.del_duplicate()
-        relaxPop = self.remove_rabbish(relaxPop)
         relaxPop.save("mlgen", self.curgen)
         # save raw date before checking
         relaxPop.save('raw')
@@ -167,19 +169,28 @@ class Magus:
         relaxPop.del_duplicate()
         self.allPop.extend(relaxPop)
 
+        #######  compare target and predict energy  #######
+        scfpop = self.MainCalculator.scf(relaxPop.frames)
+        logging.info("{:<20}{:<20}".format('True','Predict'))
+        for atoms in scfpop:
+            logging.info("{:<20.2f}{:<20.2f}".format(atoms.info['energy'], self.ML.predict_energy(atoms)))
+
         #######  collect structures with high acquisition   #######
-        selectPop = self.select_with_acquisition(relaxPop, kappa)
+        selectpop = self.select_with_acquisition(relaxPop.frames, kappa)
+        selectPop = self.Population(selectpop)
 
         #######  get reference data   #######
         selectPop = self.MainCalculator.relax(selectPop)
         selectPop.save('toadd', self.curgen)
 
         #######  update ML   #######
-        self.ML.updatedataset(selectPop.frames)
-        self.ML.train(epoch=10)
+        self.ML.updatedataset(selectPop.all_frames)
+        self.ML.train(n_epoch=self.ML.p.epoch_step)
         self.ML.save_model('para')
-        logging.info("loss:\nenergy_mse:{}\tenergy_r2:{}\nforce_mse:{}\tforce_r2:{}".format(*self.ML.get_loss(relaxPop.frames)[:4]))
-
+        self.ML.save_dataset()
+        logging.info("loss:\nenergy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
+            "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.ML.get_loss(relaxPop.frames)[:4]))
+        
         #######  goodPop and keepPop  #######
         logging.info('construct goodPop')
         goodPop = relaxPop + goodPop + keepPop
@@ -213,6 +224,15 @@ class Magus:
         self.curPop = curPop
         self.goodPop = goodPop
         self.keepPop = keepPop
+
+    def select_with_acquisition(self, frames, kappa):
+        acquisition = []
+        for atoms in frames:
+            preE, stdE = self.ML.predict_energy(atoms,True)
+            # acquisition.append(preE-kappa*stdE)
+            acquisition.append(-stdE/len(atoms))
+        selectpop = [frames[i] for i in np.argsort(acquisition)[:30] if acquisition[i]<-0.1]
+        return selectpop
     
     def update_parameters(self):
         if self.MainCalculator.p.mode == 'parallel':
@@ -227,7 +247,7 @@ if __name__ == '__main__':
     parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
     args = parser.parse_args()
     if args.debug:
-        logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+        logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(asctime)s   %(message)s",datefmt='%H:%M:%S')
         logging.info('Debug mode')
     else:
         logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")

@@ -69,10 +69,10 @@ class Calculator:
     def pre_processing(self, calcPop):
         if isinstance(calcPop[0], Individual):
             self.atomstype = 'Individual'
+            self.Pop = calcPop
             return calcPop.frames
         elif isinstance(calcPop[0], Atoms):
             self.atomstype = 'Atoms'
-            self.Pop = calcPop
             return calcPop
     
     def post_processing(self, pop):
@@ -342,23 +342,23 @@ class ABinitCalculator(Calculator):
             shutil.copytree('inputFold', 'calcFold')
         os.chdir('calcFold')
     
-    def scf(self, calcPop):
+    def scf(self, calcPop, *args, **kwargs):
         calcpop = self.pre_processing(calcPop)
         if self.p.mode == 'serial':
-            scfpop = self.scf_serial(calcpop)
+            scfpop = self.scf_serial(calcpop, *args, **kwargs)
         elif self.p.mode == 'parallel':
-            scfpop = self.scf_parallel(calcpop)
+            scfpop = self.scf_parallel(calcpop, *args, **kwargs)
         else:
             raise Exception("'{}' shi ge sha mo shi".format(self.p.mode))
         scfPop = self.post_processing(scfpop)
         return scfPop
 
-    def relax(self, calcPop):
+    def relax(self, calcPop, *args, **kwargs):
         calcpop = self.pre_processing(calcPop)
         if self.p.mode == 'serial':
-            relaxpop = self.relax_serial(calcpop)
+            relaxpop = self.relax_serial(calcpop, *args, **kwargs)
         elif self.p.mode == 'parallel':
-            relaxpop = self.relax_parallel(calcpop)
+            relaxpop = self.relax_parallel(calcpop, *args, **kwargs)
         else:
             raise Exception("'{}' shi ge sha mo shi".format(self.p.mode))
         relaxPop = self.post_processing(relaxpop)
