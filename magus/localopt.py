@@ -302,9 +302,9 @@ class ABinitCalculator(Calculator):
             self.relax = self.relax_serial
         elif self.p.mode == 'parallel':
             Requirement = ['queueName','numCore','numParallel']
-            Default = {'Preprocessing':'','waitTime':200,'verbose':False}
+            Default = {'Preprocessing':'','waitTime':200,'verbose':False,'killtime':10000000}
             checkParameters(self.p,parameters,Requirement,Default)
-            self.J=JobManager(self.p.verbose)
+            self.J=JobManager(self.p.verbose,self.p.killtime)
             self.scf = self.scf_parallel
             self.relax = self.relax_parallel
             self.prefix=prefix

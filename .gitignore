@@ -3,6 +3,7 @@
 test/
 .vscode
 .vs
+.history
 examples/*/*
 !examples/*/inputFold
 !examples/*/input.yaml
