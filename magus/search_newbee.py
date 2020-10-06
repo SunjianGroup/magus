@@ -5,13 +5,13 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .initstruct import read_seeds,build_mol_struct
+from .initstruct import read_seeds
 from .utils import *
 from .machinelearning import LRmodel
 from .parameters import magusParameters
 from .writeresults import write_results
 from .offspring_creator import RattleMutation,PopGenerator
-import torch
+#import torch
 """
 Pop:class,poplulation
 pop:list,a list of atoms
