@@ -174,6 +174,10 @@ class Magus:
         logging.info("{:<20}{:<20}".format('True','Predict'))
         for atoms in scfpop:
             logging.info("{:<20.2f}{:<20.2f}".format(atoms.info['energy'], self.ML.predict_energy(atoms)))
+        scfPop = self.Population(scfpop)
+        logging.info("loss:\nenergy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
+            "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.ML.get_loss(scfPop.frames)[:4]))
+
 
         #######  collect structures with high acquisition   #######
         selectpop = self.select_with_acquisition(relaxPop.frames, kappa)
@@ -189,16 +193,17 @@ class Magus:
         self.ML.save_model('para')
         self.ML.save_dataset()
         logging.info("loss:\nenergy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
-            "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.ML.get_loss(relaxPop.frames)[:4]))
+            "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.ML.get_loss(goodPop.frames)[:4]))
         
         #######  goodPop and keepPop  #######
         logging.info('construct goodPop')
-        goodPop = relaxPop + goodPop + keepPop
+        # goodPop = relaxPop + goodPop + keepPop
+        goodPop = scfPop + goodPop + keepPop # use true energy
         goodPop.del_duplicate()
         goodPop.calc_dominators()
         goodPop.select(self.parameters.popSize)
         goodPop.save('good','')
-        goodPop.save('savegood')
+
         logging.info("good ind:")
         for ind in goodPop.pop:
             logging.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\

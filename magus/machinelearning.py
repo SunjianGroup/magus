@@ -23,6 +23,7 @@ try:
     from torch.utils.data import DataLoader, Subset
     import torch
     from ani.prior import *
+    from ani.kalmanfilter import *
 except:
     pass
 class MachineLearning:
@@ -777,7 +778,8 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
         self.p = EmptyClass()
         Requirement = ['mlDir']
         Default = {'w_energy':30.0, 'w_forces':1.0, 'w_stress':-1.0, 'n_bagging':5,
-            'cutoff': 4.0, 'n_radius':30, 'n_angular':10, 'epoch_init':500, 'epoch_step':100}
+            'cutoff': 4.0, 'n_radius':30, 'n_angular':10, 'epoch_init':10, 'epoch_step':10,
+            'train_method': 'Kalman', 'standrize': True}
         checkParameters(self.p,parameters,Requirement,Default)
 
         p = copy.deepcopy(parameters)
@@ -809,9 +811,19 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
         self.optimizers = []
 
         for _ in range(n_bagging):
-            model = ANI(representation, elements, [50, 50])
+            # a, b = np.random.randint(10, 20, 2)
+            # logging.debug('{} {} are used'.format(a, b))
+            # model = ANI(representation, elements, [a, b])
+
+            if self.p.train_method == 'Adam':
+                model = ANI(representation, elements, [50, 50])
+                optimizer = torch.optim.Adam(model.parameters())
+            elif self.p.train_method == 'Kalman':
+                model = ANI(representation, elements, [15, 15])
+                h = model.get_energies
+                z = lambda batch_data: batch_data['energy']
+                optimizer = KalmanFilter(model.parameters(), h, z, eta_0=1e-3, eta_tau=2.3, q_tau=2.3)
             nets.append(model)
-            optimizer = torch.optim.Adam(model.parameters())
             self.optimizers.append(optimizer)
 
         self.model = NNEnsemble(nets)
@@ -824,39 +836,49 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
         for i, (model, sub_dataset, optimizer) in enumerate(zip(self.model.models, self.sub_datasets, self.optimizers)):
             logging.info('training subnet {}'.format(i))
             data_loader = DataLoader(sub_dataset, batch_size=16, shuffle=True, collate_fn=_collate_aseatoms)
-            for epoch in range(n_epoch):
-                if epoch % 50 == 0:
+            if self.p.train_method == 'Adam':
+                for epoch in range(n_epoch):
+                    if epoch % 50 == 0:
+                        logging.info('epoch: {}'.format(epoch))
+                    for i_batch, batch_data in enumerate(data_loader):
+                        loss, energy_loss, force_loss, stress_loss = torch.zeros(4)
+                        if w_energy > 0.:
+                            predict_energy = model.get_energies(batch_data) / batch_data['n_atoms']
+                            target_energy = batch_data['energy'] / batch_data['n_atoms']
+                            energy_loss = torch.mean((predict_energy - target_energy) ** 2)
+
+                        if w_forces > 0.:
+                            predict_forces = model.get_forces(batch_data)
+                            target_forces = batch_data['forces']
+                            force_loss = torch.mean(torch.sum(
+                                (predict_forces - target_forces) ** 2, 1) / batch_data['n_atoms'].unsqueeze(-1))
+
+                        if w_stress > 0.:
+                            predict_stress = model.get_stresses(batch_data)
+                            target_stress = batch_data['stress']
+                            stress_loss = torch.mean((predict_stress - target_stress) ** 2)
+
+                        loss += w_energy * energy_loss + w_forces * force_loss + w_stress * stress_loss
+
+                        optimizer.zero_grad()
+                        loss.backward()
+                        optimizer.step()
+            elif self.p.train_method == 'Kalman':
+                for epoch in range(n_epoch):
                     logging.info('epoch: {}'.format(epoch))
-                for i_batch, batch_data in enumerate(data_loader):
-                    loss, energy_loss, force_loss, stress_loss = torch.zeros(4)
-                    if w_energy > 0.:
-                        predict_energy = model.get_energies(batch_data) / batch_data['n_atoms']
-                        target_energy = batch_data['energy'] / batch_data['n_atoms']
-                        energy_loss = torch.mean((predict_energy - target_energy) ** 2)
-
-                    if w_forces > 0.:
-                        predict_forces = model.get_forces(batch_data)
-                        target_forces = batch_data['forces']
-                        force_loss = torch.mean(torch.sum(
-                            (predict_forces - target_forces) ** 2, 1) / batch_data['n_atoms'].unsqueeze(-1))
-
-                    if w_stress > 0.:
-                        predict_stress = model.get_stresses(batch_data)
-                        target_stress = batch_data['stress']
-                        stress_loss = torch.mean((predict_stress - target_stress) ** 2)
-
-                    loss += w_energy * energy_loss + w_forces * force_loss + w_stress * stress_loss
-
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                    optimizer.step(data_loader)
         logging.info('training end')
 
     def updatedataset(self,images):
         self.dataset.extend(images)
         n_frames = len(images)
-        for sub_dataset in self.sub_datasets:
+        for (model, sub_dataset) in zip(self.model.models, self.sub_datasets):
             sub_dataset.indices.extend(list(np.random.choice(n_frames, n_frames, replace=True)))
+            if self.p.standrize:
+                mean, std = get_statistic([self.dataset.frames[i] for i in sub_dataset.indices])
+            else:
+                mean, std = 0.0, 1.0
+            model.set_statics(mean, std)
 
     def relax(self,calcPop):
         calcs = [self.get_calculator()]
