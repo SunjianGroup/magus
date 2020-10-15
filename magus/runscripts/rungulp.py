@@ -12,8 +12,8 @@ if  __name__ == "__main__":
     exeCmd = calcDic['exeCmd']
     pressure = calcDic['pressure']
     inputDir = calcDic['inputDir']
-
+    fixcell = calcDic['fixcell']
     initPop = ase.io.read('initPop.traj', index=':', format='traj')
 
-    optPop = calc_gulp(calcNum, initPop, pressure, exeCmd, inputDir)
+    optPop = calc_gulp(calcNum, initPop, pressure, exeCmd, inputDir, fixcell)
     write_traj('optPop.traj', optPop)
