@@ -526,7 +526,7 @@ def read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType):
             logging.debug("ERROR in checking symbols")
             continue
 
-        if calcType == 'var':
+        if calcType == 'var' or calcType == 'rcs':
             # if minAt <= len(ind) <= maxAt or len(selfSym) < len(setSym):
             formula = [symDic[sym] for sym in setSym]
             ind.info['formula'] = formula

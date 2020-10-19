@@ -729,7 +729,8 @@ class VarInd(Individual):
 class RcsInd(Individual):
     def __init__(self, parameters):
         super().__init__(parameters)
-        default= {'range':0.5,  'vacuum':7 }
+
+        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
         self.minAt = self.p.minAt 
         self.maxAt = self.p.maxAt
@@ -801,18 +802,25 @@ class RcsInd(Individual):
         benchmark = ase.io.read("layerslices.traj", index='2', format='traj')
         symbol, formula = symbols_and_formula(benchmark)
 
+        targetFrml = {s:i for s,i in zip(symbol,formula)}
         
-        numFrml = int(round(len(benchmark)/sum(formula)))
-        
-        self.info['formula'] = formula
-        self.info['numOfFormula'] = numFrml
-        targetFrml = {s:numFrml*i for s,i in zip(symbol,formula)}
+        if self.p.AtomsToAdd:
+            Add = {s:i for s,i in zip(self.p.symbols, self.p.AtomsToAdd[:len(self.p.symbols)])}
+            for s in targetFrml:
+                targetFrml[s] += Add[s]
+            if self.p.SymbolsToAdd:
+                for i in range(len(self.p.SymbolsToAdd)):
+                    setattr(targetFrml,self.p.SymbolsToAdd[i],self.p.AtomsToAdd[i+len(self.p.symbols)])
+                    
+        if hasattr(self,"info"):
+            self.info['formula'] = np.array([targetFrml[s] for s in targetFrml])
+            self.info['numOfFormula'] = 1
 
         return targetFrml
 
-    def addextralayer(self, type):
+    def addextralayer(self, type, changeAtomNum = True):
     
-        change_Minat_Maxat=True
+        change_Minat_Maxat = changeAtomNum
         pop=ase.io.read("layerslices.traj", index=':', format='traj')
         if type=='relaxable':
             FixExtraAtoms=False
@@ -852,10 +860,10 @@ class RcsInd(Individual):
 
         return newind
 
-    def removextralayer(self, type):
+    def removextralayer(self, type, changeAtomNum = True):
         newind=self.copy()
         pop=ase.io.read("layerslices.traj", index=':', format='traj')
-        change_Minat_Maxat=True
+        change_Minat_Maxat = changeAtomNum
         
         if type=='relaxable':
             extratoms=pop[1]

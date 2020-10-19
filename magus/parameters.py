@@ -66,16 +66,6 @@ class magusParameters:
         }
         if p.calcType=='rcs':
             logging.info("rcs mode: \nlayerfile= "+p.layerfile)
-            Requirement.append('layerfile')
-            Requirement.append('cutslices')
-            Default['bulk_layernum']=3
-            Default['range']=0.5
-            Default['relaxable_layernum']=3
-            Default['rcsatomrange']=0.5
-            Default['rcs_layernum']=2
-            Default['vacuum']=7
-            Default['rcs_x']=1
-            Default['rcs_y']=1
             
         checkParameters(p,p,Requirement,Default)
 
