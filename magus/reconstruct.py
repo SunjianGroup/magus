@@ -61,6 +61,7 @@ class reconstruct:
         self.maxattempts = maxattempts
 
         self.atoms = sort_elements(self.originlayer)
+        self.atoms.set_cell(self.atoms.get_cell_lengths_and_angles().copy(), scale_atoms=True)
         
         self.pos=[]
         self.atomname=[]
@@ -139,7 +140,141 @@ class reconstruct:
         f.close()
         return
 
+
+class cutcell:
+    def __init__(self,originstruct,rcs_supercell, slicepos, direction=None):
+        
+        originatoms = originstruct.copy()
+        atoms=originatoms.copy()
+
+
+        #Add direction here
+        if direction:
+            rx, ry, rz = direction[0], direction[1], direction[2]            
+            supercell = atoms * (4, 4, 4)
+            supercell.translate( [ -1*np.sum(atoms.get_cell(), axis=0)] *len(supercell))
+            
+            points = [[rx, 0, 0], [0, ry, 0], [0, 0, rz]]
+            newcell_c = np.array([rx, ry, rz])
+
+            if [0,0,0] in points:
+                points.remove([0,0,0])
+                newcell_a = np.array(points[1]) - np.array(points[0])
+                
+                newcell_a = norm(newcell_a)
+                newcell_b = np.cross(newcell_a, newcell_c)
+                newcell_b = np.array([1 if newcell_b[i]!=0 else 0 for i in range(3)])
+            
+            else:
+                newcell_a = np.array(points[1]) - np.array(points[0])
+                
+                newcell_b = np.array(points[2]) - np.array(points[0])
+
+            newcell = np.array([newcell_a, newcell_b, newcell_c])                
+            newcell = np.dot(newcell, atoms.get_cell())
+            supercell.translate([-0.5*np.sum(newcell, axis=0)]*len(supercell))
+            supercell.set_cell(newcell)
+            pos =supercell.get_scaled_positions(wrap=False).copy()
+
+            for i in range(len(pos)):
+                for j in range(3):
+                    if abs(pos[i][j]-1)< 1e-4:
+                        pos[i][j] = 1        
+                    if abs(pos[i][j])<1e-4:
+                        pos[i][j]=0
+        
+            index = [i for i in range(len(pos)) if InCell(pos[i])==True]
+            
+            atoms = supercell[index].copy()
+            
+            #rotate cellparm a to axis x
+            atoms.rotate(atoms.get_cell()[0], [1,0,0],rotate_cell=True)
+            #atoms.rotate(atoms.get_cell()[2], [0,0,1],rotate_cell=True)
+            '''may cause errs
+            stdcell = atoms.get_cell().copy()
+            stdcell[2] = norm(stdcell[2])
+            atoms.set_cell(stdcell, scale_atoms=True)
+            '''
+        
+            originatoms = atoms.copy()
+
+        rcs_x, rcs_y, rcs_z = rcs_supercell[0], rcs_supercell[1], rcs_supercell[2]
+        cell=originatoms.get_cell().copy()
+        cell[0]*= rcs_x
+        cell[1]*= rcs_y
+
+        supercell = [rcs_x, rcs_y , rcs_z]
+        
+        for i in range(3):
+            for x in range(1, supercell[i]):
+                atoms_tmp=originatoms.copy()
+                trans=[originatoms.get_cell()[i]*x]*len(atoms_tmp)
+                atoms_tmp.translate(trans)
+                atoms+=atoms_tmp
+            originatoms = atoms.copy()
+
+        
+        atoms.set_cell(cell)
+        originatoms = atoms.copy()
+        
+        pop= []
+        
+        
+        cell = originatoms.get_cell().copy()
+        cell[2] = cell[2]*slicepos[0]
+        trans=[ cell[2]*(-1) ]*len(atoms)
+        atoms.translate(trans)
+
+        for i in range(1, len(slicepos)):
+
+            cell = originatoms.get_cell().copy()
+            cell[2] = cell[2]*(slicepos[i]-slicepos[i-1])
+            atoms.set_cell(cell)
+
+            pos = atoms.get_scaled_positions(wrap=False).copy()
+            index=[]
+            for atom in atoms:
+                if pos[atom.index][2]>=0 and pos[atom.index][2]<1 :
+                    index.append(atom.index)
+
+            layerslice = atoms[index] .copy()
+            layerslice=sort(layerslice)
+            pop.append(layerslice)
+
+            trans=[ cell[2]*(-1) ]*len(atoms)
+            atoms.translate(trans)
+
+        #add extravacuum to rcs_layer  
+        
+        cell = pop[2].get_cell()
+        cell[2]*=1.5
+        pop[2].set_cell(cell)
+        
+        logging.info("save cutslices into file layerslices.traj")
+        ase.io.write("layerslices.traj",pop,format='traj')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if __name__ == '__main__':
-    t=reconstruct(0.8, ase.io.read("teststructure.vasp",format='vasp'), 0.8,2 )
+    t=reconstruct(0.8, ase.io.read("POSCAR_3.vasp",format='vasp'), 0.8,2 )
     t.reconstr()
     t.WritePoscar("result.vasp")

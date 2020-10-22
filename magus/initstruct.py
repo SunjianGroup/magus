@@ -324,73 +324,23 @@ class ReconstructGenerator():
         para_t = EmptyClass()
         Requirement=['layerfile','cutslices']
         Default={'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'rcs_x':1, 'rcs_y':1,
-        'SymbolsToAdd': None, 'AtomsToAdd': None}
+        'SymbolsToAdd': None, 'AtomsToAdd': None, 'direction': None}
 
         checkParameters(para_t, parameters, Requirement,Default)
         
-        self.originlayer=para_t.layerfile
+        
         #here starts to split layers into [bulk, relaxable, rcs]
         if os.path.exists("layerslices.traj"):
             pass
         else:
-            totlayer = para_t.bulk_layernum + para_t.relaxable_layernum + para_t.rcs_layernum
-            full = int(totlayer/para_t.cutslices)
-            part = totlayer - full*para_t.cutslices
+            bot, mid, top = para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum
+            slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/para_t.cutslices
+            tot = bot + mid + top
 
-            originatoms = ase.io.read(self.originlayer)
-            atoms=originatoms.copy()
-
-            rcs_x=para_t.rcs_x
-            rcs_y=para_t.rcs_y
-            cell=originatoms.get_cell().copy()
-            cell[0]*= rcs_x
-            cell[1]*= rcs_y
-
-            supercell = [rcs_x , rcs_y , full+1]
-            for i in range(3):
-                for x in range(1, supercell[i]):
-                    atoms_tmp=originatoms.copy()
-                    trans=[originatoms.get_cell()[i]*x]*len(atoms_tmp)
-                    atoms_tmp.translate(trans)
-                    atoms+=atoms_tmp
-
-                originatoms = atoms.copy()
+            originatoms = ase.io.read(para_t.layerfile)
+            direction = para_t.direction
+            cutcell(originatoms, [para_t.rcs_x, para_t.rcs_y, int(tot/para_t.cutslices) +1], slicepos, direction)
             
-            atoms.set_cell(cell)
-            originatoms = atoms.copy()
-            
-            pop= []
-            
-            slicenum= [para_t.bulk_layernum , para_t.relaxable_layernum , para_t.rcs_layernum]
-            
-            for num in slicenum:
-                cell = originatoms.get_cell().copy()
-                cell[2] = cell[2]*num/para_t.cutslices
-                atoms.set_cell(cell)
-
-                pos = atoms.get_scaled_positions(wrap=False).copy()
-                index=[]
-                for atom in atoms:
-                    if pos[atom.index][2]>=0 and pos[atom.index][2]<1 :
-                        index.append(atom.index)
-
-                layerslice = atoms[index] .copy()
-                pop.append(layerslice)
-
-                trans=[ cell[2]*(-1) ]*len(atoms)
-                atoms.translate(trans)
-
-            #add extravacuum to rcs_layer  
-            
-            cell = pop[2].get_cell()
-            cell[2]*=1.2
-            pop[2].set_cell(cell)
-
-            logging.info("save cutslices into file layerslices.traj")
-            ase.io.write("layerslices.traj",pop,format='traj')
-
-            #todo : add direction
-
         #layer split ends here    
 
         self.range=para_t.range
@@ -492,6 +442,8 @@ class ReconstructGenerator():
             label,ind = self.reconstruct()
             if label:
                 self.afterprocessing(ind,nfm,'rand.randmove')
+
+                ind.set_cell(self.ref.get_cell().copy(), scale_atoms=True)
                 ind = self.ind(ind)
                 #change atommin and max here for check_formula
                 pop = ase.io.read("layerslices.traj", index= ':', format='traj')
@@ -518,14 +470,17 @@ class ReconstructGenerator():
             label,ind = self.rcs_generator.Generate_ind(spg,self.numlist)
             
             if label:
-
+                #first set cell to stdcell(self.ref)
+                ind.set_cell(self.ref.get_cell_lengths_and_angles().copy())
+                #then change to true cell(self.ref)
+                ind.set_cell(self.ref.get_cell().copy(), scale_atoms=True)
+                
                 vertical_dis = self.ref.get_scaled_positions()[:,2].copy()
-                distance = np.min(vertical_dis) #if self.p.dimension==3 else np.average(vertical_dis)
+                distance = np.average(vertical_dis) if self.p.dimension==2 and self.p.choice==0 else np.min(vertical_dis)
                 layer_vertical_dis = ind.get_scaled_positions()[:,2].copy()
                 layerbottom = np.min(layer_vertical_dis)
 
                 ind.translate([ self.ref.get_cell()[2]*distance-ind.get_cell()[2]*layerbottom ]*len(ind))
-                ind.set_cell(self.ref.get_cell().copy())
 
                 self.afterprocessing(ind,nfm,'rand.symmgen')
                 ind= self.ind(ind)

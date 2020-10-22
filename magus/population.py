@@ -904,13 +904,17 @@ class RcsInd(Individual):
         return newind
 
     def addvacuum(self, add):
+
         vacuum=self.p.vacuum*add
         newind=self.copy()
 
-        newcell=newind.atoms.get_cell()
-        newcell[2]+=[0,0,vacuum*2]
+        ratio = 1.0*vacuum/newind.atoms.get_cell_lengths_and_angles()[2]
+        newcell = newind.atoms.get_cell()
+        newcell[2]*=2*ratio+1
+
         newind.atoms.set_cell(newcell)
-        trans=[[0,0,vacuum]]*len(newind.atoms)
+        trans=[self.atoms.get_cell()[2]*ratio]*len(newind.atoms)
+
         newind.atoms.translate(trans)
 
         return newind
