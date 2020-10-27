@@ -8,8 +8,9 @@ from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
 from .utils import *
-from .reconstruct import reconstruct
+from .reconstruct import reconstruct, cutcell
 from .population import RcsInd
+
 
 class Generator:
     def __init__(self,parameters):
@@ -335,11 +336,12 @@ class ReconstructGenerator():
         else:
             bot, mid, top = para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum
             slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/para_t.cutslices
-            tot = bot + mid + top
+            slicepos = list( slicepos + np.array([0.9]*4))
+            logging.info("cutslice = {}".format(slicepos))
 
             originatoms = ase.io.read(para_t.layerfile)
             direction = para_t.direction
-            cutcell(originatoms, [para_t.rcs_x, para_t.rcs_y, int(tot/para_t.cutslices) +1], slicepos, direction)
+            cutcell(originatoms, [para_t.rcs_x, para_t.rcs_y, int(slicepos[-1]) +1], slicepos, direction)
             
         #layer split ends here    
 
@@ -350,15 +352,23 @@ class ReconstructGenerator():
         #here get new parameters for self.generator 
         _parameters = copy.deepcopy(parameters)
 
-        self.ref = ase.io.read("layerslices.traj", index=2, format='traj')
-        vertical_dis = self.ref.get_scaled_positions()[:,2].copy()
-        mincell = self.ref.get_cell().copy()
-        mincell[2] *= (np.max(vertical_dis) - np.min(vertical_dis))*1.2
-        setlattice = list(cell_to_cellpar(mincell))
-
+        self.layerslices = ase.io.read("layerslices.traj", index=':', format='traj')
+        
+        setlattice = []
+        if len(self.layerslices)==3:
+            self.ref = self.layerslices[2]
+            vertical_dis = self.ref.get_scaled_positions()[:,2].copy()
+            mincell = self.ref.get_cell().copy()
+            mincell[2] *= (np.max(vertical_dis) - np.min(vertical_dis))*1.2
+            setlattice = list(cell_to_cellpar(mincell))
+        else:
+            self.ref = self.layerslices[1].copy()
+            lattice = self.ref.get_cell().copy()
+            lattice [2]/= para_t.relaxable_layernum
+            self.ref.set_cell(lattice)
+            setlattice = list(cell_to_cellpar(lattice))
+        
         target = self.ind.get_targetFrml()
-        self.numlist = np.array([target[s] for s in target])
-
         _symbol = [s for s in target]
         requirement = {'minLattice': setlattice, 'maxLattice':setlattice, 'symbols':_symbol}
 
@@ -466,8 +476,10 @@ class ReconstructGenerator():
             
             spg = np.random.choice(self.p.spgs)
             nfm = np.random.choice(self.p.numFrml)
-            
-            label,ind = self.rcs_generator.Generate_ind(spg,self.numlist)
+
+            target = self.ind.get_targetFrml()
+            numlist = np.array([target[s] for s in target])
+            label,ind = self.rcs_generator.Generate_ind(spg,numlist)
             
             if label:
                 #first set cell to stdcell(self.ref)

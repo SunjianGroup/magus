@@ -4,7 +4,7 @@ import ase.io
 #import spglib 
 from ase.data import atomic_numbers, covalent_radii
 from .utils import sort_elements
-
+import logging
 
 def str_(l):
     l=str(l)
@@ -140,6 +140,17 @@ class reconstruct:
         f.close()
         return
 
+def InCell(pos):
+    for i in range(3):
+        if pos[i]>=1 or pos[i]<0:
+            return False 
+    return True
+
+def norm(vec):
+    if vec[0]<1e-4 and vec[1]<1e-4 and vec[2]<1e-4:
+        return -vec 
+    return vec
+
 
 class cutcell:
     def __init__(self,originstruct,rcs_supercell, slicepos, direction=None):
@@ -225,6 +236,10 @@ class cutcell:
         trans=[ cell[2]*(-1) ]*len(atoms)
         atoms.translate(trans)
 
+        if slicepos[-1]==slicepos[-2]:
+            del slicepos[-1]
+            logging.info("warning: rcs layer have no atoms. Change mode to adatoms.")  
+
         for i in range(1, len(slicepos)):
 
             cell = originatoms.get_cell().copy()
@@ -237,40 +252,25 @@ class cutcell:
                 if pos[atom.index][2]>=0 and pos[atom.index][2]<1 :
                     index.append(atom.index)
 
+            if len(index)==0:
+                slicename = ['bulk', 'relaxable', 'reconstruct']
+                raise Exception("No atom in {} layer".format(slicename[i-1]))
+
             layerslice = atoms[index] .copy()
-            layerslice=sort(layerslice)
+            layerslice=sort_elements(layerslice)
             pop.append(layerslice)
 
             trans=[ cell[2]*(-1) ]*len(atoms)
             atoms.translate(trans)
 
         #add extravacuum to rcs_layer  
-        
-        cell = pop[2].get_cell()
-        cell[2]*=1.5
-        pop[2].set_cell(cell)
+        if len(pop)==3:        
+            cell = pop[2].get_cell()
+            cell[2]*=2
+            pop[2].set_cell(cell)
         
         logging.info("save cutslices into file layerslices.traj")
         ase.io.write("layerslices.traj",pop,format='traj')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

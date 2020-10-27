@@ -732,8 +732,30 @@ class RcsInd(Individual):
 
         default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
+        self.layerslices = ase.io.read("layerslices.traj", index=':', format='traj')
+        
         self.minAt = self.p.minAt 
         self.maxAt = self.p.maxAt
+
+        if self.p.SymbolsToAdd:
+            self.p.symbols.extend(self.p.SymbolsToAdd)
+
+        if self.p.AtomsToAdd:
+            _AtomsToAdd = []
+            assert len(self.p.AtomsToAdd)== len(self.p.symbols), 'Please check the length of AddAtoms'
+            for i in range(len(self.p.symbols)):
+                expand = []
+                for item in self.p.AtomsToAdd[i]:
+                    if isinstance(item, int):
+                        expand.append(item)
+                    elif isinstance(item, str):
+                        assert '~' in item, 'Please check the format of AddAtoms'
+                        s1, s2 = item.split('~')
+                        s1, s2 = int(s1), int(s2)
+                        expand.extend(list(range(s1, s2+1)))
+                _AtomsToAdd .append(expand)
+            self.p.AtomsToAdd = _AtomsToAdd
+            
 
     def __call__(self,atoms):
         newind = self.__new__(self.__class__)
@@ -741,6 +763,7 @@ class RcsInd(Individual):
 
         newind.minAt = self.minAt
         newind.maxAt = self.maxAt
+        newind.layerslices = self.layerslices
 
         newind.comparator = self.comparator
         newind.cf = self.cf
@@ -770,64 +793,96 @@ class RcsInd(Individual):
             logging.info("minAt={} , maxAt={}, Natoms={}".format(self.minAt, self.maxAt, Natoms))
             return False
 
-        symbols = a.get_chemical_symbols()
+        symbols, formula = symbols_and_formula(a)
+        nowFrml = {s:i for s,i in zip(symbols, formula)}
+
         for s in symbols:
             if s not in self.p.symbols:
+                logging.info("symbol '{}' not in defined symbols".format(s))
                 return False
 
-        formula = np.array([symbols.count(s) for s in self.p.symbols])
-
-        if self.minAt == self.p.minAt:
-            
-            numFrml = int(round(Natoms/sum(self.p.formula)))
-            targetFrml = numFrml*np.array(self.p.formula)
-            
-        else:
-            target = self.get_targetFrml()
-            targetFrml = []
-            for s in self.p.symbols:
-                targetFrml.append(target[s] if s in target else 0)
-            targetFrml = np.array(targetFrml)
-                
-
-        if np.all(targetFrml == formula):
-            return True
-        else:
-            logging.info("targetFrml={} , nowformula={}, symbols={}".format(targetFrml, formula, self.p.symbols))
-            return False
-
-        #return np.all(targetFrml == formula)
         
-    def get_targetFrml(self):
-        benchmark = ase.io.read("layerslices.traj", index='2', format='traj')
-        symbol, formula = symbols_and_formula(benchmark)
+        targetFrml = self.get_refFrml()
 
-        targetFrml = {s:i for s,i in zip(symbol,formula)}
+        if self.minAt == self.p.minAt:  #with bulk and relaxable
+            _symbols, _formula = symbols_and_formula(self.layerslices[0]+self.layerslices[1])
+            _bottom = {s:i for s,i in zip(_symbols, _formula)}
+            for s in targetFrml:
+                if nowFrml[s]-_bottom[s] not in targetFrml[s]:
+                    logging.info("targetFrml={} , nowformula={} for symbol '{}' with bottom layers".format(targetFrml[s], nowFrml[s]+_bottom[s] ,s))
+                    return False
+        else:
+            for s in targetFrml:    #without bulk and relaxable
+                if nowFrml[s] not in targetFrml[s]:
+                    logging.info("targetFrml={} , nowformula={} for symbol '{}' without bottom layers".format(targetFrml[s], nowFrml[s] ,s))
+                    return False
+
+        return True     
+        
+    def get_refFrml(self):
+
+        if len(self.layerslices)==3:
+            benchmark = self.layerslices[2]
+            symbol, formula = symbols_and_formula(benchmark)
+
+            targetFrml = {s:i for s,i in zip(symbol,formula)}
+        elif len(self.layerslices)==2:
+            targetFrml = {}
         
         if self.p.AtomsToAdd:
-            Add = {s:i for s,i in zip(self.p.symbols, self.p.AtomsToAdd[:len(self.p.symbols)])}
+            Add = {s:i for s,i in zip(self.p.symbols, self.p.AtomsToAdd)}
             for s in targetFrml:
-                targetFrml[s] += Add[s]
-            if self.p.SymbolsToAdd:
-                for i in range(len(self.p.SymbolsToAdd)):
-                    setattr(targetFrml,self.p.SymbolsToAdd[i],self.p.AtomsToAdd[i+len(self.p.symbols)])
-                    
+                targetFrml[s] = [num + targetFrml[s] for num in Add[s]]
+        else:
+            targetFrml = {s:[targetFrml[s]] for s in targetFrml}
+            #if self.p.SymbolsToAdd:
+                #for i in range(len(self.p.SymbolsToAdd)):
+                    #setattr(targetFrml,self.p.SymbolsToAdd[i],self.p.AtomsToAdd[i+len(self.p.symbols)])
+
+        return targetFrml
+
+    def get_targetFrml(self):
+        targetFrml = self.get_refFrml()
+
+        if hasattr(self,"atoms"):
+            symbols, formula = symbols_and_formula(self.atoms)
+            nowFrml = {s:i for s,i in zip(symbols, formula)}
+            bestFrml = nowFrml.copy()
+
+            for s in targetFrml:
+                if s not in bestFrml:
+                    bestFrml[s] = np.random.choice(targetFrml[s])
+
+                elif nowFrml[s] in targetFrml[s]:
+                    pass
+                else:
+                    if np.random.rand()<0.3:
+                        bestFrml[s] = targetFrml[s][0] if nowFrml[s] < targetFrml[s][0] else targetFrml[s][-1]
+                    else:
+                        bestFrml[s] = np.random.choice(targetFrml[s])
+            
+        else:
+            for s in targetFrml:
+                targetFrml[s] = np.random.choice(targetFrml[s])
+            bestFrml = targetFrml
+
         if hasattr(self,"info"):
             self.info['formula'] = np.array([targetFrml[s] for s in targetFrml])
             self.info['numOfFormula'] = 1
 
-        return targetFrml
+        return bestFrml
+
 
     def addextralayer(self, type, changeAtomNum = True):
     
         change_Minat_Maxat = changeAtomNum
-        pop=ase.io.read("layerslices.traj", index=':', format='traj')
+
         if type=='relaxable':
             FixExtraAtoms=False
-            extratoms=pop[1]
+            extratoms=self.layerslices[1]
         elif type=='bulk':
             FixExtraAtoms=True
-            extratoms=pop[0]
+            extratoms=self.layerslices[0]
 
         newind=self.copy()
         atoms_top=newind.atoms.copy()
@@ -862,13 +917,13 @@ class RcsInd(Individual):
 
     def removextralayer(self, type, changeAtomNum = True):
         newind=self.copy()
-        pop=ase.io.read("layerslices.traj", index=':', format='traj')
+
         change_Minat_Maxat = changeAtomNum
         
         if type=='relaxable':
-            extratoms=pop[1]
+            extratoms=self.layerslices[1]
         elif type=='bulk':
-            extratoms=pop[0]
+            extratoms=self.layerslices[0]
             
         atoms_bottom=extratoms.copy()
         newcell=newind.atoms.get_cell()

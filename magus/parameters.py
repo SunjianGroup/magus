@@ -150,8 +150,10 @@ class magusParameters:
             rotNum = num if self.parameters.molDetector != 0 else 0
             #rotNum = num if self.parameters.molMode else 0
             formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
+
             if self.parameters.calcType=='rcs':
-                latNum=0
+                latNum = 0
+                formNum = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
 
             """
             if self.parameters.useml:
