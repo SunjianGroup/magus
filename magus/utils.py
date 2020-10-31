@@ -31,7 +31,7 @@ def toyaml(p):
         for key,value in p.__dict__.items():
             d[key] = toyaml(value)
         return d
-    if isinstance(p, dict):
+    elif isinstance(p, dict):
         d = {}
         for key,value in p.items():
             d[key] = toyaml(value)
@@ -41,11 +41,19 @@ def toyaml(p):
         for value in p:
             l.append(toyaml(value))
         return l
-    elif isinstance(p, int) or isinstance(p, float) or isinstance(p, bool) or isinstance(p, str) or p is None:
-        return p
+    elif isinstance(p, int):
+        return int(p) 
+    elif isinstance(p, float):
+        return float(p)
+    elif isinstance(p, bool):
+        return bool(p)
+    elif isinstance(p, str):
+        return str(p)
+    elif isinstance(p, np.ndarray):
+        return p.tolist()
     else:
         return None
-         
+
 
 class EmptyClass:
     def attach(self,other):
@@ -1066,4 +1074,10 @@ def match_lattice(atoms1,atoms2):
     ratio1 = newatoms1.get_volume()/atoms1.get_volume()
     ratio2 = newatoms2.get_volume()/atoms2.get_volume()
     return newatoms1,newatoms2,ratio1,ratio2
+
+def get_radius(mol):
+    center = np.mean(mol.positions, 0)
+    radius = covalent_radii[mol.get_atomic_numbers()]
+    distance = np.linalg.norm(mol.positions - center, axis=1)
+    return np.max(distance + radius)
 
