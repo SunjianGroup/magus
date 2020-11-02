@@ -85,11 +85,14 @@ class Generator:
                         uni_symbols = list({}.fromkeys(symbols).keys())
                         assert len(uni_symbols)<5 
                         #TODO char array
-                        na,nb,nc,nd = [uni_symbols[i] if i<len(uni_symbols) else '0' for i in range(4)]
+                        namearray = [str(_s) for _s in uni_symbols]
                         numinfo = np.array([symbols.count(s) for s in uni_symbols],dtype=float)
 
+                        symprec = self.p.symprec
+                        generator.threshold_mol = self.p.threshold_mol
+                        
                         generator.AppendMoles(int(numlist[i]),mole.get_chemical_formula()\
-                            ,radius, positions, numinfo, na,nb,nc,nd)
+                            ,radius, positions, numinfo, namearray, symprec)
 
                         number = sum([num for num in [[atomic_numbers[s]]*int(n)*numlist[i] \
                             for s,n in zip(uni_symbols,numinfo)]],[])
@@ -188,7 +191,7 @@ class MoleculeGenerator(Generator):
     def __init__(self,parameters):
         super().__init__(parameters)
         Requirement=['inputMols','molFormula','numFrml']
-        Default = {'molMode':True}
+        Default = {'molMode':True, 'symprec':0.1, 'threshold_mol': 1.0}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [get_radius(mol) for mol in self.p.inputMols]
         checkParameters(self.p,parameters,[],{'radius':radius})

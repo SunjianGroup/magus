@@ -34,12 +34,30 @@ def var_fitness(Pop):
         ind.info['enthalpy'] = ind.atoms.info['enthalpy']
         ind.info['fitness']['ehull'] = -ehull
 
+
+def rcs_fitness(Pop):
+# modified from var_fitness
+
+    symbols = Pop.Individual.p.symbols
+    mark = 'fix'
+
+    if len(symbols) >1 and Pop.Individual.p.AtomsToAdd:
+        for atomnum in Pop.Individual.p.AtomsToAdd:
+            if len(atomnum)>1:
+                mark = 'var'
+                break
+        
+    if mark == 'fix':
+        fix_fitness(Pop)
+    else:
+        var_fitness(Pop)
+
 def set_fit_calcs(parameters):
     calcs = []
     if parameters.calcType == 'fix':
         calcs.append(fix_fitness)
     if parameters.calcType == 'var':
         calcs.append(var_fitness)
-    if parameters.calcType=='rcs':
-        calcs.append(var_fitness)
+    if parameters.calcType == 'rcs':
+        calcs.append(rcs_fitness)
     return calcs
