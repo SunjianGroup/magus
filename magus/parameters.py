@@ -10,7 +10,7 @@ from functools import reduce
 import numpy as np
 import copy
 from .localopt import *
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator, ReconstructGenerator
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator, ReconstructGenerator, ClusterGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
 from .machinelearning import LRmodel,GPRmodel,BayesLRmodel,pytorchGPRmodel
@@ -126,6 +126,8 @@ class magusParameters:
 
             elif self.parameters.calcType == 'rcs':
                 AtomsGenerator = ReconstructGenerator(self.parameters)
+            elif self.parameters.calcType == 'clus':
+                AtomsGenerator = ClusterGenerator(self.parameters)
                 
             else:
                 raise Exception("Undefined calcType '{}'".format(self.parameters.calcType))

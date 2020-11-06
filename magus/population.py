@@ -24,6 +24,8 @@ def set_ind(parameters):
         return VarInd(parameters)
     if parameters.calcType == 'rcs':
         return RcsInd(parameters)
+    if parameters.calcType == 'clus':
+        return ClusInd(parameters)
 
 class Population:
     """
@@ -228,6 +230,9 @@ class Population:
         self.pop = list(map(lambda ind:ind.addextralayer('bulk'), self.pop))  
         #addvacuum(self):
         self.pop = list(map(lambda ind:ind.addvacuum(add=1), self.pop))  
+
+    def reset_center(self):
+        self.pop = list(map(lambda ind:ind.reset_center(), self.pop))  
 
     def select(self,n):
         # self.calc_dominators()
@@ -973,3 +978,59 @@ class RcsInd(Individual):
         newind.atoms.translate(trans)
 
         return newind
+
+
+class ClusInd(FixInd):
+    def __init__(self, parameters):
+        super().__init__(parameters)
+        default= {'vacuum':10}
+        checkParameters(self.p,parameters, Requirement=[], Default=default )
+
+    #slightly modified from FixInd, without periodic boundary conditions
+    def __call__(self,atoms):
+        newind = self.__new__(self.__class__)
+        newind.p = self.p
+
+        newind.comparator = self.comparator
+        newind.cf = self.cf
+        newind.inputMols = self.inputMols
+        newind.molCounters = self.molCounters
+        newind.inputFormulas = self.inputFormulas
+
+        if atoms.__class__.__name__ == 'Molfilter':
+            atoms = atoms.to_atoms()
+
+        atoms = self.reset_center(atoms)
+
+        newind.atoms = atoms
+        newind.sort()
+        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
+        newind.info['fitness'] = {}
+        return newind
+
+    
+
+    def reset_center(self, atoms = None):
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+
+        pos = a.get_positions().copy()
+        newlattice =[]
+        for i in range(3):
+            ref = sorted(pos[:,i])
+            newlattice.append(ref[-1] - ref[0] + self.p.vacuum)
+
+        trans = [np.array(newlattice)/2 - np.mean(pos, axis = 0)]*len(a)
+        a.translate(trans)
+        newlattice.extend([90,90,90])
+        a.set_cell (newlattice)
+
+        return a
+        
+            
+
+        
+
+

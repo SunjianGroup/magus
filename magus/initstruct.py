@@ -57,6 +57,8 @@ class Generator:
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
         generator.dimension = self.p.dimension
+        if self.p.vacuum:
+            generator.vacuum = self.p.vacuum
         generator.choice = self.p.choice
         if self.p.molMode:
             generator.threshold=self.p.bondRatio
@@ -510,6 +512,20 @@ class ReconstructGenerator():
 
         return buildPop
 
+
+class ClusterGenerator(BaseGenerator):
+    def __init__(self,parameters):
+        super().__init__(parameters)
+        Default = {'vacuum':10}
+        checkParameters(self.p,parameters, [], Default)
+        self.p.dimension = 0
+
+    def afterprocessing(self,ind,nfm):
+        super().afterprocessing(ind,nfm)
+
+    def Generate_pop(self,popSize,initpop=False):
+        return super().Generate_pop(popSize,initpop)
+        
 #test
 if __name__ == '__main__':
     class EmptyClass:
