@@ -148,8 +148,15 @@ class Population:
         # sort the pop before deleting duplicates
         self.pop = sorted(self.pop, key=lambda x:x.info['enthalpy'] if 'enthalpy' in x.info else 100)
         for ind1 in self.pop:
-            for ind2 in newpop:
+            #for ind2 in newpop:
+            # compare enthalpies, save the ind with lowest enthalpy
+            newLen = len(newpop)
+            for n in range(newLen):
+                ind2 = newpop[n]
                 if ind1 == ind2:
+                    if 'enthalpy' in ind1.info and 'enthalpy' in ind2.info:
+                        if ind1.info['enthalpy'] < ind2.info['enthalpy']:
+                            newpop[n] = ind1
                     break
             else:
                 newpop.append(ind1)

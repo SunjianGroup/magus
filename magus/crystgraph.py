@@ -162,7 +162,7 @@ def find_communities(QG):
     partition = [list(p) for p in c]
     return partition
 
-def find_communities2(QG, maxStep=100):
+def find_communities2(QG, maxStep=1000):
     """
     Find communitis of crystal quotient graph QG using Girva_Newman algorithm, different from find_communities.
     QG: networkx.MultiGraph
