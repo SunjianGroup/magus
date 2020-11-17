@@ -15,7 +15,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import cluster
 from scipy.optimize import root
 from scipy.spatial.distance import cdist, pdist
-from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
+from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, find_communities4, remove_selfloops, nodes_and_offsets
 from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from ase.build import make_supercell
 from ase.geometry import cell_to_cellpar,cellpar_to_cell
@@ -373,7 +373,7 @@ def atoms2communities(atoms, coef=1.1):
                 offSets[i] = offSet
         else:
             # comps = find_communities(G)
-            comps = find_communities2(G)
+            comps = find_communities4(G)
             for indices in comps:
                 tmpG = G.subgraph(indices)
                 nodes, offs = nodes_and_offsets(tmpG)

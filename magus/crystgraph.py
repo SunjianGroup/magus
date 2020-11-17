@@ -194,6 +194,24 @@ def find_communities2(QG, maxStep=1000):
                 tmpG = reduce(nx.union, extendList)
                 break
 
+def find_communities4(QG):
+    tmpG = remove_selfloops(QG)
+    partition = []
+    inputArr = list(nx.connected_component_subgraphs(tmpG))
+    while len(inputArr) > 0:
+        c = inputArr.pop()
+        if graph_dim(c) == 0:
+            partition.append(list(c.nodes()))
+            print("0D {}".format(c.nodes()))
+        else:
+            comp=nx.algorithms.community.girvan_newman(c)
+            print("GN step")
+            for indices in next(comp):
+                print(indices)
+                inputArr.append(tmpG.subgraph(indices))
+
+    return partition
+
 def remove_selfloops(G):
     newG = G.copy()
     loops = list(newG.selfloop_edges())
