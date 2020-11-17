@@ -5,10 +5,11 @@ import logging
 import datetime
 
 class JobManager:
-    def __init__(self,verbose=False):
+    def __init__(self,verbose=False,killtime=1000000):
         self.verbose = verbose
         self.jobs=[]
         self.history=[]
+        self.killtime = killtime
 
     def bsub(self,command,name):
         job=dict()
@@ -17,13 +18,14 @@ class JobManager:
             jobid=jobid.decode()
         job['id']=jobid
         job['workDir']=os.getcwd()
-        job['subtime']=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        job['subtime']=datetime.datetime.now()
         job['name']=name
         self.jobs.append(job)
 
     def checkjobs(self):
         logging.debug("Checking jobs...")
-        logging.debug(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        nowtime = datetime.datetime.now()
+        logging.debug(nowtime.strftime('%m-%d %H:%M:%S'))
         allDone = True
         for job in self.jobs:
             try:
@@ -40,8 +42,14 @@ class JobManager:
                 job['state'] = 'PEND'
                 allDone = False
             elif stat == 'RUN':
+                if 'begintime' not in job.keys():
+                    job['begintime'] = datetime.datetime.now()
                 job['state'] = 'RUN'
                 allDone = False
+                runtime = (nowtime - job['begintime']).total_seconds()
+                if runtime > self.killtime:
+                    self.kill(job['id'])
+                    logging.warning('job {} id {} has run {}s, ni pao ni ma ne?'.format(job['name'],job['id'],runtime))
             else:
                 job['state'] = 'ERROR'
             if self.verbose:
@@ -55,3 +63,6 @@ class JobManager:
     def clear(self):
         self.history.extend(self.jobs)
         self.jobs=[]
+
+    def kill(self, jobid):
+        subprocess.call('bkill {}'.format(jobid), shell=True)

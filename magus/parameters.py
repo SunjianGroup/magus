@@ -13,8 +13,8 @@ from .localopt import *
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
-from .machinelearning import LRmodel,GPRmodel,BayesLRmodel
-from .queue import JobManager
+from .machinelearning import LRmodel,GPRmodel,BayesLRmodel,pytorchGPRmodel
+from .queuemanage import JobManager
 from .population import Population
 #ML module
 #from .machinelearning import LRmodel
@@ -185,6 +185,8 @@ class magusParameters:
                     self.MLCalculator = LRmodel(self.parameters)
                 elif self.parameters.mlmodel == 'GPR':
                     self.MLCalculator = GPRmodel(self.parameters)
+                elif self.parameters.mlmodel == 'GPR-torch':
+                    self.MLCalculator = pytorchGPRmodel(self.parameters)
                 elif self.parameters.mlmodel == 'BayesLR':
                     self.MLCalculator = BayesLRmodel(self.parameters)
             else:

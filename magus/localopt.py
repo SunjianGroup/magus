@@ -35,12 +35,12 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from ase.constraints import UnitCellFilter
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
-from .queue import JobManager
-# from .runvasp import calc_vasp
-# from .rungulp import calc_gulp
+from .queuemanage import JobManager
+import multiprocessing as mp
 
-__all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
-    'EMTCalculator','GULPCalculator','LammpsCalculator','QUIPCalculator','ASECalculator']
+
+#__all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
+#    'EMTCalculator','GULPCalculator','LammpsCalculator','QUIPCalculator','ASECalculator']
 class RelaxVasp(Vasp):
     """
     Slightly modify ASE's Vasp Calculator so that it will never check relaxation convergence.
@@ -56,6 +56,12 @@ class Calculator:
         Default = {'pressure':0}
         checkParameters(self.p,parameters,Requirement,Default)
 
+    def cdcalcFold(self):
+        os.chdir(self.p.workDir)
+        if not os.path.exists('calcFold'):
+            shutil.copytree('inputFold', 'calcFold')
+        os.chdir('calcFold')
+
     def relax(self,calcPop):
         pass
 
@@ -66,18 +72,30 @@ class ASECalculator(Calculator):
     def __init__(self,parameters):
         super().__init__(parameters)
         Requirement = ['epsArr','stepArr','calcNum']
-        Default = {'optimizer':'bfgs','maxRelaxStep':0.1,'relaxLattice':True}
+        Default = {'optimizer':'bfgs','maxRelaxStep':0.1,'relaxLattice':True,'mode':'serial'}
         checkParameters(self.p,parameters,Requirement,Default)
         assert len(self.p.epsArr) == self.p.calcNum
         assert len(self.p.stepArr) == self.p.calcNum
+        self.p.numParallel = mp.cpu_count()
 
-    def relax(self, calcPop ,calcs):
-        os.chdir(self.p.workDir)
-        if not os.path.exists('calcFold'):
-            # os.mkdir('calcFold')
-            shutil.copytree("{}/inputFold".format(self.p.workDir), "calcFold")
-        os.chdir('calcFold')
-        logfile = 'aserelax.log'
+    def scf(self, calcPop, calcs):
+        if self.p.mode == 'serial':
+            return self.scf_serial(calcPop, calcs)
+        elif self.p.mode == 'parallel':
+            return self.scf_parallel(calcPop, calcs)
+        else:
+            raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
+
+    def relax(self, calcPop, calcs):
+        if self.p.mode == 'serial':
+            return self.relax_serial(calcPop, calcs)
+        elif self.p.mode == 'parallel':
+            return self.relax_parallel(calcPop, calcs)
+        else:
+            raise Exception("'{}' shi ge sha mo shi".format(parameters.mode))
+
+    def relax_serial(self, calcPop, calcs, logfile='aserelax.log', trajname='calc.traj'):
+        self.cdcalcFold()
         relaxPop = []
         errorPop = []
         for i, ind in enumerate(calcPop):
@@ -89,16 +107,16 @@ class ASECalculator(Calculator):
                 else:
                     ucf = ind
                 if self.p.optimizer == 'cg':
-                    gopt = SciPyFminCG(ucf, logfile=logfile,trajectory='calc.traj')
+                    gopt = SciPyFminCG(ucf, logfile=logfile,trajectory=trajname)
                 elif self.p.optimizer == 'bfgs':
-                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory='calc.traj')
+                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory=trajname)
                 elif self.p.optimizer == 'lbfgs':
-                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory='calc.traj')
+                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory=trajname)
                 elif self.p.optimizer == 'fire':
-                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep,trajectory='calc.traj')
+                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep,trajectory=trajname)
                 try:
                     label = gopt.run(fmax=self.p.epsArr[j], steps=self.p.stepArr[j])
-                    traj = ase.io.read('calc.traj',':')
+                    traj = ase.io.read(trajname,':')
                     # save relax steps
                     logging.debug('{} relax steps: {}'.format(self.__class__.__name__,len(traj)))
                 except Converged:
@@ -134,13 +152,8 @@ class ASECalculator(Calculator):
         os.chdir(self.p.workDir)
         return relaxPop
 
-    def scf(self, calcPop, calcs):
-        os.chdir(self.p.workDir)
-        if not os.path.exists('calcFold'):
-            # os.mkdir('calcFold')
-            shutil.copytree("{}/inputFold".format(self.p.workDir), "calcFold")
-        os.chdir('calcFold')
-
+    def scf_serial(self, calcPop, calcs):
+        self.cdcalcFold()
         scfPop = []
         for ind in calcPop:
             atoms=copy.deepcopy(ind)
@@ -161,6 +174,49 @@ class ASECalculator(Calculator):
                 pass
         os.chdir(self.p.workDir)
         return scfPop
+
+    def scf_parallel(self, calcPop, calcs):
+        self.cdcalcFold()
+        numParallel = self.p.numParallel
+        popLen = len(calcPop)
+        eachLen = popLen//numParallel
+        remainder = popLen%numParallel
+
+        runArray = []
+        for i in range(numParallel):
+            tmpList = [ i + numParallel*j for j in range(eachLen)]
+            if i < remainder:
+                tmpList.append(numParallel*eachLen + i)
+            runArray.append(tmpList)
+
+        pool = mp.Pool(numParallel)
+        results = [pool.apply_async(self.scf_serial, args=([calcPop[j] for j in runArray[i]], calcs)) \
+            for i in range(numParallel)]
+        scfPop = [ind for p in results for ind in p.get()]
+        os.chdir(self.p.workDir)
+        return scfPop
+
+    def relax_parallel(self, calcPop, calcs):
+        self.cdcalcFold()
+        numParallel = self.p.numParallel
+        popLen = len(calcPop)
+        eachLen = popLen//numParallel
+        remainder = popLen%numParallel
+
+        runArray = []
+        for i in range(numParallel):
+            tmpList = [ i + numParallel*j for j in range(eachLen)]
+            if i < remainder:
+                tmpList.append(numParallel*eachLen + i)
+            runArray.append(tmpList)
+
+        pool = mp.Pool(numParallel)
+        results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs, 'ase{}.log'.format(i), 'calc{}.traj'.format(i))) \
+            for i in range(numParallel)]
+        scfPop = [ind for p in results for ind in p.get()]
+        os.chdir(self.p.workDir)
+        return scfPop
+
 
 class LJCalculator(ASECalculator):
     def __init__(self,parameters):
@@ -238,17 +294,17 @@ class ASEGULPCalculator(ASECalculator):
 class ABinitCalculator(Calculator):
     def __init__(self,parameters,prefix):
         super().__init__(parameters)
-        Requirement = ['mode','calcNum']
-        Default = {}
+        Requirement = ['calcNum']
+        Default = {'mode':'parallel'}
         checkParameters(self.p,parameters,Requirement,Default)
         if self.p.mode == 'serial':
             self.scf = self.scf_serial
             self.relax = self.relax_serial
         elif self.p.mode == 'parallel':
             Requirement = ['queueName','numCore','numParallel']
-            Default = {'Preprocessing':'','waitTime':200,'verbose':False}
+            Default = {'Preprocessing':'','waitTime':200,'verbose':False,'killtime':10000000}
             checkParameters(self.p,parameters,Requirement,Default)
-            self.J=JobManager(self.p.verbose)
+            self.J=JobManager(self.p.verbose,self.p.killtime)
             self.scf = self.scf_parallel
             self.relax = self.relax_parallel
             self.prefix=prefix
@@ -372,7 +428,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
+        f.write("python -m magus.runscripts.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh',jobName)
 
@@ -388,7 +444,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
+        f.write("python -m magus.runscripts.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
         f.close()
         self.J.bsub('bsub < parallel.sh',jobName)
 
@@ -443,7 +499,7 @@ class GULPCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.write("python -m magus.runscripts.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)
@@ -466,7 +522,7 @@ class GULPCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.write("python -m magus.runscripts.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)
@@ -521,7 +577,7 @@ class LammpsCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.write("python -m magus.runscripts.rungulp gulpSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)
@@ -543,7 +599,149 @@ class LammpsCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.rungulp gulpSetup.yaml")
+        f.write("python -m magus.runscripts.rungulp gulpSetup.yaml")
+        f.close()
+
+        self.J.bsub('bsub < parallel.sh',jobName)
+
+
+class MLCalculator_tmp(ABinitCalculator):
+    def __init__(self, parameters,prefix='calcML'):
+        super().__init__(parameters,prefix)
+        Requirement = ['epsArr','stepArr','calcNum']
+        Default = {'optimizer':'fire','maxRelaxStep':0.1,'relaxLattice':True,'mode':'serial','jobPrefix':'ML'}
+        checkParameters(self.p,parameters,Requirement,Default)
+
+        assert len(self.p.epsArr) == self.p.calcNum
+        assert len(self.p.stepArr) == self.p.calcNum
+
+    def relax_serial(self, calcPop, calcs, logfile='MLrelax.log', trajname='calc.traj'):
+        self.cdcalcFold()
+        relaxPop = []
+        errorPop = []
+        for i, ind in enumerate(calcPop):
+            for j, calc in enumerate(calcs):
+                ind.set_calculator(calc)
+                logging.debug("Structure {} Step {}".format(i, j))
+                if self.p.relaxLattice:
+                    ucf = ExpCellFilter(ind, scalar_pressure=self.p.pressure*GPa)
+                else:
+                    ucf = ind
+                if self.p.optimizer == 'cg':
+                    gopt = SciPyFminCG(ucf, logfile=logfile,trajectory=trajname)
+                elif self.p.optimizer == 'bfgs':
+                    gopt = BFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory=trajname)
+                elif self.p.optimizer == 'lbfgs':
+                    gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory=trajname)
+                elif self.p.optimizer == 'fire':
+                    gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep,trajectory=trajname)
+                try:
+                    label = gopt.run(fmax=self.p.epsArr[j], steps=self.p.stepArr[j])
+                    traj = ase.io.read(trajname,':')
+                    # save relax steps
+                    logging.debug('{} relax steps: {}'.format(self.__class__.__name__,len(traj)))
+                except Converged:
+                    pass
+                except TimeoutError:
+                    errorPop.append(ind)
+                    logging.warning("Calculator:{} relax Timeout".format(self.__class__.__name__))
+                    continue
+                except:
+                    errorPop.append(ind)
+                    logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                    logging.warning("Calculator:{} relax fail".format(self.__class__.__name__))
+                    continue
+
+            else:
+                ind.info['energy'] = ind.get_potential_energy()
+                ind.info['forces'] = ind.get_forces()
+                try:
+                    ind.info['stress'] = ind.get_stress()
+                except:
+                    pass
+                enthalpy = (ind.info['energy'] + self.p.pressure * ind.get_volume() * GPa)/len(ind)
+                ind.info['enthalpy'] = round(enthalpy, 3)
+                ind.wrap()
+                ind.set_calculator(None)
+                relaxPop.append(ind)
+        os.chdir(self.p.workDir)
+        return relaxPop
+
+    def scf_serial(self, calcPop, calcs):
+        self.cdcalcFold()
+        scfPop = []
+        for ind in calcPop:
+            atoms=copy.deepcopy(ind)
+            atoms.set_calculator(calcs[0])
+            try:
+                atoms.info['energy'] = atoms.get_potential_energy()
+                atoms.info['forces'] = atoms.get_forces()
+                try:
+                    atoms.info['stress'] = atoms.get_stress()
+                except:
+                    pass
+                enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa)/len(atoms)
+                atoms.info['enthalpy'] = round(enthalpy, 3)
+                atoms.set_calculator(None)
+                scfPop.append(atoms)
+                logging.debug('{} scf steps: 0'.format(self.__class__.__name__))
+            except:
+                pass
+        os.chdir(self.p.workDir)
+        return scfPop
+
+    def scfjob(self,index):
+        calcDic = {
+            'calcNum': 0,
+            'pressure': self.p.pressure,
+            'workDir': self.p.workDir,
+            'maxRelaxStep': self.p.maxRelaxStep,
+            'logfile': 'ML.log',
+            'trajname': 'calc.traj',
+            'epsArr': self.p.epsArr,
+            'stepArr': self.p.stepArr,
+            'relaxLattice': self.p.relaxLattice,
+            'optimizer': self.p.optimizer,
+        }
+
+        with open('MLSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+        jobName = self.p.jobPrefix + '_scf_' + str(index)
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
+        f.write("python -m magus.runscripts.runml MLSetup.yaml")
+        f.close()
+        self.J.bsub('bsub < parallel.sh',jobName)
+
+    def relaxjob(self,index):
+        calcDic = {
+            'calcNum': self.p.calcNum,
+            'pressure': self.p.pressure,
+            'workDir': self.p.workDir,
+            'maxRelaxStep': self.p.maxRelaxStep,
+            'logfile': 'ML.log',
+            'trajname': 'calc.traj',
+            'epsArr': self.p.epsArr,
+            'stepArr': self.p.stepArr,
+            'relaxLattice': self.p.relaxLattice,
+            'optimizer': self.p.optimizer,
+        }
+        with open('MLSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
+        jobName = self.p.jobPrefix + '_relax_' + str(index)
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
+        f.write("python -m magus.runscripts.runML MLSetup.yaml")
         f.close()
 
         self.J.bsub('bsub < parallel.sh',jobName)
@@ -568,6 +766,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir):
             else:
                 logging.warning("fail in gulp relax")
     return optPop
+
 
 def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir):
     """
@@ -709,6 +908,7 @@ def calc_vasp_once(
     logging.debug("VASP finish")
     return struct[:]
 
+
 def calc_vasp(
     calcs,    #a list of ASE calculator
     structs,    #a list of structures
@@ -730,6 +930,7 @@ def calc_vasp(
             newStructs.append(ind)
     return newStructs
 
+
 def calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir):
     optPop = []
     for n, ind in enumerate(calcPop):
@@ -749,6 +950,7 @@ def calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir):
             else:
                 logging.warning("fail in lammps relax")
     return optPop
+
 
 def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
     """
@@ -782,3 +984,6 @@ def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
         logging.warning("Lammps fail")
         return None
+
+
+

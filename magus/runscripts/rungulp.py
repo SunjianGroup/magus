@@ -3,8 +3,8 @@ import yaml
 from ase.calculators.vasp import Vasp
 import ase.io
 from ase.spacegroup import crystal
-from .writeresults import write_traj
-from .localopt import calc_gulp
+from magus.writeresults import write_traj
+from magus.localopt import calc_gulp
 
 if  __name__ == "__main__":
     calcDic = yaml.load(open(sys.argv[1]))

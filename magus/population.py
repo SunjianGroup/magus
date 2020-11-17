@@ -141,8 +141,6 @@ class Population:
     def calc_fitness(self):
         for fit_calc in self.fit_calcs:
             fit_calc(self)
-        for ind in self.pop:
-            logging.debug(ind.info['fitness'])
 
     def del_duplicate(self):
         logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
@@ -150,8 +148,15 @@ class Population:
         # sort the pop before deleting duplicates
         self.pop = sorted(self.pop, key=lambda x:x.info['enthalpy'] if 'enthalpy' in x.info else 100)
         for ind1 in self.pop:
-            for ind2 in newpop:
-                if ind1==ind2:
+            #for ind2 in newpop:
+            # compare enthalpies, save the ind with lowest enthalpy
+            newLen = len(newpop)
+            for n in range(newLen):
+                ind2 = newpop[n]
+                if ind1 == ind2:
+                    if 'enthalpy' in ind1.info and 'enthalpy' in ind2.info:
+                        if ind1.info['enthalpy'] < ind2.info['enthalpy']:
+                            newpop[n] = ind1
                     break
             else:
                 newpop.append(ind1)
@@ -220,7 +225,12 @@ class Population:
         # self.calc_dominators()
         dominators = np.array([ind.info['dominators'] for ind in self.pop])
         best_i = np.where(dominators == np.min(dominators))[0]
-        return [self.pop[i] for i in best_i]
+        bestInds = [self.pop[i] for i in best_i]
+        # Write generation of bestind
+        for ind in bestInds:
+            ind.info['gen'] = self.gen
+        return  bestInds
+        #return [self.pop[i] for i in best_i]
 
 class Individual:
     def __init__(self,parameters):
@@ -631,6 +641,7 @@ class VarInd(Individual):
             atoms = atoms.to_atoms()
         atoms.wrap()
         newind.atoms = atoms
+        newind.sort()
         newind.info = {'numOfFormula':1}
         newind.info['fitness'] = {}
         return newind

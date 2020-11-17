@@ -127,6 +127,8 @@ class Magus:
         self.keepPop.save('keep')
 
     def Onestep(self):
+        #TODO make update parameters more reasonable
+        self.update_parameters()
         curPop = self.curPop
         goodPop = self.goodPop
         keepPop = self.keepPop
@@ -242,16 +244,25 @@ class Magus:
         self.curPop = curPop
         self.goodPop = goodPop
         self.keepPop = keepPop
+    
+    def update_parameters(self):
+        if self.MainCalculator.p.mode == 'parallel':
+            with open('results/allparameters.yaml') as f:
+                d = yaml.load(f)
+            if d['MainCalculator']['queueName'] != self.MainCalculator.p.queueName:
+                logging.warning('*****************\nBe careful, {} is replaced by {}\n*****************'.format(self.MainCalculator.p.queueName, d['MainCalculator']['queueName']))
+                self.MainCalculator.p.queueName = d['MainCalculator']['queueName']
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
-args = parser.parse_args()
-if args.debug:
-    logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
-    logging.info('Debug mode')
-else:
-    logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
+    args = parser.parse_args()
+    if args.debug:
+        logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
+        logging.info('Debug mode')
+    else:
+        logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
 
-parameters = magusParameters('input.yaml')
-m=Magus(parameters)
-m.run()
+    parameters = magusParameters('input.yaml')
+    m=Magus(parameters)
+    m.run()

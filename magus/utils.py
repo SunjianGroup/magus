@@ -15,7 +15,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import cluster
 from scipy.optimize import root
 from scipy.spatial.distance import cdist, pdist
-from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
+from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, find_communities4, remove_selfloops, nodes_and_offsets
 from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from ase.build import make_supercell
 from ase.geometry import cell_to_cellpar,cellpar_to_cell
@@ -25,14 +25,36 @@ except ImportError:
     pass
 
 
-def todict(p):
+def toyaml(p):
     if isinstance(p,EmptyClass):
         d = {}
         for key,value in p.__dict__.items():
-            d[key] = todict(value)
+            d[key] = toyaml(value)
         return d
+    elif isinstance(p, dict):
+        d = {}
+        for key,value in p.items():
+            d[key] = toyaml(value)
+        return d
+    elif isinstance(p, list):
+        l = []
+        for value in p:
+            l.append(toyaml(value))
+        return l
+    elif isinstance(p, int):
+        return int(p) 
+    elif isinstance(p, float):
+        return float(p)
+    elif isinstance(p, bool):
+        return bool(p)
+    elif isinstance(p, str):
+        return str(p)
+    elif isinstance(p, np.ndarray):
+        return p.tolist()
     else:
-        return p
+        return None
+
+
 class EmptyClass:
     def attach(self,other):
         if not isinstance(other,EmptyClass):
@@ -42,7 +64,7 @@ class EmptyClass:
                 setattr(self,key,value)
 
     def save(self,filename):
-        d = todict(self)
+        d = toyaml(self)
         with open(filename,'w') as f:
             yaml.dump(d,f)
 
@@ -351,7 +373,7 @@ def atoms2communities(atoms, coef=1.1):
                 offSets[i] = offSet
         else:
             # comps = find_communities(G)
-            comps = find_communities2(G)
+            comps = find_communities4(G)
             for indices in comps:
                 tmpG = G.subgraph(indices)
                 nodes, offs = nodes_and_offsets(tmpG)
@@ -1052,3 +1074,10 @@ def match_lattice(atoms1,atoms2):
     ratio1 = newatoms1.get_volume()/atoms1.get_volume()
     ratio2 = newatoms2.get_volume()/atoms2.get_volume()
     return newatoms1,newatoms2,ratio1,ratio2
+
+def get_radius(mol):
+    center = np.mean(mol.positions, 0)
+    radius = covalent_radii[mol.get_atomic_numbers()]
+    distance = np.linalg.norm(mol.positions - center, axis=1)
+    return np.max(distance + radius)
+
