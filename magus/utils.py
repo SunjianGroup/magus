@@ -1072,3 +1072,13 @@ def get_radius(mol):
     radius = covalent_radii[mol.get_atomic_numbers()]
     distance = np.linalg.norm(mol.positions - center, axis=1)
     return np.max(distance + radius)
+
+
+#TODO parallel.py
+def split1(Njobs, Npara):
+    Neach = int(np.ceil(Njobs / Npara))
+    return [[i + j * Npara for j in range(Neach) if i + j * Npara < Njobs] for i in range(Npara)]
+
+def split2(Njobs, Npara):
+    Neach = int(np.ceil(Njobs / Npara))
+    return [[i * Neach + j for j in range(Neach) if i * Neach + j < Njobs] for i in range(Npara)]

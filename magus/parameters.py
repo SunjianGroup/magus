@@ -13,7 +13,7 @@ from .localopt import *
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
 from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
-from .machinelearning import LRmodel,GPRmodel,BayesLRmodel,pytorchGPRmodel,MultiNNmodel
+from .machinelearning import *
 from .queuemanage import JobManager
 from .population import Population
 from .fitness import fit_dict
@@ -167,7 +167,7 @@ class magusParameters:
                 self.parameters.formNum,
                 self.parameters.ratNum,
                 ]
-            oplist = [cutandsplice,lattice,perm,ripple,slip,rot,soft,form,rattle]
+            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"
@@ -192,6 +192,8 @@ class magusParameters:
                     self.MLCalculator = BayesLRmodel(self.parameters)
                 elif self.parameters.mlmodel == 'MultiNN':
                     self.MLCalculator = MultiNNmodel(self.parameters)
+                elif self.parameters.mlmodel == 'NNdNN':
+                    self.MLCalculator = NNdNNmodel(self.parameters)
             else:
                 self.MLCalculator = None
             self.parameters.MLCalculator = self.MLCalculator.p

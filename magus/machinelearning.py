@@ -64,6 +64,17 @@ class MachineLearning:
 
         return mae_energies, r2_energies, mae_forces, r2_forces, mae_stress, r2_stress
 
+    def relax(self,calcPop):
+        calcs = [self.get_calculator() for _ in range(self.p.calcNum)]
+        return super().relax(calcPop,calcs)
+
+    def scf(self,calcPop):
+        calcs = [self.get_calculator() for _ in range(self.p.calcNum)]
+        return super().scf(calcPop,calcs)
+
+    def get_calculator(self, kappa=0):
+        return ml_calculator(self, kappa)
+
 
 from .descriptor import ZernikeFp
 from sklearn.linear_model import LinearRegression, Lasso, BayesianRidge
@@ -134,95 +145,7 @@ class LRCalculator(Calculator):
         self.results['stress'] = y[-6:]/self.atoms.get_volume()/2
 
 
-class gpr_calculator(Calculator):
-    implemented_properties = ['energy', 'forces']
-    default_parameters = {}
-
-    def __init__(self, gpr, kappa=None, **kwargs):
-        self.gpr = gpr
-        self.kappa = kappa
-        Calculator.__init__(self, **kwargs)
-
-    def calculate(self, atoms=None, properties=['energy', 'forces'], system_changes=['positions']):
-        Calculator.calculate(self, atoms, properties, system_changes)
-
-        if 'energy' in properties:
-            if self.kappa is None:
-                E = self.gpr.predict_energy(atoms, eval_std=False)
-            else:
-                E, Estd = self.gpr.predict_energy(atoms, eval_std=True)
-                E = E - self.kappa*Estd
-            self.results['energy'] = E
-
-        if 'forces' in properties:
-            if self.kappa is None:
-                F = self.gpr.predict_forces(atoms)
-            else:
-                F, Fstd = self.gpr.predict_forces(atoms, eval_with_energy_std=True)
-                F = F - self.kappa*Fstd
-            self.results['forces'] = F
-
-class torch_gpr_calculator(Calculator):
-    implemented_properties = ['energy', 'forces', 'stress']
-    default_parameters = {}
-
-    def __init__(self, gpr, kappa=None, **kwargs):
-        self.gpr = gpr
-        self.kappa = kappa
-        Calculator.__init__(self, **kwargs)
-
-    def calculate(self, atoms=None, properties=['energy', 'forces', 'stress'], system_changes=['positions']):
-        Calculator.calculate(self, atoms, properties, system_changes)
-
-        if 'energy' in properties:
-            if self.kappa is None:
-                E = self.gpr.predict_energy(atoms, eval_std=False)
-            else:
-                E, Estd = self.gpr.predict_energy(atoms, eval_std=True)
-                E = E - self.kappa*Estd
-            self.results['energy'] = E
-
-        if 'forces' in properties:
-            F = self.gpr.predict_forces(atoms)
-            self.results['forces'] = F
-
-        if 'stress' in properties:
-            S = self.gpr.predict_stress(atoms)
-            self.results['stress'] = S
-
-class bayeslr_calculator(Calculator):
-    implemented_properties = ['energy', 'forces', 'stress']
-    default_parameters = {}
-
-    def __init__(self, bayeslr, kappa=None, **kwargs):
-        self.bayeslr = bayeslr
-        self.kappa = kappa
-        Calculator.__init__(self, **kwargs)
-
-    def calculate(self, atoms=None, properties=['energy', 'forces', 'stress'], system_changes=['positions']):
-        Calculator.calculate(self, atoms, properties, system_changes)
-
-        if 'energy' in properties:
-            if self.kappa is None:
-                E = self.bayeslr.predict_energy(atoms, eval_std=False)
-            else:
-                E, Estd = self.bayeslr.predict_energy(atoms, eval_std=True)
-                E = E - self.kappa*Estd
-            self.results['energy'] = E
-
-        if 'forces' in properties:
-            if self.kappa is None:
-                F = self.bayeslr.predict_forces(atoms)
-            else:
-                F, Fstd = self.bayeslr.predict_forces(atoms, eval_std=True)
-                F = F - self.kappa*Fstd
-            self.results['forces'] = F
-
-        if 'stress' in properties:
-            S = self.bayeslr.predict_stress(atoms)
-            self.results['stress'] = S
-
-class multinn_calculator(Calculator):
+class ml_calculator(Calculator):
     implemented_properties = ['energy', 'forces', 'stress']
     default_parameters = {}
 
@@ -235,7 +158,7 @@ class multinn_calculator(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
 
         if 'energy' in properties:
-            if self.kappa is None:
+            if self.kappa is None or self.kappa == 0.:
                 E = self.model.predict_energy(atoms, eval_std=False)
             else:
                 E, Estd = self.model.predict_energy(atoms, eval_std=True)
@@ -249,6 +172,8 @@ class multinn_calculator(Calculator):
         if 'stress' in properties:
             S = self.model.predict_stress(atoms)
             self.results['stress'] = S
+
+
 
 optimizers={'BFGS':BFGS,'FIRE':FIRE}
 class LRmodel(MachineLearning,ASECalculator):
@@ -532,7 +457,7 @@ class GPRmodel(MachineLearning,ASECalculator):
             return F.reshape(-1,3)
 
     def get_calculator(self, kappa=0):
-        return gpr_calculator(self, kappa)
+        return ml_calculator(self, kappa)
 
 class BayesLRmodel(MachineLearning,ASECalculator):
     def __init__(self,parameters):
@@ -671,7 +596,7 @@ class BayesLRmodel(MachineLearning,ASECalculator):
             return result.reshape(6)
             
     def get_calculator(self, kappa=0):
-        return bayeslr_calculator(self, kappa)
+        return ml_calculator(self, kappa)
 
 
 class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
@@ -725,14 +650,6 @@ class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
         self.model.update_dataset(images)
         # self.ani_model.update_dataset(images)
 
-    def relax(self,calcPop):
-        calcs = [self.get_calculator()]
-        return super().relax(calcPop,calcs)
-
-    def scf(self,calcPop):
-        calcs = [self.get_calculator()]
-        return super().scf(calcPop,calcs)
-
     def predict_energy(self, atoms, eval_std=False):
         batch_data = convert_frames([atoms], self.environment_provider)
         E, E_std = self.model.get_energies(batch_data, True)
@@ -751,9 +668,6 @@ class pytorchGPRmodel(MachineLearning, MLCalculator_tmp):
         batch_data = convert_frames([atoms], self.environment_provider)
         S = self.model.get_stresses(batch_data)
         return S.squeeze().detach().numpy()
-
-    def get_calculator(self, kappa=0):
-        return torch_gpr_calculator(self, kappa)
 
     def save_model(self, filename):
         torch.save(self.model.state_dict(), '{}/{}.pt'.format(self.p.mlDir, filename))
@@ -820,8 +734,8 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
                 optimizer = torch.optim.Adam(model.parameters())
             elif self.p.train_method == 'Kalman':
                 model = ANI(representation, elements, [15, 15])
-                h = model.get_energies
-                z = lambda batch_data: batch_data['energy']
+                h = lambda batch_data, model=model: model.get_energies(batch_data) / batch_data['n_atoms']
+                z = lambda batch_data: batch_data['energy'] / batch_data['n_atoms']
                 optimizer = KalmanFilter(model.parameters(), h, z, eta_0=1e-3, eta_tau=2.3, q_tau=2.3)
             nets.append(model)
             self.optimizers.append(optimizer)
@@ -870,23 +784,20 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
         logging.info('training end')
 
     def updatedataset(self,images):
-        self.dataset.extend(images)
-        n_frames = len(images)
+        allframes = self.dataset.frames + images
+        mean, std = get_statistic(allframes)
+        toadd = [atoms for atoms in images if atoms.info['energy'] / len(atoms) < mean + 3 * std]
+        if len(toadd) == 0:
+            return
+        self.dataset.extend(toadd)
+        n_frames = len(self.dataset)
         for (model, sub_dataset) in zip(self.model.models, self.sub_datasets):
-            sub_dataset.indices.extend(list(np.random.choice(n_frames, n_frames, replace=True)))
+            sub_dataset.indices = list(np.random.choice(n_frames, n_frames, replace=True))
             if self.p.standrize:
                 mean, std = get_statistic([self.dataset.frames[i] for i in sub_dataset.indices])
             else:
                 mean, std = 0.0, 1.0
             model.set_statics(mean, std)
-
-    def relax(self,calcPop):
-        calcs = [self.get_calculator()]
-        return super().relax(calcPop,calcs)
-
-    def scf(self,calcPop):
-        calcs = [self.get_calculator()]
-        return super().scf(calcPop,calcs)
 
     def predict_energy(self, atoms, eval_std=False):
         batch_data = convert_frames([atoms], self.environment_provider)
@@ -907,15 +818,166 @@ class MultiNNmodel(MachineLearning, MLCalculator_tmp):
         S = self.model.get_stresses(batch_data).squeeze().detach().numpy()
         return S
 
-    def get_calculator(self, kappa=0):
-        return multinn_calculator(self, kappa)
-
     def save_model(self, filename):
         torch.save(self.model.state_dict(), '{}/{}.pt'.format(self.p.mlDir, filename))
     
     def load_model(self, filename):
         state_dict = torch.load('{}/{}.pt'.format(self.p.mlDir, filename))
         self.model.load_state_dict(state_dict)
+
+    def save_dataset(self, filename='dataset'):
+        write('{}/{}.traj'.format(self.p.mlDir, filename), self.dataset.frames)
+
+
+class NNdNNmodel(MachineLearning, MLCalculator_tmp):
+    def __init__(self,parameters):
+        self.p = EmptyClass()
+        Requirement = ['mlDir']
+        Default = {'w_energy':30.0, 'w_forces':1.0, 'w_stress':-1.0, 'n_bagging':5,
+            'cutoff': 4.0, 'n_radius':30, 'n_angular':10, 'epoch_init':10, 'epoch_step':10,
+            'train_method': 'Kalman', 'standrize': True}
+        checkParameters(self.p,parameters,Requirement,Default)
+
+        p = copy.deepcopy(parameters)
+        for key, val in parameters.MLCalculator.items():
+            setattr(p, key, val)
+        p.workDir = parameters.workDir
+        MLCalculator_tmp.__init__(self,p)
+
+        if not os.path.exists(self.p.mlDir):
+            os.mkdir(self.p.mlDir)
+
+        elements = tuple(set([atomic_numbers[element] for element in parameters.symbols]))
+
+        cutoff = self.p.cutoff
+        n_radius = self.p.n_radius
+        n_angular = self.p.n_angular
+        self.environment_provider = ASEEnvironment(cutoff)
+        cut_fn = CosineCutoff(cutoff)
+
+        rss = torch.linspace(cutoff * 0.1, cutoff * 0.9, n_radius)
+        etas = 0.5 * torch.ones_like(rss) / (rss[1] - rss[0]) ** 2
+        rdf = BehlerG1(elements, n_radius, cut_fn, etas=etas, rss=rss, train_para=False)
+        etas = 0.5 / torch.linspace(1, cutoff * 0.9, n_angular) ** 2
+        adf = BehlerG3(elements, n_angular, cut_fn, etas=etas)
+        representation = CombinationRepresentation(rdf)
+
+        if self.p.train_method == 'Adam':
+            self.model = ANI(representation, elements, [50, 50])
+            self.optimizer = torch.optim.Adam(self.model.parameters())
+            self.delta_model = DeltaANI(representation, elements, [50, 50])
+            self.delta_optimizer = torch.optim.Adam(self.delta_model.parameters())
+        elif self.p.train_method == 'Kalman':
+            self.model = ANI(representation, elements, [15, 15])
+            h = lambda batch_data, model=self.model: model.get_energies(batch_data) / batch_data['n_atoms']
+            z = lambda batch_data: batch_data['energy'] / batch_data['n_atoms']
+            self.optimizer = KalmanFilter(self.model.parameters(), h, z, eta_0=1e-3, eta_tau=2.3, q_tau=2.3)
+            self.delta_model = DeltaANI(representation, elements, [15, 15])
+            h = lambda batch_data, model=self.delta_model: model.get_energies(batch_data)
+            z = lambda batch_data: batch_data['energy'] - self.model.get_energies(batch_data)
+            self.delta_optimizer = KalmanFilter(self.delta_model.parameters(), h, z, eta_0=1e-3, eta_tau=2.)
+
+        self.dataset = AtomsData([], self.environment_provider)
+        self.sub_dataset = Subset(self.dataset, [])
+
+    def train(self, n_epoch=200):
+        logging.info('{} in dataset, use 90% to train nn!'.format(len(self.dataset)))
+        w_energy, w_forces, w_stress = self.p.w_energy, self.p.w_forces, self.p.w_stress
+        data_loader = DataLoader(self.sub_dataset, batch_size=16, shuffle=True, collate_fn=_collate_aseatoms)
+        if self.p.train_method == 'Adam':
+            for epoch in range(n_epoch):
+                if epoch % 50 == 0:
+                    logging.info('epoch: {}'.format(epoch))
+                for i_batch, batch_data in enumerate(data_loader):
+                    loss, energy_loss, force_loss, stress_loss = torch.zeros(4)
+                    if w_energy > 0.:
+                        predict_energy = self.model.get_energies(batch_data) / batch_data['n_atoms']
+                        target_energy = batch_data['energy'] / batch_data['n_atoms']
+                        energy_loss = torch.mean((predict_energy - target_energy) ** 2)
+
+                    if w_forces > 0.:
+                        predict_forces = self.model.get_forces(batch_data)
+                        target_forces = batch_data['forces']
+                        force_loss = torch.mean(torch.sum(
+                            (predict_forces - target_forces) ** 2, 1) / batch_data['n_atoms'].unsqueeze(-1))
+
+                    if w_stress > 0.:
+                        predict_stress = self.model.get_stresses(batch_data)
+                        target_stress = batch_data['stress']
+                        stress_loss = torch.mean((predict_stress - target_stress) ** 2)
+
+                    loss += w_energy * energy_loss + w_forces * force_loss + w_stress * stress_loss
+
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
+        elif self.p.train_method == 'Kalman':
+            for epoch in range(n_epoch):
+                logging.info('epoch: {}'.format(epoch))
+                self.optimizer.step(data_loader)
+        logging.info('nn training end, training delta nn ...')
+
+        data_loader = DataLoader(self.dataset, batch_size=16, shuffle=True, collate_fn=_collate_aseatoms)
+        if self.p.train_method == 'Adam':
+            for epoch in range(n_epoch):
+                if epoch % 50 == 0:
+                    logging.info('epoch: {}'.format(epoch))
+                for i_batch, batch_data in enumerate(data_loader):
+                    predict_var = self.delta_model.get_variance(batch_data) / batch_data['n_atoms']
+                    target_var = (batch_data['energy'] - self.model.get_energies(batch_data)) ** 2 / batch_data['n_atoms']
+                    loss = torch.sum(torch.log(predict_var) + target_var / (predict_var + 1e-8))
+                    self.delta_optimizer.zero_grad()
+                    loss.backward()
+                    self.delta_optimizer.step()
+
+        elif self.p.train_method == 'Kalman':
+            for epoch in range(n_epoch):
+                logging.info('epoch: {}'.format(epoch))
+                self.delta_optimizer.step(data_loader)
+        logging.info('delta nn training end')
+
+    def updatedataset(self,images):
+        # toadd = [atoms for atoms in images if np.max(abs(atoms.info['forces'])) < 10.]
+        # self.dataset.extend(toadd)
+        self.dataset.extend(images)
+        n_frames = len(self.dataset)
+        if self.p.standrize:
+            mean, std = get_statistic(self.dataset.frames)
+        else:
+            mean, std = 0.0, 1.0
+        self.model.set_statics(mean, std)
+        self.sub_dataset.indices = list(np.random.choice(n_frames, int(0.9 * n_frames), replace=False))
+
+    def predict_energy(self, atoms, eval_std=False):
+        batch_data = convert_frames([atoms], self.environment_provider)
+        E = self.model.get_energies(batch_data).detach().item()
+        if eval_std:
+            E_std = np.sqrt(self.delta_model.get_variance(batch_data).detach().item())
+            return E, E_std
+        else:
+            return E
+
+    def predict_forces(self, atoms):
+        batch_data = convert_frames([atoms], self.environment_provider)
+        F = self.model.get_forces(batch_data).squeeze().detach().numpy()
+        return F
+
+    def predict_stress(self, atoms, eval_with_energy_std=False):
+        batch_data = convert_frames([atoms], self.environment_provider)
+        S = self.model.get_stresses(batch_data).squeeze().detach().numpy()
+        return S
+
+    def save_model(self, filename):
+        torch.save(self.model.state_dict(), '{}/{}.pt'.format(self.p.mlDir, filename))
+        torch.save(self.model, '{}/{}.pkl'.format(self.p.mlDir, filename))
+        torch.save(self.delta_model.state_dict(), '{}/delta-{}.pt'.format(self.p.mlDir, filename))
+        torch.save(self.delta_model, '{}/delta-{}.pkl'.format(self.p.mlDir, filename))
+    
+    def load_model(self, filename):
+        state_dict = torch.load('{}/{}.pt'.format(self.p.mlDir, filename))
+        self.model.load_state_dict(state_dict)
+        state_dict = torch.load('{}/delta-{}.pt'.format(self.p.mlDir, filename))
+        self.delta_model.load_state_dict(state_dict)
 
     def save_dataset(self, filename='dataset'):
         write('{}/{}.traj'.format(self.p.mlDir, filename), self.dataset.frames)

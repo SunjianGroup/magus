@@ -41,8 +41,6 @@ class Population:
 
     def __call__(self,pop,name='temp',gen=None):
         newPop = self.__new__(self.__class__)
-        if hasattr(self,'allPop'):
-            newPop.allPop = self.allPop
         newPop.p = self.p
         pop = [self.Individual(ind) if ind.__class__.__name__ == 'Atoms' else ind for ind in pop]
         newPop.Individual = self.Individual

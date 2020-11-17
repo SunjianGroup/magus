@@ -29,9 +29,7 @@ class Magus:
 
         self.curgen = 1
         self.bestlen = []
-        self.allPop = self.Population([],'allPop')
-        self.Population.allPop = self.allPop
-        self.kappa = 1.0
+        self.kappa = 3.0
 
     def run(self):
         self.Initialize()
@@ -77,6 +75,7 @@ class Magus:
         scfPop.save('scfPop', self.curgen)
 
         self.ML.updatedataset(scfPop.frames)
+        self.dataPop = self.Population(scfPop.frames)
         self.ML.train(n_epoch=self.ML.p.epoch_init)
         self.ML.save_model('para')
         self.ML.save_dataset()
@@ -92,7 +91,6 @@ class Magus:
             scfPop.del_duplicate()
             # relaxPop.check()
 
-        self.allPop.extend(self.curPop)
         self.bestPop = self.Population([],'bestPop')
 
         scfPop.calc_dominators()
@@ -150,7 +148,10 @@ class Magus:
         if self.parameters.chkSeed:
             seedPop.check()
         initPop.extend(seedPop)
-
+        # si ma dang huo ma yi
+        # initPop.extend(curPop)
+        # initPop.extend(goodPop)
+        initPop.del_duplicate()
         # Save Initial
         initPop.save()
 
@@ -159,28 +160,30 @@ class Magus:
         relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
         relaxPop.save("mlraw", self.curgen)
         relaxPop.check()
-        relaxPop.del_duplicate()
-        relaxPop.save("mlgen", self.curgen)
-        # save raw date before checking
-        relaxPop.save('raw')
-        relaxPop.check()
         # find spg before delete duplicate
         relaxPop.find_spg()
         relaxPop.del_duplicate()
-        self.allPop.extend(relaxPop)
+        relaxPop.save("mlgen", self.curgen)
 
         #######  compare target and predict energy  #######
         scfpop = self.MainCalculator.scf(relaxPop.frames)
-        logging.info("{:<20}{:<20}".format('True','Predict'))
+        logging.info("{:<10}{:<10}{:<10}{:<10}".format('True','Predict','residual','std'))
         for atoms in scfpop:
-            logging.info("{:<20.2f}{:<20.2f}".format(atoms.info['energy'], self.ML.predict_energy(atoms)))
+            natoms = len(atoms)
+            te = atoms.info['energy'] / natoms
+            pe, std = self.ML.predict_energy(atoms, True)
+            pe, std = pe / natoms, std / natoms
+            logging.info("{:<10.2f}{:<10.2f}{:<10.2f}{:<10.2f}".format(te, pe, te - pe, std))
         scfPop = self.Population(scfpop)
         logging.info("loss:\nenergy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
             "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.ML.get_loss(scfPop.frames)[:4]))
-
-
+        scfPop.save("scfmlgen", self.curgen)
         #######  collect structures with high acquisition   #######
-        selectpop = self.select_with_acquisition(relaxPop.frames, kappa)
+        # selectpop = [ind.atoms.info['trajs'][0][-1] for ind in relaxPop]
+        # selectpop = selectpop + relaxPop.frames
+        selectpop = relaxPop.frames
+        selectpop = self.select_with_acquisition(selectpop, kappa)
+
         selectPop = self.Population(selectpop)
 
         #######  get reference data   #######
@@ -192,8 +195,16 @@ class Magus:
         self.ML.train(n_epoch=self.ML.p.epoch_step)
         self.ML.save_model('para')
         self.ML.save_dataset()
-        logging.info("loss:\nenergy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
-            "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.ML.get_loss(goodPop.frames)[:4]))
+
+        #######  add new relaxPop to curgen  #######
+        scfPop.extend(selectPop)
+
+        #######  test ML   #######
+        testpop = ase.io.read('{}/test.traj'.format(self.parameters.workDir), ':')
+        logging.info("loss:\n"
+                "energy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
+                "force_mse:{:.5f}\tforce_r2:{:.5f}\n"
+                "stress_mse:{:.5f}\tstress_r2:{:.5f}\n".format(*self.ML.get_loss(testpop)))
         
         #######  goodPop and keepPop  #######
         logging.info('construct goodPop')
@@ -231,12 +242,17 @@ class Magus:
         self.keepPop = keepPop
 
     def select_with_acquisition(self, frames, kappa):
-        acquisition = []
+        acquisitions = []
         for atoms in frames:
-            preE, stdE = self.ML.predict_energy(atoms,True)
-            # acquisition.append(preE-kappa*stdE)
-            acquisition.append(-stdE/len(atoms))
-        selectpop = [frames[i] for i in np.argsort(acquisition)[:30] if acquisition[i]<-0.1]
+            preE, stdE = self.ML.predict_energy(atoms, True)
+            if stdE / len(atoms) > 0.08:
+                acquisitions.append((preE - stdE * kappa) / len(atoms))
+            else:
+                acquisitions.append(1000.)
+        acquisitions = np.array(acquisitions)
+        selectpop = [frames[i] for i in np.argsort(acquisitions)[:20] if acquisitions[i] < 1000.]
+        if len(selectpop) == 0:
+            selectpop = [frames[np.argsort(acquisitions)[0]]]
         return selectpop
     
     def update_parameters(self):

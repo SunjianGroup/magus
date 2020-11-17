@@ -39,6 +39,7 @@ from ase.atoms import Atoms
 from .queuemanage import JobManager
 from .population import Individual
 import multiprocessing as mp
+from .optimize import MLFIRE
 
 
 #__all__ = ['VaspCalculator','XTBCalculator','LJCalculator',
@@ -654,7 +655,7 @@ class MLCalculator_tmp(ABinitCalculator):
     def __init__(self, parameters,prefix='calcML'):
         super().__init__(parameters,prefix)
         Requirement = ['epsArr','stepArr','calcNum']
-        Default = {'optimizer':'fire','maxRelaxStep':0.1,'relaxLattice':True,'mode':'serial','jobPrefix':'ML'}
+        Default = {'optimizer':'mlfire','maxRelaxStep':0.1,'relaxLattice':True,'mode':'serial','jobPrefix':'ML'}
         checkParameters(self.p,parameters,Requirement,Default)
 
         assert len(self.p.epsArr) == self.p.calcNum
@@ -665,6 +666,7 @@ class MLCalculator_tmp(ABinitCalculator):
         relaxPop = []
         errorPop = []
         for i, ind in enumerate(calcPop):
+            ind.info['trajs'] = []
             for j, calc in enumerate(calcs):
                 ind.set_calculator(calc)
                 logging.debug("Structure {} Step {}".format(i, j))
@@ -680,9 +682,12 @@ class MLCalculator_tmp(ABinitCalculator):
                     gopt = LBFGS(ucf, logfile=logfile, maxstep=self.p.maxRelaxStep,trajectory=trajname)
                 elif self.p.optimizer == 'fire':
                     gopt = FIRE(ucf, logfile=logfile, maxmove=self.p.maxRelaxStep,trajectory=trajname)
+                elif self.p.optimizer == 'mlfire':
+                    gopt = MLFIRE(atoms=ucf, logfile=logfile, maxmove=self.p.maxRelaxStep,trajectory=trajname)
                 try:
                     label = gopt.run(fmax=self.p.epsArr[j], steps=self.p.stepArr[j])
                     traj = ase.io.read(trajname,':')
+                    ind.info['trajs'].append(traj)
                     # save relax steps
                     logging.debug('{} relax steps: {}'.format(self.__class__.__name__,len(traj)))
                 except Converged:
@@ -1032,3 +1037,98 @@ def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
 
 
 
+class MTPCalculator(ABinitCalculator):
+    def __init__(self, parameters, prefix='calcMTP'):
+        super().__init__(parameters, prefix)
+        Requirement = ['symbols']
+        Default = {'jobPrefix':'MTP'}
+        checkParameters(self.p, parameters, Requirement, Default)
+        self.p.numParallel = mp.cpu_count()
+
+    def scf_serial(self, calcPop):
+        self.cdcalcFold()
+        calcNum = 0
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
+        shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), 'pot.mtp')
+        for epoch in range(10):
+            try:
+                
+                mtp_dump(wait_to_calc)
+                exitcode = subprocess.call('mpirun -np {} mlp train 14.mtp trainset.cfg --trained-pot-name=pot.mtp --max-iter=100', shell=True)
+                if exitcode != 0:
+                    raise RuntimeError('Lammps exited with exit code: %d.  ' % exitcode)
+                numlist = [0]
+                numlist.extend(calcInd.get_chemical_symbols())
+                with open('out.dump') as f:
+                    struct = read_lammps_dump(f,numlist=numlist)[-1]
+                volume = struct.get_volume()
+                energy = float(os.popen("grep energy energy.out | tail -1 | awk '{print $3}'").readlines()[0])
+                # the unit of pstress is kBar = GPa/10
+                enthalpy = energy + pressure * GPa * volume / 10
+                enthalpy = enthalpy/len(struct)
+
+                struct.info['enthalpy'] = round(enthalpy, 3)
+
+                # save energy, forces, stress for trainning potential
+                struct.info['energy'] = energy
+                return struct
+            except:
+                logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                logging.warning("Lammps fail")
+                return None
+
+
+
+        scfPop = calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir)
+        write_traj('optPop.traj', scfPop)
+        os.chdir(self.p.workDir)
+
+
+
+        return scfPop
+
+    def relax_serial(self, calcPop):
+        self.cdcalcFold()
+
+        calcNum = self.p.calcNum
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
+
+        relaxPop = calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir)
+        write_traj('optPop.traj', relaxPop)
+        os.chdir(self.p.workDir)
+        return relaxPop
+
+    def scfjob(self, index):
+        shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), 'pot.mtp')
+
+        jobName = self.p.jobPrefix + '_s_' + str(index)
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
+        f.write("python -m magus.runscripts.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
+        f.close()
+        self.J.bsub('bsub < parallel.sh',jobName)
+
+    def relaxjob(self,index):
+        with open('vaspSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(self.p.setup))
+        #jobName = self.p.jobPrefix + '_relax_' + str(index)
+        jobName = self.p.jobPrefix + '_' + str(index)
+        f = open('parallel.sh', 'w')
+        f.write("#BSUB -q %s\n"
+                "#BSUB -n %s\n"
+                "#BSUB -o out\n"
+                "#BSUB -e err\n"
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
+        f.write("{}\n".format(self.p.Preprocessing))
+        f.write("python -m magus.runscripts.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
+        f.close()
+        self.J.bsub('bsub < parallel.sh',jobName)
