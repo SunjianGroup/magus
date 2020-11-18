@@ -21,16 +21,17 @@ def dump_cfg(frames, filename, symbol_to_type):
                 forces = atoms.info['forces']
                 ret += 'AtomData: id type cartes_x cartes_y cartes_z fx fy fz\n'
                 for i, atom in enumerate(atoms):
-                    ret += '{} {} {} {} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.number], *cartes[i], *forces[i])
+                    ret += '{} {} {} {} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.symbol], *cartes[i], *forces[i])
             else:
                 ret += 'AtomData: id type cartes_x cartes_y cartes_z\n'
                 for i, atom in enumerate(atoms):
-                    ret += '{} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.number], *cartes[i])
+                    ret += '{} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.symbol], *cartes[i])
             try:
                 atoms.info['energy'] = atoms.get_potential_energy()
             except:
                 pass
-            ret += 'Energy\n{}\n'.format(atoms.info['energy'])
+            if 'energy' in atoms.info:
+                ret += 'Energy\n{}\n'.format(atoms.info['energy'])
             try:
                 atoms.info['stress'] = atoms.get_stress()
             except:
@@ -41,6 +42,10 @@ def dump_cfg(frames, filename, symbol_to_type):
             ret += 'END_CFG\n'
             f.write(ret)
 
+
+#TODO 
+# different cell
+# pbc
 
 def load_cfg(filename, type_to_symbol):
     frames = []
@@ -76,8 +81,9 @@ def load_cfg(filename, type_to_symbol):
                     positions.append(list(map(float, fields[2: 5])))
                     if has_force:
                         forces.append(list(map(float, fields[5: 8])))
-                atoms = Atoms(symbols=symbols, cell=cell, positions=positions)
-                atoms.info['forces'] = np.array(forces)
+                atoms = Atoms(symbols=symbols, cell=cell, positions=positions, pbc=True)
+                if has_force:
+                    atoms.info['forces'] = np.array(forces)
 
             if 'Energy' in line:
                 line = f.readline()

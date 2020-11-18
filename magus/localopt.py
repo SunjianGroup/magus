@@ -1038,46 +1038,56 @@ def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
 
 
 class MTPCalculator(Calculator):
-    def __init__(self, query_calculator, parameters, prefix='calcMTP'):
-        super().__init__(parameters, prefix)
-        Requirement = ['symbols']
-        Default = {'jobPrefix':'MTP'}
+    def __init__(self, query_calculator, parameters):
+        super().__init__(parameters)
+        Requirement = ['symbols', 'queueName', 'numCore']
+        Default = {
+            'jobPrefix': 'MTP',
+            'Preprocessing': 'module load ips/2017u2',
+            'waitTime': 50,
+            'verbose': True,
+            }
         checkParameters(self.p, parameters, Requirement, Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.p.symbols)}
         self.type_to_symbol = {i: j for i, j in enumerate(self.p.symbols)}
         self.query_calculator = query_calculator
+        self.J = JobManager(self.p.verbose)
 
     def relax(self, calcPop):
         self.cdcalcFold()
         pressure = self.p.pressure
         calcDir = "{}/calcFold/MTP".format(self.p.workDir)
         basedir = '{}/epoch{:02d}'.format(calcDir, 0)
-        if not os.path.exists(basedir):
-            os.mkdir(basedir)
-        shutil.copy("{}/inputFold/mlip.ini".format(self.p.workDir), "{}/pot.mtp".format(basedir))
+        if os.path.exists(basedir):
+            shutil.rmtree(basedir)
+        os.makedirs(basedir)
+        shutil.copy("{}/inputFold/mlip.ini".format(self.p.workDir), "{}/mlip.ini".format(basedir))
         shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), "{}/pot.mtp".format(basedir))
         shutil.copy("{}/mlFold/train.cfg".format(self.p.workDir), "{}/train.cfg".format(basedir))
         dump_cfg(calcPop, "{}/to_relax.cfg".format(basedir), self.symbol_to_type)
         for epoch in range(1, 10):
+            logging.info('MTP active relax epoch {}'.format(epoch))
             prevdir = '{}/epoch{:02d}'.format(calcDir, epoch - 1)
             currdir = '{}/epoch{:02d}'.format(calcDir, epoch)
-            if not os.path.exists(currdir):
-                os.mkdir(currdir)
+            if os.path.exists(currdir):
+                shutil.rmtree(currdir)
+            os.mkdir(currdir)
             os.chdir(currdir)
-            shutil.copy("{}/mlip.ini".format(calcDir), "mlip.ini")
+            shutil.copy("{}/mlip.ini".format(prevdir), "mlip.ini")
             shutil.copy("{}/pot.mtp".format(prevdir), "pot.mtp")
             shutil.copy("{}/to_relax.cfg".format(prevdir), "to_relax.cfg")
             shutil.copy("{}/train.cfg".format(prevdir), "train.cfg")
             # 01: calculate grad
-            exeCmd = "mlp calc-grade {0}/pot.mtp {0}/train.cfg {0}/train.cfg"
+            logging.info('\tstep 01: calculate grad')
+            exeCmd = "mlp calc-grade {0}/pot.mtp {0}/train.cfg {0}/train.cfg "\
                      "temp.cfg --als-filename=A-state.als".format(prevdir)
             exitcode = subprocess.call(exeCmd, shell=True)
             if exitcode != 0:
                 raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
             
             # 02: do relax with mtp
-
-            with open('relax.sh') as f:
+            logging.info('\tstep 02: do relax with mtp')
+            with open('relax.sh', 'w') as f:
                 f.write(
                     "#BSUB -q {0}\n"
                     "#BSUB -n {1}\n"
@@ -1086,16 +1096,17 @@ class MTPCalculator(Calculator):
                     "#BSUB -J mtp-relax\n"
                     "{2}\n"
                     "mpirun -np {1} mlp relax "
-                    "mlip.ini --cfg-filename=to_relax.cfg --save-relaxed=relaxed.cfg"
-                    "cat B-preselected.cfg* > B-preselected.cfg"
-                    "cat relaxed.cfg* > relaxed.cfg"
-                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing)
+                    "mlip.ini --cfg-filename=to_relax.cfg --save-relaxed=relaxed.cfg\n"
+                    "cat B-preselected.cfg* > B-preselected.cfg\n"
+                    "cat relaxed.cfg* > relaxed.cfg\n"
+                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing))
             self.J.bsub('bsub < relax.sh', 'relax')
             self.J.WaitJobsDone(self.p.waitTime)
             self.J.clear()
 
             # 03: select bad cfg
-            with open('select.sh') as f:
+            logging.info('\tstep 03: select bad frames')
+            with open('select.sh', 'w') as f:
                 f.write(
                     "#BSUB -q {0}\n"
                     "#BSUB -n {1}\n"
@@ -1105,23 +1116,27 @@ class MTPCalculator(Calculator):
                     "{2}\n"
                     "mpirun -np {1} mlp select-add "
                     "pot.mtp train.cfg B-preselected.cfg C-selected.cfg"
-                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing)
+                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing))
             self.J.bsub('bsub < select.sh', 'select')
             self.J.WaitJobsDone(self.p.waitTime)
             self.J.clear()
             if os.path.getsize("C-selected.cfg") == 0:
+                logging.info('\thao ye, no bad frames')
                 break
-            
+        
             # 04: DFT
             to_scf = load_cfg("C-selected.cfg", self.type_to_symbol)
+            logging.info('\tstep 04: {} need to be calculated'.format(len(to_scf)))
             scfpop = self.query_calculator.scf(to_scf)
+            os.chdir(currdir)
             dump_cfg(scfpop, "D-computed.cfg", self.symbol_to_type)
 
             # 05: train
-            exeCmd = "cat train.cfg D-computed.cfg >> E-train.cfg"
-            shutil.copy("E-train.cfg", "train.cfg")
+            logging.info('\tstep 05: retrain mtp')
+            exeCmd = "cat train.cfg D-computed.cfg >> E-train.cfg\n"\
+                     "cp E-train.cfg train.cfg"
             subprocess.call(exeCmd, shell=True)
-            with open('train.sh') as f:
+            with open('train.sh', 'w') as f:
                 f.write(
                     "#BSUB -q {0}\n"
                     "#BSUB -n {1}\n"
@@ -1132,13 +1147,15 @@ class MTPCalculator(Calculator):
                     "mpirun -np {1} mlp train "
                     "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter=200"
                     "--energy-weight={3} --force-weight={4} --stress-weight={5}"
-                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, 1., 0., 0.)
+                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, 1., 0.01, 0.))
             self.J.bsub('bsub < train.sh', 'train')
             self.J.WaitJobsDone(self.p.waitTime)
             self.J.clear()
+        else:
+            logging.info('\tbu hao ye, some relax failed')
         shutil.copy("pot.mtp", "{}/mlFold/pot.mtp".format(self.p.workDir))
         shutil.copy("train.cfg", "{}/mlFold/train.cfg".format(self.p.workDir))
-        relaxpop = load_cfg("relaxed.cfg", self.symbol_to_type)
+        relaxpop = load_cfg("relaxed.cfg", self.type_to_symbol)
         return relaxpop
 
     def scf(self, calcPop):
@@ -1147,15 +1164,15 @@ class MTPCalculator(Calculator):
         calcDir = "{}/calcFold/MTP".format(self.p.workDir)
         basedir = '{}/epoch{:02d}'.format(calcDir, 0)
         if not os.path.exists(basedir):
-            os.mkdir(basedir)
+            os.makedirs(basedir)
         shutil.copy("{}/inputFold/mlip.ini".format(self.p.workDir), "{}/pot.mtp".format(basedir))
         shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), "{}/pot.mtp".format(basedir))
         shutil.copy("{}/mlFold/train.cfg".format(self.p.workDir), "{}/train.cfg".format(basedir))
         dump_cfg(calcPop, "{}/to_scf.cfg".format(basedir), self.symbol_to_type)
 
-        exeCmd = "mlp calc-efs {0}/pot.mtp {0}/to_scf.cfg {0}/out.cfg".format(basedir)
+        exeCmd = "mlp calc-efs {0}/pot.mtp {0}/to_scf.cfg {0}/scf_out.cfg".format(basedir)
         exitcode = subprocess.call(exeCmd, shell=True)
         if exitcode != 0:
             raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
-        scfpop = load_cfg("{}/out.cfg".format(basedir), self.type_to_symbol)
-        return relaxpop
+        scfpop = load_cfg("{}/scf_out.cfg".format(basedir), self.type_to_symbol)
+        return scfpop
