@@ -17,6 +17,7 @@ from ase.spacegroup import crystal
 # from parameters import parameters
 from .writeresults import write_traj
 from .utils import *
+from .formatting.mtp import load_cfg, dump_cfg
 from ase.units import GPa, eV, Ang
 try:
     from xtb.ase.calculator import XTB
@@ -1036,99 +1037,125 @@ def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         return None
 
 
-
-class MTPCalculator(ABinitCalculator):
-    def __init__(self, parameters, prefix='calcMTP'):
+class MTPCalculator(Calculator):
+    def __init__(self, query_calculator, parameters, prefix='calcMTP'):
         super().__init__(parameters, prefix)
         Requirement = ['symbols']
         Default = {'jobPrefix':'MTP'}
         checkParameters(self.p, parameters, Requirement, Default)
-        self.p.numParallel = mp.cpu_count()
+        self.symbol_to_type = {j: i for i, j in enumerate(self.p.symbols)}
+        self.type_to_symbol = {i: j for i, j in enumerate(self.p.symbols)}
+        self.query_calculator = query_calculator
 
-    def scf_serial(self, calcPop):
+    def relax(self, calcPop):
         self.cdcalcFold()
-        calcNum = 0
-        exeCmd = self.p.exeCmd
         pressure = self.p.pressure
-        inputDir = "{}/inputFold".format(self.p.workDir)
-        shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), 'pot.mtp')
-        for epoch in range(10):
-            try:
-                
-                mtp_dump(wait_to_calc)
-                exitcode = subprocess.call('mpirun -np {} mlp train 14.mtp trainset.cfg --trained-pot-name=pot.mtp --max-iter=100', shell=True)
-                if exitcode != 0:
-                    raise RuntimeError('Lammps exited with exit code: %d.  ' % exitcode)
-                numlist = [0]
-                numlist.extend(calcInd.get_chemical_symbols())
-                with open('out.dump') as f:
-                    struct = read_lammps_dump(f,numlist=numlist)[-1]
-                volume = struct.get_volume()
-                energy = float(os.popen("grep energy energy.out | tail -1 | awk '{print $3}'").readlines()[0])
-                # the unit of pstress is kBar = GPa/10
-                enthalpy = energy + pressure * GPa * volume / 10
-                enthalpy = enthalpy/len(struct)
+        calcDir = "{}/calcFold/MTP".format(self.p.workDir)
+        basedir = '{}/epoch{:02d}'.format(calcDir, 0)
+        if not os.path.exists(basedir):
+            os.mkdir(basedir)
+        shutil.copy("{}/inputFold/mlip.ini".format(self.p.workDir), "{}/pot.mtp".format(basedir))
+        shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), "{}/pot.mtp".format(basedir))
+        shutil.copy("{}/mlFold/train.cfg".format(self.p.workDir), "{}/train.cfg".format(basedir))
+        dump_cfg(calcPop, "{}/to_relax.cfg".format(basedir), self.symbol_to_type)
+        for epoch in range(1, 10):
+            prevdir = '{}/epoch{:02d}'.format(calcDir, epoch - 1)
+            currdir = '{}/epoch{:02d}'.format(calcDir, epoch)
+            if not os.path.exists(currdir):
+                os.mkdir(currdir)
+            os.chdir(currdir)
+            shutil.copy("{}/mlip.ini".format(calcDir), "mlip.ini")
+            shutil.copy("{}/pot.mtp".format(prevdir), "pot.mtp")
+            shutil.copy("{}/to_relax.cfg".format(prevdir), "to_relax.cfg")
+            shutil.copy("{}/train.cfg".format(prevdir), "train.cfg")
+            # 01: calculate grad
+            exeCmd = "mlp calc-grade {0}/pot.mtp {0}/train.cfg {0}/train.cfg"
+                     "temp.cfg --als-filename=A-state.als".format(prevdir)
+            exitcode = subprocess.call(exeCmd, shell=True)
+            if exitcode != 0:
+                raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
+            
+            # 02: do relax with mtp
 
-                struct.info['enthalpy'] = round(enthalpy, 3)
+            with open('relax.sh') as f:
+                f.write(
+                    "#BSUB -q {0}\n"
+                    "#BSUB -n {1}\n"
+                    "#BSUB -o relax-out\n"
+                    "#BSUB -e relax-err\n"
+                    "#BSUB -J mtp-relax\n"
+                    "{2}\n"
+                    "mpirun -np {1} mlp relax "
+                    "mlip.ini --cfg-filename=to_relax.cfg --save-relaxed=relaxed.cfg"
+                    "cat B-preselected.cfg* > B-preselected.cfg"
+                    "cat relaxed.cfg* > relaxed.cfg"
+                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing)
+            self.J.bsub('bsub < relax.sh', 'relax')
+            self.J.WaitJobsDone(self.p.waitTime)
+            self.J.clear()
 
-                # save energy, forces, stress for trainning potential
-                struct.info['energy'] = energy
-                return struct
-            except:
-                logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
-                logging.warning("Lammps fail")
-                return None
+            # 03: select bad cfg
+            with open('select.sh') as f:
+                f.write(
+                    "#BSUB -q {0}\n"
+                    "#BSUB -n {1}\n"
+                    "#BSUB -o select-out\n"
+                    "#BSUB -e select-err\n"
+                    "#BSUB -J mtp-select\n"
+                    "{2}\n"
+                    "mpirun -np {1} mlp select-add "
+                    "pot.mtp train.cfg B-preselected.cfg C-selected.cfg"
+                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing)
+            self.J.bsub('bsub < select.sh', 'select')
+            self.J.WaitJobsDone(self.p.waitTime)
+            self.J.clear()
+            if os.path.getsize("C-selected.cfg") == 0:
+                break
+            
+            # 04: DFT
+            to_scf = load_cfg("C-selected.cfg", self.type_to_symbol)
+            scfpop = self.query_calculator.scf(to_scf)
+            dump_cfg(scfpop, "D-computed.cfg", self.symbol_to_type)
 
+            # 05: train
+            exeCmd = "cat train.cfg D-computed.cfg >> E-train.cfg"
+            shutil.copy("E-train.cfg", "train.cfg")
+            subprocess.call(exeCmd, shell=True)
+            with open('train.sh') as f:
+                f.write(
+                    "#BSUB -q {0}\n"
+                    "#BSUB -n {1}\n"
+                    "#BSUB -o train-out\n"
+                    "#BSUB -e train-err\n"
+                    "#BSUB -J mtp-train\n"
+                    "{2}\n"
+                    "mpirun -np {1} mlp train "
+                    "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter=200"
+                    "--energy-weight={3} --force-weight={4} --stress-weight={5}"
+                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, 1., 0., 0.)
+            self.J.bsub('bsub < train.sh', 'train')
+            self.J.WaitJobsDone(self.p.waitTime)
+            self.J.clear()
+        shutil.copy("pot.mtp", "{}/mlFold/pot.mtp".format(self.p.workDir))
+        shutil.copy("train.cfg", "{}/mlFold/train.cfg".format(self.p.workDir))
+        relaxpop = load_cfg("relaxed.cfg", self.symbol_to_type)
+        return relaxpop
 
-
-        scfPop = calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir)
-        write_traj('optPop.traj', scfPop)
-        os.chdir(self.p.workDir)
-
-
-
-        return scfPop
-
-    def relax_serial(self, calcPop):
+    def scf(self, calcPop):
         self.cdcalcFold()
-
-        calcNum = self.p.calcNum
-        exeCmd = self.p.exeCmd
         pressure = self.p.pressure
-        inputDir = "{}/inputFold".format(self.p.workDir)
+        calcDir = "{}/calcFold/MTP".format(self.p.workDir)
+        basedir = '{}/epoch{:02d}'.format(calcDir, 0)
+        if not os.path.exists(basedir):
+            os.mkdir(basedir)
+        shutil.copy("{}/inputFold/mlip.ini".format(self.p.workDir), "{}/pot.mtp".format(basedir))
+        shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), "{}/pot.mtp".format(basedir))
+        shutil.copy("{}/mlFold/train.cfg".format(self.p.workDir), "{}/train.cfg".format(basedir))
+        dump_cfg(calcPop, "{}/to_scf.cfg".format(basedir), self.symbol_to_type)
 
-        relaxPop = calc_lammps(calcNum, calcPop, pressure, exeCmd, inputDir)
-        write_traj('optPop.traj', relaxPop)
-        os.chdir(self.p.workDir)
-        return relaxPop
-
-    def scfjob(self, index):
-        shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), 'pot.mtp')
-
-        jobName = self.p.jobPrefix + '_s_' + str(index)
-        f = open('parallel.sh', 'w')
-        f.write("#BSUB -q %s\n"
-                "#BSUB -n %s\n"
-                "#BSUB -o out\n"
-                "#BSUB -e err\n"
-                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
-        f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runscripts.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
-        f.close()
-        self.J.bsub('bsub < parallel.sh',jobName)
-
-    def relaxjob(self,index):
-        with open('vaspSetup.yaml', 'w') as setupF:
-            setupF.write(yaml.dump(self.p.setup))
-        #jobName = self.p.jobPrefix + '_relax_' + str(index)
-        jobName = self.p.jobPrefix + '_' + str(index)
-        f = open('parallel.sh', 'w')
-        f.write("#BSUB -q %s\n"
-                "#BSUB -n %s\n"
-                "#BSUB -o out\n"
-                "#BSUB -e err\n"
-                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
-        f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runscripts.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
-        f.close()
-        self.J.bsub('bsub < parallel.sh',jobName)
+        exeCmd = "mlp calc-efs {0}/pot.mtp {0}/to_scf.cfg {0}/out.cfg".format(basedir)
+        exitcode = subprocess.call(exeCmd, shell=True)
+        if exitcode != 0:
+            raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
+        scfpop = load_cfg("{}/out.cfg".format(basedir), self.type_to_symbol)
+        return relaxpop

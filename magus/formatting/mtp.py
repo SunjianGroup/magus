@@ -1,0 +1,93 @@
+import numpy as np
+from ase.atoms import Atoms
+
+def dump_cfg(frames, filename, symbol_to_type):
+    with open(filename, 'w') as f:
+        for atoms in frames:
+            ret = ''
+            ret += 'BEGIN_CFG\n'
+            ret += 'Size\n{}\n'.format(len(atoms))
+            try:
+                cell = atoms.get_cell()[:]
+                ret += 'Supercell\n{} {} {}\n{} {} {}\n{} {} {}\n'.format(*cell[0], *cell[1], *cell[2])
+            except:
+                pass
+            cartes = atoms.positions
+            try:
+                atoms.info['forces'] = atoms.get_forces()
+            except:
+                pass
+            if 'forces' in atoms.info:
+                forces = atoms.info['forces']
+                ret += 'AtomData: id type cartes_x cartes_y cartes_z fx fy fz\n'
+                for i, atom in enumerate(atoms):
+                    ret += '{} {} {} {} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.number], *cartes[i], *forces[i])
+            else:
+                ret += 'AtomData: id type cartes_x cartes_y cartes_z\n'
+                for i, atom in enumerate(atoms):
+                    ret += '{} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.number], *cartes[i])
+            try:
+                atoms.info['energy'] = atoms.get_potential_energy()
+            except:
+                pass
+            ret += 'Energy\n{}\n'.format(atoms.info['energy'])
+            try:
+                atoms.info['stress'] = atoms.get_stress()
+            except:
+                pass
+            if 'stress' in atoms.info:
+                stress = atoms.info['stress'] * atoms.get_volume() * -1.
+                ret += 'PlusStress: xx yy zz yz xz xy\n{} {} {} {} {} {}\n'.format(*stress)
+            ret += 'END_CFG\n'
+            f.write(ret)
+
+
+def load_cfg(filename, type_to_symbol):
+    frames = []
+    with open(filename) as f:
+        line = 'chongchongchong!'
+        while line:
+            line = f.readline()
+            if 'BEGIN_CFG' in line:
+                cell = np.zeros((3, 3))
+                positions = []
+                symbols = []
+
+            if 'Size' in line:
+                line = f.readline()
+                natoms = int(line.split()[0])
+            
+            if 'Supercell' in line: 
+                for i in range(3):
+                    line = f.readline()
+                    for j in range(3):
+                        cell[i, j] = float(line.split()[j])
+
+            if 'AtomData' in line:
+                has_force = False
+                if 'fx' in line:
+                    has_force = True
+                    forces = []
+                
+                for _ in range(natoms):
+                    line = f.readline()
+                    fields = line.split()
+                    symbols.append(type_to_symbol[int(fields[1])])
+                    positions.append(list(map(float, fields[2: 5])))
+                    if has_force:
+                        forces.append(list(map(float, fields[5: 8])))
+                atoms = Atoms(symbols=symbols, cell=cell, positions=positions)
+                atoms.info['forces'] = np.array(forces)
+
+            if 'Energy' in line:
+                line = f.readline()
+                atoms.info['energy'] = float(line.split()[0])
+
+            if 'PlusStress' in line:
+                line = f.readline()
+                atoms.info['stress'] = np.array(list(map(float, line.split())))
+
+            if 'END_CFG' in line:
+                frames.append(atoms)
+
+    return frames
