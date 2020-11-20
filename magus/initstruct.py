@@ -17,7 +17,7 @@ class Generator:
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
         Default={'threshold':1.0,'maxAttempts':50,'method':1,
-        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None}
+        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3, 'choice':0}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
@@ -35,10 +35,10 @@ class Generator:
         maxLattice= [maxVolume**(1./3)]*3+[120]*3
         if self.p.minLattice:
             minLattice = self.p.minLattice
-            minVolume = np.linalg.det(cellpar_to_cell(minLattice))
+            minVolume = np.linalg.det(cellpar_to_cell(minLattice)) 
         if self.p.maxLattice:
             maxLattice = self.p.maxLattice
-            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice)) 
         if self.p.fixCell:
             minLattice = self.p.setCellPar
             minVolume = np.linalg.det(cellpar_to_cell(minLattice))
@@ -53,6 +53,13 @@ class Generator:
         generator.spg = spg
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
+        generator.dimension = self.p.dimension
+        try:
+            if self.p.vacuum:
+                generator.vacuum = self.p.vacuum
+        except:
+            pass
+        generator.choice = self.p.choice
         if self.p.molMode:
             generator.threshold=self.p.bondRatio
         else:
@@ -80,11 +87,14 @@ class Generator:
                         uni_symbols = list({}.fromkeys(symbols).keys())
                         assert len(uni_symbols)<5 
                         #TODO char array
-                        na,nb,nc,nd = [uni_symbols[i] if i<len(uni_symbols) else '0' for i in range(4)]
+                        namearray = [str(_s) for _s in uni_symbols]
                         numinfo = np.array([symbols.count(s) for s in uni_symbols],dtype=float)
 
+                        symprec = self.p.symprec
+                        generator.threshold_mol = self.p.threshold_mol
+                        
                         generator.AppendMoles(int(numlist[i]),mole.get_chemical_formula()\
-                            ,radius, positions, numinfo, na,nb,nc,nd)
+                            ,radius, positions, numinfo, namearray, symprec)
 
                         number = sum([num for num in [[atomic_numbers[s]]*int(n)*numlist[i] \
                             for s,n in zip(uni_symbols,numinfo)]],[])
@@ -183,7 +193,7 @@ class MoleculeGenerator(Generator):
     def __init__(self,parameters):
         super().__init__(parameters)
         Requirement=['inputMols','molFormula','numFrml']
-        Default = {'molMode':True}
+        Default = {'molMode':True, 'symprec':0.1, 'threshold_mol': 1.0}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [get_radius(mol) for mol in self.p.inputMols]
         checkParameters(self.p,parameters,[],{'radius':radius})
