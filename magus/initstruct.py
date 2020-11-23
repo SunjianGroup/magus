@@ -20,7 +20,7 @@ class Generator:
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
         Default={'threshold':1.0,'maxAttempts':50,'method':1,
-        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3, 'choice':0}
+        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
@@ -57,9 +57,16 @@ class Generator:
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
         generator.dimension = self.p.dimension
-        if self.p.vacuum:
+        try:
             generator.vacuum = self.p.vacuum
-        generator.choice = self.p.choice
+        except:
+            pass
+
+        try:
+            generator.choice = self.p.choice
+        except:
+            pass
+
         if self.p.molMode:
             generator.threshold=self.p.bondRatio
         else:
@@ -317,8 +324,9 @@ def read_seeds(parameters, seedFile, goodSeed=False):
             readPop = ase.io.read(seedFile, index=':', format='traj')
         if len(readPop) > 0:
             logging.info("Reading Seeds ...")
-
-        seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
+            
+        seedPop = readPop
+        #seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
         for ind in seedPop:
             if goodSeed:
                 ind.info['origin'] = 'goodseed'
@@ -326,40 +334,59 @@ def read_seeds(parameters, seedFile, goodSeed=False):
                 ind.info['origin'] = 'seed'
     return seedPop
 
+def read_ref(bulkFile):
+    bulk = ase.io.read(bulkFile, index =':', format='traj')
+    if len(bulk) >0:
+        logging.info("Reading Refslab ...")
+    
+    from ase.constraints import FixAtoms
 
+    for ind in bulk:
+        c = FixAtoms(indices=range(len(ind) ))
+        ind.set_constraint(c)
+
+    return bulk
+    
 class ReconstructGenerator():
     def __init__(self,parameters):
         para_t = EmptyClass()
         Requirement=['layerfile','cutslices']
-        Default={'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'rcs_x':1, 'rcs_y':1,
-        'SymbolsToAdd': None, 'AtomsToAdd': None, 'direction': None}
+        Default={'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'startpos': 0.9,
+        'rcs_x':[1], 'rcs_y':[1], 'SymbolsToAdd': None, 'AtomsToAdd': None, 'direction': None,
+        'dimension':2, 'choice':0 }
 
         checkParameters(para_t, parameters, Requirement,Default)
-        
+        #here starts to get Ref/refslab to calculate refE
+        if os.path.exists("Ref/refslab.traj"):
+            pass
+        else:
+            ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
+
         
         #here starts to split layers into [bulk, relaxable, rcs]
-        if os.path.exists("layerslices.traj"):
+        if os.path.exists("Ref/layerslices.traj"):
             pass
         else:
             bot, mid, top = para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum
             slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/para_t.cutslices
-            slicepos = list( slicepos + np.array([0.9]*4))
+            slicepos = list( slicepos + np.array([para_t.startpos]*4))
             logging.info("cutslice = {}".format(slicepos))
 
             originatoms = ase.io.read(para_t.layerfile)
             direction = para_t.direction
-            cutcell(originatoms, [para_t.rcs_x, para_t.rcs_y, int(slicepos[-1]) +1], slicepos, direction)
-            
+            #cutcell(originatoms, [para_t.rcs_x, para_t.rcs_y, int(slicepos[-1]) +1], slicepos, direction)
+            cutcell(originatoms, [1, 1, int(slicepos[-1]) +1], slicepos, direction)
+
         #layer split ends here    
 
         self.range=para_t.range
         self.num_layer=1
         self.ind=RcsInd(parameters)
-        
+
         #here get new parameters for self.generator 
         _parameters = copy.deepcopy(parameters)
 
-        self.layerslices = ase.io.read("layerslices.traj", index=':', format='traj')
+        self.layerslices = ase.io.read("Ref/layerslices.traj", index=':', format='traj')
         
         setlattice = []
         if len(self.layerslices)==3:
@@ -374,7 +401,8 @@ class ReconstructGenerator():
             lattice [2]/= para_t.relaxable_layernum
             self.ref.set_cell(lattice)
             setlattice = list(cell_to_cellpar(lattice))
-        
+
+        self.reflattice = setlattice.copy()
         target = self.ind.get_targetFrml()
         _symbol = [s for s in target]
         requirement = {'minLattice': setlattice, 'maxLattice':setlattice, 'symbols':_symbol}
@@ -414,27 +442,25 @@ class ReconstructGenerator():
         self.threshold = self.p.dRatio
         self.maxAttempts = 1000
 
-    def afterprocessing(self,ind,nfm, origin):
+    def afterprocessing(self,ind,nfm, origin, size):
         ind.info['symbols'] = self.p.symbols
         ind.info['formula'] = self.p.formula
         ind.info['numOfFormula'] = nfm
         ind.info['parentE'] = 0
         ind.info['origin'] = origin
+        ind.info['size'] = size
+
         return ind
 
     def updatevolRatio(self,volRatio):
         return self.rcs_generator.updatevolRatio(volRatio)
-
-    def getVolumeandLattice(self,numlist):
-        return self.rcs_generator.getVolumeandLattice(numlist)
-
     def Generate_ind(self,spg,numlist):
         return self.rcs_generator.Generate_ind(spg,numlist)
 
-    def reconstruct(self):
+    def reconstruct(self, rcs_x, rcs_y):
         
-        layer = ase.io.read("layerslices.traj", index=2, format='traj')
-        c=reconstruct(self.range, layer, self.threshold, self.maxAttempts)
+        layer = ase.io.read("Ref/layerslices.traj", index=2, format='traj')
+        c=reconstruct(self.range, layer*(rcs_x, rcs_y, 1), self.threshold, self.maxAttempts)
         label, pos=c.reconstr()
         numbers=[]
         if label:
@@ -456,16 +482,18 @@ class ReconstructGenerator():
         while tryNum<self.p.maxtryNum*popSize and popSize/2 > len(buildPop):
             nfm = np.random.choice(self.p.numFrml)
             spg = 1
-            label,ind = self.reconstruct()
+            _x = np.random.choice(self.p.rcs_x)
+            _y = np.random.choice(self.p.rcs_y)
+            label,ind = self.reconstruct(_x, _y)
             if label:
-                self.afterprocessing(ind,nfm,'rand.randmove')
-
-                ind.set_cell(self.ref.get_cell().copy(), scale_atoms=True)
+                self.afterprocessing(ind,nfm,'rand.randmove', [_x, _y])
+                ref = self.ref * (_x , _y, 1)
+                ind.set_cell(ref.get_cell().copy(), scale_atoms=True)
                 ind = self.ind(ind)
                 #change atommin and max here for check_formula
-                pop = ase.io.read("layerslices.traj", index= ':', format='traj')
-                ind.minAt -= len(pop[0])+len(pop[1])
-                ind.maxAt -= len(pop[0])+len(pop[1])
+                pop = ase.io.read("Ref/layerslices.traj", index= ':', format='traj')
+                ind.minAt -= (len(pop[0])+len(pop[1]))*_x*_y
+                ind.maxAt -= (len(pop[0])+len(pop[1]))*_x*_y
 
                 #check_formula and add atom if needed, if success, add relaxable and bulk layer
                 if ind.repair_atoms():
@@ -483,25 +511,34 @@ class ReconstructGenerator():
             
             spg = np.random.choice(self.p.spgs)
             nfm = np.random.choice(self.p.numFrml)
+            _x = np.random.choice(self.p.rcs_x)
+            _y = np.random.choice(self.p.rcs_y)
 
-            target = self.ind.get_targetFrml()
-            numlist = np.array([target[s] for s in target])
+            target = self.ind.get_targetFrml(_x , _y)
+            numlist = np.array([target[s] for s in self.rcs_generator.p.symbols])
+
+            self.rcs_generator.p.minLattice[0] = self.reflattice[0]*_x
+            self.rcs_generator.p.minLattice[1] = self.reflattice[1]*_y
+            self.rcs_generator.p.maxLattice = self.rcs_generator.p.minLattice
+            #logging.info("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
+            #logging.info("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
             label,ind = self.rcs_generator.Generate_ind(spg,numlist)
             
             if label:
-                #first set cell to stdcell(self.ref)
-                ind.set_cell(self.ref.get_cell_lengths_and_angles().copy())
-                #then change to true cell(self.ref)
-                ind.set_cell(self.ref.get_cell().copy(), scale_atoms=True)
+                ref = self.ref * (_x, _y, 1)
+                #first set cell to stdcell(ref)
+                ind.set_cell(ref.get_cell_lengths_and_angles().copy())
+                #then change to true cell(ref)
+                ind.set_cell(ref.get_cell().copy(), scale_atoms=True)
                 
-                vertical_dis = self.ref.get_scaled_positions()[:,2].copy()
+                vertical_dis = ref.get_scaled_positions()[:,2].copy()
                 distance = np.average(vertical_dis) if self.p.dimension==2 and self.p.choice==0 else np.min(vertical_dis)
                 layer_vertical_dis = ind.get_scaled_positions()[:,2].copy()
                 layerbottom = np.min(layer_vertical_dis)
 
-                ind.translate([ self.ref.get_cell()[2]*distance-ind.get_cell()[2]*layerbottom ]*len(ind))
+                ind.translate([ ref.get_cell()[2]*distance-ind.get_cell()[2]*layerbottom ]*len(ind))
 
-                self.afterprocessing(ind,nfm,'rand.symmgen')
+                self.afterprocessing(ind,nfm,'rand.symmgen', [_x, _y])
                 ind= self.ind(ind)
                 ind = ind.addextralayer('relaxable')
                 ind = ind.addextralayer('bulk')
@@ -523,8 +560,15 @@ class ClusterGenerator(BaseGenerator):
     def afterprocessing(self,ind,nfm):
         super().afterprocessing(ind,nfm)
 
+    def getVolumeandLattice(self,numlist):
+        minVolume,maxVolume,minLattice,maxLattice = super().getVolumeandLattice(numlist)
+        return minVolume,maxVolume, list(np.array(minLattice)/2), list(np.array(maxLattice)/2)
+
     def Generate_pop(self,popSize,initpop=False):
-        return super().Generate_pop(popSize,initpop)
+        pop =  super().Generate_pop(popSize,initpop)
+        for ind in pop:
+            ind.set_pbc([0,0,0])
+        return pop
         
 #test
 if __name__ == '__main__':

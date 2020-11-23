@@ -270,9 +270,65 @@ class cutcell:
             pop[2].set_cell(cell)
         
         logging.info("save cutslices into file layerslices.traj")
-        ase.io.write("layerslices.traj",pop,format='traj')
+        ase.io.write("Ref/layerslices.traj",pop,format='traj')
 
 
+from scipy.spatial import ConvexHull
+class RCSPhaseDiagram:
+    '''
+    construct a convex hull of Eo(delta_n).
+    for a binary AaBb compound, (eg. TiO2, A=Ti, a=1, B=O, b=2), which could be reduced to A(a/b)B form (i.e., TiO2 to Ti0.5O), 
+    define Eo = E_slab - numB*E_ref, [E_ref = energy of unit A(a/b)B]
+    define delta_n = numA - numB *(a/b)
+    E_surface = Eo - delta_n*potentialA
+    * Q. Zhu, L. Li, A. R. Oganov, and P. B. Allen, Phys. Rev. B 87, 195317 (2013).
+    * https://doi.org/10.1103/PhysRevB.87.195317
+
+    some codes modified from ase.phasediagram in this part.
+    '''
+    def __init__(self, references):
+        '''
+        reference must be a list of tuple (delta_n, Eo).
+        binary AaBb compound only, due to the definition of delta_n.
+        '''
+        
+        self.references = references
+
+        self.points = np.zeros((len(self.references), 2))
+        for s, ref in enumerate(self.references):
+            self.points[s] = np.array(ref)
+        
+        hull = ConvexHull(self.points)
+
+        # Find relevant simplices:
+        ok = hull.equations[:, -2] < 0
+        self.simplices = hull.simplices[ok]
+
+    def decompose(self, delta_n):
+
+        # Find coordinates within each simplex:
+        X = self.points[self.simplices, 0] - delta_n
+
+        # Find the simplex with positive coordinates that sum to
+        # less than one:
+        eps = 1e-15
+        for i, Y in enumerate(X):
+            try:
+                x =  -Y[0] / (Y[1] - Y[0])
+            except:
+                pass
+            if x > -eps and x < 1 + eps:
+                break
+        else:
+            assert False, X
+
+        indices = self.simplices[i]
+        points = self.points[indices]
+
+        coefs = [1 - x , x]
+        energy = np.dot(coefs, points[:, -1])
+
+        return energy, indices, np.array(coefs)
 
 if __name__ == '__main__':
     t=reconstruct(0.8, ase.io.read("POSCAR_3.vasp",format='vasp'), 0.8,2 )

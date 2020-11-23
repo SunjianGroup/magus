@@ -733,11 +733,12 @@ class VarInd(Individual):
 
 class RcsInd(Individual):
     def __init__(self, parameters):
+
         super().__init__(parameters)
 
-        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None}
+        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None, 'refE':0, 'refFrml':None}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
-        self.layerslices = ase.io.read("layerslices.traj", index=':', format='traj')
+        self.layerslices = ase.io.read("Ref/layerslices.traj", index=':', format='traj')
         
         self.minAt = self.p.minAt 
         self.maxAt = self.p.maxAt
@@ -781,7 +782,19 @@ class RcsInd(Individual):
         atoms.wrap()
         newind.atoms = atoms
         newind.sort()
-        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
+        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula))) }
+
+        if 'size' in atoms.info:
+            #used in generator and mutation cases
+            newind.info['size'] = atoms.info['size']
+        elif hasattr(self, "atoms"):
+            if 'size' in self.atoms.info:
+                #used in crossover cases
+                newind.info['size'] = self.atoms.info['size']
+        if 'size' not in newind.info:
+            logging.warn("size unknown for reconstruction individual. [1,1] was set but it may lead to an error. ")
+            newind.info['size'] = [1,1]
+            
         newind.info['fitness'] = {}
         return newind
 
@@ -807,11 +820,11 @@ class RcsInd(Individual):
                 return False
 
         
-        targetFrml = self.get_refFrml()
+        targetFrml = self.get_refFrml(self.info['size'][0], self.info['size'][1])
 
         if self.minAt == self.p.minAt:  #with bulk and relaxable
             _symbols, _formula = symbols_and_formula(self.layerslices[0]+self.layerslices[1])
-            _bottom = {s:i for s,i in zip(_symbols, _formula)}
+            _bottom = {s:i*(self.info['size'][0] *self.info['size'][1]) for s,i in zip(_symbols, _formula)}
             for s in targetFrml:
                 if nowFrml[s]-_bottom[s] not in targetFrml[s]:
                     logging.info("targetFrml={} , nowformula={} for symbol '{}' with bottom layers".format(targetFrml[s], nowFrml[s]+_bottom[s] ,s))
@@ -824,10 +837,10 @@ class RcsInd(Individual):
 
         return True     
         
-    def get_refFrml(self):
+    def get_refFrml(self, rcs_x , rcs_y):
 
         if len(self.layerslices)==3:
-            benchmark = self.layerslices[2]
+            benchmark = self.layerslices[2] * (rcs_x, rcs_y, 1)
             symbol, formula = symbols_and_formula(benchmark)
 
             targetFrml = {s:i for s,i in zip(symbol,formula)}
@@ -846,10 +859,13 @@ class RcsInd(Individual):
 
         return targetFrml
 
-    def get_targetFrml(self):
-        targetFrml = self.get_refFrml()
+    def get_targetFrml(self, rcs_x=1, rcs_y=1):
 
         if hasattr(self,"atoms"):
+            _x = self.info['size'][0]
+            _y = self.info['size'][1]
+
+            targetFrml = self.get_refFrml(_x, _y)
             symbols, formula = symbols_and_formula(self.atoms)
             nowFrml = {s:i for s,i in zip(symbols, formula)}
             bestFrml = nowFrml.copy()
@@ -867,6 +883,7 @@ class RcsInd(Individual):
                         bestFrml[s] = np.random.choice(targetFrml[s])
             
         else:
+            targetFrml = self.get_refFrml(rcs_x, rcs_y)
             for s in targetFrml:
                 targetFrml[s] = np.random.choice(targetFrml[s])
             bestFrml = targetFrml
@@ -884,10 +901,10 @@ class RcsInd(Individual):
 
         if type=='relaxable':
             FixExtraAtoms=False
-            extratoms=self.layerslices[1]
+            extratoms=self.layerslices[1] * (self.info['size'][0], self.info['size'][1], 1)
         elif type=='bulk':
             FixExtraAtoms=True
-            extratoms=self.layerslices[0]
+            extratoms=self.layerslices[0] * (self.info['size'][0], self.info['size'][1], 1)
 
         newind=self.copy()
         atoms_top=newind.atoms.copy()
@@ -917,6 +934,7 @@ class RcsInd(Individual):
             newind.info['fingerprint'] = Efps
         if 'spg' in newind.info:
             newind.find_spg()
+        
 
         return newind
 
@@ -926,9 +944,9 @@ class RcsInd(Individual):
         change_Minat_Maxat = changeAtomNum
         
         if type=='relaxable':
-            extratoms=self.layerslices[1]
+            extratoms=self.layerslices[1]* (self.info['size'][0], self.info['size'][1], 1)
         elif type=='bulk':
-            extratoms=self.layerslices[0]
+            extratoms=self.layerslices[0]* (self.info['size'][0], self.info['size'][1], 1)
             
         atoms_bottom=extratoms.copy()
         newcell=newind.atoms.get_cell()
@@ -1029,8 +1047,8 @@ class ClusInd(FixInd):
 
         return a
         
-            
-
-        
-
-
+    def get_volRatio(self):
+        cell = self.atoms.get_cell_lengths_and_angles()[:3] 
+        cell -= np.array([self.p.vacuum]*3)
+        self.volRatio = cell[0]*cell[1]*cell[2]/self.get_ball_volume()
+        return self.volRatio

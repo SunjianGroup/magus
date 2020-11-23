@@ -5,7 +5,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from .initstruct import read_seeds
+from .initstruct import read_seeds, read_ref
 from .utils import *
 from .machinelearning import LRmodel
 from .parameters import magusParameters
@@ -47,7 +47,11 @@ class Magus:
                 i+=1
             shutil.move("results", "results{}".format(i))
         os.mkdir("results")
-        self.parameters.save('allparameters.yaml')
+
+        #only used in rcs mode. Maybe will be removed later if found any better place to get reference energy. 
+        #self.get_refE()
+            
+        #self.parameters.save('allparameters.yaml')
         self.parameters.save('results/allparameters.yaml')
 
         #shutil.copy("allParameters.yaml", "results/allParameters.yaml")
@@ -249,9 +253,25 @@ class Magus:
         if self.MainCalculator.p.mode == 'parallel':
             with open('results/allparameters.yaml') as f:
                 d = yaml.load(f)
-            if d['MainCalculator']['queueName'] != self.MainCalculator.p.queueName:
-                logging.warning('*****************\nBe careful, {} is replaced by {}\n*****************'.format(self.MainCalculator.p.queueName, d['MainCalculator']['queueName']))
-                self.MainCalculator.p.queueName = d['MainCalculator']['queueName']
+            if 'queueName' in d['MainCalculator']:
+                if d['MainCalculator']['queueName'] != self.MainCalculator.p.queueName:
+                    logging.warning('*****************\nBe careful, {} is replaced by {}\n*****************'.format(self.MainCalculator.p.queueName, d['MainCalculator']['queueName']))
+                    self.MainCalculator.p.queueName = d['MainCalculator']['queueName']
+
+
+    def get_refE(self):
+        if self.parameters.calcType == 'rcs':
+            refPop = read_ref('{}/Ref/refslab.traj'.format(self.parameters.workDir))
+            refPop = self.Population(refPop,'refpop',0)
+            refE = self.MainCalculator.relax(refPop.frames)
+            refE = self.Population(refE,'refpop',0)
+            refE.save('ref', 0)
+            self.parameters.refE = refE [0].atoms.info['energy']
+            self.Population.Individual.p.refE = self.parameters.refE
+
+            symbol, formula = symbols_and_formula(refE[0].atoms)
+            self.parameters.refFrml = {s:i for s, i in zip(symbol, formula)}
+            self.Population.Individual.p.refFrml = self.parameters.refFrml
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

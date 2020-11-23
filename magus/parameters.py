@@ -156,6 +156,8 @@ class magusParameters:
             if self.parameters.calcType=='rcs':
                 latNum = 0
                 formNum = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
+            if self.parameters.calcType=='clus':
+                slipNum = 0
 
             """
             if self.parameters.useml:
