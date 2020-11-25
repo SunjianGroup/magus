@@ -386,6 +386,8 @@ class ABinitCalculator(Calculator):
             runArray.append(tmpList)
 
         for i in range(numParallel):
+            if len(runArray[i]) == 0:
+                continue
             if not os.path.exists("{}{}".format(self.prefix, i)):
                 # os.mkdir("{}{}".format(self.prefix, i))
                 shutil.copytree("{}/inputFold".format(self.p.workDir), "{}{}".format(self.prefix, i))
@@ -1046,6 +1048,9 @@ class MTPCalculator(Calculator):
             'Preprocessing': 'module load ips/2017u2',
             'waitTime': 50,
             'verbose': True,
+            'w_energy': 1.0, 
+            'w_forces': 0.01, 
+            'w_stress': 0.001,
             }
         checkParameters(self.p, parameters, Requirement, Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.p.symbols)}
@@ -1095,11 +1100,11 @@ class MTPCalculator(Calculator):
                     "#BSUB -e relax-err\n"
                     "#BSUB -J mtp-relax\n"
                     "{2}\n"
-                    "mpirun -np {1} mlp relax "
-                    "mlip.ini --cfg-filename=to_relax.cfg --save-relaxed=relaxed.cfg\n"
+                    "mpirun -np {1} mlp relax mlip.ini "
+                    "--pressure={3} --cfg-filename=to_relax.cfg --save-relaxed=relaxed.cfg\n"
                     "cat B-preselected.cfg* > B-preselected.cfg\n"
                     "cat relaxed.cfg* > relaxed.cfg\n"
-                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing))
+                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, self.p.pressure))
             self.J.bsub('bsub < relax.sh', 'relax')
             self.J.WaitJobsDone(self.p.waitTime)
             self.J.clear()
@@ -1132,6 +1137,9 @@ class MTPCalculator(Calculator):
             dump_cfg(scfpop, "D-computed.cfg", self.symbol_to_type)
 
             # 05: train
+            we = self.p.w_energy
+            wf = self.p.w_forces
+            ws = self.p.w_stress
             logging.info('\tstep 05: retrain mtp')
             exeCmd = "cat train.cfg D-computed.cfg >> E-train.cfg\n"\
                      "cp E-train.cfg train.cfg"
@@ -1147,7 +1155,7 @@ class MTPCalculator(Calculator):
                     "mpirun -np {1} mlp train "
                     "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter=200"
                     "--energy-weight={3} --force-weight={4} --stress-weight={5}"
-                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, 1., 0.01, 0.))
+                    "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, we, wf, ws))
             self.J.bsub('bsub < train.sh', 'train')
             self.J.WaitJobsDone(self.p.waitTime)
             self.J.clear()
@@ -1156,6 +1164,9 @@ class MTPCalculator(Calculator):
         shutil.copy("pot.mtp", "{}/mlFold/pot.mtp".format(self.p.workDir))
         shutil.copy("train.cfg", "{}/mlFold/train.cfg".format(self.p.workDir))
         relaxpop = load_cfg("relaxed.cfg", self.type_to_symbol)
+        for atoms in relaxpop:
+            enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa) / len(atoms)
+            atoms.info['enthalpy'] = round(enthalpy, 3)
         return relaxpop
 
     def scf(self, calcPop):
@@ -1175,4 +1186,11 @@ class MTPCalculator(Calculator):
         if exitcode != 0:
             raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
         scfpop = load_cfg("{}/scf_out.cfg".format(basedir), self.type_to_symbol)
+        for atoms in scfpop:
+            enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa) / len(atoms)
+            atoms.info['enthalpy'] = round(enthalpy, 3)
         return scfpop
+
+
+class TwostageMTPCalculator(Calculator):
+    pass

@@ -1,8 +1,8 @@
 import numpy as np
 from ase.atoms import Atoms
 
-def dump_cfg(frames, filename, symbol_to_type):
-    with open(filename, 'w') as f:
+def dump_cfg(frames, filename, symbol_to_type, mode='w'):
+    with open(filename, mode) as f:
         for atoms in frames:
             ret = ''
             ret += 'BEGIN_CFG\n'

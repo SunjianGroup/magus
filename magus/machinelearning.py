@@ -13,6 +13,8 @@ from ase.data import atomic_numbers
 from .utils import *
 import copy
 import yaml
+from .queuemanage import JobManager
+from .formatting.mtp import dump_cfg
 try:
     from ani.environment import ASEEnvironment
     from ani.kernel import RBF
@@ -981,3 +983,67 @@ class NNdNNmodel(MachineLearning, MLCalculator_tmp):
 
     def save_dataset(self, filename='dataset'):
         write('{}/{}.traj'.format(self.p.mlDir, filename), self.dataset.frames)
+
+
+class MTPmodel(MachineLearning):
+    def __init__(self, parameters):
+        self.p = EmptyClass()
+        Requirement = ['mlDir', 'symbols', 'queueName', 'numCore', 'workDir']
+        Default = {
+            'w_energy':1.0, 
+            'w_forces':0.01, 
+            'w_stress': 0.001,
+            'jobPrefix': 'MTP',
+            'Preprocessing': 'module load ips/2017u2',
+            'waitTime': 50,
+            'verbose': True,
+            }
+        checkParameters(self.p, parameters, Requirement, Default)
+
+        self.symbol_to_type = {j: i for i, j in enumerate(self.p.symbols)}
+        self.type_to_symbol = {i: j for i, j in enumerate(self.p.symbols)}
+        self.J = JobManager(self.p.verbose)
+        self.p.mldir = '{}/mlFold'.format(self.p.workDir)
+        if not os.path.exists(self.p.mldir):
+            os.mkdir(self.p.mldir)
+            shutil.copy('{}/inputFold/pot.mtp'.format(self.p.workDir), 
+                        '{}/pot.mtp'.format(self.p.mldir))
+
+    def train(self, n_epoch=200):
+        nowpath = os.getcwd()
+        os.chdir(self.p.mldir)
+        we = self.p.w_energy
+        wf = self.p.w_forces
+        ws = self.p.w_stress
+        with open('train.sh', 'w') as f:
+            f.write(
+                "#BSUB -q {0}\n"
+                "#BSUB -n {1}\n"
+                "#BSUB -o train-out\n"
+                "#BSUB -e train-err\n"
+                "#BSUB -J mtp-train\n"
+                "{2}\n"
+                "mpirun -np {1} mlp train "
+                "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter=200"
+                "--energy-weight={3} --force-weight={4} --stress-weight={5}"
+                "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, we, wf, ws))
+        self.J.bsub('bsub < train.sh', 'train')
+        self.J.WaitJobsDone(self.p.waitTime)
+        self.J.clear()
+        os.chdir(nowpath)
+
+    def updatedataset(self, frames):
+        dump_cfg(frames, '{}/train.cfg'.format(self.p.mldir), self.symbol_to_type, mode='a')
+
+    def get_loss(self, frames):
+        nowpath = os.getcwd()
+        os.chdir(self.p.mldir)
+        dump_cfg(frames, 'tmp.cfg', self.symbol_to_type)
+        exeCmd = "mlp calc-errors pot.mtp tmp.cfg | grep 'Average absolute difference' | awk {'print $5'}"
+        loss = os.popen(exeCmd).readlines()
+        mae_energies, r2_energies = float(loss[1]), 0.
+        mae_forces, r2_forces = float(loss[2]), 0.
+        mae_stress, r2_stress = float(loss[3]), 0.
+        os.remove('tmp.cfg')
+        os.chdir(nowpath)
+        return mae_energies, r2_energies, mae_forces, r2_forces, mae_stress, r2_stress
