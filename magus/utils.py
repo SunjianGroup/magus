@@ -15,7 +15,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import cluster
 from scipy.optimize import root
 from scipy.spatial.distance import cdist, pdist
-from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, remove_selfloops, nodes_and_offsets
+from .crystgraph import quotient_graph, cycle_sums, graph_dim, find_communities, find_communities2, find_communities4, remove_selfloops, nodes_and_offsets
 from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from ase.build import make_supercell
 from ase.geometry import cell_to_cellpar,cellpar_to_cell
@@ -31,7 +31,7 @@ def toyaml(p):
         for key,value in p.__dict__.items():
             d[key] = toyaml(value)
         return d
-    if isinstance(p, dict):
+    elif isinstance(p, dict):
         d = {}
         for key,value in p.items():
             d[key] = toyaml(value)
@@ -41,11 +41,19 @@ def toyaml(p):
         for value in p:
             l.append(toyaml(value))
         return l
-    elif isinstance(p, int) or isinstance(p, float) or isinstance(p, bool) or isinstance(p, str) or p is None:
-        return p
+    elif isinstance(p, int):
+        return int(p) 
+    elif isinstance(p, float):
+        return float(p)
+    elif isinstance(p, bool):
+        return bool(p)
+    elif isinstance(p, str):
+        return str(p)
+    elif isinstance(p, np.ndarray):
+        return p.tolist()
     else:
         return None
-         
+
 
 class EmptyClass:
     def attach(self,other):
@@ -365,7 +373,7 @@ def atoms2communities(atoms, coef=1.1):
                 offSets[i] = offSet
         else:
             # comps = find_communities(G)
-            comps = find_communities2(G)
+            comps = find_communities4(G)
             for indices in comps:
                 tmpG = G.subgraph(indices)
                 nodes, offs = nodes_and_offsets(tmpG)
@@ -1073,12 +1081,9 @@ def get_radius(mol):
     distance = np.linalg.norm(mol.positions - center, axis=1)
     return np.max(distance + radius)
 
-
-#TODO parallel.py
-def split1(Njobs, Npara):
-    Neach = int(np.ceil(Njobs / Npara))
-    return [[i + j * Npara for j in range(Neach) if i + j * Npara < Njobs] for i in range(Npara)]
-
-def split2(Njobs, Npara):
-    Neach = int(np.ceil(Njobs / Npara))
-    return [[i * Neach + j for j in range(Neach) if i * Neach + j < Njobs] for i in range(Npara)]
+def stay(func):
+    def wrapper(*args, **kw):
+        currdir = os.getcwd()
+        func(*args, **kw)
+        os.chdir(currdir)
+    return wrapper

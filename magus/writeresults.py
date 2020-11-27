@@ -119,9 +119,3 @@ def write_traj(filename, images, delTraj=True):
             info['trajs'] = []
         writeImages.append(writeAtoms)
     ase.io.write(filename, images, format='traj')
-
-
-
-
-
-

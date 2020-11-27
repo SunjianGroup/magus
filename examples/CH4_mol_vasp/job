@@ -4,4 +4,4 @@
 #BSUB -o out
 #BSUB -q e52692v2ib!
 
-csp-search --debug
+magus-search --debug

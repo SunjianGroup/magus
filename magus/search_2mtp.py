@@ -27,7 +27,7 @@ class Magus:
         self.Algo = parameters.get_PopGenerator()
         self.MainCalculator = parameters.get_MainCalculator()
         self.Population = parameters.get_Population()
-        self.MTPCalculator = MTPCalculator(self.MainCalculator, parameters.parameters)
+        self.MTPCalculator = TwostageMTPCalculator(self.MainCalculator, parameters.parameters)
         self.MLmodel = MTPmodel(parameters.parameters)
         self.curgen = 1
         self.bestlen = []
