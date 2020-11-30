@@ -402,6 +402,10 @@ class ReconstructGenerator():
             self.ref.set_cell(lattice)
             setlattice = list(cell_to_cellpar(lattice))
 
+        setlattice = [np.round(setlattice[i], 3) for i in range(0,6)]
+        if np.round(setlattice[5],0)==60:
+            setlattice[5]= 120.0 
+
         self.reflattice = setlattice.copy()
         target = self.ind.get_targetFrml()
         _symbol = [s for s in target]
@@ -418,7 +422,7 @@ class ReconstructGenerator():
                     setattr(_parameters,key,requirement[key])
 
         self.rcs_generator =Generator(_parameters)
-        
+        self.rcs_generator.p.choice =_parameters.choice
         #got a generator! next put all parm together except changed ones
 
         self.p = EmptyClass()

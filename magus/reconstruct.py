@@ -1,7 +1,7 @@
 from . import moveatom
 import numpy as np
 import ase.io
-#import spglib 
+import spglib as spg 
 from ase.data import atomic_numbers, covalent_radii
 from .utils import sort_elements
 import logging
@@ -162,8 +162,8 @@ class cutcell:
         #Add direction here
         if direction:
             rx, ry, rz = direction[0], direction[1], direction[2]            
-            supercell = atoms * (4, 4, 4)
-            supercell.translate( [ -1*np.sum(atoms.get_cell(), axis=0)] *len(supercell))
+            supercell = atoms * (6, 6, 6)
+            supercell.translate( [ -2*np.sum(atoms.get_cell(), axis=0)] *len(supercell))
             
             points = [[rx, 0, 0], [0, ry, 0], [0, 0, rz]]
             newcell_c = np.array([rx, ry, rz])

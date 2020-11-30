@@ -1,0 +1,191 @@
+from magus.calculators.base import Calculator
+from magus.utils import *
+from magus.queuemanage import JobManager
+from magus.formatting.mtp import load_cfg, dump_cfg
+from ase.units import GPa, eV, Ang
+
+
+class MTPCalculator(Calculator):
+    def __init__(self, query_calculator, parameters):
+        super().__init__(parameters)
+        Requirement = ['symbols', 'queueName', 'numCore']
+        Default = {
+            'jobPrefix': 'MTP',
+            'Preprocessing': 'module load ips/2017u2',
+            'waitTime': 50,
+            'verbose': True,
+            'w_energy': 1.0, 
+            'w_forces': 0.01, 
+            'w_stress': 0.001,
+            }
+        checkParameters(self.p, parameters, Requirement, Default)
+        self.symbol_to_type = {j: i for i, j in enumerate(self.p.symbols)}
+        self.type_to_symbol = {i: j for i, j in enumerate(self.p.symbols)}
+        self.query_calculator = query_calculator
+        self.J = JobManager(self.p.verbose)
+
+    def calc_grade(self):
+        # must have: pot.mtp, train.cfg
+        logging.info('\tstep 01: calculate grade')
+        exeCmd = "mlp calc-grade pot.mtp train.cfg train.cfg "\
+                 "temp.cfg --als-filename=A-state.als"
+        exitcode = subprocess.call(exeCmd, shell=True)
+        if exitcode != 0:
+            raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
+            
+    def relax_with_mtp(self):
+        # must have: mlip.ini, to_relax.cfg, pot.mtp, A-state.als
+        logging.info('\tstep 02: do relax with mtp')
+        with open('relax.sh', 'w') as f:
+            f.write(
+                "#BSUB -q {0}\n"
+                "#BSUB -n {1}\n"
+                "#BSUB -o relax-out\n"
+                "#BSUB -e relax-err\n"
+                "#BSUB -J mtp-relax\n"
+                "{2}\n"
+                "mpirun -np {1} mlp relax mlip.ini "
+                "--pressure={3} --cfg-filename=to_relax.cfg --save-relaxed=relaxed.cfg\n"
+                "cat B-preselected.cfg* > B-preselected.cfg\n"
+                "cat relaxed.cfg* > relaxed.cfg\n"
+                "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, self.p.pressure))
+        self.J.bsub('bsub < relax.sh', 'relax')
+        self.J.WaitJobsDone(self.p.waitTime)
+        self.J.clear()
+
+    def select_bad_frames(self):
+        # must have: train.cfg, pot.mtp, A-state.als, B-preselected.cfg
+        logging.info('\tstep 03: select bad frames')
+        with open('select.sh', 'w') as f:
+            f.write(
+                "#BSUB -q {0}\n"
+                "#BSUB -n {1}\n"
+                "#BSUB -o select-out\n"
+                "#BSUB -e select-err\n"
+                "#BSUB -J mtp-select\n"
+                "{2}\n"
+                "mpirun -np {1} mlp select-add "
+                "pot.mtp train.cfg B-preselected.cfg C-selected.cfg"
+                "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing))
+        self.J.bsub('bsub < select.sh', 'select')
+        self.J.WaitJobsDone(self.p.waitTime)
+        self.J.clear()
+
+    @stay
+    def get_train_set(self):
+        to_scf = load_cfg("C-selected.cfg", self.type_to_symbol)
+        logging.info('\tstep 04: {} need to be calculated'.format(len(to_scf)))
+        scfpop = self.query_calculator.scf(to_scf)
+        dump_cfg(scfpop, "D-computed.cfg", self.symbol_to_type)
+
+    def train(self):
+        we = self.p.w_energy
+        wf = self.p.w_forces
+        ws = self.p.w_stress
+        logging.info('\tstep 05: retrain mtp')
+        exeCmd = "cat train.cfg D-computed.cfg >> E-train.cfg\n"\
+                    "cp E-train.cfg train.cfg"
+        subprocess.call(exeCmd, shell=True)
+        with open('train.sh', 'w') as f:
+            f.write(
+                "#BSUB -q {0}\n"
+                "#BSUB -n {1}\n"
+                "#BSUB -o train-out\n"
+                "#BSUB -e train-err\n"
+                "#BSUB -J mtp-train\n"
+                "{2}\n"
+                "mpirun -np {1} mlp train "
+                "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter=200"
+                "----weighting=structures"
+                "--energy-weight={3} --force-weight={4} --stress-weight={5}"
+                "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, we, wf, ws))
+        self.J.bsub('bsub < train.sh', 'train')
+        self.J.WaitJobsDone(self.p.waitTime)
+        self.J.clear()
+
+    def relax(self, calcPop, level=''):
+        self.cdcalcFold()
+        pressure = self.p.pressure
+        calcDir = "{}/calcFold/MTP{}".format(self.p.workDir, level)
+        basedir = '{}/epoch{:02d}'.format(calcDir, 0)
+        if os.path.exists(basedir):
+            shutil.rmtree(basedir)
+        os.makedirs(basedir)
+        shutil.copy("{}/inputFold/mlip{}.ini".format(self.p.workDir, level), "{}/mlip.ini".format(basedir))
+        shutil.copy("{}/mlFold/pot{}.mtp".format(self.p.workDir, level), "{}/pot.mtp".format(basedir))
+        shutil.copy("{}/mlFold/train{}.cfg".format(self.p.workDir, level), "{}/train.cfg".format(basedir))
+        dump_cfg(calcPop, "{}/to_relax.cfg".format(basedir), self.symbol_to_type)
+        for epoch in range(1, 10):
+            logging.info('MTP{} active relax epoch {}'.format(level, epoch))
+            prevdir = '{}/epoch{:02d}'.format(calcDir, epoch - 1)
+            currdir = '{}/epoch{:02d}'.format(calcDir, epoch)
+            if os.path.exists(currdir):
+                shutil.rmtree(currdir)
+            os.mkdir(currdir)
+            os.chdir(currdir)
+            shutil.copy("{}/mlip.ini".format(prevdir), "mlip.ini")
+            shutil.copy("{}/pot.mtp".format(prevdir), "pot.mtp")
+            shutil.copy("{}/to_relax.cfg".format(prevdir), "to_relax.cfg")
+            shutil.copy("{}/train.cfg".format(prevdir), "train.cfg")
+            # 01: calculate grade
+            self.calc_grade()
+            # 02: do relax with mtp
+            self.relax_with_mtp()
+            # 03: select bad cfg
+            self.select_bad_frames()
+            if os.path.getsize("C-selected.cfg") == 0:
+                logging.info('\thao ye, no bad frames')
+                break
+            # 04: DFT
+            self.get_train_set()
+            # 05: train
+            self.train()
+        else:
+            logging.info('\tbu hao ye, some relax failed')
+        shutil.copy("pot.mtp", "{}/mlFold/pot.mtp".format(self.p.workDir))
+        shutil.copy("train.cfg", "{}/mlFold/train.cfg".format(self.p.workDir))
+        relaxpop = load_cfg("relaxed.cfg", self.type_to_symbol)
+        for atoms in relaxpop:
+            enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa) / len(atoms)
+            atoms.info['enthalpy'] = round(enthalpy, 3)
+        return relaxpop
+
+    def scf(self, calcPop):
+        self.cdcalcFold()
+        pressure = self.p.pressure
+        calcDir = "{}/calcFold/MTP".format(self.p.workDir)
+        basedir = '{}/epoch{:02d}'.format(calcDir, 0)
+        if not os.path.exists(basedir):
+            os.makedirs(basedir)
+        shutil.copy("{}/inputFold/mlip.ini".format(self.p.workDir), "{}/pot.mtp".format(basedir))
+        shutil.copy("{}/mlFold/pot.mtp".format(self.p.workDir), "{}/pot.mtp".format(basedir))
+        shutil.copy("{}/mlFold/train.cfg".format(self.p.workDir), "{}/train.cfg".format(basedir))
+        dump_cfg(calcPop, "{}/to_scf.cfg".format(basedir), self.symbol_to_type)
+
+        exeCmd = "mlp calc-efs {0}/pot.mtp {0}/to_scf.cfg {0}/scf_out.cfg".format(basedir)
+        exitcode = subprocess.call(exeCmd, shell=True)
+        if exitcode != 0:
+            raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
+        scfpop = load_cfg("{}/scf_out.cfg".format(basedir), self.type_to_symbol)
+        for atoms in scfpop:
+            enthalpy = (atoms.info['energy'] + pressure * atoms.get_volume() * GPa) / len(atoms)
+            atoms.info['enthalpy'] = round(enthalpy, 3)
+        return scfpop
+
+
+#TODO: 
+# make MTPCalculator more modular
+class TwostageMTPCalculator(MTPCalculator):
+    def __init__(self, query_calculator, parameters):
+        super().__init__(query_calculator, parameters)
+        self.max_enthalpy = 0.
+
+    def update_threshold(self, enthalpy):
+        self.max_enthalpy = enthalpy
+
+    def relax(self, calcPop):
+        relaxpop = super().relax(calcPop, level='_robust')
+        selectpop = [atoms for atoms in relaxpop if atoms.info['enthalpy'] < self.max_enthalpy]
+        relaxpop = super().relax(selectpop, level='_accurate')
+        return relaxpop
+

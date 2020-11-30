@@ -4,7 +4,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.parallel import paropen
 from ase.utils import basestring
 import numpy as np
-
+#TODO move to formatting
 def read_lammps_dump(f,timerange=None, order=True, atomsobj=Atoms,typelist=None,numlist=None):
     if typelist is None and numlist is None:
         raise Exception("sha dou mei you wo za du?")

@@ -1,6 +1,6 @@
 import ase.io
 import ase
-
+#TODO move to formatting
 class Atomic:
     def __init__(self,atoms):
         atoms.set_cell(atoms.get_cell_lengths_and_angles(),True)

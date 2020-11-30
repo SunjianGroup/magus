@@ -13,7 +13,6 @@ import logging
 from sklearn import cluster
 from .descriptor import ZernikeFp
 import copy
-from .setfitness import set_fit_calcs
 from .molecule import Molfilter
 from ase.constraints import FixAtoms
 
@@ -37,7 +36,6 @@ class Population:
         Default={}
         checkParameters(self.p,parameters,Requirement,Default)
         self.Individual = set_ind(parameters)
-        self.fit_calcs = set_fit_calcs(parameters)
 
     def __iter__(self):
         for i in self.pop:
@@ -48,8 +46,6 @@ class Population:
 
     def __call__(self,pop,name='temp',gen=None):
         newPop = self.__new__(self.__class__)
-        if hasattr(self,'allPop'):
-            newPop.allPop = self.allPop
         newPop.p = self.p
         pop = [self.Individual(ind) if ind.__class__.__name__ == 'Atoms' else ind for ind in pop]
         newPop.Individual = self.Individual
@@ -145,7 +141,7 @@ class Population:
 
     def calc_fitness(self):
         for fit_calc in self.fit_calcs:
-            fit_calc(self)
+            fit_calc.calc(self)
 
     def del_duplicate(self):
         logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
@@ -821,27 +817,23 @@ class RcsInd(Individual):
         symbols, formula = symbols_and_formula(a)
         nowFrml = {s:i for s,i in zip(symbols, formula)}
 
-        for s in symbols:
-            if s not in self.p.symbols:
-                logging.info("symbol '{}' not in defined symbols".format(s))
-                return False
-
-        
         targetFrml = self.get_refFrml(self.info['size'][0], self.info['size'][1])
-
+        
         if self.minAt == self.p.minAt:  #with bulk and relaxable
             _symbols, _formula = symbols_and_formula(self.layerslices[0]+self.layerslices[1])
             _bottom = {s:i*(self.info['size'][0] *self.info['size'][1]) for s,i in zip(_symbols, _formula)}
-            for s in targetFrml:
-                if nowFrml[s]-_bottom[s] not in targetFrml[s]:
-                    logging.info("targetFrml={} , nowformula={} for symbol '{}' with bottom layers".format(targetFrml[s], nowFrml[s]+_bottom[s] ,s))
-                    return False
-        else:
-            for s in targetFrml:    #without bulk and relaxable
-                if nowFrml[s] not in targetFrml[s]:
-                    logging.info("targetFrml={} , nowformula={} for symbol '{}' without bottom layers".format(targetFrml[s], nowFrml[s] ,s))
-                    return False
+            for s in _bottom:
+                targetFrml[s] = list(np.array(targetFrml[s])+_bottom[s]) if s in targetFrml else [_bottom[s]]
+    
+        for s in nowFrml:
+            if s not in targetFrml:
+                logging.info("symbol '{}' not in targetFrml".format(s))
+                return False
 
+            if nowFrml[s] not in targetFrml[s]:
+                logging.info("targetFrml={} , nowformula={} for symbol '{}'. ".format(targetFrml[s], nowFrml[s] ,s))
+                return False
+                
         return True     
         
     def get_refFrml(self, rcs_x , rcs_y):
@@ -1026,7 +1018,7 @@ class ClusInd(FixInd):
             atoms = atoms.to_atoms()
 
         atoms = self.reset_center(atoms)
-
+        atoms.set_pbc([0,0,0])
         newind.atoms = atoms
         newind.sort()
         newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
