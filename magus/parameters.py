@@ -238,6 +238,8 @@ class magusParameters:
                 MainCalculator = QUIPCalculator(p)
             elif p.calculator == 'lammps':
                 MainCalculator = LammpsCalculator(p)
+            elif p.calculator == 'orca':
+                MainCalculator = ASEORCACalculator(p)
             else:
                 raise Exception("Undefined calculator '{}'".format(p.calculator))
             self.MainCalculator = MainCalculator

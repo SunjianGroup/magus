@@ -4,7 +4,7 @@ import ase.io
 from .readvasp import *
 from .tolammps import Atomic
 from .readlmps import read_lammps_dump
-#from .orcainterface import *
+from .formatting.orca import OrcaIo
 import sys, math, os, shutil, subprocess, logging, copy, yaml, traceback
 
 from ase.calculators.lj import LennardJones
@@ -15,6 +15,7 @@ from ase.calculators.lammpslib import LAMMPSlib
 from ase.calculators.lammpsrun import LAMMPS
 from ase.calculators.lj import LennardJones
 from ase.calculators.orca import ORCA
+from ase.calculators.calculator import FileIOCalculator
 from ase.spacegroup import crystal
 # from parameters import parameters
 from .writeresults import write_traj
@@ -124,8 +125,11 @@ class ASECalculator(Calculator):
         relaxPop = self.post_processing(relaxpop)
         return relaxPop
 
-    def relax_serial(self, calcPop, calcs, logfile='aserelax.log', trajname='calc.traj'):
-        self.cdcalcFold()
+    def relax_serial(self, calcPop, calcs, logfile='aserelax.log', trajname='calc.traj', workdir = None ):
+        if workdir:
+            os.chdir(workdir)
+        else:
+            self.cdcalcFold()
         relaxPop = []
         errorPop = []
         for i, ind in enumerate(calcPop):
@@ -182,8 +186,11 @@ class ASECalculator(Calculator):
         os.chdir(self.p.workDir)
         return relaxPop
 
-    def scf_serial(self, calcPop, calcs):
-        self.cdcalcFold()
+    def scf_serial(self, calcPop, calcs, workdir = None):
+        if workdir:
+            os.chdir(workdir)
+        else:
+            self.cdcalcFold()
         scfPop = []
         for ind in calcPop:
             atoms=copy.deepcopy(ind)
@@ -219,11 +226,28 @@ class ASECalculator(Calculator):
                 tmpList.append(numParallel*eachLen + i)
             runArray.append(tmpList)
 
+
         pool = mp.Pool(numParallel)
-        results = [pool.apply_async(self.scf_serial, args=([calcPop[j] for j in runArray[i]], calcs)) \
-            for i in range(numParallel)]
+        results = []
+
+        if np.any([isinstance(c, FileIOCalculator) for c in calcs]):
+        #for FileIOCalculator in ASE, calculate jobs use command "command in.in > out.out".
+        #So if we don't separate dictionary, all parallel processes just write into the same in.in file, which will leads to an error.
+            dirname = self.__class__.__name__[:-10]
+            for i in range(numParallel):
+                if not os.path.exists(dirname+str(i)):
+                    shutil.copytree("{}/inputFold".format(self.p.workDir), dirname+str(i))
+
+            results = [pool.apply_async(self.scf_serial, args=([calcPop[j] for j in runArray[i]], calcs, "{}{}".format(dirname,i))) \
+                for i in range(numParallel)]
+
+        else:
+            results = [pool.apply_async(self.scf_serial, args=([calcPop[j] for j in runArray[i]], calcs)) \
+                for i in range(numParallel)]
+
         scfPop = [ind for p in results for ind in p.get()]
         os.chdir(self.p.workDir)
+
         return scfPop
 
     def relax_parallel(self, calcPop, calcs):
@@ -240,13 +264,28 @@ class ASECalculator(Calculator):
                 tmpList.append(numParallel*eachLen + i)
             runArray.append(tmpList)
 
+
         pool = mp.Pool(numParallel)
-        results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs, 'ase{}.log'.format(i), 'calc{}.traj'.format(i))) \
-            for i in range(numParallel)]
+        results = []
+        if np.any([isinstance(c, FileIOCalculator) for c in calcs]):
+        #for FileIOCalculator in ASE, calculate jobs use command "command in.in > out.out".
+        #So if we don't separate dictionary, all parallel processes just write into the same in.in file, which will leads to an error.
+            dirname = self.__class__.__name__[:-10]
+            for i in range(numParallel):
+                if not os.path.exists(dirname+str(i)):
+                    shutil.copytree("{}/inputFold".format(self.p.workDir), dirname+str(i))
+
+            results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs, 'ase{}.log'.format(i), 'calc{}.traj'.format(i), "{}{}".format(dirname,i))) \
+                for i in range(numParallel)]
+
+        else:
+            results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs, 'ase{}.log'.format(i), 'calc{}.traj'.format(i))) \
+                for i in range(numParallel)]
+
+
         scfPop = [ind for p in results for ind in p.get()]
         os.chdir(self.p.workDir)
         return scfPop
-
 
 class LJCalculator(ASECalculator):
     def __init__(self,parameters):
@@ -320,6 +359,40 @@ class ASEGULPCalculator(ASECalculator):
 
     def scf(self, calcPop):
         return super(ASEGULPCalculator, self).scf(calcPop,self.calcs)
+
+
+class ASEORCACalculator(ASECalculator):
+    """
+    ORCA Calculator based on ASE's ORCA Calculator
+    modified from ASEGULPCalculator.
+
+    ORCA-ASE interface is not implied for early ASE versions(<=3.15). If ORCA module not found, please update ASE or
+        add it manually to ASE installation.
+    more info on [ASE wiki]         https://wiki.fysik.dtu.dk/ase/ase/calculators/orca.html; 
+                        [ORCA guide]    https://sites.google.com/site/orcainputlibrary/qm-mm/orca-ase
+    """
+    def __init__(self,parameters):
+        self.calcs = []
+        for i in range(1, parameters.calcNum + 1):
+            '''[ASE]
+            orcasimpleinput: str
+            What you'd put after the "!" in an orca input file.
+            orcablock: str
+            What you'd put in the "% ... end"-blocks.
+            '''
+            with open("{}/inputFold/orcainput_{}".format(parameters.workDir, i), 'r') as f:
+                orcasimpleinput = f.readline()
+            with open("{}/inputFold/orcablock_{}".format(parameters.workDir, i), 'r') as f:
+                orcablocks = f.read()
+            calc = ORCA(orcasimpleinput=orcasimpleinput, orcablocks=orcablocks)
+            self.calcs.append(calc)
+        return super(ASEORCACalculator, self).__init__(parameters)
+
+    def relax(self, calcPop):
+        return super(ASEORCACalculator, self).relax(calcPop,self.calcs)
+
+    def scf(self, calcPop):
+        return super(ASEORCACalculator, self).scf(calcPop,self.calcs)
 
 class ABinitCalculator(Calculator):
     def __init__(self,parameters,prefix):
@@ -503,38 +576,55 @@ class OrcaCalculator(ABinitCalculator):
     def __init__(self,parameters,prefix='calcOrca'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
-        Default = {'xc':'PBE','jobPrefix':'Vasp'}
+        Default = {'exeCmd':'orca orca.inp > orca.out','jobPrefix':'Orca'}
         checkParameters(self.p,parameters,Requirement,Default)
-        self.p.ppLabel = parameters.ppLabel if hasattr(parameters,'ppLabel') \
-            else['' for _ in parameters.symbols]
-        self.p.setup = dict(zip(self.p.symbols, self.p.ppLabel))
 
+    def cdcalcFold(self):
+        ABinitCalculator.cdcalcFold(self)
+        if self.p.mode == 'serial':
+            pass
+        elif self.p.mode == 'parallel':
+            if self.p.calcNum == 0:
+                with open('orcablock_0', 'a') as blocks:
+                    blocks.write("%pal nprocs "+self.p.numCore+"\n\tend\n")
+            else:
+                for i in range(1, self.p.calcNum+1):
+                    with open('orcablock_{}'.format(i), 'a') as blocks:
+                        blocks.write("%pal nprocs "+self.p.numCore+"\n\tend\n")
+           
     def scf_serial(self,calcPop):
         self.cdcalcFold()
-        calc = RelaxVasp()
-        calc.read_incar('INCAR_0')
-        calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10)
-        scfPop = calc_vasp([calc], calcPop)
+
+        calcNum = 0
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
+        scfPop = calc_orca(calcNum, calcPop, pressure, exeCmd)
+        write_traj('optPop.traj', scfPop)
         os.chdir(self.p.workDir)
         return scfPop
 
     def relax_serial(self,calcPop):
         self.cdcalcFold()
-        incars = ['INCAR_{}'.format(i) for i in range(1, self.p.calcNum+1)]
-        calcs = []
-        for incar in incars:
-            calc = RelaxVasp()
-            calc.read_incar(incar)
-            calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10)
-            calcs.append(calc)
-        relaxPop = calc_vasp(calcs, calcPop)
+
+        calcNum = self.p.calcNum
+        exeCmd = self.p.exeCmd
+        pressure = self.p.pressure
+        inputDir = "{}/inputFold".format(self.p.workDir)
+        relaxPop = calc_orca(calcNum, calcPop, pressure, exeCmd)
+        write_traj('optPop.traj', relaxPop)
         os.chdir(self.p.workDir)
         return relaxPop
 
     def scfjob(self,index):
-        shutil.copy("{}/inputFold/INCAR_0".format(self.p.workDir),'INCAR_0')
-        with open('vaspSetup.yaml', 'w') as setupF:
-            setupF.write(yaml.dump(self.p.setup))
+        calcDic = {
+            'calcNum': 0,
+            'pressure': self.p.pressure,
+            'exeCmd': self.p.exeCmd,
+            'inputDir': "{}/inputFold".format(self.p.workDir),
+        }
+        with open('orcaSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
         #jobName = self.p.jobPrefix + '_scf_' + str(index)
         jobName = self.p.jobPrefix + '_s_' + str(index)
         f = open('parallel.sh', 'w')
@@ -542,15 +632,22 @@ class OrcaCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runscripts.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
+        f.write("python -m magus.runscripts.runorca orcaSetup.yaml")
         f.close()
+
         self.J.bsub('bsub < parallel.sh',jobName)
 
     def relaxjob(self,index):
-        with open('vaspSetup.yaml', 'w') as setupF:
-            setupF.write(yaml.dump(self.p.setup))
+        calcDic = {
+            'calcNum': self.p.calcNum,
+            'pressure': self.p.pressure,
+            'exeCmd': self.p.exeCmd,
+            'inputDir': "{}/inputFold".format(self.p.workDir),
+        }
+        with open('orcaSetup.yaml', 'w') as setupF:
+            setupF.write(yaml.dump(calcDic))
         #jobName = self.p.jobPrefix + '_relax_' + str(index)
         jobName = self.p.jobPrefix + '_' + str(index)
         f = open('parallel.sh', 'w')
@@ -558,10 +655,11 @@ class OrcaCalculator(ABinitCalculator):
                 "#BSUB -n %s\n"
                 "#BSUB -o out\n"
                 "#BSUB -e err\n"
-                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
+                "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runscripts.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
+        f.write("python -m magus.runscripts.runorca orcaSetup.yaml")
         f.close()
+
         self.J.bsub('bsub < parallel.sh',jobName)
 
 class GULPCalculator(ABinitCalculator):
@@ -1130,6 +1228,76 @@ def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         logging.warning("Lammps fail")
         return None
 
+def calc_orca(calcNum, calcPop, pressure, exeCmd):
+    """
+    modifed from calc_lammps
+    """
+    optPop = []
+    for n, ind in enumerate(calcPop):
+        if calcNum == 0:
+            ind = calc_orca_once(0, ind, pressure, exeCmd)
+            logging.debug("Structure %s scf" %(n))
+            if ind:
+                optPop.append(ind)
+            else:
+                logging.warning("fail in orca scf")
+        else:
+            for i in range(1, calcNum + 1):
+                logging.debug("Structure %s Step %s" %(n, i))
+                ind = calc_orca_once(i, ind, pressure, exeCmd)
+            if ind:
+                optPop.append(ind)
+                shutil.copy('orca.out', "orca_out-{}-{}".format(n, i))
+            else:
+                logging.warning("fail in orca relax")
+    return optPop
+
+
+def calc_orca_once(calcStep, calcInd, pressure, exeCmd):
+    """
+    modifed from calc_lammps; exeCmd should be "orca orca.inp > orca.out"
+    """
+    if os.path.exists('orca.out'):
+        os.remove('orca.out')
+    if os.path.exists('orca.engrad'):
+        os.remove('orca.engrad')
+    try:
+
+        with open("orcainput_{}".format(calcStep), 'r') as f:
+            orcasimpleinput = f.readline()
+        with open("orcablock_{}".format(calcStep), 'r') as f:
+            orcablocks = f.readlines()
+        label = exeCmd.split()
+        assert label[1] [:-4] == label[3] [:-4] 
+        orcaio = OrcaIo(label = label[1][:-4])
+        orcaio.write_input(calcInd, orcasimpleinput = orcasimpleinput, orcablocks = orcablocks)
+
+        exitcode = subprocess.call(exeCmd, shell=True)
+        if exitcode != 0:
+            raise RuntimeError('orca exited with exit code: %d.  ' % exitcode)
+        numlist , positions = orcaio.read_positions()
+        energy = orcaio.read_energy()
+        forces = orcaio.read_forces()
+        relaxsteps = orcaio.read_relaxsteps()
+        logging.debug('orca relax steps:{}'.format(relaxsteps))
+        struct = Atoms(positions=positions, numbers=numlist, pbc = (0,0,0))
+        struct.info = calcInd.info.copy()
+
+        #Todo: how to add pressure here?
+        #volume = struct.get_volume()
+        enthalpy = energy #+ pressure * GPa * volume / 10
+        enthalpy = enthalpy/len(struct)
+
+        struct.info['enthalpy'] = round(enthalpy, 3)
+
+        # save energy, forces, stress for trainning potential
+        struct.info['energy'] = energy
+        struct.info['forces'] = forces
+        return struct
+    except:
+        logging.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+        logging.warning("orca fail")
+        return None
 
 class MTPCalculator(Calculator):
     def __init__(self, query_calculator, parameters):
