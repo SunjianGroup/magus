@@ -1,5 +1,6 @@
 from ase.atoms import Atoms
 from ase.calculators.orca import ORCA
+import logging
 #from ase.io.orca import write_orca
 from ase.calculators.calculator import FileIOCalculator
 from ase.units import Hartree, Bohr
@@ -10,10 +11,24 @@ modified ASE's ORCA Calculator to a FileIO class, for borrowing some FileIo code
 See notes of .localopt.ASEORCACalculator for more info about ORCA-ASE interface.
 '''
 
+class RelaxOrca(ORCA):
+    """
+    Slightly modify ORCA's read_forces and read_energy, in case orca fails.
+    """
+    def read_forces(self):
+        try:
+            ORCA.read_forces(self)
+        except FileNotFoundError:
+            #if orca fails, no file named orca.engrad can be found, just return a wrong result and remove this structure.
+            errmessage = os.popen("grep \"ORCA finished\" orca.out").readline()
+            logging.warning("{}, used wrong energy and forces to remove this structure".format(errmessage))
+            self.results['energy'] = 10000
+            self.results['forces'] = np.array([10000])
+        return 
 
-class OrcaIo(ORCA, FileIOCalculator):
+class OrcaIo(RelaxOrca, FileIOCalculator):
     def __init__(self, label='orca'):
-        ORCA.__init__(self, label=label)
+        RelaxOrca.__init__(self, label=label)
 
     def write_input(self, atoms, properties=None, system_changes=None, orcasimpleinput = 'TightSCF Opt', orcablocks = [''], charge = 0, mult = 1):
         FileIOCalculator.write_input(self, atoms, properties=None, system_changes=None)
@@ -40,11 +55,16 @@ class OrcaIo(ORCA, FileIOCalculator):
         f.close()
 
     def read_forces(self):
-        ORCA.read_forces(self)
+        RelaxOrca.read_forces(self)
         return self.results['forces']
     
     def read_energy(self):
-        file = open(self.label + '.engrad', 'r')
+        try:
+            file = open(self.label + '.engrad', 'r')
+        except FileNotFoundError:
+            self.results['energy'] = 10000
+            return self.results['energy']
+            
         lines = file.readlines()
         file.close()
         for i, line in enumerate(lines):
@@ -55,7 +75,13 @@ class OrcaIo(ORCA, FileIOCalculator):
         return self.results['energy']
 
     def read_positions(self):
-        f = open(self.label + '.engrad', 'r')
+        try:
+            f = open(self.label + '.engrad', 'r')
+        except FileNotFoundError:
+            self.results['symbols'] = np.array([1])
+            self.results['positions'] = np.array([[0,0,0]])
+            return self.results['symbols'], self.results['positions']
+
         for line in f:
             if line.startswith('# The atomic numbers and current coordinates'):
                 break

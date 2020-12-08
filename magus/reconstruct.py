@@ -150,83 +150,100 @@ def norm(vec):
     if vec[0]<1e-4 and vec[1]<1e-4 and vec[2]<1e-4:
         return -vec 
     return vec
+def refinepos(pos):
+    for i in range(len(pos)):
+        for j in range(3):
+            if abs(pos[i][j]-1)< 1e-4:
+                pos[i][j] = 1        
+            if abs(pos[i][j])<1e-4:
+                pos[i][j]=0
+    return pos
 
 
 class cutcell:
-    def __init__(self,originstruct,rcs_supercell, slicepos, direction=None):
-        
+    def __init__(self,originstruct, totslices, layernums, startpos = 0.9, direction=[0,0,1], rotate = 0):
+        """
+        totslices: layer number of originstruct
+        layernums: layer number of [bulk, relaxable, rcs_region]
+        startpos:  start position of bulk layer, default =0.9 to keep atoms which are very close to z=1(0?)s.
+        direction: miller indices
+        rotate: [not implied yet] angle of R.
+        """
         originatoms = originstruct.copy()
         atoms=originatoms.copy()
 
+        #TODO: add rotate
+        
+        #1. build a very large supercell
+        supercell = atoms * (6, 6, 6)
+        supercell.translate( [ -2*np.sum(atoms.get_cell(), axis=0)] *len(supercell))
 
-        #Add direction here
-        if direction:
-            rx, ry, rz = direction[0], direction[1], direction[2]            
-            supercell = atoms * (6, 6, 6)
-            supercell.translate( [ -2*np.sum(atoms.get_cell(), axis=0)] *len(supercell))
+        #2. get surface of conventional cell
+        rx, ry, rz = direction[0], direction[1], direction[2]            
             
-            points = [[rx, 0, 0], [0, ry, 0], [0, 0, rz]]
-            newcell_c = np.array([rx, ry, rz])
-
-            if [0,0,0] in points:
-                points.remove([0,0,0])
-                newcell_a = np.array(points[1]) - np.array(points[0])
-                
-                newcell_a = norm(newcell_a)
-                newcell_b = np.cross(newcell_a, newcell_c)
-                newcell_b = np.array([1 if newcell_b[i]!=0 else 0 for i in range(3)])
-            
+        points = [[rx, 0, 0], [0, ry, 0], [0, 0, rz]]
+        newcell_c = np.array([rx, ry, rz])
+        newcell = []
+        left = []
+        for i, point in enumerate(points):
+            if point == [0,0,0]:
+                newcell_a = [1 if j==i else 0 for j in range(3)]
+                newcell.append(newcell_a)
             else:
-                newcell_a = np.array(points[1]) - np.array(points[0])
-                
-                newcell_b = np.array(points[2]) - np.array(points[0])
-
-            newcell = np.array([newcell_a, newcell_b, newcell_c])                
-            newcell = np.dot(newcell, atoms.get_cell())
-            supercell.translate([-0.5*np.sum(newcell, axis=0)]*len(supercell))
-            supercell.set_cell(newcell)
-            pos =supercell.get_scaled_positions(wrap=False).copy()
-
-            for i in range(len(pos)):
-                for j in range(3):
-                    if abs(pos[i][j]-1)< 1e-4:
-                        pos[i][j] = 1        
-                    if abs(pos[i][j])<1e-4:
-                        pos[i][j]=0
+                left.append(point)
+        i = 1
+        while len(newcell) < 2:
+            newcell_a = np.array(left[i]) - np.array(left[0])
+            newcell.append(newcell_a)
+            i+=1
+        newcell.append(newcell_c)
+        newcell = np.array(newcell)            
+        newcell = np.dot(newcell, atoms.get_cell())
+        supercell.translate([-0.5*np.sum(newcell, axis=0)]*len(supercell))
+        supercell.set_cell(newcell)
+        pos =supercell.get_scaled_positions(wrap=False).copy()
+        pos = refinepos(pos)
         
-            index = [i for i in range(len(pos)) if InCell(pos[i])==True]
+        #3. get primitive surface vector
+        index = [i for i in range(len(supercell)) if (InCell(pos[i]) and pos[i][2]<1.0/totslices-0.05)]
+        layer = supercell[index]
+        surface_vector = spg.get_symmetry_dataset(layer,symprec = 1e-4)['primitive_lattice']
+        #4. get surface cell!
+        supercell.set_cell(surface_vector)
+        pos =supercell.get_scaled_positions(wrap=False).copy()
+        pos = refinepos(pos)
+
+        index = [i for i in range(len(pos)) if InCell(pos[i])==True]
+        
+        atoms = supercell[index].copy()
             
-            atoms = supercell[index].copy()
-            
-            #rotate cellparm a to axis x
-            atoms.rotate(atoms.get_cell()[0], [1,0,0],rotate_cell=True)
-            #atoms.rotate(atoms.get_cell()[2], [0,0,1],rotate_cell=True)
-            '''may cause errs
-            stdcell = atoms.get_cell().copy()
-            stdcell[2] = norm(stdcell[2])
-            atoms.set_cell(stdcell, scale_atoms=True)
-            '''
-        
-            originatoms = atoms.copy()
-
-        rcs_x, rcs_y, rcs_z = rcs_supercell[0], rcs_supercell[1], rcs_supercell[2]
-        cell=originatoms.get_cell().copy()
-        cell[0]*= rcs_x
-        cell[1]*= rcs_y
-
-        supercell = [rcs_x, rcs_y , rcs_z]
-        
-        for i in range(3):
-            for x in range(1, supercell[i]):
-                atoms_tmp=originatoms.copy()
-                trans=[originatoms.get_cell()[i]*x]*len(atoms_tmp)
-                atoms_tmp.translate(trans)
-                atoms+=atoms_tmp
-            originatoms = atoms.copy()
-
-        
-        atoms.set_cell(cell)
+        #rotate cellparm a to axis x
+        atoms.rotate(atoms.get_cell()[0], [1,0,0],rotate_cell=True)
+        #atoms.rotate(atoms.get_cell()[2], [0,0,1],rotate_cell=True)
+        '''may cause errs
+        stdcell = atoms.get_cell().copy()
+        stdcell[2] = norm(stdcell[2])
+        atoms.set_cell(stdcell, scale_atoms=True)
+        '''
+    
         originatoms = atoms.copy()
+
+        #5. expand unit surface cell on z direction
+        bot, mid, top = layernums[0], layernums[1], layernums[2]
+        slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
+        slicepos = list( slicepos + np.array([startpos]*4))
+        logging.info("cutslice = {}".format(slicepos))       
+
+        rcs_z = int(slicepos[-1])+1
+        
+        for z in range(1, rcs_z):
+            atoms_tmp=originatoms.copy()
+            trans=[originatoms.get_cell()[2]*z]*len(atoms_tmp)
+            atoms_tmp.translate(trans)
+            atoms+=atoms_tmp
+        originatoms = atoms.copy()
+
+        #6. build bulk, relaxable, rcs layer slices 
         
         pop= []
         
@@ -247,6 +264,7 @@ class cutcell:
             atoms.set_cell(cell)
 
             pos = atoms.get_scaled_positions(wrap=False).copy()
+            pos = refinepos(pos)
             index=[]
             for atom in atoms:
                 if pos[atom.index][2]>=0 and pos[atom.index][2]<1 :

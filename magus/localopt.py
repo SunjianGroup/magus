@@ -4,7 +4,7 @@ import ase.io
 from .readvasp import *
 from .tolammps import Atomic
 from .readlmps import read_lammps_dump
-from .formatting.orca import OrcaIo
+from .formatting.orca import OrcaIo, RelaxOrca
 import sys, math, os, shutil, subprocess, logging, copy, yaml, traceback
 
 from ase.calculators.lj import LennardJones
@@ -14,7 +14,6 @@ from ase.calculators.gulp import GULP, Conditions
 from ase.calculators.lammpslib import LAMMPSlib
 from ase.calculators.lammpsrun import LAMMPS
 from ase.calculators.lj import LennardJones
-from ase.calculators.orca import ORCA
 from ase.calculators.calculator import FileIOCalculator
 from ase.spacegroup import crystal
 # from parameters import parameters
@@ -224,26 +223,28 @@ class ASECalculator(Calculator):
             tmpList = [ i + numParallel*j for j in range(eachLen)]
             if i < remainder:
                 tmpList.append(numParallel*eachLen + i)
-            runArray.append(tmpList)
+            if len(tmpList) > 0:
+                runArray.append(tmpList)
 
+        _numparallel = np.min((numParallel, len(runArray)))
 
-        pool = mp.Pool(numParallel)
+        pool = mp.Pool(_numparallel)
         results = []
 
         if np.any([isinstance(c, FileIOCalculator) for c in calcs]):
         #for FileIOCalculator in ASE, calculate jobs use command "command in.in > out.out".
         #So if we don't separate dictionary, all parallel processes just write into the same in.in file, which will leads to an error.
-            dirname = self.__class__.__name__[:-10]
-            for i in range(numParallel):
+            dirname = self.p.workDir + '/calcFold/' + self.__class__.__name__[:-10]
+            for i in range(_numparallel):
                 if not os.path.exists(dirname+str(i)):
                     shutil.copytree("{}/inputFold".format(self.p.workDir), dirname+str(i))
 
             results = [pool.apply_async(self.scf_serial, args=([calcPop[j] for j in runArray[i]], calcs, "{}{}".format(dirname,i))) \
-                for i in range(numParallel)]
+                for i in range(_numparallel)]
 
         else:
             results = [pool.apply_async(self.scf_serial, args=([calcPop[j] for j in runArray[i]], calcs)) \
-                for i in range(numParallel)]
+                for i in range(_numparallel)]
 
         scfPop = [ind for p in results for ind in p.get()]
         os.chdir(self.p.workDir)
@@ -262,25 +263,27 @@ class ASECalculator(Calculator):
             tmpList = [ i + numParallel*j for j in range(eachLen)]
             if i < remainder:
                 tmpList.append(numParallel*eachLen + i)
-            runArray.append(tmpList)
+            if len(tmpList) > 0:
+                runArray.append(tmpList)
 
+        _numparallel = np.min((numParallel, len(runArray)))
 
-        pool = mp.Pool(numParallel)
+        pool = mp.Pool(_numparallel)
         results = []
         if np.any([isinstance(c, FileIOCalculator) for c in calcs]):
         #for FileIOCalculator in ASE, calculate jobs use command "command in.in > out.out".
         #So if we don't separate dictionary, all parallel processes just write into the same in.in file, which will leads to an error.
-            dirname = self.__class__.__name__[:-10]
-            for i in range(numParallel):
+            dirname = self.p.workDir + '/calcFold/' + self.__class__.__name__[:-10]
+            for i in range(_numparallel):
                 if not os.path.exists(dirname+str(i)):
                     shutil.copytree("{}/inputFold".format(self.p.workDir), dirname+str(i))
 
             results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs, 'ase{}.log'.format(i), 'calc{}.traj'.format(i), "{}{}".format(dirname,i))) \
-                for i in range(numParallel)]
+                for i in range(_numparallel)]
 
         else:
             results = [pool.apply_async(self.relax_serial, args=([calcPop[j] for j in runArray[i]], calcs, 'ase{}.log'.format(i), 'calc{}.traj'.format(i))) \
-                for i in range(numParallel)]
+                for i in range(_numparallel)]
 
 
         scfPop = [ind for p in results for ind in p.get()]
@@ -384,7 +387,7 @@ class ASEORCACalculator(ASECalculator):
                 orcasimpleinput = f.readline()
             with open("{}/inputFold/orcablock_{}".format(parameters.workDir, i), 'r') as f:
                 orcablocks = f.read()
-            calc = ORCA(orcasimpleinput=orcasimpleinput, orcablocks=orcablocks)
+            calc = RelaxOrca(orcasimpleinput=orcasimpleinput, orcablocks=orcablocks)
             self.calcs.append(calc)
         return super(ASEORCACalculator, self).__init__(parameters)
 

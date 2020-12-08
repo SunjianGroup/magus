@@ -352,7 +352,7 @@ class ReconstructGenerator():
         para_t = EmptyClass()
         Requirement=['layerfile','cutslices']
         Default={'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'startpos': 0.9,
-        'rcs_x':[1], 'rcs_y':[1], 'SymbolsToAdd': None, 'AtomsToAdd': None, 'direction': None,
+        'rcs_x':[1], 'rcs_y':[1], 'SymbolsToAdd': None, 'AtomsToAdd': None, 'direction': None, 'rotate': 0,
         'dimension':2, 'choice':0 }
 
         checkParameters(para_t, parameters, Requirement,Default)
@@ -367,15 +367,9 @@ class ReconstructGenerator():
         if os.path.exists("Ref/layerslices.traj"):
             pass
         else:
-            bot, mid, top = para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum
-            slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/para_t.cutslices
-            slicepos = list( slicepos + np.array([para_t.startpos]*4))
-            logging.info("cutslice = {}".format(slicepos))
-
             originatoms = ase.io.read(para_t.layerfile)
-            direction = para_t.direction
-            #cutcell(originatoms, [para_t.rcs_x, para_t.rcs_y, int(slicepos[-1]) +1], slicepos, direction)
-            cutcell(originatoms, [1, 1, int(slicepos[-1]) +1], slicepos, direction)
+            layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
+            cutcell(originatoms, para_t.cutslices, layernums, para_t.startpos, para_t.direction, para_t.rotate)
 
         #layer split ends here    
 
