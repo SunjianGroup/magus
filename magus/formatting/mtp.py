@@ -1,5 +1,6 @@
 import numpy as np
 from ase.atoms import Atoms
+from ase.units import GPa
 
 def dump_cfg(frames, filename, symbol_to_type, mode='w'):
     with open(filename, mode) as f:
@@ -91,8 +92,10 @@ def load_cfg(filename, type_to_symbol):
 
             if 'PlusStress' in line:
                 line = f.readline()
-                atoms.info['stress'] = np.array(list(map(float, line.split())))
-
+                plus_stress = np.array(list(map(float, line.split())))
+                atoms.info['stress'] = -plus_stress / atoms.get_volume()
+                atoms.info['pstress'] = atoms.info['stress'] / GPa
+                
             if 'END_CFG' in line:
                 frames.append(atoms)
 

@@ -11,7 +11,7 @@ from .machinelearning import LRmodel
 from .parameters import magusParameters
 from .writeresults import write_results
 from .formatting.mtp import dump_cfg, load_cfg
-from .calculator.mtp import MTPCalculator, TwostageMTPCalculator
+from .calculators.mtp import MTPCalculator, TwostageMTPCalculator
 from .machinelearning import MTPmodel
 """
 Pop:class,poplulation
@@ -27,8 +27,8 @@ class Magus:
         self.Algo = parameters.get_PopGenerator()
         self.MainCalculator = parameters.get_MainCalculator()
         self.Population = parameters.get_Population()
-        self.MTPCalculator = MTPCalculator(self.MainCalculator, parameters.parameters)
-        self.MLmodel = MTPmodel(parameters.parameters)
+        self.MTPCalculator = MTPCalculator(self.MainCalculator, 0, parameters.parameters)
+        self.MLmodel = MTPmodel(self.MTPCalculator.mlDir, parameters.parameters)
         self.curgen = 1
         self.bestlen = []
         self.kappa = 3.0
@@ -70,7 +70,20 @@ class Magus:
         initPop.extend(seedPop)
         initPop.save('initPop', self.curgen)
 
-        scfpop = self.MainCalculator.scf(initPop.frames)
+        # select to add
+        nowpath = os.getcwd()
+        mldir = self.MTPCalculator.mlDir
+        os.chdir(mldir)
+        dump_cfg(initPop.frames, 'datapool.cfg', self.MLmodel.symbol_to_type, mode='a')
+        exeCmd = "mlp select-add pot.mtp train.cfg datapool.cfg diff.cfg "\
+                 "--selected-filename=selected.cfg --weighting=structures"
+        subprocess.call(exeCmd, shell=True)
+        selectpop = load_cfg('diff.cfg', self.MLmodel.type_to_symbol)
+        selectPop = self.Population(selectpop, 'selectPop', self.curgen)
+        os.chdir(nowpath)
+        selectPop.save('selectPop', self.curgen)
+
+        scfpop = self.MainCalculator.scf(selectPop.frames)
         scfPop = self.Population(scfpop,'scfPop',self.curgen)
         scfPop.check()
         scfPop.del_duplicate()
