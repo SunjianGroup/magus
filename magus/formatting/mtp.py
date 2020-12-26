@@ -1,5 +1,6 @@
 import numpy as np
 from ase.atoms import Atoms
+from magus.reconstruct import fixatoms
 
 def dump_cfg(frames, filename, symbol_to_type, mode='w'):
     with open(filename, mode) as f:
@@ -17,15 +18,30 @@ def dump_cfg(frames, filename, symbol_to_type, mode='w'):
                 atoms.info['forces'] = atoms.get_forces()
             except:
                 pass
+            
+            info = ['AtomData: id type cartes_x cartes_y cartes_z']
+
             if 'forces' in atoms.info:
-                forces = atoms.info['forces']
-                ret += 'AtomData: id type cartes_x cartes_y cartes_z fx fy fz\n'
-                for i, atom in enumerate(atoms):
-                    ret += '{} {} {} {} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.symbol], *cartes[i], *forces[i])
-            else:
-                ret += 'AtomData: id type cartes_x cartes_y cartes_z\n'
-                for i, atom in enumerate(atoms):
-                    ret += '{} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.symbol], *cartes[i])
+                info.append('fx fy fz')
+
+            flags = np.array(['T']*len(atoms))
+            if atoms.constraints:
+                info.append('mvable')
+                for constr in atoms.constraints:
+                    flags[constr.index] = 'F'
+
+            ret += ' '.join(info) +'\n'
+            for i, atom in enumerate(atoms):
+                s = ''
+                for key in info:
+                    if key == 'AtomData: id type cartes_x cartes_y cartes_z':
+                        s += '{} {} {} {} {}'.format(i + 1, symbol_to_type[atom.symbol], *cartes[i])
+                    elif key == 'fx fy fz':
+                        s += ' {} {} {}'.format(*atoms.info['forces'][i])
+                    elif key == 'mvable':
+                        s += ' {}'.format(flags[i])
+                ret += s+'\n'
+
             try:
                 atoms.info['energy'] = atoms.get_potential_energy()
             except:
@@ -70,20 +86,34 @@ def load_cfg(filename, type_to_symbol):
 
             if 'AtomData' in line:
                 has_force = False
+                has_constraints = False
+
                 if 'fx' in line:
                     has_force = True
                     forces = []
-                
+                if 'mvable' in line:
+                    has_constraints = True
+                    c = []
+
                 for _ in range(natoms):
                     line = f.readline()
                     fields = line.split()
                     symbols.append(type_to_symbol[int(fields[1])])
-                    positions.append(list(map(float, fields[2: 5])))
+                    startindex = 2
+                    if has_constraints:
+                        startindex +=1
+                        if fields[2] == 'F':
+                            c.append(int(fields[0]) -1)
+
+                    positions.append(list(map(float, fields[startindex: startindex+3])))
                     if has_force:
-                        forces.append(list(map(float, fields[5: 8])))
+                        forces.append(list(map(float, fields[startindex+3: startindex+6])))
+
                 atoms = Atoms(symbols=symbols, cell=cell, positions=positions, pbc=True)
                 if has_force:
                     atoms.info['forces'] = np.array(forces)
+                if has_constraints:
+                    atoms.set_constraint(fixatoms(c))
 
             if 'Energy' in line:
                 line = f.readline()

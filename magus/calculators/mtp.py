@@ -3,6 +3,7 @@ from magus.utils import *
 from magus.queuemanage import JobManager
 from magus.formatting.mtp import load_cfg, dump_cfg
 from ase.units import GPa, eV, Ang
+import os
 
 
 class MTPCalculator(Calculator):
@@ -17,6 +18,7 @@ class MTPCalculator(Calculator):
             'w_energy': 1.0, 
             'w_forces': 0.01, 
             'w_stress': 0.001,
+            'relaxLattice': True,
             }
         checkParameters(self.p, parameters, Requirement, Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.p.symbols)}
@@ -33,9 +35,32 @@ class MTPCalculator(Calculator):
         if exitcode != 0:
             raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
             
+    def relax_once(self, rank, mindist, relaxLattice):
+
+        with open('relax{}.sh'.format(rank), 'w') as f:
+            f.write(
+                "#BSUB -q {0}\n"
+                "#BSUB -n 1"
+                "#BSUB -o relax-out{1}\n"
+                "#BSUB -e relax-err{1}\n"
+                "#BSUB -J mtp-relax-{1}\n"
+                "{2}\n"
+                "mlp relax mlip.ini "
+                "--iteration-limit=200 --min-dist={4}{5}"
+                "--pressure={3} --cfg-filename=to_relax{1}.cfg --save-relaxed=relaxed{1}.cfg\n"
+                "cat B-preselected.cfg* > B-preselected.cfg\n"
+                "cat relaxed.cfg* > relaxed.cfg\n"
+                "".format(self.p.queueName, rank, self.p.Preprocessing, self.p.pressure, mindist, relaxLattice))                
+        self.J.bsub('bsub < relax{}.sh'.format(rank), 'relax')
+        self.J.WaitJobsDone(self.p.waitTime)
+        self.J.clear()
+
     def relax_with_mtp(self):
         # must have: mlip.ini, to_relax.cfg, pot.mtp, A-state.als
         logging.info('\tstep 02: do relax with mtp')
+        mindist = os.popen("mlp mindist train.cfg").readlines()[0]
+        mindist = float(mindist[mindist.find(':')+1 : ]) *0.7
+        relaxLattice = ' ' if self.p.relaxLattice else ' --stress-tolerance=0 '
         with open('relax.sh', 'w') as f:
             f.write(
                 "#BSUB -q {0}\n"
@@ -45,13 +70,15 @@ class MTPCalculator(Calculator):
                 "#BSUB -J mtp-relax\n"
                 "{2}\n"
                 "mpirun -np {1} mlp relax mlip.ini "
+                "--iteration-limit=200 --min-dist={4}{5}"
                 "--pressure={3} --cfg-filename=to_relax.cfg --save-relaxed=relaxed.cfg\n"
                 "cat B-preselected.cfg* > B-preselected.cfg\n"
                 "cat relaxed.cfg* > relaxed.cfg\n"
-                "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, self.p.pressure))
+                "".format(self.p.queueName, self.p.numCore , self.p.Preprocessing, self.p.pressure, mindist, relaxLattice))                
         self.J.bsub('bsub < relax.sh', 'relax')
         self.J.WaitJobsDone(self.p.waitTime)
         self.J.clear()
+
 
     def select_bad_frames(self):
         # must have: train.cfg, pot.mtp, A-state.als, B-preselected.cfg
@@ -115,7 +142,7 @@ class MTPCalculator(Calculator):
         shutil.copy("{}/mlFold/pot{}.mtp".format(self.p.workDir, level), "{}/pot.mtp".format(basedir))
         shutil.copy("{}/mlFold/train{}.cfg".format(self.p.workDir, level), "{}/train.cfg".format(basedir))
         dump_cfg(calcPop, "{}/to_relax.cfg".format(basedir), self.symbol_to_type)
-        for epoch in range(1, 10):
+        for epoch in range(1, 100):
             logging.info('MTP{} active relax epoch {}'.format(level, epoch))
             prevdir = '{}/epoch{:02d}'.format(calcDir, epoch - 1)
             currdir = '{}/epoch{:02d}'.format(calcDir, epoch)

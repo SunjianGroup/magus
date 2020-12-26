@@ -15,6 +15,7 @@ from .descriptor import ZernikeFp
 import copy
 from .molecule import Molfilter
 from ase.constraints import FixAtoms
+from .reconstruct import fixatoms
 
 def set_ind(parameters):
     if parameters.calcType == 'fix':
@@ -739,7 +740,7 @@ class RcsInd(Individual):
 
         super().__init__(parameters)
 
-        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None, 'refE':0, 'refFrml':None}
+        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None, 'DefectToAdd':None, 'refE':0, 'refFrml':None, 'fixbulk':True}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
         self.layerslices = ase.io.read("Ref/layerslices.traj", index=':', format='traj')
         
@@ -748,23 +749,42 @@ class RcsInd(Individual):
 
         if self.p.SymbolsToAdd:
             self.p.symbols.extend(self.p.SymbolsToAdd)
-
-        if self.p.AtomsToAdd:
-            _AtomsToAdd = []
-            assert len(self.p.AtomsToAdd)== len(self.p.symbols), 'Please check the length of AddAtoms'
-            for i in range(len(self.p.symbols)):
+        
+        def split_modifier(modifier):
+            res = []
+            for i in range(np.min( [ len(self.p.symbols), len(modifier) ])):
                 expand = []
-                for item in self.p.AtomsToAdd[i]:
+                for item in modifier[i]:
                     if isinstance(item, int):
                         expand.append(item)
                     elif isinstance(item, str):
-                        assert '~' in item, 'Please check the format of AddAtoms'
+                        if '~' not in item:
+                            raise Exception ("wrong format")
                         s1, s2 = item.split('~')
                         s1, s2 = int(s1), int(s2)
                         expand.extend(list(range(s1, s2+1)))
-                _AtomsToAdd .append(expand)
-            self.p.AtomsToAdd = _AtomsToAdd
-            
+                res.append(expand)
+            return res
+
+
+        if self.p.AtomsToAdd:
+            assert len(self.p.AtomsToAdd)== len(self.p.symbols), 'Please check the length of AddAtoms'
+            try:
+                self.p.AtomsToAdd = split_modifier(self.p.AtomsToAdd)
+            except:
+                raise RuntimeError("wrong format of atomstoadd")
+        if self.p.DefectToAdd:
+            try:
+                self.p.DefectToAdd =  split_modifier(self.p.DefectToAdd)
+            except:
+                raise RuntimeError("wrong format of defectstoadd")
+    
+    
+
+    def AtomToModify(self):
+        add = {s:np.random.choice(i) for s,i in zip(self.p.symbols, self.p.AtomsToAdd)} if self.p.AtomsToAdd else None
+        rm = {s:np.random.choice(i) for s,i in zip(self.p.symbols, self.p.DefectToAdd)} if self.p.DefectToAdd else None
+        return add, rm
 
     def __call__(self,atoms):
         newind = self.__new__(self.__class__)
@@ -855,7 +875,11 @@ class RcsInd(Individual):
             #if self.p.SymbolsToAdd:
                 #for i in range(len(self.p.SymbolsToAdd)):
                     #setattr(targetFrml,self.p.SymbolsToAdd[i],self.p.AtomsToAdd[i+len(self.p.symbols)])
-
+        if self.p.DefectToAdd:
+            Defect = {s:i for s,i in zip(self.p.symbols, self.p.DefectToAdd)}
+            for s in targetFrml:
+                targetFrml[s] = list(set( [i-j for i in targetFrml[s] for j in Defect[s]])) if s in Defect else targetFrml[s]
+        
         return targetFrml
 
     def get_targetFrml(self, rcs_x=1, rcs_y=1):
@@ -902,7 +926,7 @@ class RcsInd(Individual):
             FixExtraAtoms=False
             extratoms=self.layerslices[1] * (self.info['size'][0], self.info['size'][1], 1)
         elif type=='bulk':
-            FixExtraAtoms=True
+            FixExtraAtoms=True 
             extratoms=self.layerslices[0] * (self.info['size'][0], self.info['size'][1], 1)
 
         newind=self.copy()
@@ -922,8 +946,12 @@ class RcsInd(Individual):
         newind.atoms+=atoms_bottom
 
         if FixExtraAtoms:
-            c = FixAtoms(indices=range( len(self.atoms) , len(newind.atoms) ))
-            newind.atoms.set_constraint(c)
+            if self.p.fixbulk:
+                c = FixAtoms(indices=range( len(self.atoms) , len(newind.atoms) ))
+                newind.atoms.set_constraint(c)
+            else:
+                c = fixatoms(indices=range( len(self.atoms) , len(newind.atoms) ))
+                newind.atoms.set_constraint(c)
 
         if 'numOfFormula' in newind.info:
             newind.info['numOfFormula'] =int(round(len(newind.atoms)/sum(self.p.formula)))

@@ -348,6 +348,16 @@ class RCSPhaseDiagram:
 
         return energy, indices, np.array(coefs)
 
+
+from ase.constraints import FixAtoms
+class fixatoms(FixAtoms):
+    """
+    modified from FixAtoms class in ASE. Don't delete 'force' for fixed atoms.
+    """
+    def adjust_forces(self, atoms, forces):
+        pass
+
+
 if __name__ == '__main__':
     t=reconstruct(0.8, ase.io.read("POSCAR_3.vasp",format='vasp'), 0.8,2 )
     t.reconstr()

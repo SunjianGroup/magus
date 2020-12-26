@@ -5,7 +5,8 @@ except:
     import GenerateNew
 from ase.data import atomic_numbers, covalent_radii
 from ase import Atoms,build
-from ase.spacegroup import Spacegroup
+from ase.spacegroup import Spacegroup 
+from spglib import get_symmetry_dataset
 from ase.geometry import cellpar_to_cell,cell_to_cellpar
 from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
@@ -327,11 +328,11 @@ def read_seeds(parameters, seedFile, goodSeed=False):
             
         seedPop = readPop
         #seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
-        for ind in seedPop:
-            if goodSeed:
-                ind.info['origin'] = 'goodseed'
-            else:
-                ind.info['origin'] = 'seed'
+        #for ind in seedPop:
+            #if goodSeed:
+                #ind.info['origin'] = 'goodseed'
+            #else:
+                #ind.info['origin'] = 'seed'
     return seedPop
 
 def read_ref(bulkFile):
@@ -358,6 +359,7 @@ class ReconstructGenerator():
         checkParameters(para_t, parameters, Requirement,Default)
         #here starts to get Ref/refslab to calculate refE
         if os.path.exists("Ref/refslab.traj"):
+            logging.info("Used layerslices in Ref.")
             pass
         else:
             ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
@@ -379,7 +381,7 @@ class ReconstructGenerator():
 
         #here get new parameters for self.generator 
         _parameters = copy.deepcopy(parameters)
-
+        _parameters.attach(para_t)
         self.layerslices = ase.io.read("Ref/layerslices.traj", index=':', format='traj')
         
         setlattice = []
@@ -438,7 +440,7 @@ class ReconstructGenerator():
         maxFrml = int(self.p.maxAt/sum(self.p.formula))
         self.p.numFrml = list(range(minFrml, maxFrml + 1))
         self.threshold = self.p.dRatio
-        self.maxAttempts = 1000
+        self.maxAttempts = 100
 
     def afterprocessing(self,ind,nfm, origin, size):
         ind.info['symbols'] = self.p.symbols
@@ -455,10 +457,9 @@ class ReconstructGenerator():
     def Generate_ind(self,spg,numlist):
         return self.rcs_generator.Generate_ind(spg,numlist)
 
-    def reconstruct(self, rcs_x, rcs_y):
-        
-        layer = ase.io.read("Ref/layerslices.traj", index=2, format='traj')
-        c=reconstruct(self.range, layer*(rcs_x, rcs_y, 1), self.threshold, self.maxAttempts)
+    def reconstruct(self, ind):
+
+        c=reconstruct(self.range, ind.copy(), self.threshold, self.maxAttempts)
         label, pos=c.reconstr()
         numbers=[]
         if label:
@@ -477,12 +478,48 @@ class ReconstructGenerator():
         buildPop = []
         tryNum=0
 
-        while tryNum<self.p.maxtryNum*popSize and popSize/2 > len(buildPop):
+        while tryNum<self.p.maxtryNum*popSize and popSize/3 > len(buildPop):
             nfm = np.random.choice(self.p.numFrml)
             spg = 1
             _x = np.random.choice(self.p.rcs_x)
             _y = np.random.choice(self.p.rcs_y)
-            label,ind = self.reconstruct(_x, _y)
+
+            ind = self.ref * (_x , _y, 1)
+            add, rm = self.ind.AtomToModify()
+
+            if rm:
+                eq_at = dict(zip(range(len(ind)), get_symmetry_dataset(ind,1e-2)['equivalent_atoms']))
+
+                for symbol in rm:
+                    indices = [atom.index for atom in ind if atom.symbol == symbol]
+                    while rm[symbol] > 0:
+                        lucky_atom_to_rm = eq_at[np.random.choice(indices)]
+                        eq_ats_with_him = np.array([i for i in eq_at if eq_at[i] == lucky_atom_to_rm])
+                        size = np.random.choice(range(1, np.min(rm[symbol] , len(eq_ats_with_him))))
+                        to_del = np.random.choice(eq_ats_with_him, size =size, replace=False)
+                        del ind[to_del]
+                        rm[symbol] -= to_del
+            if add:
+                numlist = np.array([add[s] for s in self.rcs_generator.p.symbols])
+                self.rcs_generator.p.minLattice[0] = self.reflattice[0]*_x
+                self.rcs_generator.p.minLattice[1] = self.reflattice[1]*_y
+                self.rcs_generator.p.maxLattice = self.rcs_generator.p.minLattice
+                #logging.debug("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
+                #logging.debug("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
+                spg = np.random.choice(self.p.spgs) if self.p.choice == 0 else np.random.choice(range(1,18))
+                self.rcs_generator.p.choice = 0
+
+                label,extraind = self.rcs_generator.Generate_ind(spg,numlist)
+                if label:
+                    extraind.set_cell(ind.get_cell().copy(), scale_atoms=True)
+                    dis = np.max(ind.get_scaled_positions()[:,2]) - np.min(extraind.get_scaled_positions()[:,2]) + (np.random.choice(range(5,20))/100)
+                    extraind.translate([dis * ind.get_cell()[2] ]*len(extraind))
+                    ind += extraind
+                else:
+                    tryNum+=1
+                    continue
+            
+            label,ind = self.reconstruct(ind)
             if label:
                 self.afterprocessing(ind,nfm,'rand.randmove', [_x, _y])
                 ref = self.ref * (_x , _y, 1)
@@ -518,8 +555,9 @@ class ReconstructGenerator():
             self.rcs_generator.p.minLattice[0] = self.reflattice[0]*_x
             self.rcs_generator.p.minLattice[1] = self.reflattice[1]*_y
             self.rcs_generator.p.maxLattice = self.rcs_generator.p.minLattice
-            #logging.info("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
-            #logging.info("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
+            self.rcs_generator.p.choice = self.p.choice
+            #logging.debug("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
+            #logging.debug("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
             label,ind = self.rcs_generator.Generate_ind(spg,numlist)
             
             if label:

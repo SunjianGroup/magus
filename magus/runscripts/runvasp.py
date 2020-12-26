@@ -11,7 +11,7 @@ from magus.localopt import calc_vasp, RelaxVasp
 
 
 if  __name__ == "__main__":
-    calcNum, xc, vaspStpFile, pressure, inputTraj, outTraj = sys.argv[1:]
+    calcNum, xc, vaspStpFile, pressure, ignore_constraints, inputTraj, outTraj = sys.argv[1:]
     calcNum = int(calcNum)
     pressure = float(pressure)
     vaspSetup = yaml.load(open(vaspStpFile))
@@ -27,6 +27,7 @@ if  __name__ == "__main__":
         calc.set(xc=xc)
         calc.set(setups=vaspSetup)
         calc.set(pstress=pressure*10)
+        calc.set(ignore_constraints=ignore_constraints)
         calcs.append(calc)
     initPop = ase.io.read(inputTraj, format='traj', index=':',)
     optPop = calc_vasp(calcs, initPop, )

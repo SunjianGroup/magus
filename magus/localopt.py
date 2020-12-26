@@ -167,8 +167,14 @@ class ASECalculator(Calculator):
             else:
                 #if label:
                 # save energy, forces, stress for trainning potential
-                ind.info['energy'] = ind.get_potential_energy()
-                ind.info['forces'] = ind.get_forces()
+                try:
+                    ind.info['energy'] = ind.get_potential_energy()
+                    ind.info['forces'] = ind.get_forces()
+                except PropertyNotImplementedError:
+                    logging.info("PropertyNotImplementedError message:\n")
+                    currentcal = ind.calc
+                    logging.info("current calculator: {}, implied functions: {}".format(currentcal.__class__.__name__,currentcal.implemented_properties))
+                    continue
                 maxF = np.max(ind.info['forces'])
                 if maxF > 5.0:
                     logging.warning('Force too lipu')
@@ -514,7 +520,7 @@ class VaspCalculator(ABinitCalculator):
     def __init__(self,parameters,prefix='calcVasp'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
-        Default = {'xc':'PBE','jobPrefix':'Vasp'}
+        Default = {'xc':'PBE','jobPrefix':'Vasp','ignore_constraints':False}
         checkParameters(self.p,parameters,Requirement,Default)
         self.p.ppLabel = parameters.ppLabel if hasattr(parameters,'ppLabel') \
             else['' for _ in parameters.symbols]
@@ -524,7 +530,7 @@ class VaspCalculator(ABinitCalculator):
         self.cdcalcFold()
         calc = RelaxVasp()
         calc.read_incar('INCAR_0')
-        calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10)
+        calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10, ignore_constraints=self.p.ignore_constraints)
         scfPop = calc_vasp([calc], calcPop)
         os.chdir(self.p.workDir)
         return scfPop
@@ -536,7 +542,7 @@ class VaspCalculator(ABinitCalculator):
         for incar in incars:
             calc = RelaxVasp()
             calc.read_incar(incar)
-            calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10)
+            calc.set(xc=self.p.xc,setups=self.p.setup,pstress=self.p.pressure*10, ignore_constraints=self.p.ignore_constraints)
             calcs.append(calc)
         relaxPop = calc_vasp(calcs, calcPop)
         os.chdir(self.p.workDir)
@@ -555,7 +561,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore,jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runscripts.runvasp 0 {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure))
+        f.write("python -m magus.runscripts.runvasp 0 {} vaspSetup.yaml {} {} initPop.traj optPop.traj\n".format(self.p.xc, self.p.pressure, self.p.ignore_constraints))
         f.close()
         self.J.bsub('bsub < parallel.sh',jobName)
 
@@ -571,7 +577,7 @@ class VaspCalculator(ABinitCalculator):
                 "#BSUB -e err\n"
                 "#BSUB -J %s\n"% (self.p.queueName, self.p.numCore, jobName))
         f.write("{}\n".format(self.p.Preprocessing))
-        f.write("python -m magus.runscripts.runvasp {} {} vaspSetup.yaml {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure))
+        f.write("python -m magus.runscripts.runvasp {} {} vaspSetup.yaml {} {} initPop.traj optPop.traj\n".format(self.p.calcNum, self.p.xc, self.p.pressure, self.p.ignore_constraints))
         f.close()
         self.J.bsub('bsub < parallel.sh',jobName)
 
@@ -669,7 +675,7 @@ class GULPCalculator(ABinitCalculator):
     def __init__(self, parameters,prefix='calcGulp'):
         super().__init__(parameters,prefix)
         Requirement = ['symbols']
-        Default = {'exeCmd':'','jobPrefix':'Gulp','fixcell':False}
+        Default = {'exeCmd':'','jobPrefix':'Gulp','relaxLattice':False}
         checkParameters(self.p,parameters,Requirement,Default)
 
     def scf_serial(self,calcPop):
@@ -679,8 +685,8 @@ class GULPCalculator(ABinitCalculator):
         exeCmd = self.p.exeCmd
         pressure = self.p.pressure
         inputDir = "{}/inputFold".format(self.p.workDir)
-        fixcell = self.p.fixcell
-        scfPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir , fixcell)
+        relaxLattice = self.p.relaxLattice
+        scfPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir , relaxLattice)
         write_traj('optPop.traj', scfPop)
         os.chdir(self.p.workDir)
         return scfPop
@@ -692,8 +698,8 @@ class GULPCalculator(ABinitCalculator):
         exeCmd = self.p.exeCmd
         pressure = self.p.pressure
         inputDir = "{}/inputFold".format(self.p.workDir)
-        fixcell = self.p.fixcell
-        relaxPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir, fixcell)
+        relaxLattice = self.p.relaxLattice
+        relaxPop = calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir, relaxLattice)
         write_traj('optPop.traj', relaxPop)
         os.chdir(self.p.workDir)
         return relaxPop
@@ -703,7 +709,7 @@ class GULPCalculator(ABinitCalculator):
             'calcNum': 0,
             'pressure': self.p.pressure,
             'exeCmd': self.p.exeCmd,
-            'fixcell': self.p.fixcell,
+            'relaxLattice': self.p.relaxLattice,
             'inputDir': "{}/inputFold".format(self.p.workDir),
         }
         with open('gulpSetup.yaml', 'w') as setupF:
@@ -727,7 +733,7 @@ class GULPCalculator(ABinitCalculator):
             'calcNum': self.p.calcNum,
             'pressure': self.p.pressure,
             'exeCmd': self.p.exeCmd,
-            'fixcell': self.p.fixcell,
+            'relaxLattice': self.p.relaxLattice,
             'inputDir': "{}/inputFold".format(self.p.workDir),
         }
         with open('gulpSetup.yaml', 'w') as setupF:
@@ -969,11 +975,11 @@ class MLCalculator_tmp(ABinitCalculator):
 
         self.J.bsub('bsub < parallel.sh',jobName)
 
-def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir, fixcell = False):
+def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir, relaxLattice = False):
     optPop = []
     for n, ind in enumerate(calcPop):
         if calcNum == 0:
-            ind = calc_gulp_once(0, ind, pressure, exeCmd, inputDir, fixcell)
+            ind = calc_gulp_once(0, ind, pressure, exeCmd, inputDir, relaxLattice)
             logging.debug("Structure %s scf" %(n))
             if ind:
                 optPop.append(ind)
@@ -982,7 +988,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir, fixcell = False):
         else:
             for i in range(1, calcNum + 1):
                 logging.debug("Structure %s Step %s" %(n, i))
-                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir, fixcell)
+                ind = calc_gulp_once(i, ind, pressure, exeCmd, inputDir, relaxLattice)
             if ind:
                 optPop.append(ind)
                 shutil.copy('output', "gulp_out-{}-{}".format(n, i))
@@ -991,7 +997,7 @@ def calc_gulp(calcNum, calcPop, pressure, exeCmd, inputDir, fixcell = False):
     return optPop
 
 
-def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir, fixcell = False):
+def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir, relaxLattice = False):
     """
     exeCmd should be "gulp < input > output"
     """
@@ -1009,7 +1015,7 @@ def calc_gulp_once(calcStep, calcInd, pressure, exeCmd, inputDir, fixcell = Fals
         with open('input', 'a') as gulpIn:
             gulpIn.write('cell\n')
             a, b, c, alpha, beta, gamma = calcInd.get_cell_lengths_and_angles()
-            if fixcell ==True :
+            if relaxLattice ==True :
                 gulpIn.write("%g %g %g %g %g %g 0 0 0 0 0 0\n" %(a, b, c, alpha, beta, gamma))
             else :
                 gulpIn.write("%g %g %g %g %g %g\n" %(a, b, c, alpha, beta, gamma))

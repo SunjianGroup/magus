@@ -49,7 +49,7 @@ class Mutation(OffspringCreator):
             return None
         logging.debug('success {} in {}'.format(self.descriptor,ind.info['identity']))
         # remove some parent infomation
-        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull']
+        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull', 'energy','forces']
         for k in rmkeys:
             if k in newind.atoms.info.keys():
                 del newind.atoms.info[k]
@@ -95,7 +95,7 @@ class Crossover(OffspringCreator):
 
         logging.debug('success {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
         # remove some parent infomation
-        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull']
+        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull','energy','forces']
         for k in rmkeys:
             if k in newind.atoms.info.keys():
                 del newind.atoms.info[k]

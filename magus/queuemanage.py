@@ -41,6 +41,9 @@ class JobManager:
             elif stat == 'PEND':
                 job['state'] = 'PEND'
                 allDone = False
+            elif stat == 'SSUSP':
+                job['state'] = 'SSUSP'
+                allDone = False
             elif stat == 'RUN':
                 if 'begintime' not in job.keys():
                     job['begintime'] = datetime.datetime.now()

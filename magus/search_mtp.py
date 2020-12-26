@@ -11,7 +11,7 @@ from .machinelearning import LRmodel
 from .parameters import magusParameters
 from .writeresults import write_results
 from .formatting.mtp import dump_cfg, load_cfg
-from .calculator.mtp import MTPCalculator, TwostageMTPCalculator
+from .calculators.mtp import MTPCalculator#, TwostageMTPCalculator
 from .machinelearning import MTPmodel
 """
 Pop:class,poplulation
@@ -147,7 +147,7 @@ class Magus:
         if self.parameters.chkSeed:
             seedPop.check()
         initPop.extend(seedPop)
-        initPop.del_duplicate()
+        #initPop.del_duplicate()
         # Save Initial
         initPop.save()
 

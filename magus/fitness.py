@@ -66,10 +66,10 @@ class EoFitness(FitnessCalculator):
 
             for ind in pop:
                 scale = 1.0 / ind.info['size'][0] / ind.info['size'][1]
-                surfaceE = (ind.atoms.info['enthalpy']-refE_perAtom)*len(ind.atoms)*scale
+                surfaceE = (ind.atoms.info['energy']-refE_perAtom*len(ind.atoms))*scale
                 ind.info['Eo'] = surfaceE
                 ind.info['enthalpy'] = ind.atoms.info['enthalpy']
-                ind.info['fitness']['enthalpy'] = -surfaceE
+                ind.info['fitness']['Eo'] = -surfaceE
 
         else:
 
@@ -86,7 +86,7 @@ class EoFitness(FitnessCalculator):
                 symbol, formula = symbols_and_formula(ind.atoms)
                 frml = {s:i for s,i in zip(symbol, formula)}
                 delta_n.append( (frml [symbols[0]] - frml[symbols[1]]*ref_num0) *scale)
-                Eo.append((ind.atoms.info['enthalpy']*len(ind.atoms) -frml[symbols[1]]*refE_perUnit)*scale)
+                Eo.append((ind.atoms.info['ennergy'] -frml[symbols[1]]*refE_perUnit)*scale)
 
             refs = list(zip(delta_n, Eo))
             # To make sure that the phase diagram can be constructed, we add elements with high energies.
