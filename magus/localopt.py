@@ -1038,7 +1038,7 @@ def calc_lammps_once(calcStep, calcInd, pressure, exeCmd, inputDir):
         logging.warning("Lammps fail")
         return None
 
-
+"""
 class MTPCalculator(Calculator):
     def __init__(self, query_calculator, parameters):
         super().__init__(parameters)
@@ -1190,3 +1190,4 @@ class MTPCalculator(Calculator):
             enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa) / len(atoms)
             atoms.info['enthalpy'] = round(enthalpy, 3)
         return scfpop
+"""

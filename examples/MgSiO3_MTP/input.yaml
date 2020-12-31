@@ -1,0 +1,39 @@
+calcType: fix
+initSize: 400
+popSize: 400
+numGen: 60
+saveGood: 3
+
+#structure parameters
+minAt: 10
+maxAt: 20
+symbols: ['Mg','Si','O']
+formula: [1,1,3]
+molDetector: 2
+fullEles: True
+eleSize: 0
+dRatio: 0.8
+volRatio: 1.3
+randFrac: 0.4
+pressure: 150
+addSym: True
+softNum: 0
+#main calculator settings
+MainCalculator:
+ calculator: vasp
+ mode: parallel
+ calcNum: 3
+ #vasp parameters
+ xc: PBE
+ ppLabel: ['','','_s']
+ #parallel settings
+ numParallel: 20
+ numCore: 12
+ queueName: 9242opa!
+ waitTime: 100
+MLCalculator:
+ mlmodel: MTP
+ queueName: 9242opa!      
+ numCore: 96
+ Preprocessing: export I_MPI_DEBUG=100
+ waitTime: 30

@@ -67,6 +67,12 @@ class Magus:
         initPop.save()
 
         relaxpop = self.MainCalculator.relax(initPop.frames)
+        #cou he yong
+        try:
+            num_scf = sum([sum(atoms.info['relaxStep']) for atoms in relaxpop])
+            logging.debug('scf number:{}'.format(num_scf))
+        except:
+            pass
         relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
         # save raw pop before check and del_duplicates
         relaxPop.save('raw')
@@ -193,6 +199,12 @@ class Magus:
             #    relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
         else:
             relaxpop = self.MainCalculator.relax(initPop.frames)
+            #cou he yong             
+            try:
+                num_scf = sum([sum(atoms.info['relaxStep']) for atoms in relaxpop])
+                logging.debug('scf number:{}'.format(num_scf))
+            except:
+                pass
             if self.parameters.useml:
                 loss = self.ML.get_loss(relaxpop)
                 logging.info('ML Energy Error:{}'.format(loss[1]))

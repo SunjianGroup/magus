@@ -17,6 +17,7 @@ from .machinelearning import *
 from .queuemanage import JobManager
 from .population import Population
 from .fitness import fit_dict
+from .calculators.mtp import MTPCalculator
 #ML module
 #from .machinelearning import LRmodel
 from .offspring_creator import *
@@ -180,8 +181,8 @@ class magusParameters:
 
     def get_MLCalculator(self):
         if not hasattr(self,'MLCalculator'):
-            if self.parameters.useml:
-                checkParameters(self.parameters,self.parameters,[],{'mlmodel':'GPR'})
+            if hasattr(self.parameters, 'MLCalculator'):
+                checkParameters(self.parameters,self.parameters,[],{'mlmodel':'MTP'})
                 if self.parameters.mlmodel == 'LR':
                     self.MLCalculator = LRmodel(self.parameters)
                 elif self.parameters.mlmodel == 'GPR':
@@ -194,8 +195,14 @@ class magusParameters:
                     self.MLCalculator = MultiNNmodel(self.parameters)
                 elif self.parameters.mlmodel == 'NNdNN':
                     self.MLCalculator = NNdNNmodel(self.parameters)
+                elif self.parameters.mlmodel == 'MTP':
+                    p = copy.deepcopy(self.parameters)
+                    for key, val in self.parameters.MLCalculator.items():
+                        setattr(p, key, val)
+                    p.workDir = self.parameters.workDir
+                    self.MLCalculator = MTPCalculator(self.get_MainCalculator(), 0, p)
             else:
-                self.MLCalculator = None
+                raise Exception('No ML Calculator!')
             self.parameters.MLCalculator = self.MLCalculator.p
         return self.MLCalculator
 
