@@ -1,0 +1,38 @@
+calcType: fix
+initSize: 100
+popSize: 20
+numGen: 20
+saveGood: 4
+
+#structure parameters
+minAt: 4
+maxAt: 16
+symbols: ['Al']
+formula: [1]
+
+fullEles: True
+eleSize: 0
+dRatio: 0.8
+volRatio: 3
+randFrac: 0.4
+pressure: 0
+addSym: False
+
+softNum: 0
+#main calculator settings
+MainCalculator:
+ calculator: emt
+ calcNum: 1
+ epsArr: [0.01]
+ stepArr: [100]
+ maxRelaxTime: 300
+ maxRelaxStep: 0.5
+ optimizer: bfgs
+ relaxLattice: True
+MLCalculator:
+ #queueName: 9242opa!
+ queueName: e52692v2ib!
+ numCore: 12
+ waitTime: 30
+ ft: 0.05
+ st: 0.1
