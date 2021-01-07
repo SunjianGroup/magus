@@ -27,7 +27,9 @@ class Generator:
         logging.debug("new volRatio: {}".format(self.p.volRatio))
 
     def getVolumeandLattice(self,numlist):
-        Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
+        # Recalculate atomic radius, considering the change of radius in molecular crystal mode
+        atomicR = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
+        Volume = np.sum(4*np.pi/3*np.array(atomicR)**3*np.array(numlist))*self.p.volRatio
         minVolume = Volume*0.5
         maxVolume = Volume*1.5
         minLattice= [2*np.max(self.p.radius)]*3+[60]*3
