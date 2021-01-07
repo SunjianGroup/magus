@@ -140,7 +140,7 @@ class MTPCalculator(Calculator):
     def get_train_set(self):
         currdir = os.getcwd()
         to_scf = load_cfg("C-selected.cfg", self.type_to_symbol)
-        logging.info('\tstep 04: {} need to be calculated'.format(len(to_scf)))
+        logging.info('\tstep 04: {} DFT scf need to be calculated'.format(len(to_scf)))
         scfpop = self.query_calculator.scf(to_scf)
         os.chdir(currdir)
         dump_cfg(scfpop, "D-computed.cfg", self.symbol_to_type)
@@ -172,6 +172,9 @@ class MTPCalculator(Calculator):
         self.J.clear()
 
     def relax(self, calcPop, max_epoch=50):
+        # remain info
+        for i, atoms in enumerate(calcPop):
+            atoms.info['identification'] = i
         nowpath = os.getcwd()
         self.cdcalcFold()
         pressure = self.p.pressure
@@ -217,6 +220,10 @@ class MTPCalculator(Calculator):
         for atoms in relaxpop:
             enthalpy = (atoms.info['energy'] + self.p.pressure * atoms.get_volume() * GPa) / len(atoms)
             atoms.info['enthalpy'] = round(enthalpy, 3)
+            origin_atoms = calcPop[atoms.info['identification']]
+            origin_atoms.info.update(atoms.info)
+            atoms.info = origin_atoms.info
+            atoms.info.pop('identification')
         os.chdir(nowpath)
         return relaxpop
 

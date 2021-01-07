@@ -40,6 +40,8 @@ def dump_cfg(frames, filename, symbol_to_type, mode='w'):
             if 'stress' in atoms.info:
                 stress = atoms.info['stress'] * atoms.get_volume() * -1.
                 ret += 'PlusStress: xx yy zz yz xz xy\n{} {} {} {} {} {}\n'.format(*stress)
+            if 'identification' in atoms.info:
+                ret += 'Feature identification {}\n'.format(atoms.info['identification'])
             ret += 'END_CFG\n'
             f.write(ret)
 
@@ -98,5 +100,8 @@ def load_cfg(filename, type_to_symbol):
                 
             if 'END_CFG' in line:
                 frames.append(atoms)
+
+            if 'identification' in line:
+                atoms.info['identification'] = int(line.split()[2])
 
     return frames
