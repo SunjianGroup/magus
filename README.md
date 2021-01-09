@@ -124,7 +124,9 @@
 #### 机器学习包安装
 
 - MTP
-  进入`magus/mtp`目录，按其中教程安装。安装时推荐加载mpi环境`ips/2017u2`、`ips/2017u6`或`ips/2018u4`；`ips/2019u5`很不稳定，天天搞节目效果。最好将`module load ips/201...`写入环境变量，否则需要在Preprocessing中写入。
+  进入`magus/mtp`目录，按其中教程安装。安装时推荐加载mpi环境`ips/2017u2`、`ips/2017u6`或`ips/2018u4`；`ips/2019u5`很不稳定，天天搞节目效果。
+  目前我只试过gcc/7.4.0，推荐使用。其他c++版本未做测试，可能不能稳定运行。
+  最好将`module load ips/201...`、`module load gcc/7.4.0`写入环境变量，否则需要在Preprocessing中写入。
 
 
 
