@@ -986,9 +986,9 @@ class NNdNNmodel(MachineLearning, MLCalculator_tmp):
 
 
 class MTPmodel(MachineLearning):
-    def __init__(self, parameters):
+    def __init__(self, mldir, parameters):
         self.p = EmptyClass()
-        Requirement = ['mlDir', 'symbols', 'queueName', 'numCore', 'workDir']
+        Requirement = ['symbols', 'queueName', 'numCore', 'workDir']
         Default = {
             'w_energy':1.0, 
             'w_forces':0.01, 
@@ -1003,11 +1003,15 @@ class MTPmodel(MachineLearning):
         self.symbol_to_type = {j: i for i, j in enumerate(self.p.symbols)}
         self.type_to_symbol = {i: j for i, j in enumerate(self.p.symbols)}
         self.J = JobManager(self.p.verbose)
-        self.p.mldir = '{}/mlFold'.format(self.p.workDir)
+        self.p.mldir = mldir
         if not os.path.exists(self.p.mldir):
-            os.mkdir(self.p.mldir)
+            os.makedirs(self.p.mldir)
             shutil.copy('{}/inputFold/pot.mtp'.format(self.p.workDir), 
                         '{}/pot.mtp'.format(self.p.mldir))
+            with open('{}/train.cfg'.format(self.p.mldir), 'w') as f:
+                pass
+            with open('{}/datapool.cfg'.format(self.p.mldir), 'w') as f:
+                pass
 
     def train(self, n_epoch=200):
         nowpath = os.getcwd()
@@ -1022,11 +1026,13 @@ class MTPmodel(MachineLearning):
                 "#BSUB -o train-out\n"
                 "#BSUB -e train-err\n"
                 "#BSUB -J mtp-train\n"
+                #"#BSUB -x\n"
                 "{2}\n"
                 "mpirun -np {1} mlp train "
-                "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter=200"
+                "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter={6}"
                 "--energy-weight={3} --force-weight={4} --stress-weight={5}"
-                "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, we, wf, ws))
+                "--weighting=structures"
+                "".format(self.p.queueName, self.p.numCore, self.p.Preprocessing, we, wf, ws, n_epoch))
         self.J.bsub('bsub < train.sh', 'train')
         self.J.WaitJobsDone(self.p.waitTime)
         self.J.clear()

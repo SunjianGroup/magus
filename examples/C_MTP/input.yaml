@@ -1,0 +1,43 @@
+calcType: fix
+initSize: 200
+popSize: 200
+numGen: 20
+saveGood: 4
+
+#structure parameters
+minAt: 8
+maxAt: 16
+symbols: ['C']
+formula: [2]
+
+fullEles: True
+eleSize: 0
+dRatio: 0.85
+volRatio: 4.0
+randFrac: 0.4
+pressure: 0
+addSym: True
+
+softNum: 0
+#main calculator settings
+MainCalculator:
+ calculator: vasp
+ mode: parallel
+ calcNum: 3
+ #vasp parameters
+ xc: PBE 
+ ppLabel: ['']
+
+ #parallel settings
+ numParallel: 50
+ numCore: 12
+ # queueName: e52692v2ib!
+ queueName: 9242opa!
+ waitTime: 100
+ verbose: False
+MLCalculator:
+ queueName: 9242opa!
+ numCore: 24
+ waitTime: 30
+ Preprocessing: export I_MPI_DEBUG=100 
+ verbose: False

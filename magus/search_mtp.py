@@ -11,7 +11,7 @@ from .machinelearning import LRmodel
 from .parameters import magusParameters
 from .writeresults import write_results
 from .formatting.mtp import dump_cfg, load_cfg
-from .calculators.mtp import MTPCalculator#, TwostageMTPCalculator
+from .calculators.mtp import MTPCalculator, TwostageMTPCalculator
 from .machinelearning import MTPmodel
 """
 Pop:class,poplulation
@@ -27,8 +27,9 @@ class Magus:
         self.Algo = parameters.get_PopGenerator()
         self.MainCalculator = parameters.get_MainCalculator()
         self.Population = parameters.get_Population()
-        self.MTPCalculator = MTPCalculator(self.MainCalculator, parameters.parameters)
-        self.MLmodel = MTPmodel(parameters.parameters)
+        self.MTPCalculator = parameters.get_MLCalculator()
+        # self.MTPCalculator = MTPCalculator(self.MainCalculator, 0, parameters.parameters)
+        # self.MLmodel = MTPmodel(self.MTPCalculator.mlDir, parameters.parameters)
         self.curgen = 1
         self.bestlen = []
         self.kappa = 3.0
@@ -70,17 +71,29 @@ class Magus:
         initPop.extend(seedPop)
         initPop.save('initPop', self.curgen)
 
-        scfpop = self.MainCalculator.scf(initPop.frames)
+        # select to add
+        nowpath = os.getcwd()
+        mldir = self.MTPCalculator.mlDir
+        os.chdir(mldir)
+        dump_cfg(initPop.frames, 'datapool.cfg', self.MTPCalculator.symbol_to_type, mode='a')
+        exeCmd = "mlp select-add pot.mtp train.cfg datapool.cfg diff.cfg "\
+                 "--selected-filename=selected.cfg --weighting=structures"
+        exitcode = subprocess.call(exeCmd, shell=True)
+        if exitcode != 0:
+            raise RuntimeError('mlp select exited with exit code: %d.  ' % exitcode)
+        selectpop = load_cfg('diff.cfg', self.MTPCalculator.type_to_symbol)
+        selectPop = self.Population(selectpop, 'selectPop', self.curgen)
+        os.chdir(nowpath)
+        selectPop.save('selectPop', self.curgen)
+
+        scfpop = self.MainCalculator.scf(selectPop.frames)
         scfPop = self.Population(scfpop,'scfPop',self.curgen)
         scfPop.check()
         scfPop.del_duplicate()
         scfPop.save('scfPop', self.curgen)
 
-        self.MLmodel.updatedataset(scfPop.frames)
-        self.MLmodel.train()
-        logging.info("loss:\nenergy_rmse:{}\tenergy_r2:{}\n"
-            "force_rmse:{}\tforce_r2:{}".format(*self.MLmodel.get_loss(scfPop.frames)[:4]))
-
+        self.MTPCalculator.updatedataset(scfPop.frames)
+        self.MTPCalculator.init_train()
         self.curPop = scfPop
 
         if self.parameters.goodSeed:
@@ -160,25 +173,16 @@ class Magus:
         relaxPop.find_spg()
         relaxPop.del_duplicate()
         relaxPop.save("mlgen", self.curgen)
-
-        #######  compare target and predict energy  #######
+        
+        #######  compare target and predict energy  #######   
         scfpop = self.MainCalculator.scf(relaxPop.frames)
         scfPop = self.Population(scfpop)
         logging.info("loss:\nenergy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
-            "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.MLmodel.get_loss(scfPop.frames)[:4]))
+            "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.MTPCalculator.get_loss(scfPop.frames)[:4]))
         scfPop.save("scfmlgen", self.curgen)
-    
-        #######  test ML   #######
-        testpop = ase.io.read('{}/test.traj'.format(self.parameters.workDir), ':')
-        logging.info("loss:\n"
-                "energy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
-                "force_mse:{:.5f}\tforce_r2:{:.5f}\n"
-                "stress_mse:{:.5f}\tstress_r2:{:.5f}\n".format(*self.MLmodel.get_loss(testpop)))
-        
         #######  goodPop and keepPop  #######
         logging.info('construct goodPop')
-        # goodPop = relaxPop + goodPop + keepPop
-        goodPop = scfPop + goodPop + keepPop # use true energy
+        goodPop = scfPop + goodPop + keepPop
         goodPop.del_duplicate()
         goodPop.calc_dominators()
         goodPop.select(self.parameters.popSize)

@@ -1,6 +1,7 @@
 import numpy as np
 from ase.atoms import Atoms
 from magus.reconstruct import fixatoms
+from ase.units import GPa
 
 def dump_cfg(frames, filename, symbol_to_type, mode='w'):
     with open(filename, mode) as f:
@@ -55,6 +56,8 @@ def dump_cfg(frames, filename, symbol_to_type, mode='w'):
             if 'stress' in atoms.info:
                 stress = atoms.info['stress'] * atoms.get_volume() * -1.
                 ret += 'PlusStress: xx yy zz yz xz xy\n{} {} {} {} {} {}\n'.format(*stress)
+            if 'identification' in atoms.info:
+                ret += 'Feature identification {}\n'.format(atoms.info['identification'])
             ret += 'END_CFG\n'
             f.write(ret)
 
@@ -121,9 +124,14 @@ def load_cfg(filename, type_to_symbol):
 
             if 'PlusStress' in line:
                 line = f.readline()
-                atoms.info['stress'] = np.array(list(map(float, line.split())))
-
+                plus_stress = np.array(list(map(float, line.split())))
+                atoms.info['stress'] = -plus_stress / atoms.get_volume()
+                atoms.info['pstress'] = atoms.info['stress'] / GPa
+                
             if 'END_CFG' in line:
                 frames.append(atoms)
+
+            if 'identification' in line:
+                atoms.info['identification'] = int(line.split()[2])
 
     return frames
