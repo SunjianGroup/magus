@@ -153,10 +153,12 @@ class magusParameters:
             rotNum = num if self.parameters.molDetector != 0 else 0
             #rotNum = num if self.parameters.molMode else 0
             formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
-
+            lyrslip = LyrSlipMutation() 
+            lyrslipNum = 0
             if self.parameters.calcType=='rcs':
                 latNum = 0
                 formNum = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
+                lyrslipNum = num
             if self.parameters.calcType=='clus':
                 slipNum = 0
 
@@ -173,7 +175,7 @@ class magusParameters:
             softNum = 0
             Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
                 'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 
-                'formNum': formNum,'ratNum':ratNum}
+                'formNum': formNum,'ratNum':ratNum, 'lyrslipNum': lyrslipNum}
             checkParameters(self.parameters,self.parameters,Requirement,Default)
             numlist = [
                 self.parameters.cutNum,
@@ -185,8 +187,9 @@ class magusParameters:
                 self.parameters.softNum,
                 self.parameters.formNum,
                 self.parameters.ratNum,
+                self.parameters.lyrslipNum,
                 ]
-            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle]
+            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle, lyrslip]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"

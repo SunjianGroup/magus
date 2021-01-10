@@ -14,6 +14,7 @@ if  __name__ == "__main__":
     calcNum, xc, vaspStpFile, pressure, ignore_constraints, inputTraj, outTraj = sys.argv[1:]
     calcNum = int(calcNum)
     pressure = float(pressure)
+    ignore_constraints = bool(int(ignore_constraints))
     vaspSetup = yaml.load(open(vaspStpFile))
 
     calcs = []

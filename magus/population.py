@@ -16,6 +16,8 @@ import copy
 from .molecule import Molfilter
 from ase.constraints import FixAtoms
 from .reconstruct import fixatoms
+from ase import neighborlist
+from scipy import sparse
 
 def set_ind(parameters):
     if parameters.calcType == 'fix':
@@ -220,20 +222,10 @@ class Population:
     '''function in reconstract'''
     def removebulk_relaxable_vacuum(self):        
         
-        #removebulklayer(self):
-        self.pop = list(map(lambda ind:ind.removextralayer('bulk'), self.pop))  
-        #removerelaxablelayer(self):
-        self.pop = list(map(lambda ind:ind.removextralayer('relaxable'), self.pop))  
-        #removevacuum(self):
-        self.pop = list(map(lambda ind:ind.addvacuum(add=-1), self.pop)) 
-
+        self.pop = list(map(lambda ind:ind.removebulk_relaxable_vacuum(), self.pop))  
+        
     def addbulk_relaxable_vacuum(self):
-        #addrelaxablelayer(self):
-        self.pop = list(map(lambda ind:ind.addextralayer('relaxable'), self.pop))  
-        #addbulklayer(self):
-        self.pop = list(map(lambda ind:ind.addextralayer('bulk'), self.pop))  
-        #addvacuum(self):
-        self.pop = list(map(lambda ind:ind.addvacuum(add=1), self.pop))  
+        self.pop = list(map(lambda ind:ind.addbulk_relaxable_vacuum(), self.pop))  
 
     def reset_center(self):
         self.pop = list(map(lambda ind:ind.reset_center(), self.pop))  
@@ -1023,6 +1015,10 @@ class RcsInd(Individual):
         newind.atoms.translate(trans)
 
         return newind
+    def addbulk_relaxable_vacuum(self):
+        return ( (self.addextralayer('relaxable')) .addextralayer('bulk') ).addvacuum(add=1)
+    def removebulk_relaxable_vacuum(self):
+        return ( (self.removextralayer('bulk')) .removextralayer('relaxable') ).addvacuum(add=-1)
 
 
 class ClusInd(FixInd):
@@ -1079,3 +1075,64 @@ class ClusInd(FixInd):
         cell -= np.array([self.p.vacuum]*3)
         self.volRatio = cell[0]*cell[1]*cell[2]/self.get_ball_volume()
         return self.volRatio
+
+    def _connecty_(self,atoms):
+        cutOff = np.array(neighborlist.natural_cutoffs(atoms))*1.8
+        neighborList = neighborlist.NeighborList(cutOff, self_interaction=False, bothways=True)
+        neighborList.update(atoms)
+        matrix = neighborList.get_connectivity_matrix()
+        return sparse.csgraph.connected_components(matrix)
+
+    def check(self, atoms=None):    
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        check_connection = self.check_connection(a)
+        if not check_connection:
+            logging.debug("Fail in check_connection >_< cluster origin '{}'".format(self.atoms.info['origin']))
+        return super().check(atoms) and check_connection
+
+    def check_connection(self,atoms=None):
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        n_components, _ = self._connecty_(a)
+        return False if n_components > 1 else True
+
+    def repair_atoms(self):
+        n_components, component_list = self._connecty_(self.atoms)
+        if n_components ==1:
+            return super().repair_atoms()
+        else:
+            logging.debug("By repair_atoms: attempts to make cluster unite again!")
+            oldatoms = self.atoms.copy()
+            for _ in range(self.p.repairtryNum):
+                a = self.atoms
+                originpos = a.get_positions().copy()
+                originc = np.mean(originpos, axis = 0)
+                for subclus in range(n_components):
+                    sc = [i for i in range(len(a)) if component_list[i] == subclus]
+                    originpos[sc] += ( originc - np.mean(originpos[sc], axis = 0))#*np.random.uniform(0.75,1.25)
+                a.set_positions(originpos)
+                
+                ith =0
+                while ith < len(a)-1:
+                    dises = a.get_distances(ith, range(ith+1, len(a))) 
+                    to_merge = [i+ith+1 for i in range(len(dises)) if dises[i] < self.p.dRatio*(covalent_radii[a[ith].number]+covalent_radii[a[i+ith+1].number])]
+                    if len(to_merge):
+                        lucky_index = np.random.choice(to_merge)
+                        newpos = (a[ith].position + a[lucky_index].position)/2
+                        a[lucky_index].position = newpos
+                        del a[ith]
+                    else:
+                        ith +=1
+
+                if super().repair_atoms():
+                    return True
+                else:
+                    self.atoms = oldatoms.copy()
+            logging.debug("repair_atoms failed...")
+            self.atoms = None 
+            return False

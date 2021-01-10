@@ -525,6 +525,8 @@ class VaspCalculator(ABinitCalculator):
         self.p.ppLabel = parameters.ppLabel if hasattr(parameters,'ppLabel') \
             else['' for _ in parameters.symbols]
         self.p.setup = dict(zip(self.p.symbols, self.p.ppLabel))
+        #cannot be True or False here, else it would be str'True' or 'False' in runscripts/runvasp.
+        self.p.ignore_constraints = 1 if self.p.ignore_constraints else 0
 
     def scf_serial(self,calcPop):
         self.cdcalcFold()
@@ -595,11 +597,11 @@ class OrcaCalculator(ABinitCalculator):
         elif self.p.mode == 'parallel':
             if self.p.calcNum == 0:
                 with open('orcablock_0', 'a') as blocks:
-                    blocks.write("%pal nprocs "+self.p.numCore+"\n\tend\n")
+                    blocks.write("%pal nprocs "+str(self.p.numCore)+"\n\tend\n")
             else:
                 for i in range(1, self.p.calcNum+1):
                     with open('orcablock_{}'.format(i), 'a') as blocks:
-                        blocks.write("%pal nprocs "+self.p.numCore+"\n\tend\n")
+                        blocks.write("%pal nprocs "+str(self.p.numCore)+"\n\tend\n")
            
     def scf_serial(self,calcPop):
         self.cdcalcFold()

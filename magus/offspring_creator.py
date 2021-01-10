@@ -297,6 +297,32 @@ class SlipMutation(Mutation):
 
         return ind(atoms)
 
+class LyrSlipMutation(Mutation):
+    def __init__(self, cut=0.2, randRange=[0, 1],tryNum=10):
+        self.cut = cut
+        self.randRange = randRange
+        super().__init__(tryNum=tryNum)
+        import math
+        
+    def mutate(self, ind):
+        """
+        slip of one layer.
+        """
+        cut = self.cut
+        atoms = ind.atoms.copy()
+        from .reconstruct import LayerIdentifier
+        layers = LayerIdentifier(atoms, prec = self.cut)
+        chosenlayer = layers[np.random.choice(len(layers))]
+        direction = np.random.uniform(0,2*math.pi)
+        trans = [math.cos(direction), math.sin(direction),0]
+
+        pos = atoms.get_positions().copy()
+        pos[chosenlayer, :] += np.dot(np.array(trans)*np.random.uniform(*self.randRange), atoms.get_cell())
+
+        atoms.set_positions(pos)
+        atoms.wrap()
+        return ind(atoms)
+
 class RippleMutation(Mutation):
     def __init__(self, rho=0.3, mu=2, eta=1,tryNum=10):
         self.rho = rho

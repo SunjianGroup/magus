@@ -358,6 +358,32 @@ class fixatoms(FixAtoms):
         pass
 
 
+from sklearn import cluster
+def LayerIdentifier(ind, prec = 0.2, n_clusters = 4):    
+    """
+    clustering by position[z]
+    """
+    pos = ind.get_scaled_positions()[:,2].copy()
+    pos = np.array([[p,0] for p in pos])
+    n, layers, kmeans = n_clusters, [], None
+
+    for n in range(n_clusters, 1, -1):
+        kmeans = cluster.KMeans(n_clusters=n).fit(pos)
+        centers = kmeans.cluster_centers_.copy()[:,0]
+        centers.sort()
+        for i in range(1,len(centers)):
+            if centers[i] - centers[i-1] < prec:
+                break
+        else:
+            break
+
+    layers = [ [] for i in range(n)]
+    labels = kmeans.labels_
+    for i, a in enumerate(labels):
+        layers[a].append(i)
+
+    return layers
+    
 if __name__ == '__main__':
     t=reconstruct(0.8, ase.io.read("POSCAR_3.vasp",format='vasp'), 0.8,2 )
     t.reconstr()
