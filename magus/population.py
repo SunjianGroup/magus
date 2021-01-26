@@ -227,9 +227,8 @@ class Population:
     def addbulk_relaxable_vacuum(self):
         self.pop = list(map(lambda ind:ind.addbulk_relaxable_vacuum(), self.pop))  
 
-    def reset_center(self):
-        self.pop = list(map(lambda ind:ind.reset_center(), self.pop))  
-
+    def randrotate(self):
+        self.pop = list(map(lambda ind:ind.randrotate(), self.pop))  
     def select(self,n):
         # self.calc_dominators()
         self.pop = sorted(self.pop, key=lambda x:x.info['dominators'])
@@ -1048,9 +1047,20 @@ class ClusInd(FixInd):
         newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
         newind.info['fitness'] = {}
         return newind
-
+    def randrotate(self, atoms = None):
+        newind=self.copy()
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        theta = np.random.uniform(0,2*np.pi)
+        phi = np.random.uniform(0,np.pi)
+        angle = np.random.uniform(0,180)
+        a.rotate(angle, v=[np.sin(phi)*np.cos(theta), np.sin(phi)*np.sin(theta), np.cos(phi)], center='COU', rotate_cell=False)
+        a = self.reset_center(a)
+        newind.atoms = a
+        return newind
     
-
     def reset_center(self, atoms = None):
         if atoms is None:
             a = self.atoms.copy()
@@ -1076,8 +1086,8 @@ class ClusInd(FixInd):
         self.volRatio = cell[0]*cell[1]*cell[2]/self.get_ball_volume()
         return self.volRatio
 
-    def _connecty_(self,atoms):
-        cutOff = np.array(neighborlist.natural_cutoffs(atoms))*1.8
+    def _connecty_(self,atoms, cut = 1.0):
+        cutOff = np.array(neighborlist.natural_cutoffs(atoms))*cut
         neighborList = neighborlist.NeighborList(cutOff, self_interaction=False, bothways=True)
         neighborList.update(atoms)
         matrix = neighborList.get_connectivity_matrix()
@@ -1090,8 +1100,13 @@ class ClusInd(FixInd):
             a = atoms.copy()
         check_connection = self.check_connection(a)
         if not check_connection:
-            logging.debug("Fail in check_connection >_< cluster origin '{}'".format(self.atoms.info['origin']))
-        return super().check(atoms) and check_connection
+            logging.debug("Fail in check_connection >_< cluster origin '{}'".format(self.atoms.info['origin'] if 'origin' in self.atoms.info else 'Unknown'))
+        check_energy = True
+        if 'energy' in a.info:
+            check_energy = (a.info['energy'] != 10000) 
+            if not check_energy:
+                logging.debug("Fail in check_energy for energy = 10000")
+        return super().check(atoms) and check_connection and check_energy
 
     def check_connection(self,atoms=None):
         if atoms is None:

@@ -1259,6 +1259,7 @@ def calc_orca(calcNum, calcPop, pressure, exeCmd):
             if ind:
                 optPop.append(ind)
                 shutil.copy('orca.out', "orca_out-{}-{}".format(n, i))
+                shutil.copy('orca.engrad', "orca_engrad-{}-{}".format(n, i))
             else:
                 logging.warning("fail in orca relax")
     return optPop

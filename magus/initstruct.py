@@ -12,7 +12,7 @@ from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
 from .utils import *
-from .reconstruct import reconstruct, cutcell
+from .reconstruct import reconstruct, cutcell, match_symmetry
 from .population import RcsInd
 import math
 
@@ -478,20 +478,20 @@ class ReconstructGenerator():
         else:
             return label, None
 
-    def rand_displacement(self, extraind, bottomind, trynum = 50):
-        for _ in range(0,trynum):
-            _extra_ = extraind.copy()
-            _dire_ = np.random.uniform(0,2*math.pi)
-            _dis_ = np.dot(np.array([math.cos(_dire_), math.sin(_dire_),0])*np.random.uniform(0,0.2), _extra_.get_cell())
-            
-            _extra_.translate([_dis_]*len(_extra_))
-            _extra_ += bottomind
-            if spglib.get_spacegroup(_extra_, symprec = 0.2) !='P1 (1)':
-                extraind.translate([_dis_]*len(extraind))
-                return extraind
-        else:
-            extraind.translate([_dis_]*len(extraind))
-            return extraind
+    def rand_displacement(self, extraind, bottomind, trynum = 1): 
+        rots = []
+        trs = []
+        for ind in list([bottomind, extraind]):
+            sym = spglib.get_symmetry_dataset(ind,symprec=0.2)
+            rots.append(sym['rotations'])
+            trs.append(sym['translations'])
+
+        _dis_, rot = match_symmetry(*zip(rots, trs)).get() 
+        _dis_[2] = 0
+        _dis_ = np.dot(-_dis_, extraind.get_cell())
+
+        extraind.translate([_dis_]*len(extraind))
+        return extraind
 
     def reset_generator_lattice(self, _x, _y):
         self.rcs_generator.p.minLattice[0] = self.reflattice[0]*_x
@@ -510,21 +510,19 @@ class ReconstructGenerator():
 
             ind = self.ref * (_x , _y, 1)
             add, rm = self.ind.AtomToModify()
-
+            
             if rm:
-                eq_at = dict(zip(range(len(ind)), get_symmetry_dataset(ind,1e-2)['equivalent_atoms']))
-                to_del = []
                 for symbol in rm:
                     while rm[symbol] > 0:
+                        eq_at = dict(zip(range(len(ind)), get_symmetry_dataset(ind,1e-2)['equivalent_atoms']))
                         indices = [atom.index for atom in ind if atom.symbol == symbol]
                         lucky_atom_to_rm = eq_at[np.random.choice(indices)]
                         eq_ats_with_him = np.array([i for i in eq_at if eq_at[i] == lucky_atom_to_rm])
                         size = np.random.choice(range(1,np.min([rm[symbol] , len(eq_ats_with_him)])+1))
                         _to_del = np.random.choice(eq_ats_with_him, size =size, replace=False)
-                        _to_del = [i for i in _to_del if i not in to_del]
-                        to_del .extend(_to_del)
                         rm[symbol] -= len(_to_del)
-                del ind[to_del]
+                        del ind[_to_del]
+            
 
             if add:
                 numlist = np.array([add[s] for s in self.rcs_generator.p.symbols])
@@ -539,7 +537,9 @@ class ReconstructGenerator():
                     extraind.set_cell(ind.get_cell().copy(), scale_atoms=True)
                     dis = np.max(ind.get_scaled_positions()[:,2]) - np.min(extraind.get_scaled_positions()[:,2]) + (np.random.choice(range(5,20))/100)
                     extraind.translate([dis * ind.get_cell()[2] ]*len(extraind))
-                    extraind = self.rand_displacement(extraind, ind + (self.layerslices[0] + self.layerslices[1]) * (_x , _y, 1))
+                    ind.info['size'] = [_x, _y]
+                    bottom = self.ind(ind)
+                    extraind = self.rand_displacement(extraind, bottom.addbulk_relaxable_vacuum().atoms)
                     ind += extraind
                 else:
                     tryNum+=1
@@ -587,7 +587,11 @@ class ReconstructGenerator():
                 layerbottom = np.min(layer_vertical_dis)
 
                 ind.translate([ ref.get_cell()[2]*distance-ind.get_cell()[2]*layerbottom ]*len(ind))
-                ind = self.rand_displacement(ind, (self.layerslices[0] + self.layerslices[1]) * (_x , _y, 1))
+                _bot_ = (self.layerslices[1] * (_x, _y, 1)).copy()
+                _bot_.info['size'] = [_x, _y]
+                _bot_ = self.ind(_bot_)
+               
+                ind = self.rand_displacement(ind,  _bot_.addextralayer('bulk').addvacuum(add = 1).atoms)
                 self.afterprocessing(ind,nfm,'rand.symmgen', [_x, _y])
                 ind= self.ind(ind)
                 ind = ind.addbulk_relaxable_vacuum()

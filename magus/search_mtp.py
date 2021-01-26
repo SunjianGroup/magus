@@ -69,6 +69,7 @@ class Magus:
         logging.info("initPop length: {}".format(len(initPop)))
         seedPop = self.read_seeds(self.curgen)
         initPop.extend(seedPop)
+        initPop.check()
         initPop.save('initPop', self.curgen)
 
         # select to add
@@ -88,7 +89,7 @@ class Magus:
 
         scfpop = self.MainCalculator.scf(selectPop.frames)
         scfPop = self.Population(scfpop,'scfPop',self.curgen)
-        scfPop.check()
+        #scfPop.check()
         scfPop.del_duplicate()
         scfPop.save('scfPop', self.curgen)
 
@@ -160,6 +161,7 @@ class Magus:
         if self.parameters.chkSeed:
             seedPop.check()
         initPop.extend(seedPop)
+        initPop.check()
         #initPop.del_duplicate()
         # Save Initial
         initPop.save()

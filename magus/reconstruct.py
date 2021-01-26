@@ -5,6 +5,7 @@ import spglib as spg
 from ase.data import atomic_numbers, covalent_radii
 from .utils import sort_elements
 import logging
+import copy
 
 def str_(l):
     l=str(l)
@@ -29,7 +30,7 @@ class move:
         self.info.WritePoscar()
         '''
         for i in range(self.info.resultsize):
-            print(self.info.GetPosition(i))
+            #print(self.info.GetPosition(i))
         '''
         return
 
@@ -38,7 +39,7 @@ class move:
         self.info.WritePoscar()
         '''
         for i in range(self.info.resultsize):
-            print(self.info.GetPosition(i))
+            #print(self.info.GetPosition(i))
         '''
         return label
 
@@ -140,25 +141,36 @@ class reconstruct:
         f.close()
         return
 
-def InCell(pos):
-    for i in range(3):
-        if pos[i]>=1 or pos[i]<0:
-            return False 
-    return True
+class resetLattice:
+    def __init__(self, atoms=None):
+        if atoms:
+            #1. build a very large supercell
+            supercell = atoms * (8, 8, 8)
+            supercell.translate( [ -3*np.sum(atoms.get_cell(), axis=0)] *len(supercell))
+            self.supercell = supercell
+    
+    def InCell(self, pos):
+        for i in range(3):
+            if pos[i]>=1 or pos[i]<0:
+                return False 
+        return True
 
-def norm(vec):
-    if vec[0]<1e-4 and vec[1]<1e-4 and vec[2]<1e-4:
-        return -vec 
-    return vec
-def refinepos(pos):
-    for i in range(len(pos)):
-        for j in range(3):
-            if abs(pos[i][j]-1)< 1e-4:
-                pos[i][j] = 1        
-            if abs(pos[i][j])<1e-4:
-                pos[i][j]=0
-    return pos
+    def refinepos(self, pos):
+        for i in range(len(pos)):
+            for j in range(3):
+                if abs(pos[i][j]-1)< 1e-4:
+                    pos[i][j] = 1        
+                if abs(pos[i][j])<1e-4:
+                    pos[i][j]=0
+        return pos
 
+    def get(self, newcell):
+        supercell = self.supercell
+        supercell.set_cell(newcell)
+        pos =supercell.get_scaled_positions(wrap=False).copy()
+        pos = self.refinepos(pos)        
+        index = [i for i in range(len(pos)) if self.InCell(pos[i])==True]
+        return supercell[index].copy()
 
 class cutcell:
     def __init__(self,originstruct, totslices, layernums, startpos = 0.9, direction=[0,0,1], rotate = 0):
@@ -174,10 +186,6 @@ class cutcell:
 
         #TODO: add rotate
         
-        #1. build a very large supercell
-        supercell = atoms * (6, 6, 6)
-        supercell.translate( [ -2*np.sum(atoms.get_cell(), axis=0)] *len(supercell))
-
         #2. get surface of conventional cell
         rx, ry, rz = direction[0], direction[1], direction[2]            
             
@@ -199,50 +207,31 @@ class cutcell:
         newcell.append(newcell_c)
         newcell = np.array(newcell)            
         newcell = np.dot(newcell, atoms.get_cell())
-        supercell.translate([-0.5*np.sum(newcell, axis=0)]*len(supercell))
-        supercell.set_cell(newcell)
-        pos =supercell.get_scaled_positions(wrap=False).copy()
-        pos = refinepos(pos)
         
         #3. get primitive surface vector
-        index = [i for i in range(len(supercell)) if (InCell(pos[i]) and pos[i][2]<1.0/totslices-0.05)]
-        layer = supercell[index]
-        surface_vector = spg.get_symmetry_dataset(layer,symprec = 1e-4)['primitive_lattice']
-        #4. get surface cell!
-        supercell.set_cell(surface_vector)
-        pos =supercell.get_scaled_positions(wrap=False).copy()
-        pos = refinepos(pos)
+        layer = newcell.copy()
+        layer[2] = layer[2]/totslices * 0.5
 
-        index = [i for i in range(len(pos)) if InCell(pos[i])==True]
-        
-        atoms = supercell[index].copy()
-            
-        #rotate cellparm a to axis x
-        atoms.rotate(atoms.get_cell()[0], [1,0,0],rotate_cell=True)
-        #atoms.rotate(atoms.get_cell()[2], [0,0,1],rotate_cell=True)
-        '''may cause errs
-        stdcell = atoms.get_cell().copy()
-        stdcell[2] = norm(stdcell[2])
-        atoms.set_cell(stdcell, scale_atoms=True)
-        '''
-    
-        originatoms = atoms.copy()
+        #TODO: slice layers with LayerIdentifier
+
+        supercell = resetLattice(atoms)
+        layer = supercell.get(layer)
+        layer.set_cell(newcell)
+        surface_vector = spg.get_symmetry_dataset(layer,symprec = 1e-4)['primitive_lattice']
+
+        #4. get surface cell!
 
         #5. expand unit surface cell on z direction
         bot, mid, top = layernums[0], layernums[1], layernums[2]
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
-        slicepos = list( slicepos + np.array([startpos]*4))
+        slicepos = slicepos + np.array([startpos]*4)
         logging.info("cutslice = {}".format(slicepos))       
 
         rcs_z = int(slicepos[-1])+1
-        
-        for z in range(1, rcs_z):
-            atoms_tmp=originatoms.copy()
-            trans=[originatoms.get_cell()[2]*z]*len(atoms_tmp)
-            atoms_tmp.translate(trans)
-            atoms+=atoms_tmp
+        surface_vector[2] = newcell[2]*rcs_z
+        slicepos = slicepos/rcs_z
+        atoms = supercell.get(surface_vector)
         originatoms = atoms.copy()
-
         #6. build bulk, relaxable, rcs layer slices 
         
         pop= []
@@ -264,7 +253,7 @@ class cutcell:
             atoms.set_cell(cell)
 
             pos = atoms.get_scaled_positions(wrap=False).copy()
-            pos = refinepos(pos)
+            pos = resetLattice().refinepos(pos)
             index=[]
             for atom in atoms:
                 if pos[atom.index][2]>=0 and pos[atom.index][2]<1 :
@@ -383,7 +372,191 @@ def LayerIdentifier(ind, prec = 0.2, n_clusters = 4):
         layers[a].append(i)
 
     return layers
+
+
+
+class match_symmetry:
+    """
+    For two slices with symmetry: 
+    R*x1 + T1 = x11;  (slice 1)
+    R*x2 + T2 = x22;  (slice 2), which (x1, x11) are equivalent atoms and (x2, x22) are equivalent atoms, 
+    suppose we translate slice 2 for distance xT to match its symmetry with slice 1, namely x2 = x1 + xT ; R*(x1 + xT) + T2 = x11 + xT
+    and we get
+    (R - I) *xT = T1 - T2               (*1)
+    sometimes for slice 1 and slice 2,  
+    R1*x1 + T1 = x11;  (slice 1)
+    R2*x2 + T2 = x22;  (slice 2)
+    another transform matrix Tr is need to transform R2 to R1; 
+        for example, if slice1 has x_z plane as mirror plane [R1 = [1,0,0], [0,-1,0],[0,0,1] ]
+        and slice2 has y_z plane as mirror plane [R2 = [-1,0,0],[0,1,0],[0,0,1] ]
+        and the transform matrix of R2 to R1 satisfies Tr*R2 = R1.
+    in that case, a rotation of crystal and reset the basis are needed. 
     
+    """
+    def __init__(self, sym1 = (None,None), sym2 = (None, None)):
+        self.sgm = []
+        self.sortedranks = []
+        
+        sym1, sym2 = self.removetransym(sym1), self.removetransym(sym2)
+        self.r1, self.t1 = sym1
+        self.r2, self.t2 = sym2
+                    
+        for i, r1 in enumerate(self.r1):
+            for j, r2 in enumerate(self.r2):
+                #label, trans = self.issametype(r1, r2)
+                label = (r1 == r2).all()
+                trans = np.eye(3)
+                if label:
+                    self.sgm.append((r1 - np.eye(3), self.t1[i]- np.dot(self.t2[j], trans), trans))
+        
+        #sgm: list of tuples of (R-I, T1-T2, Tr)
+        self.sortrank()
+
+    def removetransym(self, sym):
+        #to remove simple translate symmetry. For cells generate by subcell* (_x, _y, _z) 
+        #    and some translation symmerty in spacegroup.
+        
+        #1. remove simple R=I matrix
+        transymmeryDB = []
+        rot, tr = sym
+
+        index = np.where( ((rot ==np.eye(3)).all(axis = 1)).all(axis = 1)  ==True) [0]
+        if len(index) >1:
+            #assert np.allclose(tr[0], np.array([0,0,0]), rtol=0, atol=0.01) == True 'first translation matrix must be [0,0,0]'
+            transymmeryDB = (tr[index])[1:] - (tr[index])[0]
+            transymmeryDB = np.array([tt - int(tt) if tt >= 0 else tt - int(tt) + 1 for _i_ in range(len(transymmeryDB)) for tt in list(transymmeryDB[_i_])])
+            transymmeryDB = np.reshape(transymmeryDB, (-1,3))
+
+        
+        keep = [i for i in range(len(rot)) if i not in list(index)]
+        rot, tr = rot[keep], tr[keep]
+
+        if len(index)  == 1:
+            return rot, tr
+        
+        #2. remove R+T symmetry couldn't obtained by re-set of axis to be R
+
+        keep = [i for i in range(len(rot)) if np.linalg.matrix_rank(rot[i] - np.eye(3)) >= np.linalg.matrix_rank(np.c_[rot[i] - np.eye(3),tr[i]])]
+
+        rot, tr = rot[keep], tr[keep]
+
+        #3. choose a lucky r to represent all of the equivalent r.
+        uniquer, uniquei = np.unique(rot, axis=0, return_index=True)
+
+        if len(uniquer) == len(rot):
+            return rot, tr
+
+        to_del = []
+        for j, r in (zip(uniquei, uniquer)):
+            _to_del = np.where((r == rot).all(axis = 1).all(axis = 1))[0]
+            for d in _to_del:
+                if d==j :
+                    continue
+                t = tr[j] - tr[d]
+                t = np.array([tt - int(tt) if tt >= 0 else tt - int(tt) + 1 for tt in list(t)])
+                if np.array([np.allclose(db, t, rtol=0, atol=0.01) for db in transymmeryDB]).any() ==True:
+                    to_del.append(d)
+
+        keep = [i for i in range(len(rot)) if i not in to_del] 
+
+        return rot[keep], tr[keep]    
+
+    def issametype(self, r1, r2):
+        if (r1 == np.eye(3)).all():
+            return (False, None)
+        if (r2 == np.eye(3)).all():
+            return (False, None)
+        r = np.dot(r1, np.linalg.inv(r2))
+        return (True, r) if np.linalg.det(r) ==1 and (r[2] == np.array([0,0,1])).all() else (False, None)
+
+    def sortrank(self):
+        sgm = self.sgm
+        ranks = [np.linalg.matrix_rank(r) for r, _, _ in sgm]
+
+        for i,rank in enumerate(ranks):
+            rot, _, _ = sgm[i]
+            if rank == 3:
+                ranks[i] = sgm[i] + (rank, list(range(0,3)))
+            else:
+                axis = np.array([0,1,2])
+                for a in axis:
+                    r = np.eye(3)
+                    sureindex = np.where(axis!=a)[0] if rank ==2 else np.array([a])
+
+                    r [sureindex] = rot[sureindex]
+                    if not np.linalg.det(r) ==0:
+                        ranks[i] = sgm[i] + (rank, sureindex) if isinstance(ranks[i], np.int64) else ranks[i] + (sureindex, )
+
+        #ranks: list of tuples of (R-I, T1-T2, Tr, rank(R-I), sureindexA, sureindexB...) in which [0:3] are a copy of self.sgm
+        #sortedranks is a 2D list to sort "ranks" with rank(R-I). The first dimention stands for the rank, 
+        #    for example, sortedranks[0] always has no contents, for no matrix's rank is 0 in our situation; 
+        #    all members in ranks with the third item == 1 are placed in sortedranks[1], etc.
+        #Why for this: 
+        #    We can't directly solve equation (*1) with numpy, for rank(R-I) in most case is lower than 3.
+        #    Consider the same example in the intro, a slice with x_z plane as mirror plane [R1 = [1,0,0], [0,-1,0],[0,0,1] ]
+        #    and R-I = [0,0,0], [0,-2,0],[0,0,0], (rank = 1), which means the slice can move freely along x, z axis without breaking its symmetry.
+        #    we need to know which "index" is free in R-I leading to the zero rank, i.e. not "sureindex".
+        #    Then we try to get a combination of R-I s if there are more than one R matrix for slice 1 and 2,
+        #    get more "sureindex" and minimum the freedom of xT for a higher symmetry.
+        #    Why for sureindexA, sureindexB... :
+        #        sometimes we could only know the constraint is x=y rather than make sure one of them. 
+        #        Consider if the normal vector of the mirror plane is [1,-1,0], and we could say the sureindex could be x or y. 
+
+        trs = np.array([x[3] for x in ranks])
+        for rank in range(0,4):
+            index = np.where(trs == rank)[0]
+            self.sortedranks.append([ranks[i] for i in index])
+        
+        self.availrank = [rank for rank in range(0,4) if len(self.sortedranks[rank])]
+        return 
+    
+    def getachoice(self, trynum = 5):
+        availrank = self.availrank.copy()
+        nowrank = 0
+        choice = []
+        rotmatrix = []
+
+        for _ in range(0,trynum):
+            nowrank = 0
+            choice = []
+            nowindex = []
+            for _ in range(0,trynum):
+                r = np.random.choice(availrank)
+                c = np.random.choice(range(0, len(self.sortedranks[r])))
+                if len(rotmatrix):
+                    if not (rotmatrix == self.sortedranks[r][c][2]).all():
+                        continue
+                else:
+                    rotmatrix = self.sortedranks[r][c][2]
+                index = [j for i, j in enumerate(self.sortedranks[r][c]) if i >=4]
+                for i in index:
+                    _index_ = list(nowindex) + list(i)
+                    if len(_index_) == len(list(set(_index_))):
+                        
+                        nowrank += r
+                        availrank = [rank for rank in availrank if rank <= 3-nowrank]
+                        nowindex.extend(i)
+                        choice.append(self.sortedranks[r][c][0:3] + (i, ))
+                        if nowrank ==3 or len(availrank) == 0 :
+                            return (True, choice)
+        return (True, choice) if len(choice) else (False, None)    
+    
+    def get(self):
+
+        if len(self.sgm) == 0:
+            pass
+        else:
+            label, choice = self.getachoice()
+            if label:
+                trans = np.zeros(3)
+                #trans = np.random.uniform(0,1,size=3)
+                for c in choice:
+                    index = c[3]
+                    trans[index] = np.dot(np.linalg.inv(c[0][index][:,index]), c[1][index])
+                return trans, choice[0][2]
+                
+        return (np.array([np.random.uniform(0,1), np.random.uniform(0,1),0]), np.eye(3))
+
 if __name__ == '__main__':
     t=reconstruct(0.8, ase.io.read("POSCAR_3.vasp",format='vasp'), 0.8,2 )
     t.reconstr()
