@@ -356,8 +356,8 @@ def read_ref(bulkFile):
 class ReconstructGenerator():
     def __init__(self,parameters):
         para_t = EmptyClass()
-        Requirement=['layerfile','cutslices']
-        Default={'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'startpos': 0.9,
+        Requirement=['layerfile']
+        Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'startpos': 0.9,
         'rcs_x':[1], 'rcs_y':[1], 'SymbolsToAdd': None, 'AtomsToAdd': None, 'direction': None, 'rotate': 0,
         'dimension':2, 'choice':0 }
 
@@ -367,6 +367,7 @@ class ReconstructGenerator():
             logging.info("Used layerslices in Ref.")
             pass
         else:
+            os.mkdir('Ref')
             ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
 
         
@@ -376,7 +377,7 @@ class ReconstructGenerator():
         else:
             originatoms = ase.io.read(para_t.layerfile)
             layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
-            cutcell(originatoms, para_t.cutslices, layernums, para_t.startpos, para_t.direction, para_t.rotate)
+            cutcell(originatoms, layernums, totslices = para_t.cutslices, direction= para_t.direction,rotate = para_t.rotate)
 
         #layer split ends here    
 

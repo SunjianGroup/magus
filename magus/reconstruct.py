@@ -173,11 +173,11 @@ class resetLattice:
         return supercell[index].copy()
 
 class cutcell:
-    def __init__(self,originstruct, totslices, layernums, startpos = 0.9, direction=[0,0,1], rotate = 0):
+    def __init__(self,originstruct, layernums, totslices= None, direction=[0,0,1], rotate = 0):
         """
-        totslices: layer number of originstruct
+        [auto, but be given is strongly suggested] totslices: layer number of originstruct
         layernums: layer number of [bulk, relaxable, rcs_region]
-        startpos:  start position of bulk layer, default =0.9 to keep atoms which are very close to z=1(0?)s.
+        [*aborted] startpos:  start position of bulk layer, default =0.9 to keep atoms which are very close to z=1(0?)s.
         direction: miller indices
         rotate: [not implied yet] angle of R.
         """
@@ -208,16 +208,33 @@ class cutcell:
         newcell = np.array(newcell)            
         newcell = np.dot(newcell, atoms.get_cell())
         
-        #3. get primitive surface vector
-        layer = newcell.copy()
-        layer[2] = layer[2]/totslices * 0.5
-
-        #TODO: slice layers with LayerIdentifier
-
+        #3. get primitive surface vector and startpos
         supercell = resetLattice(atoms)
-        layer = supercell.get(layer)
-        layer.set_cell(newcell)
-        surface_vector = spg.get_symmetry_dataset(layer,symprec = 1e-4)['primitive_lattice']
+        newlattice = supercell.get(newcell)
+        allayers = None
+        if totslices is None:
+            for totslices in range(8, 1,-1):
+                try:
+                    allayers = LayerIdentifier(newlattice, prec = 0.5/totslices, n_clusters = totslices +1, lprec = 0.4/totslices)
+                    if len(allayers) == totslices or len(allayers) == totslices+1:
+                        break
+                except:
+                    pass
+            logging.warning("Number of total layers is not given. Used auto-detected value {}.".format(totslices))
+        else:
+            allayers = LayerIdentifier(newlattice, prec = 0.5/totslices, n_clusters = totslices +1, lprec = 0.4/totslices)
+
+        onelayer = newlattice[allayers[0]]
+        startpos = np.max(newlattice.get_scaled_positions()[:,2]) + 0.1 
+        startpos = startpos - int(startpos)
+
+        if len(allayers) == totslices + 1:
+
+            onelayer = newlattice[allayers[1]]
+            startpos = np.max(newlattice[allayers[-2]].get_scaled_positions()[:,2]) + 0.1
+            startpos = startpos - int(startpos)
+
+        surface_vector = spg.get_symmetry_dataset(onelayer,symprec = 1e-4)['primitive_lattice']
 
         #4. get surface cell!
 
@@ -225,7 +242,7 @@ class cutcell:
         bot, mid, top = layernums[0], layernums[1], layernums[2]
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
         slicepos = slicepos + np.array([startpos]*4)
-        logging.info("cutslice = {}".format(slicepos))       
+        logging.info("cutslice = {}".format(slicepos)) 
 
         rcs_z = int(slicepos[-1])+1
         surface_vector[2] = newcell[2]*rcs_z
@@ -348,7 +365,7 @@ class fixatoms(FixAtoms):
 
 
 from sklearn import cluster
-def LayerIdentifier(ind, prec = 0.2, n_clusters = 4):    
+def LayerIdentifier(ind, prec = 0.2, n_clusters = 4, lprec = 0.05):    
     """
     clustering by position[z]
     """
@@ -359,17 +376,25 @@ def LayerIdentifier(ind, prec = 0.2, n_clusters = 4):
     for n in range(n_clusters, 1, -1):
         kmeans = cluster.KMeans(n_clusters=n).fit(pos)
         centers = kmeans.cluster_centers_.copy()[:,0]
-        centers.sort()
+        centers = [(centers[i], i) for i in range(len(centers))]
+        centers.sort(key = lambda c:c[0])
+        layerid = {j[1]: i for (i,j) in enumerate(centers)}
+
         for i in range(1,len(centers)):
-            if centers[i] - centers[i-1] < prec:
+            if centers[i][0] - centers[i-1][0] < prec:
                 break
         else:
-            break
-
-    layers = [ [] for i in range(n)]
-    labels = kmeans.labels_
-    for i, a in enumerate(labels):
-        layers[a].append(i)
+            layers = [ [] for i in range(n)]
+            labels = kmeans.labels_
+            for i, a in enumerate(labels):
+                layers[layerid[a]].append(i)
+            for i in range(1, n):
+                if np.min(pos[layers[i], 0]) - np.max(pos[layers[i-1], 0]) < lprec:
+                    break
+            else:
+                break
+    else:
+        layers = [list(range(len(ind)))]
 
     return layers
 
