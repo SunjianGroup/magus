@@ -39,6 +39,7 @@ class MTPCalculator(Calculator):
                 pass
             with open('{}/datapool.cfg'.format(self.mlDir), 'w') as f:
                 pass
+        self.scf_num = 0
 
     def init_train(self):
         nowpath = os.getcwd()
@@ -141,6 +142,7 @@ class MTPCalculator(Calculator):
         currdir = os.getcwd()
         to_scf = load_cfg("C-selected.cfg", self.type_to_symbol)
         logging.info('\tstep 04: {} DFT scf need to be calculated'.format(len(to_scf)))
+        self.scf_num += len(to_scf)
         scfpop = self.query_calculator.scf(to_scf)
         os.chdir(currdir)
         dump_cfg(scfpop, "D-computed.cfg", self.symbol_to_type)
@@ -171,7 +173,8 @@ class MTPCalculator(Calculator):
         self.J.WaitJobsDone(self.p.waitTime)
         self.J.clear()
 
-    def relax(self, calcPop, max_epoch=50):
+    def relax(self, calcPop, max_epoch=20):
+        self.scf_num = 0
         # remain info
         for i, atoms in enumerate(calcPop):
             atoms.info['identification'] = i
@@ -212,8 +215,11 @@ class MTPCalculator(Calculator):
             self.get_train_set()
             # 05: train
             self.train()
+            shutil.copy("pot.mtp", "{}/pot.mtp".format(self.mlDir))
+            shutil.copy("train.cfg", "{}/train.cfg".format(self.mlDir))
         else:
             logging.info('\tbu hao ye, some relax failed')
+        logging.info('{} DFT scf calculated'.format(self.scf_num))
         shutil.copy("pot.mtp", "{}/pot.mtp".format(self.mlDir))
         shutil.copy("train.cfg", "{}/train.cfg".format(self.mlDir))
         relaxpop = load_cfg("relaxed.cfg", self.type_to_symbol)
@@ -251,18 +257,42 @@ class MTPCalculator(Calculator):
 
 
 #TODO: 
-# make MTPCalculator more modular
-class TwostageMTPCalculator(MTPCalculator):
+# make MTPCalculator more                                                                                                                                                    
+class TwostageMTPCalculator(Calculator):
     def __init__(self, query_calculator, parameters):
-        super().__init__(query_calculator, parameters)
+        self.mtp1 = MTPCalculator(query_calculator, 'robust', parameters)
+        self.mtp2 = MTPCalculator(query_calculator, 'accurate', parameters)
+        if not hasattr(self, 'p'):
+            self.p = EmptyClass()
+        self.mlDir = self.mtp1.mlDir
+        self.symbol_to_type = self.mtp1.symbol_to_type
+        self.type_to_symbol = self.mtp1.type_to_symbol
+        self.p.robust_mtp = self.mtp1.p
+        self.p.accurate_mtp = self.mtp2.p
         self.max_enthalpy = 0.
 
     def update_threshold(self, enthalpy):
         self.max_enthalpy = enthalpy
 
     def relax(self, calcPop):
-        relaxpop = super().relax(calcPop, level='_robust')
-        selectpop = [atoms for atoms in relaxpop if atoms.info['enthalpy'] < self.max_enthalpy]
-        relaxpop = super().relax(selectpop, level='_accurate')
+        relaxpop = self.mtp1.relax(calcPop)
+        selectpop = relaxpop
+        # selectpop = [atoms for atoms in relaxpop if atoms.info['enthalpy'] < self.max_enthalpy]
+        relaxpop = self.mtp2.relax(selectpop)
         return relaxpop
 
+    def scf(self, calcPop, level='accurate'):
+        if level == 'robust':
+            scfpop = self.mtp1.scf(calcPop)
+        elif level == 'accurate':
+            scfpop = self.mtp2.scf(calcPop)
+        return scfpop
+    
+    def updatedataset(self, frames):                                                                                        
+        self.mtp1.updatedataset(frames)
+
+    def get_loss(self, frames):
+        return self.mtp2.get_loss(frames)
+
+    def init_train(self):
+        self.mtp1.init_train()

@@ -19,7 +19,7 @@
 ### 可选项
 - xtb （当前使用的为6.3版本）
 - pytorch
-
+- mtp
 
 
 ### 安装过程
@@ -86,8 +86,6 @@
       ```
       可以参考子项目的的README文件。
       编译生成的`lrpot.so`需要放在`magus/`目录下。
-
-  
 #### 设置ase的vasp接口
 - 建一个`run_vasp.py`:
 
@@ -123,7 +121,12 @@
 
 **注意：`run_vasp.py`和`mypps`不要放在`magus`目录下**
 
+#### 机器学习包安装
 
+- MTP
+  进入`magus/mtp`目录，按其中教程安装。安装时推荐加载mpi环境`ips/2017u2`、`ips/2017u6`或`ips/2018u4`；`ips/2019u5`很不稳定，天天搞节目效果。
+  目前我只试过gcc/7.4.0，推荐使用。其他c++版本未做测试，可能不能稳定运行。
+  最好将`module load ips/201...`、`module load gcc/7.4.0`写入环境变量，否则需要在Preprocessing中写入。
 
 
 
@@ -132,10 +135,24 @@
 - `inputFold/`: 结构优化输入文件的目录，使用VASP时，把INCAR文件保存为`inputFold/INCAR_*`
 - `fpFold/fpsetup.yaml`: 计算结构指纹的设置，一般不用改动
 - `input.yaml`
+#### MTP参数介绍
 
+- mlip0.ini
 
-#### 参数介绍
+  - select:site-en-weight：挑选结构时局部环境描述符权重
+  - select:energy-weight：挑选结构时总环境描述符权重
+  - select:threshold：挑选阈值
+  - select:threshold-break：relax中断阈值
 
+- pot.mtp
+
+  可以从`mtp/mlip-2/untrained_mtps/`中选择不同精度。可调参数：
+
+  - species_count：元素种类数
+  - min_dist：最近距离，可适当调小
+  - radial_basis_size：基函数数量
+
+#### input.yaml参数介绍
 
 - calcType: 计算类型
 
@@ -204,6 +221,27 @@
     - waitTime: 检查结构优化任务的时间间隔(s)
     
     - Preprocessing: 提交计算脚本时前缀，如未将conda环境加入环境变量需要设置
+- MLCalculator 设置了机器学习代理优化的参数，以下是MLCalculator下属的参数，需要缩进：
+
+    - model: 使用方法
+    
+        默认值: `MTP` ， ~~可选：`BayesLR`、`GPR`、`GPR-torch`、`MultiNN`、`NNdNN`~~（都不推荐，效果非常垃圾）
+
+    - numCore: 并行使用的核数
+
+    - queueName: 结构优化任务的队列
+
+    - verbose: bool log中是否显示详细队列信息
+
+    - waitTime: 检查结构优化任务的时间间隔(s)
+
+    - Preprocessing: 提交计算脚本时前缀，如未将conda环境加入环境变量需要设置
+    
+    - ft: 结构优化力收敛判据
+
+    - st: 结构优化应力收敛判据
+    
+    - n_epoch: 训练代数
 
   
 
@@ -234,7 +272,7 @@
 - `good.traj`: 当前最好的`popSize`个结构
 - `best.traj`:  从第一代到当前代每代的最优结构
 
-提取结构信息需要`summary.py`, 运行方式：`summary.py good.traj`
+提取结构信息运行：`magus-summary good.traj`
 
 
 

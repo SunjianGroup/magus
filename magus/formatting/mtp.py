@@ -1,6 +1,8 @@
 import numpy as np
 from ase.atoms import Atoms
 from ase.units import GPa
+from collections import defaultdict
+
 
 def dump_cfg(frames, filename, symbol_to_type, mode='w'):
     with open(filename, mode) as f:
@@ -49,7 +51,6 @@ def dump_cfg(frames, filename, symbol_to_type, mode='w'):
 #TODO 
 # different cell
 # pbc
-
 def load_cfg(filename, type_to_symbol):
     frames = []
     with open(filename) as f:
@@ -58,13 +59,15 @@ def load_cfg(filename, type_to_symbol):
             line = f.readline()
             if 'BEGIN_CFG' in line:
                 cell = np.zeros((3, 3))
-                positions = []
-                symbols = []
 
             if 'Size' in line:
                 line = f.readline()
                 natoms = int(line.split()[0])
-            
+                positions = np.zeros((natoms, 3))
+                forces = np.zeros((natoms, 3))
+                energies = np.zeros(natoms)
+                symbols = ['X'] * natoms
+
             if 'Supercell' in line: 
                 for i in range(3):
                     line = f.readline()
@@ -72,21 +75,25 @@ def load_cfg(filename, type_to_symbol):
                         cell[i, j] = float(line.split()[j])
 
             if 'AtomData' in line:
-                has_force = False
-                if 'fx' in line:
-                    has_force = True
-                    forces = []
-                
+                d = defaultdict(int)
+                for (i, x) in enumerate(line.split()[1:]):
+                    d[x] = i
+
                 for _ in range(natoms):
                     line = f.readline()
                     fields = line.split()
-                    symbols.append(type_to_symbol[int(fields[1])])
-                    positions.append(list(map(float, fields[2: 5])))
-                    if has_force:
-                        forces.append(list(map(float, fields[5: 8])))
+                    i = int(fields[d['id']]) - 1
+                    symbols[i] = type_to_symbol[int(fields[d['type']])]
+                    positions[i] = [float(fields[d[attr]]) for attr in ['cartes_x', 'cartes_y' ,'cartes_z']]
+                    forces[i] = [float(fields[d[attr]]) for attr in ['fx', 'fy' ,'fz']]
+                    energies[i] = float(fields[d['site_en']])
+                    
+                    
                 atoms = Atoms(symbols=symbols, cell=cell, positions=positions, pbc=True)
-                if has_force:
-                    atoms.info['forces'] = np.array(forces)
+                if d['fx'] != 0:
+                    atoms.info['forces'] = forces
+                if d['site_en'] != 0:
+                    atoms.info['energies'] = energies
 
             if 'Energy' in line:
                 line = f.readline()
