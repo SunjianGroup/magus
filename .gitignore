@@ -6,6 +6,7 @@ test/
 .history
 examples/*/*
 !examples/*/inputFold
+examples/*/inputFold/train.cfg
 !examples/*/input.yaml
 !examples/*/job
 !examples/*/runpara

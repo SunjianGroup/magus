@@ -40,6 +40,7 @@ showList = [
 'fullSym',
 #'lengths',
 #'angles',
+'priSym',
 ]
 allRes = []
 
@@ -51,7 +52,9 @@ for i, at in enumerate(images):
     cellpar = cellpar.tolist()
     lengths = cellpar[:3]
     angles = cellpar[3:]
-
+    lattice, scaled_positions, numbers = spg.find_primitive(at, symprec)
+    priAt = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
+    at.info['priSym'] = priAt.get_chemical_formula()
     if savePri:
         priInfo = spg.find_primitive(at, symprec)
         if priInfo:
@@ -79,7 +82,7 @@ for i, at in enumerate(images):
 
     oneRes = list()
 
-    outFeatures = ['volume', 'symmetry', 'angles', 'lengths', 'fullSym']
+    outFeatures = ['volume', 'symmetry', 'angles', 'lengths', 'fullSym','priSym']
 
     for feature in showList:
         if feature in at.info.keys():

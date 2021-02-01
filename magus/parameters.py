@@ -17,7 +17,7 @@ from .machinelearning import *
 from .queuemanage import JobManager
 from .population import Population
 from .fitness import fit_dict
-from .calculators.mtp import MTPCalculator
+from .calculators.mtp import MTPCalculator, TwostageMTPCalculator
 #ML module
 #from .machinelearning import LRmodel
 from .offspring_creator import *
@@ -39,6 +39,7 @@ class magusParameters:
         Default = {
             'spacegroup':list(range(1, 231)),
             'initSize':p.popSize,
+            'goodSize':p.popSize,
             'molMode':False,
             'mlRelax':False,
             'symprec': 0.1,
@@ -201,6 +202,12 @@ class magusParameters:
                         setattr(p, key, val)
                     p.workDir = self.parameters.workDir
                     self.MLCalculator = MTPCalculator(self.get_MainCalculator(), 0, p)
+                elif self.parameters.mlmodel == '2MTP':
+                    p = copy.deepcopy(self.parameters)
+                    for key, val in self.parameters.MLCalculator.items():
+                        setattr(p, key, val)
+                    p.workDir = self.parameters.workDir
+                    self.MLCalculator = TwostageMTPCalculator(self.get_MainCalculator(), p)
             else:
                 raise Exception('No ML Calculator!')
             self.parameters.MLCalculator = self.MLCalculator.p

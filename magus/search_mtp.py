@@ -172,14 +172,17 @@ class Magus:
         # find spg before delete duplicate
         relaxPop.find_spg()
         relaxPop.del_duplicate()
+        relaxPop.calc_dominators()
         relaxPop.save("mlgen", self.curgen)
-        
+        relaxPop.select(self.parameters.goodSize) 
+        relaxPop.save("mlgen2", self.curgen)
         #######  compare target and predict energy  #######   
         scfpop = self.MainCalculator.scf(relaxPop.frames)
         scfPop = self.Population(scfpop)
+        scfPop.save("scfmlgen", self.curgen)
         logging.info("loss:\nenergy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
             "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.MTPCalculator.get_loss(scfPop.frames)[:4]))
-        scfPop.save("scfmlgen", self.curgen)
+        # scfPop.save("scfmlgen", self.curgen)
         #######  goodPop and keepPop  #######
         logging.info('construct goodPop')
         goodPop = scfPop + goodPop + keepPop
