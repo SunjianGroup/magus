@@ -142,11 +142,11 @@ class reconstruct:
         return
 
 class resetLattice:
-    def __init__(self, atoms=None):
+    def __init__(self, atoms=None, expandsize = (8,8,8)):
         if atoms:
             #1. build a very large supercell
-            supercell = atoms * (8, 8, 8)
-            supercell.translate( [ -3*np.sum(atoms.get_cell(), axis=0)] *len(supercell))
+            supercell = atoms * expandsize
+            supercell.translate( [np.sum( np.dot( np.diag([-int((s-1)/2) for s in expandsize]), atoms.get_cell()), axis = 0)] *len(supercell))
             self.supercell = supercell
     
     def InCell(self, pos):
@@ -164,14 +164,18 @@ class resetLattice:
                     pos[i][j]=0
         return pos
 
-    def get(self, newcell):
+    def get(self, newcell, neworigin = None):
         supercell = self.supercell
+        if not neworigin is None:
+            supercell.translate([[-1*i for i in neworigin]] * len(supercell))
         supercell.set_cell(newcell)
         pos =supercell.get_scaled_positions(wrap=False).copy()
-        pos = self.refinepos(pos)        
+        pos = self.refinepos(pos)
         index = [i for i in range(len(pos)) if self.InCell(pos[i])==True]
+        assert len(index)>0, "err in resetLattice: no atoms in newcell"
         return supercell[index].copy()
 
+from ase.geometry import cell_to_cellpar
 class cutcell:
     def __init__(self,originstruct, layernums, totslices= None, direction=[0,0,1], rotate = 0):
         """
@@ -231,61 +235,47 @@ class cutcell:
         if len(allayers) == totslices + 1:
 
             onelayer = newlattice[allayers[1]]
-            startpos = np.max(newlattice[allayers[-2]].get_scaled_positions()[:,2]) + 0.1
+            startpos = np.max(newlattice[allayers[-2]].get_scaled_positions()[:,2]) + 0.01
             startpos = startpos - int(startpos)
-
+        
+        onelayer.set_cell(onelayer.get_cell()[:] * np.reshape([1]*6 + [2.33]*3, (3,3)))
+        #print(startpos)
         surface_vector = spg.get_symmetry_dataset(onelayer,symprec = 1e-4)['primitive_lattice']
+        abcc, abcp = cell_to_cellpar(onelayer.get_cell()[:])[:3], cell_to_cellpar(surface_vector)[:3]
+        axisc = np.where(abcp == abcc[2])[0]
+        assert len(axisc) ==1, "cannot match primitive lattice with origin cell, primitive abc = {} while origin abc = {}".format(abcp, abcc)
+        if not axisc[0] ==2:
+            surface_vector[[axisc[0], 2]] = surface_vector[[2, axisc[0]]]
+ 
 
         #4. get surface cell!
-
+        #print(layernums)
         #5. expand unit surface cell on z direction
         bot, mid, top = layernums[0], layernums[1], layernums[2]
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
         slicepos = slicepos + np.array([startpos]*4)
         logging.info("cutslice = {}".format(slicepos)) 
 
-        rcs_z = int(slicepos[-1])+1
-        surface_vector[2] = newcell[2]*rcs_z
-        slicepos = slicepos/rcs_z
-        atoms = supercell.get(surface_vector)
-        originatoms = atoms.copy()
         #6. build bulk, relaxable, rcs layer slices 
-        
         pop= []
-        
-        
-        cell = originatoms.get_cell().copy()
-        cell[2] = cell[2]*slicepos[0]
-        trans=[ cell[2]*(-1) ]*len(atoms)
-        atoms.translate(trans)
-
         if slicepos[-1]==slicepos[-2]:
             del slicepos[-1]
             logging.info("warning: rcs layer have no atoms. Change mode to adatoms.")  
 
         for i in range(1, len(slicepos)):
 
-            cell = originatoms.get_cell().copy()
-            cell[2] = cell[2]*(slicepos[i]-slicepos[i-1])
-            atoms.set_cell(cell)
+            cell = surface_vector.copy()
+            cell[2] = newcell[2] * (slicepos[i]-slicepos[i-1])
+            origin = (slicepos[i-1] if i==1 else slicepos[i-1]-slicepos[i-2]) * newcell[2]
 
-            pos = atoms.get_scaled_positions(wrap=False).copy()
-            pos = resetLattice().refinepos(pos)
-            index=[]
-            for atom in atoms:
-                if pos[atom.index][2]>=0 and pos[atom.index][2]<1 :
-                    index.append(atom.index)
+            layerslice = supercell.get(cell, neworigin = origin)
 
-            if len(index)==0:
+            if len(layerslice)==0:
                 slicename = ['bulk', 'relaxable', 'reconstruct']
                 raise Exception("No atom in {} layer".format(slicename[i-1]))
 
-            layerslice = atoms[index] .copy()
             layerslice=sort_elements(layerslice)
             pop.append(layerslice)
-
-            trans=[ cell[2]*(-1) ]*len(atoms)
-            atoms.translate(trans)
 
         #add extravacuum to rcs_layer  
         if len(pop)==3:        
@@ -372,14 +362,16 @@ def LayerIdentifier(ind, prec = 0.2, n_clusters = 4, lprec = 0.05):
     pos = ind.get_scaled_positions()[:,2].copy()
     pos = np.array([[p,0] for p in pos])
     n, layers, kmeans = n_clusters, [], None
-
+    #print("pos = {}".format(pos))
     for n in range(n_clusters, 1, -1):
+        #print("n = {}".format(n))
         kmeans = cluster.KMeans(n_clusters=n).fit(pos)
         centers = kmeans.cluster_centers_.copy()[:,0]
         centers = [(centers[i], i) for i in range(len(centers))]
         centers.sort(key = lambda c:c[0])
         layerid = {j[1]: i for (i,j) in enumerate(centers)}
-
+        #print("centers = {}".format(centers))
+        #print("layerid = {}".format(layerid))
         for i in range(1,len(centers)):
             if centers[i][0] - centers[i-1][0] < prec:
                 break
@@ -388,7 +380,10 @@ def LayerIdentifier(ind, prec = 0.2, n_clusters = 4, lprec = 0.05):
             labels = kmeans.labels_
             for i, a in enumerate(labels):
                 layers[layerid[a]].append(i)
+            #print("layers = {}".format(layers))
             for i in range(1, n):
+                #print("layers{} = {}".format(i-1, pos[layers[i-1], 0]))
+                #print("layers{} = {}".format(i, pos[layers[i], 0]))
                 if np.min(pos[layers[i], 0]) - np.max(pos[layers[i-1], 0]) < lprec:
                     break
             else:
@@ -418,13 +413,17 @@ class match_symmetry:
     in that case, a rotation of crystal and reset the basis are needed. 
     
     """
-    def __init__(self, sym1 = (None,None), sym2 = (None, None)):
+    def __init__(self, sym1 = (None,None), sym2 = (None, None), z_axis_only = False):
         self.sgm = []
         self.sortedranks = []
         
         sym1, sym2 = self.removetransym(sym1), self.removetransym(sym2)
         self.r1, self.t1 = sym1
         self.r2, self.t2 = sym2
+        #print("self.r1 = {}".format(self.r1))
+        #print("self.r2 = {}".format(self.r2))
+        #print("self.t1 = {}".format(self.t1))
+        #print("self.t2 = {}".format(self.t2))
                     
         for i, r1 in enumerate(self.r1):
             for j, r2 in enumerate(self.r2):
@@ -433,9 +432,17 @@ class match_symmetry:
                 trans = np.eye(3)
                 if label:
                     self.sgm.append((r1 - np.eye(3), self.t1[i]- np.dot(self.t2[j], trans), trans))
-        
+        #print("sgm preprocess = {} ".format(self.sgm))
+        if z_axis_only:
+            self.sgm = [m for m in self.sgm if (m[0] == m[0]*np.reshape([1,1,0]*2+[0]*3, (3,3))).all()]
+
+        #print("sgm z_only = {} ".format(self.sgm))
         #sgm: list of tuples of (R-I, T1-T2, Tr)
         self.sortrank()
+    
+    @property    
+    def has_shared_sym(self):
+        return len(self.sgm)>0
 
     def removetransym(self, sym):
         #to remove simple translate symmetry. For cells generate by subcell* (_x, _y, _z) 
@@ -444,14 +451,14 @@ class match_symmetry:
         #1. remove simple R=I matrix
         transymmeryDB = []
         rot, tr = sym
-
+        #print(np.where( ((rot ==np.eye(3)).all(axis = 1)).all(axis = 1)  ==True))
         index = np.where( ((rot ==np.eye(3)).all(axis = 1)).all(axis = 1)  ==True) [0]
         if len(index) >1:
             #assert np.allclose(tr[0], np.array([0,0,0]), rtol=0, atol=0.01) == True 'first translation matrix must be [0,0,0]'
             transymmeryDB = (tr[index])[1:] - (tr[index])[0]
             transymmeryDB = np.array([tt - int(tt) if tt >= 0 else tt - int(tt) + 1 for _i_ in range(len(transymmeryDB)) for tt in list(transymmeryDB[_i_])])
             transymmeryDB = np.reshape(transymmeryDB, (-1,3))
-
+            #print("transDB: {}\nend".format(transymmeryDB))
         
         keep = [i for i in range(len(rot)) if i not in list(index)]
         rot, tr = rot[keep], tr[keep]
@@ -462,9 +469,12 @@ class match_symmetry:
         #2. remove R+T symmetry couldn't obtained by re-set of axis to be R
 
         keep = [i for i in range(len(rot)) if np.linalg.matrix_rank(rot[i] - np.eye(3)) >= np.linalg.matrix_rank(np.c_[rot[i] - np.eye(3),tr[i]])]
-
+        #for i in range(len(rot)):
+            #print("rotrank = {}".format(np.linalg.matrix_rank(rot[i] - np.eye(3))))
+            #print("trank = {}, {}".format(np.linalg.matrix_rank(np.c_[rot[i] - np.eye(3),tr[i]]), np.c_[rot[i] - np.eye(3),tr[i]]))
         rot, tr = rot[keep], tr[keep]
-
+        #print("rot = {}".format(rot))
+        #print("tr = {}".format(tr))
         #3. choose a lucky r to represent all of the equivalent r.
         uniquer, uniquei = np.unique(rot, axis=0, return_index=True)
 
@@ -474,16 +484,22 @@ class match_symmetry:
         to_del = []
         for j, r in (zip(uniquei, uniquer)):
             _to_del = np.where((r == rot).all(axis = 1).all(axis = 1))[0]
+            #print("_to_del = {}".format(_to_del))
             for d in _to_del:
                 if d==j :
                     continue
                 t = tr[j] - tr[d]
+                #print(t)
                 t = np.array([tt - int(tt) if tt >= 0 else tt - int(tt) + 1 for tt in list(t)])
+                #print(t)
+                #print([np.allclose(db, t, rtol=0, atol=0.01) for db in transymmeryDB])
                 if np.array([np.allclose(db, t, rtol=0, atol=0.01) for db in transymmeryDB]).any() ==True:
                     to_del.append(d)
 
         keep = [i for i in range(len(rot)) if i not in to_del] 
-
+        #print('index = {}'.format(index))
+        #print('todel = {}'.format(to_del))
+        #print('keep = {}'.format(keep))
         return rot[keep], tr[keep]    
 
     def issametype(self, r1, r2):
@@ -496,8 +512,9 @@ class match_symmetry:
 
     def sortrank(self):
         sgm = self.sgm
+        #print(sgm)
         ranks = [np.linalg.matrix_rank(r) for r, _, _ in sgm]
-
+        #print(ranks)
         for i,rank in enumerate(ranks):
             rot, _, _ = sgm[i]
             if rank == 3:
@@ -531,6 +548,7 @@ class match_symmetry:
         for rank in range(0,4):
             index = np.where(trs == rank)[0]
             self.sortedranks.append([ranks[i] for i in index])
+        #print("self.sortedranks ={}".format(self.sortedranks) )
         
         self.availrank = [rank for rank in range(0,4) if len(self.sortedranks[rank])]
         return 
@@ -540,7 +558,7 @@ class match_symmetry:
         nowrank = 0
         choice = []
         rotmatrix = []
-
+        #print("availrank ={}".format(availrank) )
         for _ in range(0,trynum):
             nowrank = 0
             choice = []
@@ -553,14 +571,18 @@ class match_symmetry:
                         continue
                 else:
                     rotmatrix = self.sortedranks[r][c][2]
+                #print("self.sortedranks[r][c] {}".format(self.sortedranks[r][c]))
                 index = [j for i, j in enumerate(self.sortedranks[r][c]) if i >=4]
+                #print("index = {}".format(index))
                 for i in index:
+                    #print("i = {} nowindex = {}".format(i, nowindex))
                     _index_ = list(nowindex) + list(i)
                     if len(_index_) == len(list(set(_index_))):
                         
                         nowrank += r
                         availrank = [rank for rank in availrank if rank <= 3-nowrank]
                         nowindex.extend(i)
+                        #print("choice = {}, nowindex = {}".format(choice, self.sortedranks[r][c][0:3] + (i, )))
                         choice.append(self.sortedranks[r][c][0:3] + (i, ))
                         if nowrank ==3 or len(availrank) == 0 :
                             return (True, choice)
@@ -568,10 +590,10 @@ class match_symmetry:
     
     def get(self):
 
-        if len(self.sgm) == 0:
-            pass
-        else:
+        if self.has_shared_sym:
+            #print("self.sgm = {}".format(self.sgm))
             label, choice = self.getachoice()
+            #print("choice = {}".format(choice))
             if label:
                 trans = np.zeros(3)
                 #trans = np.random.uniform(0,1,size=3)

@@ -74,6 +74,8 @@ class Population:
     def append(self,ind):
         if ind.__class__.__name__ == 'Atoms':
             ind = self.Individual(ind)
+        elif isinstance(ind, Individual):
+            ind = ind.copy()
         ind.info['identity'] = [self.name, len(self.pop)]
         self.pop.append(ind)
         return True
@@ -221,11 +223,14 @@ class Population:
 
     '''function in reconstract'''
     def removebulk_relaxable_vacuum(self):        
-        
-        self.pop = list(map(lambda ind:ind.removebulk_relaxable_vacuum(), self.pop))  
+        for ind in self.pop:
+            ind.removebulk_relaxable_vacuum()  
+        #self.pop = list(map(lambda ind:ind.removebulk_relaxable_vacuum(), self.pop))  
         
     def addbulk_relaxable_vacuum(self):
-        self.pop = list(map(lambda ind:ind.addbulk_relaxable_vacuum(), self.pop))  
+        #self.pop = list(map(lambda ind:ind.addbulk_relaxable_vacuum(), self.pop))
+        for ind in self.pop:
+            ind.addbulk_relaxable_vacuum()  
 
     def randrotate(self):
         self.pop = list(map(lambda ind:ind.randrotate(), self.pop))  
@@ -448,16 +453,17 @@ class Individual:
         check_distance = self.check_distance(a)
         check_formula = self.check_formula(a)
         check_mol = True
+        origin = self.atoms.info['origin'] if 'origin' in self.atoms.info else 'Unknown'
         if self.p.chkMol:
             check_mol = self.check_mol(a)
         if not check_cellpar:
-            logging.debug("Fail in check_cellpar")
+            logging.debug("Fail in check_cellpar, origin = {}".format(origin))
         if not check_distance:
-            logging.debug("Fail in check_distance")
+            logging.debug("Fail in check_distance, origin = {}".format(origin))
         if not check_mol:
-            logging.debug("Fail in check_mol")
+            logging.debug("Fail in check_mol, origin = {}".format(origin))
         if not check_formula:
-            logging.debug("Fail in check_formula")
+            logging.debug("Fail in check_formula, origin = {}".format(origin))
         return check_cellpar and check_distance and check_mol and check_formula
 
     def sort(self):
@@ -512,9 +518,7 @@ class Individual:
         dRatio = self.p.dRatio
         syms = atoms.get_chemical_symbols()
         nowFrml = Counter(atoms.get_chemical_symbols())
-        logging.debug("Repairatoms: now formula: {}".format(nowFrml))
         targetFrml = self.get_targetFrml()
-        logging.debug("Target formula: {}".format(targetFrml))
         if not targetFrml:
             logging.debug("Cannot get target formula: {}".format(targetFrml))
             self.atoms = None
@@ -822,7 +826,6 @@ class RcsInd(Individual):
             a = atoms.copy()
         Natoms = len(a)
         if Natoms < self.minAt or Natoms > self.maxAt:
-            logging.info("minAt={} , maxAt={}, Natoms={}".format(self.minAt, self.maxAt, Natoms))
             return False
 
         symbols, formula = symbols_and_formula(a)
@@ -908,116 +911,125 @@ class RcsInd(Individual):
 
         return bestFrml
 
+    def substrate_sym(self, symprec = 1e-4):
+        
+        if not hasattr(self, "substrate_symmetry"):
+            rlxatoms = self.layerslices[1] * (*self.info['size'], 1)
+            rlxatoms.info['size'] = self.info['size']
+            allatoms = self.addextralayer('bulk', atoms = rlxatoms, add = 1)
+            
+            symdataset = spglib.get_symmetry_dataset(allatoms, symprec= symprec)
+            self.substrate_symmetry = list(zip(symdataset['rotations'], symdataset['translations']))
+            self.substrate_symmetry = [s for s in self.substrate_symmetry if ( (s[0]==s[0]*np.reshape([1,1,0]*2+[0]*3, (3,3))+ np.reshape([0]*8+[1], (3,3))).all()  and not (s[0]==np.eye(3)).all())]
+            cell = allatoms.get_cell()[:]
 
-    def addextralayer(self, type, changeAtomNum = True):
-    
-        change_Minat_Maxat = changeAtomNum
+            #some simple tricks for '2', 'm', '4', '3', '6' symmetry. No sym_matrix containing 'z'_axis transformation are included.
+            for i, s in enumerate(self.substrate_symmetry):
+                r = s[0]
+                sample = np.array([*np.random.uniform(1,2,2), 0])
+                sample_prime = np.dot(r, sample)
+                cart, cart_prime = np.dot(sample, cell), np.dot(sample_prime, cell)
+                length = np.sum([i**2 for i in cart])
+                angle = math.acos(np.dot(cart, cart_prime)/ length) / math.pi * 180
+                if not (np.round(angle) == np.array([180, 90, 120, 60])).any():
+                    self.substrate_symmetry[i] = self.substrate_symmetry[i]+('m',)
+                else:
+                    self.substrate_symmetry[i] = self.substrate_symmetry[i]+(int(np.round(360.0/angle)),)
+
+            #self.substrate_symmetry is a list of tuple (r, t, multiplity), in which multiplity = 2 for '2', 'm', others = self.rotaterank.
+
+        return self.substrate_symmetry
+
+    def addextralayer(self, type, changeAtomNum = True, atoms = None, add = 1):
+        #if atoms, return atoms.addextra, else self.atoms is changed and returned
+        #add: addextralayer if add = 1; else rmextralayer 
+
+        change_Minat_Maxat = changeAtomNum if atoms is None else False
+        sz = self.info['size'] if atoms is None else (atoms.info['size'] if 'size' in atoms.info else [1,1])
 
         if type=='relaxable':
             FixExtraAtoms=False
-            extratoms=self.layerslices[1] * (self.info['size'][0], self.info['size'][1], 1)
+            extratoms=self.layerslices[1] * (*sz, 1)
         elif type=='bulk':
             FixExtraAtoms=True 
-            extratoms=self.layerslices[0] * (self.info['size'][0], self.info['size'][1], 1)
+            extratoms=self.layerslices[0] * (*sz, 1)
 
-        newind=self.copy()
-        atoms_top=newind.atoms.copy()
+        atoms_top = atoms.copy() if atoms else self.atoms.copy()
+
         atoms_bottom=extratoms.copy()
         
         if change_Minat_Maxat:
-            newind.minAt += len(atoms_bottom)
-            newind.maxAt += len(atoms_bottom)
+            self.minAt += len(atoms_bottom) * add
+            self.maxAt += len(atoms_bottom) * add
 
         newcell=atoms_top.get_cell()
-        newcell[2]+=atoms_bottom.get_cell()[2]
-        newind.atoms.set_cell(newcell)
-        trans=[atoms_bottom.get_cell()[2]]*len(atoms_top)
-        newind.atoms.translate(trans)
+        newcell[2]+=atoms_bottom.get_cell()[2] * add
+        atoms_top.set_cell(newcell)
 
-        newind.atoms+=atoms_bottom
+        trans=[atoms_bottom.get_cell()[2]* add]*len(atoms_top)
+        atoms_top.translate(trans)
+        if add == 1:
+            # addextralayer
+            atn = len(atoms_top)
+            atoms_top+=atoms_bottom
 
-        if FixExtraAtoms:
-            if self.p.fixbulk:
-                c = FixAtoms(indices=range( len(self.atoms) , len(newind.atoms) ))
-                newind.atoms.set_constraint(c)
-            else:
-                c = fixatoms(indices=range( len(self.atoms) , len(newind.atoms) ))
-                newind.atoms.set_constraint(c)
+            if FixExtraAtoms:
+                if self.p.fixbulk:
+                    c = FixAtoms(indices=range( atn , len(atoms_top) ))
+                    atoms_top.set_constraint(c)
+                else:
+                    c = fixatoms(indices=range( atn , len(atoms_top) ))
+                    atoms_top.set_constraint(c)
+        else :
+            # rmextralayer
 
-        if 'numOfFormula' in newind.info:
-            newind.info['numOfFormula'] =int(round(len(newind.atoms)/sum(self.p.formula)))
-        #newind.info['fitness'] = {}
-        if 'fingerprint' in newind.info:
-            Efps = newind.cf.get_all_fingerprints(newind.atoms)[0]
-            newind.info['fingerprint'] = Efps
-        if 'spg' in newind.info:
-            newind.find_spg()
-        
-
-        return newind
-
-    def removextralayer(self, type, changeAtomNum = True):
-        newind=self.copy()
-
-        change_Minat_Maxat = changeAtomNum
-        
-        if type=='relaxable':
-            extratoms=self.layerslices[1]* (self.info['size'][0], self.info['size'][1], 1)
-        elif type=='bulk':
-            extratoms=self.layerslices[0]* (self.info['size'][0], self.info['size'][1], 1)
+            #pos=atoms_top.get_scaled_positions(wrap=False)
+            #del atoms_top[[atom.index for atom in atoms_top if pos[atom.index][2]<0]]
             
-        atoms_bottom=extratoms.copy()
-        newcell=newind.atoms.get_cell()
+            vertical_dis = atoms_top.get_scaled_positions(wrap=False)[ : , 2 ].copy()
+            indices = sorted(range(len(atoms_top)), key=lambda x:vertical_dis[x])
+            indices = indices[ len(atoms_bottom) :  ]
+            atoms_top = atoms_top[indices]
 
-        if change_Minat_Maxat:
-            newind.minAt -= len(atoms_bottom)
-            newind.maxAt -= len(atoms_bottom)
+        if atoms is None:
+            if 'spg' in self.info:
+                self.find_spg()
+            self.atoms = atoms_top 
 
-        newcell[2]-=atoms_bottom.get_cell()[2]
-        newind.atoms.set_cell(newcell)
-        trans=[atoms_bottom.get_cell()[2]*(-1)]*len(newind.atoms)
-        newind.atoms.translate(trans)
+        return atoms_top 
 
-        #pos=newind.atoms.get_scaled_positions(wrap=False)
-        #del newind.atoms[[atom.index for atom in newind.atoms if pos[atom.index][2]<0]]
-
-        vertical_dis = newind.atoms.get_scaled_positions(wrap=False)[ : , 2 ].copy()
-        indices = sorted(range(len(newind.atoms)), key=lambda x:vertical_dis[x])
-
-        indices = indices[ len(atoms_bottom) :  ]
-        newind.atoms = newind.atoms[indices]
-
-
-        if 'numOfFormula' in newind.info:
-            newind.info['numOfFormula'] =int(round(len(newind.atoms)/sum(self.p.formula)))
-        #newind.info['fitness'] = {}
-        if 'fingerprint' in newind.info:
-            Efps = newind.cf.get_all_fingerprints(newind.atoms)[0]
-            newind.info['fingerprint'] = Efps
-        if 'spg' in newind.info:
-            newind.find_spg()
-
-        return newind
-
-    def addvacuum(self, add):
+    def addvacuum(self, add = 1, atoms = None):
+        #if atoms, return atoms.addvc, else self.atoms is changed and returned
 
         vacuum=self.p.vacuum*add
-        newind=self.copy()
+        newatoms = atoms.copy() if atoms else self.atoms.copy()
 
-        ratio = 1.0*vacuum/newind.atoms.get_cell_lengths_and_angles()[2]
-        newcell = newind.atoms.get_cell()
+        ratio = 1.0*vacuum/newatoms.get_cell_lengths_and_angles()[2]
+        newcell = newatoms.get_cell()
         newcell[2]*=2*ratio+1
+        trans=[newatoms.get_cell()[2]*ratio]*len(newatoms)
 
-        newind.atoms.set_cell(newcell)
-        trans=[self.atoms.get_cell()[2]*ratio]*len(newind.atoms)
+        newatoms.set_cell(newcell)
+        newatoms.translate(trans)
+        if atoms is None:
+            self.atoms = newatoms 
+        return newatoms 
 
-        newind.atoms.translate(trans)
-
-        return newind
-    def addbulk_relaxable_vacuum(self):
-        return ( (self.addextralayer('relaxable')) .addextralayer('bulk') ).addvacuum(add=1)
-    def removebulk_relaxable_vacuum(self):
-        return ( (self.removextralayer('bulk')) .removextralayer('relaxable') ).addvacuum(add=-1)
+    def addbulk_relaxable_vacuum(self, atoms = None):
+        ats = self.addextralayer('relaxable',add=1, atoms=atoms) 
+        atoms = ats if atoms else None
+        ats = self.addextralayer('bulk',add=1, atoms=atoms)
+        atoms = ats if atoms else None    
+        ats = self.addvacuum(add=1, atoms=atoms)
+        return ats
+        
+    def removebulk_relaxable_vacuum(self, atoms = None):
+        ats = self.addextralayer('bulk', add=-1, atoms=atoms) 
+        atoms = ats if atoms else None
+        ats = self.addextralayer('relaxable',add=-1, atoms=atoms)
+        atoms = ats if atoms else None
+        ats = self.addvacuum(add=-1, atoms=atoms)
+        return ats
 
 
 class ClusInd(FixInd):

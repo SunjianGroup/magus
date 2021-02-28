@@ -21,7 +21,7 @@ class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
-        Default={'threshold':1.0,'maxAttempts':50,'method':1,
+        Default={'threshold':1.0,'maxAttempts':50,'method':1, 'GetConventional': True,
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
@@ -78,7 +78,7 @@ class Generator:
         generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
-        generator.GetConventional = True
+        generator.GetConventional = self.p.GetConventional
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
         generator.minVolume = minVolume
@@ -357,29 +357,24 @@ class ReconstructGenerator():
     def __init__(self,parameters):
         para_t = EmptyClass()
         Requirement=['layerfile']
-        Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'startpos': 0.9,
+        Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'randratio':0.5,
         'rcs_x':[1], 'rcs_y':[1], 'SymbolsToAdd': None, 'AtomsToAdd': None, 'direction': None, 'rotate': 0,
         'dimension':2, 'choice':0 }
 
         checkParameters(para_t, parameters, Requirement,Default)
-        #here starts to get Ref/refslab to calculate refE
-        if os.path.exists("Ref/refslab.traj"):
-            logging.info("Used layerslices in Ref.")
-            pass
-        else:
-            os.mkdir('Ref')
-            ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
-
         
-        #here starts to split layers into [bulk, relaxable, rcs]
-        if os.path.exists("Ref/layerslices.traj"):
-            pass
+        if os.path.exists("Ref") and os.path.exists("Ref/refslab.traj") and os.path.exists("Ref/layerslices.traj"):
+            logging.info("Used layerslices in Ref.")
         else:
+            if not os.path.exists("Ref"):
+                os.mkdir('Ref')
+            #here starts to get Ref/refslab to calculate refE            
+            ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
+            #here starts to split layers into [bulk, relaxable, rcs]
             originatoms = ase.io.read(para_t.layerfile)
             layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
             cutcell(originatoms, layernums, totslices = para_t.cutslices, direction= para_t.direction,rotate = para_t.rotate)
-
-        #layer split ends here    
+            #layer split ends here    
 
         self.range=para_t.range
         
@@ -404,11 +399,11 @@ class ReconstructGenerator():
             self.ref.set_cell(lattice)
             setlattice = list(cell_to_cellpar(lattice))
 
-        setlattice = [np.round(setlattice[i], 3) for i in range(0,6)]
-        if np.round(setlattice[5],0)==60:
-            setlattice[5]= 120.0 
+        setlattice = np.round(setlattice, 3)
+        setlattice[3:] = [i if np.round(i) != 60 else 120.0 for i in setlattice[3:]]
+        self.symtype = 'hex' if 120 in np.round(setlattice[3:]) else 'orth'
 
-        self.reflattice = setlattice.copy()
+        self.reflattice = list(setlattice).copy()
         target = self.ind.get_targetFrml()
         _symbol = [s for s in target]
         requirement = {'minLattice': setlattice, 'maxLattice':setlattice, 'symbols':_symbol}
@@ -479,31 +474,64 @@ class ReconstructGenerator():
         else:
             return label, None
 
-    def rand_displacement(self, extraind, bottomind, trynum = 1): 
+    def rand_displacement(self, extraind, bottomind): 
         rots = []
         trs = []
         for ind in list([bottomind, extraind]):
             sym = spglib.get_symmetry_dataset(ind,symprec=0.2)
+            if not sym:
+                sym = spglib.get_symmetry_dataset(ind)
+            if not sym:
+                return False, extraind
             rots.append(sym['rotations'])
             trs.append(sym['translations'])
 
-        _dis_, rot = match_symmetry(*zip(rots, trs)).get() 
+        m = match_symmetry(*zip(rots, trs), z_axis_only = True)
+        if not m.has_shared_sym:
+            return False, extraind
+        _dis_, rot = m.get()
+        #_dis_, rot = match_symmetry(*zip(rots, trs)).get() 
         _dis_[2] = 0
         _dis_ = np.dot(-_dis_, extraind.get_cell())
 
         extraind.translate([_dis_]*len(extraind))
-        return extraind
+        return True, extraind
 
-    def reset_generator_lattice(self, _x, _y):
-        self.rcs_generator.p.minLattice[0] = self.reflattice[0]*_x
-        self.rcs_generator.p.minLattice[1] = self.reflattice[1]*_y
+    def get_spg(self, kind, grouptype):
+        if grouptype == 'layergroup':
+            if kind == 'hex':
+                #sym = 'c*', 'p6*', 'p3*', 'p-6*', 'p-3*' 
+                return [1, 2, 22, 26, 35, 36, 47, 48] + range(65, 81)  + [10, 13, 18]
+            else:
+                return list(range(1, 65))
+        elif grouptype == 'planegroup':
+            if kind == 'hex':
+                return [1, 2, 5, 9] + list(range(13, 18))
+            else:
+                return list(range(1, 13))
+
+    def reset_generator_lattice(self, _x, _y, spg):
+        symtype = 'default'
+        if self.symtype == 'hex':
+            if (self.rcs_generator.p.choice == 0 and spg < 13) or (self.rcs_generator.p.choice == 1 and spg < 65):
+                #for hex-lattice, 'a' must equal 'b'
+                if self.reflattice[0] == self.reflattice[1] and _x == _y:    
+                    symtype = 'hex'
+
+        if symtype == 'hex':
+            self.rcs_generator.p.GetConventional = False
+        elif symtype == 'default': 
+            self.rcs_generator.p.GetConventional = True
+
+        self.rcs_generator.p.minLattice = list(self.reflattice *np.array([_x, _y]+[1]*4))
         self.rcs_generator.p.maxLattice = self.rcs_generator.p.minLattice
+        return symtype
 
-    def Generate_pop(self,popSize,initpop=False):
+    def Generate_pop(self,popSize,initpop=False, inspg = None):
         buildPop = []
         tryNum=0
 
-        while tryNum<self.p.maxtryNum*popSize and popSize/2 > len(buildPop):
+        while tryNum<self.p.maxtryNum*popSize and popSize*self.p.randratio > len(buildPop):
             nfm = np.random.choice(self.p.numFrml)
             spg = 1
             _x = np.random.choice(self.p.rcs_x)
@@ -527,22 +555,20 @@ class ReconstructGenerator():
 
             if add:
                 numlist = np.array([add[s] for s in self.rcs_generator.p.symbols])
-                self.reset_generator_lattice(_x, _y)
-                #logging.debug("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
-                #logging.debug("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
-                spg = np.random.choice(self.p.spgs) if self.p.choice == 0 else np.random.choice(list(range(13,18)) + list([1,2]))
+                spg = np.random.choice(self.p.spgs) if self.p.choice == 0 else np.random.choice(self.get_spg(self.symtype, 'planegroup'))                
                 self.rcs_generator.p.choice = 0
+                self.reset_generator_lattice(_x, _y, spg)
 
                 label,extraind = self.rcs_generator.Generate_ind(spg,numlist)
                 if label:
                     extraind.set_cell(ind.get_cell().copy(), scale_atoms=True)
-                    dis = np.max(ind.get_scaled_positions()[:,2]) - np.min(extraind.get_scaled_positions()[:,2]) + (np.random.choice(range(5,20))/100)
+                    dis = np.max(ind.get_scaled_positions()[:,2]) - np.min(extraind.get_scaled_positions(wrap = False)[:,2]) + (np.random.choice(range(5,20))/100)
                     extraind.translate([dis * ind.get_cell()[2] ]*len(extraind))
                     ind.info['size'] = [_x, _y]
                     bottom = self.ind(ind)
-                    extraind = self.rand_displacement(extraind, bottom.addbulk_relaxable_vacuum().atoms)
+                    label, extraind = self.rand_displacement(extraind, bottom.addbulk_relaxable_vacuum()) 
                     ind += extraind
-                else:
+                if not label:
                     tryNum+=1
                     continue
             
@@ -551,9 +577,9 @@ class ReconstructGenerator():
                 self.afterprocessing(ind,nfm,'rand.randmove', [_x, _y])
                 ref = self.ref * (_x , _y, 1)
                 ind.set_cell(ref.get_cell().copy(), scale_atoms=True)
-                ind = self.ind(ind)
-                ind = ind.addbulk_relaxable_vacuum()
-                buildPop.append(ind.atoms)
+                ind.info['size'] = [_x, _y]
+                ind = self.ind.addbulk_relaxable_vacuum(atoms = ind)
+                buildPop.append(ind)
                 
             else:
                 tryNum+=1
@@ -561,7 +587,8 @@ class ReconstructGenerator():
         #add random structure
         while tryNum<self.p.maxtryNum*popSize and popSize > len(buildPop):
             
-            spg = np.random.choice(self.p.spgs)
+            #spg = np.random.choice(self.p.spgs)
+            spg = inspg if inspg else np.random.choice(self.p.spgs)
             nfm = np.random.choice(self.p.numFrml)
             _x = np.random.choice(self.p.rcs_x)
             _y = np.random.choice(self.p.rcs_y)
@@ -569,12 +596,12 @@ class ReconstructGenerator():
             target = self.ind.get_targetFrml(_x , _y)
             numlist = np.array([target[s] for s in self.rcs_generator.p.symbols])
 
-            self.reset_generator_lattice(_x,_y)
+            self.reset_generator_lattice(_x,_y, spg)
             self.rcs_generator.p.choice = self.p.choice
             #logging.debug("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
             #logging.debug("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
             label,ind = self.rcs_generator.Generate_ind(spg,numlist)
-            
+
             if label:
                 ref = self.ref * (_x, _y, 1)
                 #first set cell to stdcell(ref)
@@ -584,20 +611,19 @@ class ReconstructGenerator():
                 
                 vertical_dis = ref.get_scaled_positions()[:,2].copy()
                 distance = np.average(vertical_dis) if self.p.dimension==2 and self.p.choice==0 else np.min(vertical_dis)
-                layer_vertical_dis = ind.get_scaled_positions()[:,2].copy()
+                layer_vertical_dis = ind.get_scaled_positions(wrap = False)[:,2].copy()
                 layerbottom = np.min(layer_vertical_dis)
 
                 ind.translate([ ref.get_cell()[2]*distance-ind.get_cell()[2]*layerbottom ]*len(ind))
                 _bot_ = (self.layerslices[1] * (_x, _y, 1)).copy()
                 _bot_.info['size'] = [_x, _y]
-                _bot_ = self.ind(_bot_)
-               
-                ind = self.rand_displacement(ind,  _bot_.addextralayer('bulk').addvacuum(add = 1).atoms)
-                self.afterprocessing(ind,nfm,'rand.symmgen', [_x, _y])
-                ind= self.ind(ind)
-                ind = ind.addbulk_relaxable_vacuum()
-                buildPop.append(ind.atoms)
-            else:
+                
+                label, ind = self.rand_displacement(ind, self.ind.addvacuum(add = 1, atoms = self.ind.addextralayer('bulk', atoms=_bot_, add = 1)))
+                if label:
+                    self.afterprocessing(ind,nfm,'rand.symmgen', [_x, _y])
+                    ind = self.ind.addbulk_relaxable_vacuum(atoms = ind)
+                    buildPop.append(ind)
+            if not label:
                 tryNum+=1
 
         return buildPop

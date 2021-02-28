@@ -323,6 +323,134 @@ class LyrSlipMutation(Mutation):
         atoms.wrap()
         return ind(atoms)
 
+from magus.reconstruct import resetLattice
+class SymLyrMutation(Mutation):
+    def __init__(self, tryNum=10, symprec = 1e-4):
+        super().__init__(tryNum=tryNum)
+        self.symprec = symprec
+    
+    def mirrorsym(self, atoms, rot):
+        #TODO: remove the self.threshold below
+        #self.threshold = 0.5
+        ats = atoms.copy()
+        axis = atoms.get_cell().copy()
+        axis_1 = np.linalg.inv(axis)
+        
+        #1. calculate the mirror line.
+        #For the mirror line in x^y plane and goes through (0,0), its k, i.e., y/x must be a fix number.
+        #for mirror matrix[[A,B], [C,D]], k =[ C*x0 + (1+D)*y0]/ [ (1+A)*x0 + B*y0 ] independent to x0, y0. 
+        A, B, C, D, k = *(1.0*rot[:2, :2].flatten()), 0
+        if C==0 and 1+D == 0:
+            k = 0
+        elif 1+A == 0 and B ==0:
+            k = None
+        else:
+            #x0, y0 = 1, -(1+A)/B + 1            ...so it is randomly chosen by me...
+            k =  (C + (1+D)*( 1 -(1+A)/B ) ) / B if not B==0 else C / (1+A)
+
+        #2. If the mirror line goes through the cell itself, reset it. 
+        #Replicate it to get a huge triangle with mirror line and two of cell vectors.
+        if not ( (k is None) or k <= 0):
+            scell = resetLattice(atoms = ats,expandsize= (4,1,1))
+            slattice = ats.get_cell() * np.reshape([-1]*3 + [1]*6, (3,3))
+            ats = scell.get(slattice)
+
+        cell = ats.get_cell()
+        ats = ats * (2,2,1)
+        ats.set_cell(cell)
+        ats.translate([-np.sum(ats.get_cell()[:2], axis = 0)]*len(ats))
+        index = [i for i, p in enumerate(np.dot(ats.get_positions(), axis_1)) if ((p[1] - k * p[0] >= 0) if not k is None else (p[0] >= 0))]
+        
+        ats = ats[index]
+        rats = ats.copy()
+        """
+        outats = rats.copy()
+        outats.set_cell(ats.get_cell()[:]*np.reshape([2]*6+[1]*3, (3,3)))
+        outats.translate([np.sum(ats.get_cell()[:2], axis = 0)]*len(outats))
+        ase.io.write('rats1.vasp', outats, format = 'vasp', vasp5=1)
+        """
+        cpos = np.array([np.dot(np.dot(rot, p), axis) for p in np.dot(ats.get_positions(), axis_1)])
+        index = [i for i, p in enumerate(cpos) if math.sqrt(np.sum([x**2 for x in p - ats[i].position])) >= 2*self.threshold* covalent_radii[ats[i].number] ]
+        ats = ats[index] 
+        ats.set_positions(cpos[index])
+        
+        rats += ats
+        """
+        outats = rats.copy()
+        outats.set_cell(rats.get_cell()[:]*np.reshape([2]*6+[1]*3, (3,3)))
+        outats.translate([np.sum(ats.get_cell()[:2], axis = 0)]*len(outats))
+        ase.io.write('rats2.vasp', outats, format = 'vasp', vasp5=1)
+        """
+        return resetLattice(atoms=rats, expandsize=(1,1,1)).get(atoms.get_cell()[:], neworigin = -np.mean(atoms.get_cell()[:2], axis = 0) )
+
+    def axisrotatesym(self, atoms, rot, mult):
+        #TODO: remove the self.threshold below
+        #self.threshold = 0.5
+        ats = atoms.copy()
+        axis = atoms.get_cell().copy()
+        axis_1 = np.linalg.inv(axis)
+        
+        _, _, c, _, _, gamma = ats.get_cell_lengths_and_angles()
+        if not np.round(gamma*mult) == 360:
+            if mult == 2:
+                ats = ats * (2,1,1)
+                ats.set_cell(axis)
+                ats.translate([-ats.get_cell()[0]]*len(ats))
+            else:
+                scell = resetLattice(atoms = ats,expandsize= (4,4,1))
+                slattice = (ats.get_cell()[:]).copy()
+
+                #here we rotate slattice_a @mult degrees to get a new slattice_b. For sym '3', '4', '6', lattice_a must equals lattice_b.
+                #The rotate matrix is borrowed from <cluster.cpp> and now I forget how to calculate it. 
+                r1, r2, r3, x, y, z  = *slattice[2]/c, *slattice[0]
+                cosOmega, sinOmega=math.cos(2*math.pi/mult), math.sin(2*math.pi/mult)
+                slattice[1] = [x*(r1*r1*(1-cosOmega)+cosOmega)+y*(r1*r2*(1-cosOmega)-r3*sinOmega)+z*(r1*r3*(1-cosOmega)+r2*sinOmega), 
+                    x*(r1*r2*(1-cosOmega)+r3*sinOmega)+y*(r2*r2*(1-cosOmega)+cosOmega)+z*(r2*r3*(1-cosOmega)-r1*sinOmega), 
+                    x*(r1*r3*(1-cosOmega)-r2*sinOmega)+y*(r2*r3*(1-cosOmega)+r1*sinOmega)+z*(r3*r3*(1-cosOmega)+cosOmega) ]
+
+                ats = scell.get(slattice)
+                
+                #print(ats.get_cell_lengths_and_angles())
+        rats = ats.copy()
+        #ase.io.write('rats.vasp', rats, format = 'vasp', vasp5=1)
+        index = [i for i in range(len(ats)) if sqrt(np.sum([x**x for x in ats[i].position])) < 2* self.threshold* covalent_radii[ats[i].number]]
+        if len(index):
+            del ats[index]
+
+        for i in range(mult-1):
+            newats = ats.copy()
+            newats.set_positions([np.dot(np.dot(rot, p), axis) for p in np.dot(newats.get_positions(), axis_1)])
+            rats += newats
+            ats = newats.copy()
+            """
+            outatoms = rats.copy()
+            outatoms.set_cell(outatoms.get_cell()[:]*3)
+            outatoms.translate(-np.mean(outatoms.get_cell()[:], axis = 0))
+            ase.io.write('rats{}.vasp'.format(i), outatoms, format = 'vasp', vasp5=1)
+            """
+        return resetLattice(atoms=rats, expandsize=(1,1,1)).get(atoms.get_cell()[:], neworigin = -np.mean(atoms.get_cell()[:2], axis = 0) )
+
+
+    def mutate(self, ind):
+        self.threshold = ind.p.dRatio
+        """
+        re_shape the layer according to its substrate symmetry. 
+        For z_axis independent '2', 'm', '4', '3', '6' symmetry only.
+        """
+        substrate_sym = ind.substrate_sym(symprec = self.symprec)
+        r, trans, mult = substrate_sym[np.random.choice(len(substrate_sym))]
+        atoms = ind.atoms.copy()
+        atoms.translate([-trans] * len(atoms))
+        atoms.wrap()
+
+        if mult == 'm':
+            atoms = self.mirrorsym(atoms, r)
+        else:
+            atoms = self.axisrotatesym(atoms, r, mult)
+        
+        atoms.translate([trans] *len(atoms))
+        return ind(atoms)
+
 class RippleMutation(Mutation):
     def __init__(self, rho=0.3, mu=2, eta=1,tryNum=10):
         self.rho = rho
@@ -598,6 +726,7 @@ class PopGenerator:
 
         #remove bulk_layer and relaxable_layer before crossover and mutation
         if self.p.calcType=='rcs':
+            Pop = Pop.copy()
             Pop.removebulk_relaxable_vacuum()
         if self.p.calcType=='clus':
             Pop.randrotate()
