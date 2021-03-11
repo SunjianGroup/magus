@@ -413,7 +413,7 @@ class SymLyrMutation(Mutation):
                 #print(ats.get_cell_lengths_and_angles())
         rats = ats.copy()
         #ase.io.write('rats.vasp', rats, format = 'vasp', vasp5=1)
-        index = [i for i in range(len(ats)) if sqrt(np.sum([x**x for x in ats[i].position])) < 2* self.threshold* covalent_radii[ats[i].number]]
+        index = [i for i in range(len(ats)) if sqrt(np.sum([x**2 for x in ats[i].position])) < 2* self.threshold* covalent_radii[ats[i].number]]
         if len(index):
             del ats[index]
 

@@ -12,7 +12,7 @@ from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
 from .utils import *
-from .reconstruct import reconstruct, cutcell, match_symmetry
+from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 from .population import RcsInd
 import math
 
@@ -358,7 +358,7 @@ class ReconstructGenerator():
         para_t = EmptyClass()
         Requirement=['layerfile']
         Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'randratio':0.5,
-        'rcs_x':[1], 'rcs_y':[1], 'SymbolsToAdd': None, 'AtomsToAdd': None, 'direction': None, 'rotate': 0,
+        'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'extra_c':1.0, 
         'dimension':2, 'choice':0 }
 
         checkParameters(para_t, parameters, Requirement,Default)
@@ -373,7 +373,7 @@ class ReconstructGenerator():
             #here starts to split layers into [bulk, relaxable, rcs]
             originatoms = ase.io.read(para_t.layerfile)
             layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
-            cutcell(originatoms, layernums, totslices = para_t.cutslices, direction= para_t.direction,rotate = para_t.rotate)
+            cutcell(originatoms, layernums, totslices = para_t.cutslices, direction= para_t.direction,rotate = para_t.rotate, vacuum = para_t.extra_c)
             #layer split ends here    
 
         self.range=para_t.range
@@ -387,12 +387,15 @@ class ReconstructGenerator():
         
         setlattice = []
         if len(self.layerslices)==3:
+            #mode = 'reconstruct'
             self.ref = self.layerslices[2]
             vertical_dis = self.ref.get_scaled_positions()[:,2].copy()
             mincell = self.ref.get_cell().copy()
             mincell[2] *= (np.max(vertical_dis) - np.min(vertical_dis))*1.2
             setlattice = list(cell_to_cellpar(mincell))
         else:
+            #mode = 'add atoms'
+            para_t.randratio = 0
             self.ref = self.layerslices[1].copy()
             lattice = self.ref.get_cell().copy()
             lattice [2]/= para_t.relaxable_layernum
@@ -510,6 +513,31 @@ class ReconstructGenerator():
             else:
                 return list(range(1, 13))
 
+    def reset_rind_lattice(self, atoms, _x, _y, botp = 'refbot', type = 'bot'):
+
+        refcell = (self.ref * (_x, _y, 1)).get_cell_lengths_and_angles()
+        cell = atoms.get_cell_lengths_and_angles()
+
+        if not np.allclose(cell[:2], refcell[:2], atol=0.1):
+            return False, None
+        if not np.allclose(cell[3:], refcell[3:], atol=0.5):
+            #'hex' lattice
+            if np.round(refcell[-1] + cell[-1] )==180:
+                atoms = resetLattice(atoms = atoms.copy(), expandsize = (4,1,1)).get(np.dot(np.diag([-1, 1, 1]), atoms.get_cell() ))
+
+            else:
+                return False, None
+        atoms.set_cell(np.dot(np.diag([1,1, refcell[2]/cell[2]]) ,atoms.get_cell()))
+        refcell = (self.ref * (_x, _y, 1)).get_cell()
+        atoms.set_cell(refcell, scale_atoms = True)
+        pos = atoms.get_scaled_positions(wrap = False)
+        refpos = self.ref.get_scaled_positions(wrap = True)
+        bot = np.min(pos[:,2]) if type == 'bot' else np.mean(pos[:, 2])
+        tobot = np.min(refpos[:,2])*atoms.get_cell()[2] if isinstance(botp, str) else botp
+        atoms.translate([ tobot - bot*atoms.get_cell()[2]]* len(atoms))
+        return True, atoms
+        
+        
     def reset_generator_lattice(self, _x, _y, spg):
         symtype = 'default'
         if self.symtype == 'hex':
@@ -561,9 +589,9 @@ class ReconstructGenerator():
 
                 label,extraind = self.rcs_generator.Generate_ind(spg,numlist)
                 if label:
-                    extraind.set_cell(ind.get_cell().copy(), scale_atoms=True)
-                    dis = np.max(ind.get_scaled_positions()[:,2]) - np.min(extraind.get_scaled_positions(wrap = False)[:,2]) + (np.random.choice(range(5,20))/100)
-                    extraind.translate([dis * ind.get_cell()[2] ]*len(extraind))
+                    botp = np.max(ind.get_scaled_positions()[:,2]) + np.random.choice(range(5,20))/100
+                    label, extraind = self.reset_rind_lattice(extraind, _x, _y, botp = botp *ind.get_cell()[2], type = 'bot')
+                if label:
                     ind.info['size'] = [_x, _y]
                     bottom = self.ind(ind)
                     label, extraind = self.rand_displacement(extraind, bottom.addbulk_relaxable_vacuum()) 
@@ -603,26 +631,16 @@ class ReconstructGenerator():
             label,ind = self.rcs_generator.Generate_ind(spg,numlist)
 
             if label:
-                ref = self.ref * (_x, _y, 1)
-                #first set cell to stdcell(ref)
-                ind.set_cell(ref.get_cell_lengths_and_angles().copy())
-                #then change to true cell(ref)
-                ind.set_cell(ref.get_cell().copy(), scale_atoms=True)
-                
-                vertical_dis = ref.get_scaled_positions()[:,2].copy()
-                distance = np.average(vertical_dis) if self.p.dimension==2 and self.p.choice==0 else np.min(vertical_dis)
-                layer_vertical_dis = ind.get_scaled_positions(wrap = False)[:,2].copy()
-                layerbottom = np.min(layer_vertical_dis)
-
-                ind.translate([ ref.get_cell()[2]*distance-ind.get_cell()[2]*layerbottom ]*len(ind))
+                label, ind = self.reset_rind_lattice(ind, _x, _y, botp = 'refbot', type = 'bot')
+            if label:
                 _bot_ = (self.layerslices[1] * (_x, _y, 1)).copy()
                 _bot_.info['size'] = [_x, _y]
                 
                 label, ind = self.rand_displacement(ind, self.ind.addvacuum(add = 1, atoms = self.ind.addextralayer('bulk', atoms=_bot_, add = 1)))
-                if label:
-                    self.afterprocessing(ind,nfm,'rand.symmgen', [_x, _y])
-                    ind = self.ind.addbulk_relaxable_vacuum(atoms = ind)
-                    buildPop.append(ind)
+            if label:
+                self.afterprocessing(ind,nfm,'rand.symmgen', [_x, _y])
+                ind = self.ind.addbulk_relaxable_vacuum(atoms = ind)
+                buildPop.append(ind)
             if not label:
                 tryNum+=1
 

@@ -177,13 +177,14 @@ class resetLattice:
 
 from ase.geometry import cell_to_cellpar
 class cutcell:
-    def __init__(self,originstruct, layernums, totslices= None, direction=[0,0,1], rotate = 0):
+    def __init__(self,originstruct, layernums, totslices= None, direction=[0,0,1], rotate = 0, vacuum = 1.0):
         """
         [auto, but be given is strongly suggested] totslices: layer number of originstruct
         layernums: layer number of [bulk, relaxable, rcs_region]
         [*aborted] startpos:  start position of bulk layer, default =0.9 to keep atoms which are very close to z=1(0?)s.
         direction: miller indices
         rotate: [not implied yet] angle of R.
+        vacuum: [in Ang] vacuum to add to rcs_layer  
         """
         originatoms = originstruct.copy()
         atoms=originatoms.copy()
@@ -259,7 +260,7 @@ class cutcell:
         #6. build bulk, relaxable, rcs layer slices 
         pop= []
         if slicepos[-1]==slicepos[-2]:
-            del slicepos[-1]
+            slicepos = slicepos[:-1]
             logging.info("warning: rcs layer have no atoms. Change mode to adatoms.")  
 
         for i in range(1, len(slicepos)):
@@ -280,7 +281,7 @@ class cutcell:
         #add extravacuum to rcs_layer  
         if len(pop)==3:        
             cell = pop[2].get_cell()
-            cell[2]*=2
+            cell[2]*= ( 1.0 + vacuum/pop[2].get_cell_lengths_and_angles()[2])
             pop[2].set_cell(cell)
         
         logging.info("save cutslices into file layerslices.traj")

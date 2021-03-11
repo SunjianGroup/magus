@@ -743,8 +743,7 @@ class RcsInd(Individual):
         self.maxAt = self.p.maxAt
 
         if self.p.SymbolsToAdd:
-            self.p.symbols.extend(self.p.SymbolsToAdd)
-        
+            self.p.symbols.extend([s for s in self.p.SymbolsToAdd if s not in self.p.symbols])
         def split_modifier(modifier):
             res = []
             for i in range(np.min( [ len(self.p.symbols), len(modifier) ])):
@@ -774,13 +773,30 @@ class RcsInd(Individual):
             except:
                 raise RuntimeError("wrong format of defectstoadd")
     
+    @property
+    def modified_atoms(self):
+        if not hasattr(self, "_modified_atoms"):
+            mod = [None, None]      #=(add, rm)
+            if not self.p.AtomsToAdd is None:
+                for index, m in enumerate(mod):
+                    mod[index] = [[i for i in l if (index == 0 and i>=0) or (index == 1 and i<0)] for l in self.p.AtomsToAdd]
+                    mod[index] = None if np.sum([len(l) for l in mod[index]]) == 0 else mod[index]
+
+            if not self.p.DefectToAdd is None:
+                mod[1] = [l.extend(self.p.DefectToAdd[i]) for i,l in enumerate(mod[1])] if mod[1] else self.p.DefectToAdd.copy()
+            
+            self._modified_atoms = mod.copy()
+        return self._modified_atoms
     
-
     def AtomToModify(self):
-        add = {s:np.random.choice(i) for s,i in zip(self.p.symbols, self.p.AtomsToAdd)} if self.p.AtomsToAdd else None
-        rm = {s:np.random.choice(i) for s,i in zip(self.p.symbols, self.p.DefectToAdd)} if self.p.DefectToAdd else None
-        return add, rm
-
+        mod = self.modified_atoms.copy()
+        for index, m in enumerate(mod):
+            if m:
+                mod[index] = {s:(np.random.choice(i) if len(i) else 0) for s,i in zip(self.p.symbols, m)}
+                mod[index] = None if np.sum([mod[index][s] for s in mod[index]]) ==0 else mod[index]
+        
+        return mod
+    
     def __call__(self,atoms):
         newind = self.__new__(self.__class__)
         newind.p = self.p
@@ -807,8 +823,9 @@ class RcsInd(Individual):
             newind.info['size'] = atoms.info['size']
         elif hasattr(self, "atoms"):
             if 'size' in self.atoms.info:
-                #used in crossover cases
+                #used in crossover cases only, modify later...?
                 newind.info['size'] = self.atoms.info['size']
+                newind.atoms.set_cell(self.atoms.get_cell()[:], scale_atoms = True)
         if 'size' not in newind.info:
             logging.warn("size unknown for reconstruction individual. [1,1] was set but it may lead to an error. ")
             newind.info['size'] = [1,1]
@@ -860,17 +877,18 @@ class RcsInd(Individual):
         elif len(self.layerslices)==2:
             targetFrml = {}
         
-        if self.p.AtomsToAdd:
-            Add = {s:i for s,i in zip(self.p.symbols, self.p.AtomsToAdd)}
-            for s in targetFrml:
-                targetFrml[s] = [num + targetFrml[s] for num in Add[s]]
+        add, rm = self.modified_atoms.copy()
+        if add:
+            Add = {s:i for s,i in zip(self.p.symbols, add)}
+            for s in Add:
+                targetFrml[s] = [num + targetFrml[s] for num in Add[s]] if s in targetFrml else Add[s] 
         else:
             targetFrml = {s:[targetFrml[s]] for s in targetFrml}
             #if self.p.SymbolsToAdd:
                 #for i in range(len(self.p.SymbolsToAdd)):
                     #setattr(targetFrml,self.p.SymbolsToAdd[i],self.p.AtomsToAdd[i+len(self.p.symbols)])
-        if self.p.DefectToAdd:
-            Defect = {s:i for s,i in zip(self.p.symbols, self.p.DefectToAdd)}
+        if rm:
+            Defect = {s:i for s,i in zip(self.p.symbols, rm)}
             for s in targetFrml:
                 targetFrml[s] = list(set( [i-j for i in targetFrml[s] for j in Defect[s]])) if s in Defect else targetFrml[s]
         

@@ -25,6 +25,10 @@ class Comparator:
         if 'energy' in a.info and 'energy' in b.info:
             if abs(a.info['energy']/len(a) - b.info['energy']/len(b)) > self.dE:
                 return False
+        if a.info['spg'] == 1:
+            if abs(a.info['energy'] - b.info['energy']) > self.dE:
+                return False
+
         return True
 
 class FingerprintComparator(Comparator):
