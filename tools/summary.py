@@ -9,7 +9,8 @@ import pandas as pd
 import ase.io
 from ase import Atoms
 import numpy as np
-
+from pymatgen import Molecule
+from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 
 savePri = 0
 saveStd = 0
@@ -17,6 +18,9 @@ saveStd = 0
 pd.options.display.max_rows = 300
 
 filename = sys.argv[1]
+sumtype = 'n'    #'normal'
+if len(sys.argv)>2:
+    sumtype = 'c'    #'cluster'
 symprec = 0.1
 images = ase.io.read(filename, format='traj', index=':')
 
@@ -25,6 +29,9 @@ showList = [
 'symmetry',
 'enthalpy',
 #'ehull',
+'Eo',
+'energy',
+#'size',
 #'predictE',
 'parentE',
 #'parents',
@@ -47,6 +54,10 @@ for i, at in enumerate(images):
     posname = "POSCAR_%s.vasp" %(i+1)
     ase.io.write(posname, at, direct = True, vasp5 = True)
     symmetry = spg.get_spacegroup(at, symprec)
+    if sumtype == 'c':
+        molecule = Molecule(at.symbols,at.get_positions())
+        symmetry = PointGroupAnalyzer(molecule, symprec).sch_symbol
+
     cellpar = np.round(at.get_cell_lengths_and_angles(), 2)
     cellpar = cellpar.tolist()
     lengths = cellpar[:3]
@@ -96,6 +107,7 @@ for i, at in enumerate(images):
 table = pd.DataFrame(allRes, columns=showList)
 sortdf = table.sort_values('enthalpy', axis=0, ascending=False, kind='mergesort')
 #sortdf = table.sort_values('ehull', axis=0, ascending=False, kind='mergesort')
+#sortdf = table.sort_values('Eo', axis=0, ascending=False, kind='mergesort')
 
 sortdf.index += 1
 print(sortdf)
