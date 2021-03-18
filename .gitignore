@@ -12,7 +12,9 @@ examples/*/*
 !examples/*/runserial
 !examples/*/Seeds
 !examples/*/summary.py
-
+mypps/
+run_vasp.py
+tools/csp*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

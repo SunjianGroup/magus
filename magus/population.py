@@ -779,7 +779,7 @@ class RcsInd(Individual):
             mod = [None, None]      #=(add, rm)
             if not self.p.AtomsToAdd is None:
                 for index, m in enumerate(mod):
-                    mod[index] = [[i for i in l if (index == 0 and i>=0) or (index == 1 and i<0)] for l in self.p.AtomsToAdd]
+                    mod[index] = [[abs(i) for i in l if (index == 0 and i>=0) or (index == 1 and i<0)] for l in self.p.AtomsToAdd]
                     mod[index] = None if np.sum([len(l) for l in mod[index]]) == 0 else mod[index]
 
             if not self.p.DefectToAdd is None:

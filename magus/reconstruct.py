@@ -247,7 +247,10 @@ class cutcell:
         assert len(axisc) ==1, "cannot match primitive lattice with origin cell, primitive abc = {} while origin abc = {}".format(abcp, abcc)
         if not axisc[0] ==2:
             surface_vector[[axisc[0], 2]] = surface_vector[[2, axisc[0]]]
- 
+
+        #vasp does not work if the triple product of the basis vectors is negative sad:< 
+        if np.dot(np.cross(*surface_vector[:2]), newcell[2]) < 0:
+            surface_vector[[0,1]] = surface_vector[[1,0]]
 
         #4. get surface cell!
         #print(layernums)
