@@ -65,6 +65,7 @@ class magusParameters:
             'diffE': 0.01,
             'diffV': 0.05,
             #'ratNum': 0,
+            'comparator': 'energy',
         }
         if p.calcType=='rcs':
             logging.info("rcs mode: \nlayerfile= "+p.layerfile)
@@ -145,7 +146,7 @@ class magusParameters:
             ripple = RippleMutation()
             slip = SlipMutation()
             rot = RotateMutation()
-            rattle = RattleMutation(p=0.25,rattle_range=4,dRatio=1)
+            rattle = RattleMutation(p=0.25,rattle_range=4,dRatio=self.parameters.dRatio)
             form = FormulaMutation(symbols=self.parameters.symbols)
             num = 3*int((1-self.parameters.randFrac)*self.parameters.popSize/8)+1
             Requirement = []
@@ -154,16 +155,6 @@ class magusParameters:
             rotNum = num if self.parameters.molDetector != 0 else 0
             #rotNum = num if self.parameters.molMode else 0
             formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
-            lyrslip, lyrsym = LyrSlipMutation(), SymLyrMutation()
-            lyrslipNum, lyrsymNum = 0, 0
-            if self.parameters.calcType=='rcs':
-                latNum = 0
-                formNum = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
-                lyrslipNum = num
-                lyrsymNum = num
-            if self.parameters.calcType=='clus':
-                slipNum = 0
-
             """
             if self.parameters.useml:
                 self.get_MLCalculator()
@@ -175,6 +166,21 @@ class magusParameters:
             """
             soft = None
             softNum = 0
+
+            lyrslip, lyrsym = LyrSlipMutation(), SymLyrMutation()
+            lyrslipNum, lyrsymNum = 0, 0
+            if self.parameters.calcType=='rcs':
+                latNum = 0
+                formNum = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
+                lyrslipNum = num
+                lyrsymNum = num
+            if self.parameters.calcType=='clus':
+                slipNum = 0
+                ripple = RippleMutation(rho=0.05)
+                #softNum = num
+                #soft = SoftMutation(self.get_MainCalculator().calcs[-1], bounds=[1.0,2.5])
+                rattle = RattleMutation(p=0.25,rattle_range=0.8,dRatio=self.parameters.dRatio)
+
             Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
                 'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 
                 'formNum': formNum,'ratNum':ratNum, 'lyrslipNum': lyrslipNum, 'lyrsymNum': lyrsymNum}

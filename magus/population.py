@@ -19,6 +19,13 @@ from .reconstruct import fixatoms
 from ase import neighborlist
 from scipy import sparse
 
+#clusters
+try:
+    from pymatgen import Molecule
+    from pymatgen.symmetry.analyzer import PointGroupAnalyzer
+except:
+    pass
+
 def set_ind(parameters):
     if parameters.calcType == 'fix':
         return FixInd(parameters)
@@ -28,6 +35,20 @@ def set_ind(parameters):
         return RcsInd(parameters)
     if parameters.calcType == 'clus':
         return ClusInd(parameters)
+
+def set_comparator(parameters):
+    from .comparator import FingerprintComparator, Comparator
+    from .bruteforce import ZurekComparator
+    #from .reconstruct import MatrixComparator
+
+    if parameters.comparator == 'energy':
+        return Comparator(dE=parameters.diffE, dV=parameters.diffV)
+    elif parameters.comparator == 'fingerprint':
+        return FingerprintComparator(dE=parameters.diffE, dV=parameters.diffV)
+    elif parameters.comparator == 'zurek':
+        return ZurekComparator()
+    #elif parameters.comparator == 'matrix':
+        #return MatrixComparator()
 
 class Population:
     """
@@ -234,11 +255,19 @@ class Population:
 
     def randrotate(self):
         self.pop = list(map(lambda ind:ind.randrotate(), self.pop))  
-    def select(self,n):
+
+    def select(self,n, delete_highE = False, high = 0.6):
         # self.calc_dominators()
         self.pop = sorted(self.pop, key=lambda x:x.info['dominators'])
         if len(self) > n:
             self.pop = self.pop[:n]
+        if delete_highE:
+            enthalpys = [ind.atoms.info['enthalpy'] for ind in self.pop]
+            high *= np.min(enthalpys)
+            logging.info("select without enthalpy higher than {} eV/atom, pop length before selecting: {}".format(high, len(self.pop)))
+            self.pop = [ind for ind in self.pop if ind.atoms.info['enthalpy'] <= high]
+            logging.info("select end with pop length: {}".format(len(self.pop)))
+            
 
     def bestind(self):
         # self.calc_dominators()
@@ -262,10 +291,8 @@ class Individual:
         #     checkParameters(self.p,parameters,[],{'symprec':0.01})
 
         #TODO add more comparators
-        from .comparator import FingerprintComparator, Comparator
-        #self.comparator = FingerprintComparator()
-        self.comparator = Comparator(dE=self.p.diffE, dV=self.p.diffV)
-
+        self.comparator = set_comparator(parameters)
+        
         #fingerprint
         self.cf = ZernikeFp(parameters)
 
@@ -1053,14 +1080,19 @@ class RcsInd(Individual):
 class ClusInd(FixInd):
     def __init__(self, parameters):
         super().__init__(parameters)
-        default= {'vacuum':10}
+        default= {'vacuum':10, 'cutoff':1.0}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
+        
+        from pkg_resources import resource_filename
+        from monty.serialization import loadfn
+        self.pointgroup_symbols = loadfn(resource_filename("pyxtal", "database/symbols.json"))["point_group"]
+        
 
     #slightly modified from FixInd, without periodic boundary conditions
     def __call__(self,atoms):
         newind = self.__new__(self.__class__)
         newind.p = self.p
-
+        newind.pointgroup_symbols = self.pointgroup_symbols
         newind.comparator = self.comparator
         newind.cf = self.cf
         newind.inputMols = self.inputMols
@@ -1077,6 +1109,13 @@ class ClusInd(FixInd):
         newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
         newind.info['fitness'] = {}
         return newind
+    
+    @property
+    def bounding_sphere(self):
+        positions = self.atoms.get_positions()
+        center = np.mean(positions, axis=0)
+        return math.sqrt(np.max([np.sum([x**2 for x in (p - center)]) for p in positions]))
+    
     def randrotate(self, atoms = None):
         newind=self.copy()
         if atoms is None:
@@ -1111,13 +1150,14 @@ class ClusInd(FixInd):
         return a
         
     def get_volRatio(self):
-        cell = self.atoms.get_cell_lengths_and_angles()[:3] 
-        cell -= np.array([self.p.vacuum]*3)
-        self.volRatio = cell[0]*cell[1]*cell[2]/self.get_ball_volume()
+        #cell = self.atoms.get_cell_lengths_and_angles()[:3] 
+        #cell -= np.array([self.p.vacuum]*3)
+        #self.volRatio = cell[0]*cell[1]*cell[2]/self.get_ball_volume()
+        self.volRatio = 4/3 * math.pi * self.bounding_sphere**3 / self.get_ball_volume()
         return self.volRatio
 
-    def _connecty_(self,atoms, cut = 1.0):
-        cutOff = np.array(neighborlist.natural_cutoffs(atoms))*cut
+    def _connecty_(self,atoms):
+        cutOff = np.array(neighborlist.natural_cutoffs(atoms))*self.p.cutoff
         neighborList = neighborlist.NeighborList(cutOff, self_interaction=False, bothways=True)
         neighborList.update(atoms)
         matrix = neighborList.get_connectivity_matrix()
@@ -1159,7 +1199,9 @@ class ClusInd(FixInd):
                 originc = np.mean(originpos, axis = 0)
                 for subclus in range(n_components):
                     sc = [i for i in range(len(a)) if component_list[i] == subclus]
-                    originpos[sc] += ( originc - np.mean(originpos[sc], axis = 0))#*np.random.uniform(0.75,1.25)
+                    randcenter = [np.random.uniform(0, self.bounding_sphere/5), np.random.uniform(0,math.pi), np.random.uniform(0,2*math.pi)]
+                    randcenter = randcenter[0] * np.array([math.sin(randcenter[1])*math.cos(randcenter[2]),math.sin(randcenter[1])*math.sin(randcenter[2]),math.cos(randcenter[1])])
+                    originpos[sc] += ( originc - np.mean(originpos[sc], axis = 0) + randcenter)
                 a.set_positions(originpos)
                 
                 ith =0
@@ -1181,3 +1223,19 @@ class ClusInd(FixInd):
             logging.debug("repair_atoms failed...")
             self.atoms = None 
             return False
+    
+    def find_spg(self):
+        atoms = self.atoms
+        symprec = self.p.symprec
+        molecule = Molecule(atoms.symbols,atoms.get_positions())
+        
+        spg = PointGroupAnalyzer(molecule, symprec).sch_symbol
+        if spg in self.pointgroup_symbols:
+            spg = self.pointgroup_symbols.index(spg) 
+        else:
+            spg = 0
+        
+        atoms.info['spg'] = spg
+        atoms.info['priNum'] = atoms.get_atomic_numbers()
+        atoms.info['priVol'] = 4/3 * math.pi * self.bounding_sphere**3
+        self.atoms = atoms

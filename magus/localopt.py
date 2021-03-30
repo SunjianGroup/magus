@@ -298,7 +298,7 @@ class ASECalculator(Calculator):
 
 class LJCalculator(ASECalculator):
     def __init__(self,parameters):
-        self.calcs = [LennardJones() for _ in range(parameters.calcNum)]
+        self.calcs = [LennardJones(**(yaml.load(open('{}/inputFold/lj_{}.yaml'.format(parameters.workDir, file))))) for file in range(1, parameters.calcNum+1)]
         return super(LJCalculator, self).__init__(parameters)
 
     def relax(self, calcPop):

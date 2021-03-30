@@ -333,7 +333,11 @@ def read_seeds(parameters, seedFile, goodSeed=False):
             
         seedPop = readPop
         #seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
-        #for ind in seedPop:
+        for i, ind in enumerate(seedPop):
+            if 'origin' in ind.info:
+                seedPop[i].info['origin'] += '-seed'
+            else:
+                seedPop[i].info['origin'] = 'seed'
             #if goodSeed:
                 #ind.info['origin'] = 'goodseed'
             #else:
@@ -658,8 +662,15 @@ class ClusterGenerator(BaseGenerator):
         super().afterprocessing(ind,nfm)
 
     def getVolumeandLattice(self,numlist):
-        minVolume,maxVolume,minLattice,maxLattice = super().getVolumeandLattice(numlist)
-        return minVolume,maxVolume, list(np.array(minLattice)/2), list(np.array(maxLattice)/2)
+        #For cluster genertor, generates atom positions lies in distance (from origin) range of (minLattice[0], maxLattice[0])
+        atomicR = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
+        Volume = np.sum(4*np.pi/3*np.array(atomicR)**3*np.array(numlist))*self.p.volRatio
+        minVolume = Volume*0.5
+        maxVolume = Volume*1.5
+        minLattice = [3*self.p.dRatio*np.mean(atomicR)]*3 + [60,60,60] if not self.p.minLattice else self.p.minLattice
+        maxLattice = [(4 * Volume / (4/3 * math.pi))**(1.0/3)]*3 + [120,120,120] if not self.p.maxLattice else self.p.maxLattice
+
+        return minVolume,maxVolume,minLattice,maxLattice
 
     def Generate_pop(self,popSize,initpop=False):
         pop =  super().Generate_pop(popSize,initpop)
