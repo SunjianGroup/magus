@@ -240,9 +240,12 @@ class Individual:
 
         #TODO add more comparators
         from .comparator import FingerprintComparator, Comparator
+        from .compare.naive import NaiveComparator
+        from .compare.bruteforce import ZurekComparator
+        from .compare.base import OrGate, AndGate
         #self.comparator = FingerprintComparator()
-        self.comparator = Comparator(dE=self.p.diffE, dV=self.p.diffV)
-
+        #self.comparator = Comparator(dE=self.p.diffE, dV=self.p.diffV)
+        self.comparator = AndGate([NaiveComparator(dE=self.p.diffE, dV=self.p.diffV), ZurekComparator()])
         #fingerprint
         self.cf = ZernikeFp(parameters)
 
@@ -271,7 +274,8 @@ class Individual:
         #logging.debug('self.inputFormulas: {}'.format(self.inputFormulas))
 
     def __eq__(self, obj):
-        return self.comparator.looks_like(self,obj)
+        return self.comparator.looks_like(self, obj)
+        # return self.comparator.looks_like(self.atoms, obj.atoms)
 
     def copy(self):
         atoms = self.atoms.copy()

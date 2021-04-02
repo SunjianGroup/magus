@@ -2,6 +2,7 @@
 Base module for all operators that create offspring.
 steal from ase.ga
 """
+#TODO how to select, za lun pan du a ?
 import numpy as np
 import logging, copy
 from ase import Atoms
@@ -532,6 +533,11 @@ class PopGenerator:
         self.uqLabels = uqLabels
         self.subpops = subpops
     def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
+        ##################################
+        #temp
+        #si ma dang huo ma yi
+        k = 2 / len(Pop)
+        ##################################
         pairs = []
         labels,_ = Pop.clustering(clusterNum)
         fail = 0
@@ -557,6 +563,11 @@ class PopGenerator:
 
     def get_inds(self,Pop,mutateNum,k=0.3):
         #Pop = self.Pop
+        ##################################
+        #temp
+        #si ma dang huo ma yi
+        k = 2 / len(Pop)
+        ##################################
         dom = np.array([ind.info['dominators'] for ind in Pop.pop])
         edom = np.exp(-k*dom)
         p = edom/np.sum(edom)
@@ -610,6 +621,11 @@ class PopGenerator:
         return newPop
 
     def select(self,Pop,num,k=0.3):
+        ##################################
+        #temp
+        #si ma dang huo ma yi
+        k = 2 / len(Pop)
+        ##################################
         if num < len(Pop):
             pardom = np.array([ind.info['pardom'] for ind in Pop.pop])
             edom = np.e**(-k*pardom)

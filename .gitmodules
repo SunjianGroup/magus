@@ -4,3 +4,6 @@
 [submodule "generatenew"]
 	path = generatenew
 	url = git@git.nju.edu.cn:HanYu/generatenew.git
+[submodule "mtp-api"]
+	path = mtp-api
+	url = git@git.nju.edu.cn:bigd4/mtp-api.git

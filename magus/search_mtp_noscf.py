@@ -11,6 +11,8 @@ from .machinelearning import LRmodel
 from .parameters import magusParameters
 from .writeresults import write_results
 from .formatting.mtp import dump_cfg, load_cfg
+from .calculators.mtp import MTPCalculator, TwostageMTPCalculator
+from .machinelearning import MTPmodel
 """
 Pop:class,poplulation
 pop:list,a list of atoms
@@ -91,7 +93,7 @@ class Magus:
         scfPop.save('scfPop', self.curgen)
 
         self.MTPCalculator.updatedataset(scfPop.frames)
-        self.MTPCalculator.train()
+        self.MTPCalculator.init_train()
         self.curPop = scfPop
 
         if self.parameters.goodSeed:
@@ -130,32 +132,6 @@ class Magus:
         self.keepPop = self.Population(keeppop,'keepPop', self.curgen)
         self.keepPop.save('keep', self.curgen)
 
-    def select_to_relax(self, frames, init_num=8, min_num=40):
-        ground_enthalpy = self.goodPop.bestind()[0].atoms.info['enthalpy']
-        trainset = self.MTPCalculator.trainset
-        energy_mse = self.MTPCalculator.get_loss(trainset)[0]
-        select_enthalpy = ground_enthalpy + init_num * energy_mse
-        to_relax = [atoms for atoms in frames if atoms.info['enthalpy'] <= select_enthalpy]
-        if len(to_relax) < min_num:
-            select_enthalpy += energy_mse
-            to_relax = [atoms for atoms in frames if atoms.info['enthalpy'] <= select_enthalpy]
-        return to_relax            
-    
-    def select_to_add(self, frames):
-        trainset = self.MTPCalculator.trainset
-        energy_mae = self.MTPCalculator.get_loss(trainset)[0]
-        energies = self.MTPCalculator.predict_energies(frames)
-        to_add = []
-        logging.info('compare begin...\ntarget\tpredict\n')
-        for i, atoms in enumerate(frames):
-            target_energies = atoms.info['energy'] / len(atoms)
-            predict_energies = energies[i] / len(atoms)
-            logging.info("{:.5f}\t{:.5f}\n".format(target_energies, predict_energies))
-            error_per_atom = target_energies - predict_energies
-            if abs(error_per_atom) > energy_mae:
-                to_add.append(atoms)
-        return to_add
-
     def Onestep(self):
         #TODO make update parameters more reasonable
         self.update_parameters()
@@ -184,7 +160,13 @@ class Magus:
         if self.parameters.chkSeed:
             seedPop.check()
         initPop.extend(seedPop)
-        initPop.del_duplicate()
+        
+        # not del initpop temp
+        # get energy before del duplicate
+        # scfpop = self.MTPCalculator.scf(initPop.frames)
+        # initPop = self.Population(
+        # initPop.del_duplicate()
+
         # Save Initial
         initPop.save()
 
@@ -200,18 +182,17 @@ class Magus:
         relaxPop.save("mlgen", self.curgen)
         relaxPop.select(self.parameters.goodSize) 
         relaxPop.save("mlgen2", self.curgen)
-        #######  select cfgs to do dft scf  #######
-        to_relax = self.select_to_relax(relaxPop.frames)
+        scfPop = relaxPop
         #######  compare target and predict energy  #######   
-        dft_relaxed_pop = self.MainCalculator.relax(to_relax)
-        DFTRelaxedPop = self.Population(dft_relaxed_pop, 'dft_relaxed_pop', self.curgen)
-        DFTRelaxedPop.save()
-        to_add = self.select_to_add(dft_relaxed_pop)
-        self.MTPCalculator.updatedataset(to_add)
-        self.MTPCalculator.train()
+        #scfpop = self.MainCalculator.scf(relaxPop.frames)
+        #scfPop = self.Population(scfpop)
+        #scfPop.save("scfmlgen", self.curgen)
+        #logging.info("loss:\nenergy_mse:{:.5f}\tenergy_r2:{:.5f}\n"
+        #    "force_mse:{:.5f}\tforce_r2:{:.5f}".format(*self.MTPCalculator.get_loss(scfPop.frames)[:4]))
+        # scfPop.save("scfmlgen", self.curgen)
         #######  goodPop and keepPop  #######
         logging.info('construct goodPop')
-        goodPop = DFTRelaxedPop + goodPop + keepPop
+        goodPop = scfPop + goodPop + keepPop
         goodPop.del_duplicate()
         goodPop.calc_dominators()
         goodPop.select(self.parameters.popSize)
@@ -236,7 +217,7 @@ class Magus:
         keepPop = self.Population(keepPop,'keeppop',self.curgen)
         keepPop.save('keep')
 
-        curPop = DFTRelaxedPop
+        curPop = relaxPop
         curPop.del_duplicate()
         curPop.save('gen')
         self.curPop = curPop

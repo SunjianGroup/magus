@@ -26,6 +26,16 @@ class Generator:
         self.p.volRatio=volRatio
         logging.debug("new volRatio: {}".format(self.p.volRatio))
 
+    def get_swap(self):
+        M = np.array([
+            [[1,0,0],[0,1,0],[0,0,1]],
+            [[0,1,0],[1,0,0],[0,0,1]],
+            [[0,1,0],[0,0,1],[1,0,0]],
+            [[1,0,0],[0,0,1],[0,1,0]],
+            [[0,0,1],[1,0,0],[0,1,0]],
+            [[0,0,1],[0,1,0],[1,0,0]]])
+        return M[np.random.randint(6)]
+
     def getVolumeandLattice(self,numlist):
         # Recalculate atomic radius, considering the change of radius in molecular crystal mode
         atomicR = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
@@ -72,6 +82,11 @@ class Generator:
         generator.GetConventional = True
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
+        # TODO should be encapsulated into HanYu code
+        swap_matrix = self.get_swap() 
+        minLattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ minLattice
+        maxLattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ maxLattice
+
         generator.minVolume = minVolume
         generator.maxVolume = maxVolume
         generator.SetLatticeMins(minLattice[0], minLattice[1], minLattice[2], minLattice[3], minLattice[4], minLattice[5])
@@ -115,10 +130,16 @@ class Generator:
         if label:
             cell = generator.GetLattice(0)
             cell = np.reshape(cell, (3,3))
-            positions = generator.GetPosition(0)
-            positions = np.reshape(positions, (-1, 3))
-            positions = np.dot(positions,cell)
-            atoms = ase.Atoms(cell=cell, positions=positions, numbers=numbers, pbc=1)
+            cell_ = np.linalg.inv(swap_matrix) @ cell
+            Q, L = np.linalg.qr(cell_.T)
+            scaled_positions = generator.GetPosition(0)
+            scaled_positions = np.reshape(scaled_positions, (-1, 3))
+            positions = scaled_positions @ cell @ Q
+            if np.linalg.det(L) < 0:
+                L[2, 2] *= -1
+                positions[:, 2] *= -1
+            atoms = ase.Atoms(cell=L.T, positions=positions, numbers=numbers, pbc=1)
+            atoms.wrap(pbc=[1, 1, 1])
             atoms = build.sort(atoms)
             return label, atoms
         else:

@@ -16,25 +16,37 @@ def dump_cfg(frames, filename, symbol_to_type, mode='w'):
             except:
                 pass
             cartes = atoms.positions
+            has_forces = False
+            has_forces_weights = False
             try:
                 atoms.info['forces'] = atoms.get_forces()
             except:
                 pass
+            fields = ['id', 'type', 'cartes_x', 'cartes_y', 'cartes_z']
             if 'forces' in atoms.info:
+                fields.extend(['fx', 'fy', 'fz'])
                 forces = atoms.info['forces']
-                ret += 'AtomData: id type cartes_x cartes_y cartes_z fx fy fz\n'
-                for i, atom in enumerate(atoms):
-                    ret += '{} {} {} {} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.symbol], *cartes[i], *forces[i])
-            else:
-                ret += 'AtomData: id type cartes_x cartes_y cartes_z\n'
-                for i, atom in enumerate(atoms):
-                    ret += '{} {} {} {} {}\n'.format(i + 1, symbol_to_type[atom.symbol], *cartes[i])
+                has_forces = True
+            if 'forces_weights' in atoms.info:
+                fields.append('weight_f')
+                forces_weights = atoms.info['forces_weights']
+                has_forces_weights = True
+            ret += 'AtomData: ' + ' '.join(fields) + '\n'
+            for i, atom in enumerate(atoms):
+                atom_info = '{} {} {} {} {} '.format(i + 1, symbol_to_type[atom.symbol], *cartes[i])
+                if has_forces:
+                    atom_info += '{} {} {} '.format(*forces[i])
+                if has_forces_weights:
+                    atom_info += str(forces_weights[i])
+                ret += atom_info + '\n'
             try:
                 atoms.info['energy'] = atoms.get_potential_energy()
             except:
                 pass
             if 'energy' in atoms.info:
                 ret += 'Energy\n{}\n'.format(atoms.info['energy'])
+            if 'energy_weight' in atoms.info:
+                ret += 'EnergyWeight\n{}\n'.format(atoms.info['energy_weight'])
             try:
                 atoms.info['stress'] = atoms.get_stress()
             except:
@@ -88,14 +100,13 @@ def load_cfg(filename, type_to_symbol):
                     forces[i] = [float(fields[d[attr]]) for attr in ['fx', 'fy' ,'fz']]
                     energies[i] = float(fields[d['site_en']])
                     
-                    
                 atoms = Atoms(symbols=symbols, cell=cell, positions=positions, pbc=True)
                 if d['fx'] != 0:
                     atoms.info['forces'] = forces
                 if d['site_en'] != 0:
                     atoms.info['energies'] = energies
 
-            if 'Energy' in line:
+            if 'Energy' in line and 'Weight' not in line:
                 line = f.readline()
                 atoms.info['energy'] = float(line.split()[0])
 
@@ -107,6 +118,10 @@ def load_cfg(filename, type_to_symbol):
                 
             if 'END_CFG' in line:
                 frames.append(atoms)
+            
+            if 'EnergyWeight' in line:
+                line = f.readline()
+                atoms.info['energy_weight'] = float(line.split()[0])
 
             if 'identification' in line:
                 atoms.info['identification'] = int(line.split()[2])
