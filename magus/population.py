@@ -15,7 +15,7 @@ from .descriptor import ZernikeFp
 import copy
 from .molecule import Molfilter
 from ase.constraints import FixAtoms
-from .reconstruct import fixatoms
+from .reconstruct import fixatoms, weightenCluster
 from ase import neighborlist
 from scipy import sparse
 
@@ -528,7 +528,7 @@ class Individual:
             mAts = atoms
         self.atoms = mAts
 
-    def repair_atoms(self):
+    def repair_atoms(self, weighten = False):
         """
         sybls: a list of symbols
         toFrml: a list of formula after repair
@@ -560,7 +560,14 @@ class Individual:
         #remove before add
         while toremove:
             del_symbol = np.random.choice(list(toremove.keys()))
-            del_index = np.random.choice([atom.index for atom in repatoms if atom.symbol==del_symbol])
+            del_index = []
+            
+            if not weighten:
+                del_index = np.random.choice([atom.index for atom in repatoms if atom.symbol==del_symbol])
+            else:
+                indices = [atom.index for atom in repatoms if atom.symbol==del_symbol]
+                del_index = weightenCluster().choseAtom(repatoms[indices])
+
             if toadd:
                 #if some symbols need to add, change symbol directly
                 add_symbol = np.random.choice(list(toadd.keys()))
@@ -580,7 +587,13 @@ class Individual:
             add_symbol = np.random.choice(list(toadd.keys()))
             for _ in range(self.p.repairtryNum):
                 # select a center atoms
-                centerAt = repatoms[np.random.randint(0,len(repatoms))]
+                centerAt = []
+
+                if not weighten:
+                    centerAt = repatoms[np.random.randint(0,len(repatoms))]
+                else:
+                    centerAt = repatoms[weightenCluster().choseAtom(repatoms)]
+                
                 basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[add_symbol]]
                 # random position in spherical coordination
                 radius = basicR * (dRatio + np.random.uniform(0,0.3))
@@ -1080,12 +1093,15 @@ class RcsInd(Individual):
 class ClusInd(FixInd):
     def __init__(self, parameters):
         super().__init__(parameters)
-        default= {'vacuum':10, 'cutoff':1.0}
+        default= {'vacuum':10, 'cutoff':1.0, 'weighten': True}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
         
         from pkg_resources import resource_filename
         from monty.serialization import loadfn
-        self.pointgroup_symbols = loadfn(resource_filename("pyxtal", "database/symbols.json"))["point_group"]
+        #TODO: long logs appear if use 'resource_filename' on pyxtal. Setting logconfig to > debug also solves it. But why??
+        #file = resource_filename("pyxtal", "database/symbols.json")
+        file = '/fs08/home/js_hanyu/.local/lib/python3.6/site-packages/pyxtal/database/symbols.json'
+        self.pointgroup_symbols = loadfn(file)["point_group"]
         
 
     #slightly modified from FixInd, without periodic boundary conditions
@@ -1189,7 +1205,7 @@ class ClusInd(FixInd):
     def repair_atoms(self):
         n_components, component_list = self._connecty_(self.atoms)
         if n_components ==1:
-            return super().repair_atoms()
+            return super().repair_atoms(weighten=self.p.weighten)
         else:
             logging.debug("By repair_atoms: attempts to make cluster unite again!")
             oldatoms = self.atoms.copy()
@@ -1216,7 +1232,7 @@ class ClusInd(FixInd):
                     else:
                         ith +=1
 
-                if super().repair_atoms():
+                if super().repair_atoms(weighten=self.p.weighten):
                     return True
                 else:
                     self.atoms = oldatoms.copy()
@@ -1231,9 +1247,9 @@ class ClusInd(FixInd):
         
         spg = PointGroupAnalyzer(molecule, symprec).sch_symbol
         if spg in self.pointgroup_symbols:
-            spg = self.pointgroup_symbols.index(spg) 
+            spg = self.pointgroup_symbols.index(spg) + 1
         else:
-            spg = 0
+            spg = 1
         
         atoms.info['spg'] = spg
         atoms.info['priNum'] = atoms.get_atomic_numbers()

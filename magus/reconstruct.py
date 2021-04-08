@@ -6,6 +6,7 @@ from ase.data import atomic_numbers, covalent_radii
 from .utils import sort_elements
 import logging
 import copy
+from ase import Atoms
 
 def str_(l):
     l=str(l)
@@ -607,6 +608,48 @@ class match_symmetry:
                 return trans, choice[0][2]
                 
         return (np.array([np.random.uniform(0,1), np.random.uniform(0,1),0]), np.eye(3))
+
+import math
+class weightenCluster:
+    def __init__(self, d = 0.23):
+        self.d = d
+    
+    def Exp_j(self, ith, jth):
+        return math.exp(-(self.atoms.get_distance(ith, jth) - self.radii[ith] - self.radii[jth]) / self.d)
+    
+    def choseAtom(self, ind):
+        if isinstance(ind, Atoms):
+            self.atoms = ind.copy()
+        else:
+            self.atoms = ind.atoms.copy()
+            
+        self.radii = [covalent_radii[atom.number] for atom in self.atoms]
+
+        O = np.zeros(len(self.atoms))
+        for i, _ in enumerate (self.atoms):
+            Exp = np.array([self.Exp_j(i, j) for j in range(len(self.atoms)) if not i == j])
+            O[i] = np.sum(Exp) / np.max(Exp)
+        
+        probability = np.max(O) - O
+        probability = probability / np.sum(probability)
+        a = np.random.random()
+        #print('probability = {}, a = {}'.format(probability, a))
+        
+        for i, _ in enumerate(probability):
+            a -= probability[i]
+            if a < 0 :
+                break
+        #print('i = {}, prange {} ~ {}'.format(i, np.sum(probability[:i]), np.sum(probability[:i+1])))
+        return i
+
+class MatrixComparator:
+    def __init__(self, tolerance = 0.1):
+        self.tolerance = tolerance
+
+    def looks_like(self,aInd,bInd):
+        pass
+
+        
 
 if __name__ == '__main__':
     t=reconstruct(0.8, ase.io.read("POSCAR_3.vasp",format='vasp'), 0.8,2 )

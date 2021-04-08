@@ -167,23 +167,28 @@ class magusParameters:
             soft = None
             softNum = 0
 
-            lyrslip, lyrsym = LyrSlipMutation(), SymLyrMutation()
+            lyrslip, lyrsym = LyrSlipMutation(), LyrSymMutation()
             lyrslipNum, lyrsymNum = 0, 0
             if self.parameters.calcType=='rcs':
                 latNum = 0
                 formNum = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
                 lyrslipNum = num
                 lyrsymNum = num
+                
+            shell, clusym = ShellMutation(), CluSymMutation()
+            shellNum, clusymNum = 0, 0
             if self.parameters.calcType=='clus':
                 slipNum = 0
                 ripple = RippleMutation(rho=0.05)
                 #softNum = num
                 #soft = SoftMutation(self.get_MainCalculator().calcs[-1], bounds=[1.0,2.5])
                 rattle = RattleMutation(p=0.25,rattle_range=0.8,dRatio=self.parameters.dRatio)
+                shellNum, clusymNum = [num]*2
 
             Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
                 'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 
-                'formNum': formNum,'ratNum':ratNum, 'lyrslipNum': lyrslipNum, 'lyrsymNum': lyrsymNum}
+                'formNum': formNum,'ratNum':ratNum, 'lyrslipNum': lyrslipNum, 'lyrsymNum': lyrsymNum, 
+                'shellNum': shellNum, 'clusymNum': clusymNum}
             checkParameters(self.parameters,self.parameters,Requirement,Default)
             numlist = [
                 self.parameters.cutNum,
@@ -197,8 +202,10 @@ class magusParameters:
                 self.parameters.ratNum,
                 self.parameters.lyrslipNum,
                 self.parameters.lyrsymNum,
+                self.parameters.shellNum,
+                self.parameters.clusymNum
                 ]
-            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle, lyrslip, lyrsym]
+            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle, lyrslip, lyrsym, shell, clusym]
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"

@@ -4,7 +4,7 @@ steal from ase.ga
 """
 import numpy as np
 import logging, copy
-from ase import Atoms
+from ase import Atoms, Atom 
 from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
 from ase.neighborlist import NeighborList
 from ase.data import covalent_radii,chemical_symbols
@@ -324,7 +324,7 @@ class LyrSlipMutation(Mutation):
         return ind(atoms)
 
 from magus.reconstruct import resetLattice
-class SymLyrMutation(Mutation):
+class LyrSymMutation(Mutation):
     def __init__(self, tryNum=10, symprec = 1e-4):
         super().__init__(tryNum=tryNum)
         self.symprec = symprec
@@ -440,7 +440,7 @@ class SymLyrMutation(Mutation):
         substrate_sym = ind.substrate_sym(symprec = self.symprec)
         r, trans, mult = substrate_sym[np.random.choice(len(substrate_sym))]
         atoms = ind.atoms.copy()
-        atoms.translate([-trans] * len(atoms))
+        atoms.translate([-np.dot(trans, atoms.get_cell())] * len(atoms))
         atoms.wrap()
 
         if mult == 'm':
@@ -448,7 +448,7 @@ class SymLyrMutation(Mutation):
         else:
             atoms = self.axisrotatesym(atoms, r, mult)
         
-        atoms.translate([trans] *len(atoms))
+        atoms.translate([np.dot(trans, atoms.get_cell())] * len(atoms))
         return ind(atoms)
 
 class RippleMutation(Mutation):
@@ -495,6 +495,89 @@ class RotateMutation(Mutation):
                 phi, theta, psi = np.random.uniform(-1,1,3)*np.pi*2
                 mol.rotate(phi,theta,psi)
         return ind(atoms)
+
+from .reconstruct import weightenCluster
+class ShellMutation(Mutation):
+    """
+    Original proposed by Lepeshkin et al. in J. Phys. Chem. Lett. 2019, 10, 102−106
+    Mutation (6)/(7), aiming to add/remove atom i of a cluster with probability pi proportional to maxi∈s[Oi]−Oi,
+    def Exp_j = exp(-(r_ij-R_i-R_j)/d); Oi = sum_j (Exp_j) / max_j(Exp_j)
+    d is the empirically determined parameter set to be 0.23.
+    """
+    def __init__(self, d=0.23,tryNum=10):
+        super().__init__(tryNum=tryNum)
+        self.d = d
+    
+    def mutate(self,ind, addatom = True, addfrml = None):
+        
+        atoms = ind.atoms.copy()
+        i = weightenCluster(self.d).choseAtom(ind)
+        
+        if not addatom:
+            del atoms[i]
+        else:
+            if addfrml is None:
+                addfrml = {atoms[0].number: 1}
+
+            for _ in range(self.tryNum):
+                if addfrml:
+                    #borrowed from Individual.repair_atoms
+                    atomnum = list(addfrml.keys())[0]
+                    basicR = covalent_radii[atoms[i].number] + covalent_radii[atomnum]
+                    # random position in spherical coordination
+                    radius = basicR * (ind.p.dRatio + np.random.uniform(0,0.3))
+                    theta = np.random.uniform(0,np.pi)
+                    phi = np.random.uniform(0,2*np.pi)
+                    pos = atoms[i].position + radius*np.array([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi),np.cos(theta)])
+                    
+                    atoms.append(Atom(symbol = atomnum, position=pos))
+                    
+                    for jth in range(len(atoms)-1):
+                        if atoms.get_distance(len(atoms)-1, jth) < ind.p.dRatio * basicR:
+                            del atoms[-1]
+                            break 
+                    else:
+                        addfrml[atomnum] -=1
+                        if addfrml[atomnum] == 0 :
+                            del addfrml[atomnum]
+                else:
+                    break
+
+        return ind(atoms)
+
+class CluSymMutation(LyrSymMutation):
+    """
+    maybe it is not a good mutation schedule but it was widely used in earlier papers for cluster prediction, such as
+        Rata et al, Phys. Rev. Lett. 85, 546 (2000) 'piece reflection'
+        Schönborn et al, j. chem. phys 130, 144108 (2009) 'twinning mutation' 
+    I put it here for it is very easy to implement with codes we have now.
+    And since population is randrotated before mutation, maybe it doesnot matter if 'm' and '2'_axis is specified.  
+    """
+    def __init__(self, tryNum = 10):
+        super().__init__(tryNum = tryNum)
+    
+    def mutate(self, ind):
+
+        self.threshold = ind.p.dRatio
+        COU = np.array([0.5, 0.5, 0])
+        sym = [(np.array([[-1,0,0], [0,-1,0], [0,0,1]]), 2), (np.array([[1,0,0], [0,-1,0], [0,0,1]]), 'm')] 
+        r, mult = sym[np.random.choice([0,1])]
+
+        atoms = ind.atoms.copy()
+        atoms.translate([-np.dot(COU, atoms.get_cell())] * len(atoms))
+        atoms.set_pbc(True)
+        atoms.wrap()
+
+        if mult == 'm':
+            atoms = self.mirrorsym(atoms, r)
+        else:
+            atoms = self.axisrotatesym(atoms, r, mult)
+        
+        atoms.wrap()
+        
+        return ind(atoms)
+
+
 
 class FormulaMutation(Mutation):
     def __init__(self, symbols, p1=0.5, p2=0.2, tryNum=10):
