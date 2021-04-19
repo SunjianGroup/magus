@@ -1,5 +1,6 @@
 #!/bin/bash
 mv allparameters.yaml log.txt results/
+rm allparameters.yaml log.txt # in case results/ is removed before running this script
 cp -r input* results/
 rm -rf calcFold mlFold
 #mv -f results/dataset.traj results/savedata.traj
