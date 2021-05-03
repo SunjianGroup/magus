@@ -6,7 +6,9 @@ from ase.data import atomic_numbers, covalent_radii
 from .utils import sort_elements
 import logging
 import copy
-from ase import Atoms
+from ase import Atoms, Atom
+from .utils import symbols_and_formula
+from collections import Counter
 
 def str_(l):
     l=str(l)
@@ -642,12 +644,195 @@ class weightenCluster:
         #print('i = {}, prange {} ~ {}'.format(i, np.sum(probability[:i]), np.sum(probability[:i+1])))
         return i
 
-class MatrixComparator:
+class ClusComparator:
     def __init__(self, tolerance = 0.1):
         self.tolerance = tolerance
+    def distance(self, vector1, vector2):
+        raise NotImplementedError()
+    def fingervector(self, ind):
+        raise NotImplementedError()
+
+    def looks_like(self, aInd, bInd):
+        
+        for ind in [aInd, bInd]:
+            if 'spg' not in ind.atoms.info:
+                ind.find_spg()
+        a,b = aInd.atoms,bInd.atoms
+        
+        if a.info['spg'] != b.info['spg']:
+            return False
+        if Counter(a.info['priNum']) != Counter(b.info['priNum']):
+            return False
+
+        vector1, vector2 = aInd.fingervector, bInd.fingervector
+        distance = self.distance(vector1, vector2)
+        #print('distance = {}'.format(distance))
+        if distance > self.tolerance:
+            return False
+
+        return True
+
+class OverlapMatrixComparator(ClusComparator):
+    """
+    Borrowed from Sadeghi et al, J. Chem. Phys. 139, 184118 (2013) https://doi.org/10.1063/1.4828704 ;
+    J. Chem. Phys. 144, 034203 (2016) https://doi.org/10.1063/1.4940026
+    """
+    def __init__(self, orbital= 's', tolerance = 1e-4, width = 1.0):
+        super().__init__(tolerance = tolerance)
+        self.orbital = orbital
+        #orbital: overlap orbital, could be 's' <s only> or 'p' <s and p>
+        
+        self.width = width
+        #width: Gaussian width αi 
+        #inversely proportional to the square of the covalent radius of atom i, namely, ai = self.width/radius**2
+
+    def distance(self, vector1, vector2):
+    #Euclidean distance between vector1 and vector2
+        v = vector1 - vector2
+        return math.sqrt(np.dot(v, v)/ len(v)) 
+
+    def S(self, ind):
+        N, S = len(ind), None
+        if self.orbital == 's':
+            S = np.zeros((N, N))
+            for i in range(N):
+                for j in range(N):
+                    if j < i:
+                        S[i][j] = S[j][i]
+                    else:
+                        S[i][j] = self.OverlapM(ind[i], ind[j])
+
+        elif self.orbital == 'p':
+            S = np.zeros((4*N, 4*N))
+            for i in range(0, N):
+                for j in range(i, N):
+                    subS = self.OverlapM(ind[i], ind[j])
+                    #si, sj = i, j
+                    S[i][j] = subS[0][0]
+                    S[j][i] = S[i][j]
+                    #pxi, pyi, pzi = N+i, 2*N+i, 3*N+i 
+                    for x in range(1,4):
+                        S[i][x*N+j] = subS[0][x]
+                        S[j][x*N+i] = subS[x][0]
+                    for x1 in range(1,4):
+                        for x2 in range(1,4):
+                            S[x1*N+i][x2*N+j] = subS[x1][x2]
+                            S[x1*N+j][x2*N+i] = subS[x1][x2]
+        
+        return S
+                    
+    def fingervector(self, ind):
+        vector = np.linalg.eig(self.S(ind))[0]
+        return np.array(sorted(vector, reverse = True))
+
+    def OverlapM(self, ati, atj):
+        ri_rj = ati.position - atj.position
+        rij2 = np.sum([r**2 for r in ri_rj])
+        ai, aj =  self.width / np.array([covalent_radii[ati.number]**2, covalent_radii[atj.number]**2])
+        N = ai*aj/(ai+aj)
+        Sij = (2*N/math.sqrt(ai*aj))**1.5 * math.exp(-N*rij2)
+        if self.orbital == 's':
+            #ss_ij = Sij
+            return Sij
+        
+        def ps_ij(x):
+            #x equals {0,1,2}, stands for {px, py, pz}
+            return -2*N/math.sqrt(ai)*((ri_rj)[x]) *Sij
+        def ps_ji(x):
+            return 2*N/math.sqrt(aj)*((ri_rj)[x]) *Sij
+        def pp_ij(x1, x2):
+            delta = 1 if x1==x2 else 0
+            return 2*N/math.sqrt(ai*aj)*Sij*( delta-2*N*((ri_rj)[x1])*((ri_rj)[x2]) )
+
+        """
+        returns a overlap matrix S of ati, atj 
+        i\j     s        px      py      pz
+        s   _si-sj_| ___ si-pj_____ 
+        px            |     
+        py    pi-sj |          pi-pj
+        pz            |
+
+        In this matrix, pi-sj != si-pj, but pi-pj = pj-pi.
+        """
+        S = np.zeros((4,4))
+        S[0][0] = Sij
+        for x in range(1,4):
+            S[0][x] = ps_ji(x-1)
+            S[x][0] = ps_ij(x-1)
+
+        for x1 in range(1,4):
+            for x2 in range(1,4):
+                if x2 < x1:
+                    S[x1][x2] = S[x2][x1]
+                else:
+                    S[x1][x2] = pp_ij(x1-1, x2-1)
+
+        return S
 
     def looks_like(self,aInd,bInd):
-        pass
+        return super().looks_like(aInd, bInd)   
+
+class OganovComparator(ClusComparator):
+    """
+    Borrowed from Lyakhov et al, Computer Physics Communications 184 (2013) 1172–1182 https://doi.org/10.1016/j.cpc.2012.12.009 ;
+    J. Chem. Phys. 130, 104504 (2009) https://doi.org/10.1063/1.3079326
+
+    2 atom species only???
+    """
+    def __init__(self, tolerance = 0.1, width = 0.075, delta = 0.05, dimComp = 630, maxR = 15):
+        super().__init__(tolerance = tolerance)
+        self.width = width
+        self.delta = delta
+        self.dimComp = dimComp
+        self.maxR = maxR
+        #for clusters, maxR being cluster's bounding_sphere is okay. 15 is for extended systems.
+    
+    #Gaussian-smeared delta-function; parameter *10 comes from https://doi.org/10.1016/j.jcp.2016.06.014
+    def f_delta(self, x, x0):
+        if x < x0 - self.width * 10 or x > x0 + self.width * 10:
+            return 0
+        else:
+            return math.exp(-(x - x0)**2 / self.width **2 /2) / self.width / math.sqrt(2*math.pi)
+
+    def F_AB(self, ind):
+        symbols, _ = symbols_and_formula(ind)
+        A, B = None, None
+        if len(symbols) >1:
+            A = [i for i, atom in enumerate(ind) if atom.symbol == symbols[0][0] ]
+            B = [[i for i, atom in enumerate(ind) if atom.symbol == symbols[0][1] ]]*len(A)
+        else:
+            #ind = ind.copy()
+            #a = Atom(symbol=atomic_numbers[symbols[0][0]] +1, position=np.mean(ind.get_positions(), axis=0))
+            #ind += a
+            #A = [len(ind)-1]
+            #B = [i for i in range(0, len(ind)-1)]
+            A = [i for i in range(0, len(ind))]
+            B = [[j for j in range(0, len(ind)) if not j==i] for i in A]
+                
+        
+        def f_ab_R(R):
+            F = 0
+            for i, ai in enumerate(A):
+                f = 0
+                for bj in B[i]:
+                    Rij = ind.get_distance(ai, bj)
+                    f += self.f_delta(R, Rij) / (Rij**2)
+                F += f/4/math.pi / self.delta / len(B)
+            return F / len(A)
+        
+        return f_ab_R
+    
+    def fingervector(self, ind):
+        f = self.F_AB(ind)
+        step = self.maxR / self.dimComp
+        return np.array([f(k*step) for k in range(1, self.dimComp+1)])
+
+    def distance(self, vector1, vector2):
+    #cosine distance of vector1, vector2
+        return 0.5*(1- np.dot(vector1, vector2)/math.sqrt(np.dot(vector1, vector1) * np.dot(vector2, vector2)))
+
+    def looks_like(self,aInd,bInd):
+        return super().looks_like(aInd, bInd)
 
         
 

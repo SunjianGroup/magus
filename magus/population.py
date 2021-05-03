@@ -39,7 +39,7 @@ def set_ind(parameters):
 def set_comparator(parameters):
     from .comparator import FingerprintComparator, Comparator
     from .bruteforce import ZurekComparator
-    #from .reconstruct import MatrixComparator
+    from .reconstruct import OverlapMatrixComparator, OganovComparator
 
     if parameters.comparator == 'energy':
         return Comparator(dE=parameters.diffE, dV=parameters.diffV)
@@ -47,8 +47,14 @@ def set_comparator(parameters):
         return FingerprintComparator(dE=parameters.diffE, dV=parameters.diffV)
     elif parameters.comparator == 'zurek':
         return ZurekComparator()
-    #elif parameters.comparator == 'matrix':
-        #return MatrixComparator()
+    elif parameters.comparator == 'ognv':
+        default = {'diffComp': 0.1, 'width': 0.075, 'delta': 0.05, 'dimComp': 630, 'maxR': 15}
+        checkParameters(parameters, parameters, [], default)
+        return OganovComparator(tolerance = parameters.diffComp, width = parameters.width, delta = parameters.delta, dimComp = parameters.dimComp, maxR = parameters.maxR)
+    elif parameters.comparator == 'matrix':
+        default = {'diffComp': 0.1, 'width': 1.0, 'orbital': 's'}
+        checkParameters(parameters, parameters, [], default)
+        return OverlapMatrixComparator(orbital= parameters.orbital, tolerance = parameters.diffComp, width = parameters.width)
 
 class Population:
     """
@@ -1132,6 +1138,12 @@ class ClusInd(FixInd):
         center = np.mean(positions, axis=0)
         return math.sqrt(np.max([np.sum([x**2 for x in (p - center)]) for p in positions]))
     
+    @property
+    def fingervector(self):
+        if not hasattr(self, '_finger_vector'):
+            self._finger_vector = self.comparator.fingervector(self.atoms)
+        return self._finger_vector
+
     def randrotate(self, atoms = None):
         newind=self.copy()
         if atoms is None:
