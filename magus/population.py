@@ -14,6 +14,11 @@ from sklearn import cluster
 from .descriptor import ZernikeFp
 import copy
 from .molecule import Molfilter
+#TODO
+# check seed?
+
+log = logging.getLogger(__name__)
+
 
 def set_ind(parameters):
     if parameters.calcType == 'fix':
@@ -28,7 +33,7 @@ class Population:
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['resultsDir','calcType','symbols']
-        Default={}
+        Default={'chkSeed': False}
         checkParameters(self.p,parameters,Requirement,Default)
         self.Individual = set_ind(parameters)
 
@@ -46,7 +51,7 @@ class Population:
         newPop.Individual = self.Individual
         newPop.fit_calcs = self.fit_calcs
         newPop.pop = pop
-        logging.debug('generate:Pop {} with {} ind'.format(name,len(pop)))
+        log.debug('generate:Pop {} with {} ind'.format(name,len(pop)))
         newPop.name = name
         newPop.gen = gen
         for i,ind in enumerate(pop):
@@ -76,7 +81,7 @@ class Population:
         #    self.pop.append(ind)
         #    return True
 
-    def extend(self,pop):
+    def extend(self, pop):
         for ind in pop:
             self.append(ind)
 
@@ -95,7 +100,7 @@ class Population:
             atoms = ind.to_save()
             pop.append(atoms)
         ase.io.write("{}/{}{}.traj".format(savedir,filename,gen),pop,format='traj')
-        logging.debug("save {}{}.traj".format(filename,gen))
+        log.debug("save {}{}.traj".format(filename,gen))
 
     @property
     def frames(self):
@@ -139,7 +144,7 @@ class Population:
             fit_calc.calc(self)
 
     def del_duplicate(self):
-        logging.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
+        log.info('del_duplicate {} begin, popsize:{}'.format(self.name,len(self.pop)))
         newpop = []
         # sort the pop before deleting duplicates
         self.pop = sorted(self.pop, key=lambda x:x.info['enthalpy'] if 'enthalpy' in x.info else 100)
@@ -156,26 +161,26 @@ class Population:
                     break
             else:
                 newpop.append(ind1)
-        logging.info('del_duplicate survival: {}'.format(len(newpop)))
+        log.info('del_duplicate survival: {}'.format(len(newpop)))
         self.pop = newpop
 
     def check(self):
-        logging.info("check population {}, popsize:{}".format(self.name,len(self.pop)))
+        log.info("check population {}, popsize:{}".format(self.name,len(self.pop)))
         checkpop = []
         for ind in self.pop:
-            #logging.debug("checking {}".format(ind.info['identity']))
-            if ind.check():
+            #log.debug("checking {}".format(ind.info['identity']))
+            if not ind.need_check() or ind.check():
                 checkpop.append(ind)
-        logging.info("check survival: {}".format(len(checkpop)))
+        log.info("check survival: {}".format(len(checkpop)))
         self.pop = checkpop
 
     def check_full(self):
-        logging.info("check_full population {}, popsize:{}".format(self.name,len(self.pop)))
+        log.info("check_full population {}, popsize:{}".format(self.name,len(self.pop)))
         checkpop = []
         for ind in self.pop:
             if ind.check_full():
                 checkpop.append(ind)
-        logging.info("check_full survival: {}".format(len(checkpop)))
+        log.info("check_full survival: {}".format(len(checkpop)))
         self.pop = checkpop
 
     def clustering(self, numClusters):
@@ -232,8 +237,9 @@ class Individual:
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['formula','symbols','minAt','maxAt','symprec','molDetector','bondRatio','dRatio','diffE','diffV']
-        Default={'repairtryNum':3,'molMode':False,'chkMol':False,
-            'minLattice':None,'maxLattice':None,'dRatio':0.7,'addSym':False}
+        Default={'repairtryNum':3, 'molMode':False, 'chkMol':False,
+                 'minLattice':None, 'maxLattice':None, 'dRatio':0.7,
+                 'addSym':False, 'chkSeed': True}
         checkParameters(self.p,parameters,Requirement,Default)
         # if self.p.addSym:
         #     checkParameters(self.p,parameters,[],{'symprec':0.01})
@@ -271,7 +277,7 @@ class Individual:
             s = ''.join(s)
             self.inputFormulas.append(s)
 
-        #logging.debug('self.inputFormulas: {}'.format(self.inputFormulas))
+        #log.debug('self.inputFormulas: {}'.format(self.inputFormulas))
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self, obj)
@@ -351,6 +357,16 @@ class Individual:
         self.volRatio = self.atoms.get_volume()/self.get_ball_volume()
         return self.volRatio
 
+    def need_check(self, atoms=None):
+        return True
+        """
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        return self.p.chkSeed or not a.info['origin'] == 'seed'
+        """
+        
     def check_cellpar(self,atoms=None):
         """
         check if cellpar reasonable
@@ -367,7 +383,7 @@ class Individual:
         #maxLen = [100,100,100,135,135,135]
 
         minLen,maxLen = np.array([minLen,maxLen])
-        cellPar = a.get_cell_lengths_and_angles()
+        cellPar = a.cell.cellpar()
 
         cos_ = np.cos(cellPar[3:]/180*np.pi)
         sin_ = np.sin(cellPar[3:]/180*np.pi)
@@ -436,11 +452,11 @@ class Individual:
         if self.p.chkMol:
             check_mol = self.check_mol(a)
         if not check_cellpar:
-            logging.debug("Fail in check_cellpar")
+            log.debug("Fail in check_cellpar")
         if not check_distance:
-            logging.debug("Fail in check_distance")
+            log.debug("Fail in check_distance")
         if not check_mol:
-            logging.debug("Fail in check_mol")
+            log.debug("Fail in check_mol")
         return check_cellpar and check_distance and check_mol and check_formula
 
     def sort(self):
@@ -489,16 +505,16 @@ class Individual:
             return True
         if len(self.atoms) == 0:
             self.atoms = None
-            logging.debug("Empty crystal after merging!")
+            log.debug("Empty crystal after merging!")
             return False
         atoms = self.atoms
         dRatio = self.p.dRatio
         syms = atoms.get_chemical_symbols()
         #nowFrml = Counter(atoms.get_chemical_symbols())
         targetFrml = self.get_targetFrml()
-        # logging.debug("Target formula: {}".format(targetFrml))
+        # log.debug("Target formula: {}".format(targetFrml))
         if not targetFrml:
-            logging.debug("Cannot get target formula: {}".format(targetFrml))
+            log.debug("Cannot get target formula: {}".format(targetFrml))
             self.atoms = None
             return False
         toadd, toremove = {} , {}

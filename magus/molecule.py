@@ -83,15 +83,8 @@ class Molfilter:
         return cop_pos
 
     def set_positions(self, positions):
-        #logging.debug(self.tags)
         for i,mol in enumerate(self.mols):
             indices = np.where(self.tags == mol.tag)[0]
-            #logging.debug("mol pos shape")
-            #logging.debug(mol.tag)
-            #logging.debug(positions[i].shape)
-            #logging.debug(mol.relative_positions.shape)
-            #logging.debug(self.atoms.positions[indices].shape)
-            #logging.debug(indices)
             self.atoms.positions[indices] = positions[i] + mol.relative_positions
             mol.position = positions[i]
 

@@ -1,11 +1,16 @@
 import os, shutil
 import numpy as np
 import abc
+import ase
+import logging
 from ase.atoms import Atoms
-from magus.utils import *
+from magus.utils import checkParameters, EmptyClass
 from magus.population import Individual
-from magus.writeresults import write_traj
+from magus.formatting.traj import write_traj
 from magus.queuemanage import JobManager
+
+
+log = logging.getLogger(__name__)
 
 
 def split1(Njobs, Npara):
@@ -17,18 +22,15 @@ def split2(Njobs, Npara):
     return [[i * Neach + j for j in range(Neach) if i * Neach + j < Njobs] for i in range(Npara)]
 
 class Calculator(abc.ABC):
-    def __init__(self, parameters):
-        if not hasattr(self, 'p'):
-            self.p = EmptyClass()
-        Requirement = ['workDir']
-        Default = {'pressure': 0}
-        checkParameters(self.p, parameters, Requirement, Default)
-
-    def cdcalcFold(self):
-        os.chdir(self.p.workDir)
-        if not os.path.exists('calcFold'):
-            shutil.copytree('inputFold', 'calcFold')
-        os.chdir('calcFold')
+    def __init__(self, workDir, jobPrefix, pressure=0., *arg, **kwargs):
+        self.work_dir = workDir
+        self.pressure = pressure
+        self.job_prefix = jobPrefix
+        self.input_dir = '{}/inputFold/{}'.format(self.work_dir, self.job_prefix) 
+        self.calc_dir = "{}/calcFold/{}".format(self.work_dir, self.job_prefix)
+        if os.path.exists(self.calc_dir):
+            shutil.rmtree(self.calc_dir)
+        os.makedirs(self.calc_dir)
 
     def pre_processing(self, calcPop):
         if isinstance(calcPop[0], Individual):
@@ -55,47 +57,45 @@ class Calculator(abc.ABC):
 
 
 class ClusterCalculator(Calculator, abc.ABC):
-    def __init__(self, parameters, prefix):
-        super().__init__(parameters)
-        Requirement = ['queueName', 'numCore', 'numParallel', 'calcNum']
-        Default = {'Preprocessing':'', 'waitTime':200, 'verbose':False, 'killtime':10000000}
-        checkParameters(self.p,parameters,Requirement,Default)
-        self.J = JobManager(self.p.verbose, self.p.killtime)
-        self.prefix = prefix
+    def __init__(self, workDir, queueName, numCore, numParallel, jobPrefix,
+                 pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000):
+        super().__init__(workDir=workDir, pressure=pressure, jobPrefix=jobPrefix)
+        self.num_parallel = numParallel
+        self.wait_time = waitTime
+        self.J = JobManager(
+            queue_name=queueName,
+            num_core=numCore, 
+            pre_processing=Preprocessing,
+            verbose=verbose,
+            kill_time=killtime,
+            control_file="{}/job_controller".format(self.calc_dir))
 
     def paralleljob(self, calcPop, runjob):
-        numParallel = self.p.numParallel
-        numJobs = len(calcPop)
-        runArray = split1(numJobs, numParallel)
-        calcDir = "{}/calcFold/{}".format(self.p.workDir, self.prefix)
-        if not os.path.exists(calcDir):
-            os.mkdir(calcDir)
-        os.chdir(calcDir)
+        job_queues = split1(len(calcPop), self.num_parallel)
+        os.chdir(self.calc_dir)
         self.prepare_for_calc()
-        for i in range(numParallel):
-            if len(runArray[i]) == 0:
+        for i, job_queue in enumerate(job_queues):
+            if len(job_queue) == 0:
                 continue
-            currdir = '{}/{:02d}'.format(calcDir, i)
+            currdir = str(i).zfill(2)
             if os.path.exists(currdir):
                 shutil.rmtree(currdir)
             os.mkdir(currdir)
             os.chdir(currdir)
-            tmpPop = [calcPop[j] for j in runArray[i]]
-            write_traj('initPop.traj', tmpPop)
-            runjob()
-        self.J.WaitJobsDone(self.p.waitTime)
-        os.chdir(self.p.workDir)
+            write_traj('initPop.traj', [calcPop[j] for j in job_queue])
+            runjob(index=i)
+            os.chdir(self.calc_dir)
+        self.J.wait_jobs_done(self.wait_time)
+        os.chdir(self.work_dir)
 
-    def scf_parallel(self, calcPop):
-        self.cdcalcFold()
-        self.paralleljob(calcPop, self.scfjob)
+    def scf(self, calcPop):
+        self.paralleljob(calcPop, self.scf_job)
         scfPop = self.read_parallel_results()
         self.J.clear()
         return scfPop
 
-    def relax_parallel(self, calcPop):
-        self.cdcalcFold()
-        self.paralleljob(calcPop, self.relaxjob)
+    def relax(self, calcPop):
+        self.paralleljob(calcPop, self.relax_job)
         relaxPop = self.read_parallel_results()
         self.J.clear()
         return relaxPop
@@ -104,19 +104,33 @@ class ClusterCalculator(Calculator, abc.ABC):
         pop = []
         for job in self.J.jobs:
             try:
-                pop.extend(ase.io.read("{}/optPop.traj".format(job['workDir']), format='traj', index=':'))
+                a = ase.io.read("{}/optPop.traj".format(job['workDir']), 
+                                format='traj', index=':')
+                pop.extend(a)
             except:
-                logging.warning("ERROR in read results {}".format(job['workDir']))
+                log.warning("ERROR in read results {}".format(job['workDir']))
         return pop
 
-    @abc.abstractmethod
-    def scfjob(self):
-        pass
+    def scf_job(self, index):
+        raise NotImplementedError
 
-    @abc.abstractmethod
-    def relaxjob(self, index):
-        pass
+    def relax_job(self, index):
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def prepare_for_calc(self):
         pass
+
+
+class AdjointCalculator(Calculator):
+    def __init__(self, calclist):
+        self.calclist = calclist
+    
+    def relax(self, calcPop):
+        for calc in self.calclist:
+            calcPop = calc.relax(calcPop)
+        return calcPop
+
+    def scf(self, calcPop):
+        calc = self.calclist[-1]
+        calcPop = calc.scf(calcPop)
+        return calcPop

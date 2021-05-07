@@ -1,5 +1,0 @@
-#!/bin/bash
-mv allparameters.yaml log.txt *err* *out* results/
-cp -r input* results/
-rm -rf calcFold #mlFold
-#mv -f results/dataset.traj results/savedata.traj

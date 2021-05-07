@@ -10,7 +10,12 @@ from ase.geometry import cellpar_to_cell,cell_to_cellpar
 from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
+import logging
 from .utils import *
+
+
+log = logging.getLogger(__name__)
+
 
 class Generator:
     def __init__(self,parameters):
@@ -22,9 +27,9 @@ class Generator:
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
 
-    def updatevolRatio(self,volRatio):
-        self.p.volRatio=volRatio
-        logging.debug("new volRatio: {}".format(self.p.volRatio))
+    def update_volume_ratio(self, volume_ratio):
+        log.debug("change volRatio from {} to {}".format(self.p.volRatio, volume_ratio))
+        self.p.volRatio = volume_ratio
 
     def get_swap(self):
         M = np.array([
@@ -339,7 +344,7 @@ def read_seeds(parameters, seedFile, goodSeed=False):
         else:
             readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
         if len(readPop) > 0:
-            logging.info("Reading Seeds ...")
+            log.info("Reading Seeds ...")
 
         seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
         for ind in seedPop:

@@ -40,10 +40,10 @@ setup(
     email="gaaooh@126.com",
     url="https://git.nju.edu.cn/gaaooh/magus",
     packages=find_packages(),
-    scripts=[
+    #scripts=[
         #"tools/csp-clean","tools/csp-search","tools/csp-prepare","tools/csp-summary",
-        "tools/magus-clean","tools/magus-search","tools/magus-prepare","tools/magus-summary",
-    ],
+    #    "tools/magus-clean","tools/magus-search","tools/magus-prepare","tools/magus-summary",
+    #],
     python_requires=">=3.6",
     install_requires=[
         #"torch>=1.1",
@@ -61,5 +61,6 @@ setup(
     description="Magus: Machine learning And Graph theory assisted Universal structure Searcher",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    ext_modules=[module_GenerateNew, module_lrpot], 
+    ext_modules=[module_GenerateNew, module_lrpot],
+    entry_points={"console_scripts": ["magus = magus.entrypoints.main:main"]},
 )

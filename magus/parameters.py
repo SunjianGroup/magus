@@ -1,25 +1,15 @@
-from __future__ import print_function, division
 from ase.data import atomic_numbers
 from ase.geometry import cellpar_to_cell
 import ase.io
-import math
-import os
-import yaml
-import logging
+import math, os, yaml, logging, copy
 from functools import reduce
 import numpy as np
-import copy
-from .localopt import *
 from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
-from .writeresults import write_dataset, write_results, write_traj
 from .utils import *
-from .machinelearning import *
 from .queuemanage import JobManager
 from .population import Population
 from .fitness import fit_dict
-from .calculators.mtp import MTPCalculator, TwoShareMTPCalculator
-#ML module
-#from .machinelearning import LRmodel
+from .calculators import get_calculator
 from .offspring_creator import *
 ###############################
 
@@ -27,6 +17,8 @@ class magusParameters:
     def __init__(self,inputFile):
         with open(inputFile) as f:
             p_dict = yaml.load(f)
+        self.p_dict = p_dict
+        self.p_dict['workDir'] = os.getcwd()
         p = EmptyClass()
         p.workDir = os.getcwd()
         p.resultsDir = os.path.join(p.workDir,'results')
@@ -143,15 +135,6 @@ class magusParameters:
             rotNum = num if self.parameters.molDetector != 0 else 0
             #rotNum = num if self.parameters.molMode else 0
             formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
-            """
-            if self.parameters.useml:
-                self.get_MLCalculator()
-                soft = SoftMutation(self.MLCalculator.calc)
-                softNum = num
-            else:
-                soft = None
-                softNum = 0
-            """
             soft = None
             softNum = 0
             Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
@@ -181,68 +164,21 @@ class magusParameters:
         return self.PopGenerator
 
     def get_MLCalculator(self):
-        if not hasattr(self,'MLCalculator'):
-            if hasattr(self.parameters, 'MLCalculator'):
-                checkParameters(self.parameters,self.parameters,[],{'mlmodel':'MTP'})
-                if self.parameters.mlmodel == 'LR':
-                    self.MLCalculator = LRmodel(self.parameters)
-                elif self.parameters.mlmodel == 'GPR':
-                    self.MLCalculator = GPRmodel(self.parameters)
-                elif self.parameters.mlmodel == 'GPR-torch':
-                    self.MLCalculator = pytorchGPRmodel(self.parameters)
-                elif self.parameters.mlmodel == 'BayesLR':
-                    self.MLCalculator = BayesLRmodel(self.parameters)
-                elif self.parameters.mlmodel == 'MultiNN':
-                    self.MLCalculator = MultiNNmodel(self.parameters)
-                elif self.parameters.mlmodel == 'NNdNN':
-                    self.MLCalculator = NNdNNmodel(self.parameters)
-                elif self.parameters.mlmodel == 'MTP':
-                    p = copy.deepcopy(self.parameters)
-                    for key, val in self.parameters.MLCalculator.items():
-                        setattr(p, key, val)
-                    p.workDir = self.parameters.workDir
-                    self.MLCalculator = MTPCalculator(self.get_MainCalculator(), 0, p)
-                elif self.parameters.mlmodel == '2MTP':
-                    p = copy.deepcopy(self.parameters)
-                    for key, val in self.parameters.MLCalculator.items():
-                        setattr(p, key, val)
-                    p.workDir = self.parameters.workDir
-                    self.MLCalculator = TwostageMTPCalculator(self.get_MainCalculator(), p)
-                elif self.parameters.mlmodel == '2sMTP':
-                    p = copy.deepcopy(self.parameters)
-                    for key, val in self.parameters.MLCalculator.items():
-                        setattr(p, key, val)
-                    p.workDir = self.parameters.workDir
-                    self.MLCalculator = TwoShareMTPCalculator(self.get_MainCalculator(), p)    
+        if not hasattr(self, 'MLCalculator'):
+            if 'MLCalculator' in self.p_dict:
+                p_dict = copy.deepcopy(self.p_dict)
+                p_dict.update(p_dict['MLCalculator'])
+                p_dict['query_calculator'] = self.get_MainCalculator()
+                self.MLCalculator = get_calculator(p_dict)   
             else:
                 raise Exception('No ML Calculator!')
-            self.parameters.MLCalculator = self.MLCalculator.p
         return self.MLCalculator
 
     def get_MainCalculator(self):
         if not hasattr(self,'MainCalculator'):
-            p = copy.deepcopy(self.parameters)
-            for key, val in self.parameters.MainCalculator.items():
-                setattr(p, key, val)
-            checkParameters(p,p,['calculator'],{})
-            if p.calculator == 'vasp':
-                MainCalculator = VaspCalculator(p)
-            elif p.calculator == 'lj':
-                MainCalculator = LJCalculator(p)
-            elif p.calculator == 'emt':
-                MainCalculator = EMTCalculator(p)
-            elif p.calculator == 'gulp':
-                MainCalculator = GULPCalculator(p)
-            elif p.calculator == 'xtb':
-                MainCalculator = XTBCalculator(p)
-            elif p.calculator == 'quip':
-                MainCalculator = QUIPCalculator(p)
-            elif p.calculator == 'lammps':
-                MainCalculator = LammpsCalculator(p)
-            else:
-                raise Exception("Undefined calculator '{}'".format(p.calculator))
-            self.MainCalculator = MainCalculator
-            self.parameters.MainCalculator = self.MainCalculator.p
+            p_dict = copy.deepcopy(self.p_dict)
+            p_dict.update(p_dict['MainCalculator'])
+            self.MainCalculator = get_calculator(p_dict)
         return self.MainCalculator
 
     def get_FitnessCalculator(self):
@@ -263,8 +199,3 @@ class magusParameters:
             self.Population.fit_calcs = self.get_FitnessCalculator()
             self.parameters.attach(self.Population.p)
         return self.Population
-
-if __name__ == '__main__':
-    parm = read_parameters('input.yaml')
-    # print(parm['numFrml'])
-

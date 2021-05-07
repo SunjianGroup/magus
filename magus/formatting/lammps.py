@@ -11,7 +11,7 @@ from ase.io import read, write
 
 class Atomic:
     def __init__(self, atoms, symbol_to_type):
-        atoms.set_cell(atoms.get_cell_lengths_and_angles(), True)
+        atoms.set_cell(atoms.cell.cellpar(), True)
         self.atoms = atoms
         self.n = len(atoms)
         self.symbol_to_type = symbol_to_type
