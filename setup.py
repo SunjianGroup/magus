@@ -2,16 +2,23 @@ import os
 import io
 from setuptools import setup, find_packages
 from distutils.core import Extension
+import yaml
 
-
+# for installation on NJU machine
 include_dirs = [
     '/fs00/software/anaconda/3-5.0.1/include',
     '/fs00/software/anaconda/3-5.0.1/include/python3.6m']
 libraries = ['boost_python', 'boost_numpy', 'python3.6m']
 library_dirs = ['/fs00/software/anaconda/3-5.0.1/lib']
 
+# for installaion at other places
+#d = yaml.load(open('paths.yaml'))
+#include_dirs = d['include_dirs']
+#libraries = d['libraries']
+#library_dirs = d['library_dirs']
+
 #generatenew
-module_GenerateNew = Extension('GenerateNew',
+module_GenerateNew = Extension('magus.GenerateNew',
                     include_dirs = include_dirs,
                     libraries = libraries,
                     library_dirs = library_dirs,
@@ -20,7 +27,7 @@ module_GenerateNew = Extension('GenerateNew',
                     )
 
 #lrpot
-module_lrpot = Extension('lrpot',
+module_lrpot = Extension('magus.lrpot',
                     include_dirs = include_dirs,
                     libraries = libraries,
                     library_dirs = library_dirs,
@@ -37,15 +44,18 @@ setup(
     name="magus",
     version="1.0.0",
     author="Gao Hao, Wang Junjie, Han Yu, DC, Sun Jian",
-    email="141120108@smail.nju.edu.com",
+    email="141120108@smail.nju.edu",
     url="https://git.nju.edu.cn/gaaooh/magus",
     packages=find_packages(),
+    scripts=[
+        "tools/magus-clean","tools/magus-search","tools/magus-prepare","tools/magus-summary",
+    ],
     python_requires=">=3.6",
     install_requires=[
         "numpy",
         "ase>=3.18",
         "pyyaml",
-        "networkx==2.1",
+        "networkx",
         "scipy",
         "scikit-learn",
         "spglib",
@@ -56,6 +66,6 @@ setup(
     description="Magus: Machine learning And Graph theory assisted Universal structure Searcher",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    ext_modules=[module_GenerateNew, module_lrpot],
+    ext_modules=[module_GenerateNew, module_lrpot], 
     entry_points={"console_scripts": ["magus = magus.entrypoints.main:main"]},
 )
