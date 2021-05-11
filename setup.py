@@ -34,19 +34,14 @@ with open('README.md') as f:
 
 
 setup(
-    name="mugus",
-    version="0.0.1",
+    name="magus",
+    version="1.0.0",
     author="Gao Hao, Wang Junjie, Han Yu, DC, Sun Jian",
-    email="gaaooh@126.com",
+    email="141120108@smail.nju.edu.com",
     url="https://git.nju.edu.cn/gaaooh/magus",
     packages=find_packages(),
-    #scripts=[
-        #"tools/csp-clean","tools/csp-search","tools/csp-prepare","tools/csp-summary",
-    #    "tools/magus-clean","tools/magus-search","tools/magus-prepare","tools/magus-summary",
-    #],
     python_requires=">=3.6",
     install_requires=[
-        #"torch>=1.1",
         "numpy",
         "ase>=3.18",
         "pyyaml",

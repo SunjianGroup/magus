@@ -92,7 +92,7 @@ class Magus:
         goodPop.del_duplicate()
         goodPop.calc_dominators()
         goodPop.select(self.parameters.popSize)
-        log.info("good ind:")
+        log.debug("good ind:")
         for ind in goodPop.pop:
             log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))
@@ -102,7 +102,7 @@ class Magus:
         log.info('construct keepPop')
         _, keeppop = self.goodPop.clustering(self.parameters.saveGood)
         keepPop = self.Population(keeppop, 'keeppop', self.curgen)
-        log.info("keep ind:")
+        log.debug("keep ind:")
         for ind in keepPop.pop:
             log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
                 .format(strFrml=ind.atoms.get_chemical_formula(), **ind.info))

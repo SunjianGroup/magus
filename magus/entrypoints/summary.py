@@ -43,7 +43,7 @@ def summary(*args, filenames=[], prec=0.1, add_features=[], sorted_by='enthalpy'
     if save:
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
-        for i, atoms in eunmerate(all_frames):
+        for i, atoms in enumerate(all_frames):
             posname = os.path.join(outdir, "POSCAR_{}.vasp".format(i+1))
             write(posname, atoms, direct = True, vasp5 = True)
     alldata = [atoms.info['row'] for atoms in all_frames[:show_number]]
