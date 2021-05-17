@@ -151,7 +151,12 @@ class resetLattice:
             supercell = atoms * expandsize
             supercell.translate( [np.sum( np.dot( np.diag([-int((s-1)/2) for s in expandsize]), atoms.get_cell()), axis = 0)] *len(supercell))
             self.supercell = supercell
-    
+
+    def expand(self, size):
+        supercell = self.supercell
+        supercell = supercell * [2*i if not i==0 else 1 for i in size]
+        supercell.translate( [-np.sum(np.dot( np.diag(size), supercell.get_cell()), axis = 0)] *len(supercell))
+
     def InCell(self, pos):
         for i in range(3):
             if pos[i]>=1 or pos[i]<0:
@@ -180,7 +185,7 @@ class resetLattice:
 
 from ase.geometry import cell_to_cellpar
 class cutcell:
-    def __init__(self,originstruct, layernums, totslices= None, direction=[0,0,1], rotate = 0, vacuum = 1.0):
+    def __init__(self,originstruct, layernums, totslices= None, direction=[0,0,1], rotate = 0, vacuum = 1.0, matrix = None):
         """
         [auto, but be given is strongly suggested] totslices: layer number of originstruct
         layernums: layer number of [bulk, relaxable, rcs_region]
@@ -188,6 +193,7 @@ class cutcell:
         direction: miller indices
         rotate: [not implied yet] angle of R.
         vacuum: [in Ang] vacuum to add to rcs_layer  
+        matrix: 2x2 matrix. For matrix notations.
         """
         originatoms = originstruct.copy()
         atoms=originatoms.copy()
@@ -195,14 +201,14 @@ class cutcell:
         #TODO: add rotate
         
         #2. get surface of conventional cell
-        rx, ry, rz = direction[0], direction[1], direction[2]            
+        newcell_c = direction                                               #warning: for orth-cells only. 
+        rx, ry, rz = [i if not i==0 else 1e+10 for i in direction]
             
-        points = [[rx, 0, 0], [0, ry, 0], [0, 0, rz]]
-        newcell_c = np.array([rx, ry, rz])
+        points = [[1/rx, 0, 0], [0, 1/ry, 0], [0, 0, 1/rz]]             #cross points at axis. 1/h, 1/k, 1/l
         newcell = []
         left = []
         for i, point in enumerate(points):
-            if point == [0,0,0]:
+            if np.allclose(point, [0,0,0]):
                 newcell_a = [1 if j==i else 0 for j in range(3)]
                 newcell.append(newcell_a)
             else:
@@ -212,8 +218,15 @@ class cutcell:
             newcell_a = np.array(left[i]) - np.array(left[0])
             newcell.append(newcell_a)
             i+=1
+
+        for i, _ in enumerate(newcell):
+            for j, _ in enumerate(newcell[i]):
+                while 0 < abs(newcell[i][j])  < 1:
+                    newcell[i] *= 1/abs(newcell[i][j])
+
         newcell.append(newcell_c)
-        newcell = np.array(newcell)            
+        newcell = np.array(newcell)
+        logging.debug("cutcell with conventional surface vector\n{}".format(newcell))
         newcell = np.dot(newcell, atoms.get_cell())
         
         #3. get primitive surface vector and startpos
@@ -255,8 +268,14 @@ class cutcell:
         if np.dot(np.cross(*surface_vector[:2]), newcell[2]) < 0:
             surface_vector[[0,1]] = surface_vector[[1,0]]
 
-        #4. get surface cell!
-        #print(layernums)
+        #4. get surface cell! if matrix notation exists, expand cell.
+        logging.debug("primitive surface vector\n{}".format(np.dot(surface_vector, np.linalg.inv(atoms.get_cell()))))
+        if matrix:
+            surface_vector[:2] = np.dot(matrix, surface_vector[:2])
+            logging.debug("changed by matrix notation\n{}".format(np.dot(surface_vector, np.linalg.inv(atoms.get_cell()))))
+            #maybe it's better to expand supercell too!
+            supercell.expand((1, 1, 0))
+
         #5. expand unit surface cell on z direction
         bot, mid, top = layernums[0], layernums[1], layernums[2]
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
@@ -729,6 +748,7 @@ class OverlapMatrixComparator(ClusComparator):
         ri_rj = ati.position - atj.position
         rij2 = np.sum([r**2 for r in ri_rj])
         ai, aj =  self.width / np.array([covalent_radii[ati.number]**2, covalent_radii[atj.number]**2])
+        #ai, aj =  self.width * np.array([covalent_radii[ati.number], covalent_radii[atj.number]])  ???????
         N = ai*aj/(ai+aj)
         Sij = (2*N/math.sqrt(ai*aj))**1.5 * math.exp(-N*rij2)
         if self.orbital == 's':

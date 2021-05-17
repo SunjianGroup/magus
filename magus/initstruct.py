@@ -362,7 +362,7 @@ class ReconstructGenerator():
         para_t = EmptyClass()
         Requirement=['layerfile']
         Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'randratio':0.5,
-        'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'extra_c':1.0, 
+        'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'matrix': None, 'extra_c':1.0, 
         'dimension':2, 'choice':0 }
 
         checkParameters(para_t, parameters, Requirement,Default)
@@ -377,7 +377,7 @@ class ReconstructGenerator():
             #here starts to split layers into [bulk, relaxable, rcs]
             originatoms = ase.io.read(para_t.layerfile)
             layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
-            cutcell(originatoms, layernums, totslices = para_t.cutslices, direction= para_t.direction,rotate = para_t.rotate, vacuum = para_t.extra_c)
+            cutcell(originatoms, layernums, totslices = para_t.cutslices, direction= para_t.direction,rotate = para_t.rotate, vacuum = para_t.extra_c, matrix = para_t.matrix)
             #layer split ends here    
 
         self.range=para_t.range
