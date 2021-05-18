@@ -55,10 +55,11 @@ class MLMagus(Magus):
             ground_enthalpy = self.goodPop.bestind()[0].atoms.info['enthalpy']
         except:
             ground_enthalpy = min([atoms.info['enthalpy'] for atoms in frames])
+        min_num = min(len(frames), min_num)
         trainset = self.ml_calculator.trainset
         energy_mse = self.ml_calculator.get_loss(trainset)[0]
         select_enthalpy = max(ground_enthalpy + init_num * energy_mse, 
-                              sorted([atoms.info['enthalpy'] for atoms in frames])[min_num])
+                              sorted([atoms.info['enthalpy'] for atoms in frames])[min_num - 1])
         log.info('select good structures to relax\n'
                  '\tground enthalpy: {}\tenergy mse: {}\tselect enthaly: {}'
                  ''.format(ground_enthalpy, energy_mse, select_enthalpy))

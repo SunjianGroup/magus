@@ -2,7 +2,7 @@
 from .ase import EMTCalculator, LJCalculator, XTBCalculator, QUIPCalculator
 from .vasp import VaspCalculator
 from .gulp import GulpCalculator
-from .mtp import MTPCalculator, MTPLammpsCalculator
+from .mtp import MTPCalculator, MTPLammpsCalculator, TwoShareMTPCalculator
 from .lammps import LammpsCalculator
 from .base import AdjointCalculator
 from string import digits
@@ -24,8 +24,15 @@ calc_dict = {
     'mtp': MTPCalculator,
     'mtp-lammps': MTPLammpsCalculator,
     }
+connect_dict = {
+    'naive': AdjointCalculator,
+    'share-trainset': TwoShareMTPCalculator,
+}
 need_convert = ['jobPrefix', 'eps', 'maxStep', 'optimizer', 'maxMove', 
-                'relaxLattice', 'exeCmd', 'calculator']
+                'relaxLattice', 'exeCmd', 'calculator',
+                'queueName', 'numCore', 'Preprocessing', 'waitTime',
+                'scaled_by_force', 'force_tolerance', 'stress_tolerance',
+                'ignore_weights']
 log = logging.getLogger(__name__)
 
 
@@ -55,5 +62,7 @@ def get_calculator(p_dict):
                         assert len(p_dict_[key]) == len(p_dict['jobPrefix']), '{} and jobPrefix length do not match'.format(key)
                         p_dict_[key] = p_dict_[key][i]
             calcs.append(get_one_calculator(p_dict_))
-        return AdjointCalculator(calcs)
+        if 'connect' not in p_dict:
+            p_dict['connect'] = 'naive'
+        return connect_dict[p_dict['connect']](calcs)
     return get_one_calculator(p_dict)

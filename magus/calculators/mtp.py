@@ -54,26 +54,41 @@ class MTPCalculator(ClusterCalculator):
             with open('{}/datapool.cfg'.format(self.ml_dir), 'w') as f:
                 pass
         self.scf_num = 0
+        self.static_need_update = True
+        self.main_info.extend(
+            ['weights', 'scaled_by_force', 'min_dist', 'force_tolerance'
+             'stress_tolerance', 'init_times', 'n_epoch', 'ignore_weights',
+             'ml_dir',])
+
+    @property
+    def E_min(self):
+        if self.static_need_update:
+            self.update_static()
+        return self.E_min_
+
+    @property
+    def E_mean(self):
+        if self.static_need_update:
+            self.update_static()
+        return self.E_mean_
+
+    def update_static(self):
+        enthalpy = [(atoms.info['energy'] + self.pressure * 
+                     atoms.get_volume() * GPa) / len(atoms) for atoms in self.trainset]
+        self.E_min_ = np.min(enthalpy)
+        self.E_mean_ = np.mean(enthalpy)
+        self.static_need_update = False
+
+    def get_weight(self, atoms, w0=10):
+        if self.static_need_update:
+            self.update_static()
+        enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
+        return w0 * np.exp(np.log(w0) * (enthalpy - self.E_min) / (self.E_min - self.E_mean))
 
     def reweighting(self):
-        def get_weight(e, e_min, e_mean, w0=10):
-            return w0 * np.exp(np.log(w0) * (e - e_min) / (e_min - e_mean))
-
-        if not hasattr(self, 'Emin'):
-            self.Emin = 999
-        # reweighting must in the folder with train.cfg
-        Emean = 0.
-        raw_data = load_cfg('train.cfg', self.type_to_symbol)
-        for atoms in raw_data:
-            enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
-            atoms.info['enthalpy'] = round(enthalpy, 3)
-            Emean += enthalpy
-            if enthalpy < self.Emin:
-                self.Emin = enthalpy
-        Emean /= len(raw_data)
-        for atoms in raw_data:
-            atoms.info['energy_weight'] = get_weight(atoms.info['enthalpy'], self.Emin, Emean)
-        dump_cfg(raw_data, 'train.cfg', self.symbol_to_type)
+        for atoms in self.trainset:
+            atoms.info['energy_weight'] = self.get_weight(atoms)
+        dump_cfg(self.trainset, 'train.cfg', self.symbol_to_type)
 
     def train(self, epoch=None):
         epoch = epoch or self.n_epoch
@@ -117,6 +132,7 @@ class MTPCalculator(ClusterCalculator):
         
     def updatedataset(self, frames):
         dump_cfg(frames, '{}/train.cfg'.format(self.ml_dir), self.symbol_to_type, mode='a')
+        self.static_need_update = True
 
     def get_loss(self, frames):
         nowpath = os.getcwd()
@@ -277,16 +293,26 @@ class MTPCalculator(ClusterCalculator):
 
 
 class TwoShareMTPCalculator(Calculator):
-    def __init__(self, mtp1, mtp2):
-        self.mtp1 = mtp1
-        self.mtp2 = mtp2
-        self.mtp1.ignore_weights, self.mtp1.ignore_weights = True, False
+    def __init__(self, mtps):
+        assert isinstance(mtps, list), "TwoShareMTP input should be list"
+        assert len(mtps) == 2, "length of mtps must be 2"
+        self.mtp1 = mtps[0]
+        self.mtp2 = mtps[1]
+        self.mtp1.ignore_weights, self.mtp2.ignore_weights = True, False
 
         self.symbol_to_type = self.mtp1.symbol_to_type
         self.type_to_symbol = self.mtp1.type_to_symbol
 
         self.max_enthalpy = 0.
         self.mtp2_train_len = len(self.mtp2.trainset)
+
+        self.init_times = max(self.mtp1.init_times, self.mtp2.init_times)
+
+    def __str__(self):
+        out  = self.__class__.__name__ + ':\n'
+        out += 'Robust MTP:' + self.mtp1.__str__()
+        out += 'Accurate MTP:' + self.mtp2.__str__()
+        return out
 
     def update_threshold(self, enthalpy):
         self.max_enthalpy = enthalpy
@@ -296,9 +322,11 @@ class TwoShareMTPCalculator(Calculator):
         shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir), 
                     '{}/train.cfg'.format(self.mtp2.ml_dir))
         if self.mtp2_train_len != len(self.mtp2.trainset):
+            log.info('The share train set update, updating the accurate potential...')
             self.mtp2_train_len = len(self.mtp2.trainset)
             self.mtp2.train()
-        selectpop = [atoms for atoms in relaxpop if atoms.info['enthalpy'] < self.mtp2.Emin + 1.5]
+            self.mtp2.static_need_update = True
+        selectpop = [atoms for atoms in relaxpop if atoms.info['enthalpy'] < self.mtp2.E_min + 1.5]
         relaxpop = self.mtp2.relax(selectpop)
         shutil.copy('{}/train.cfg'.format(self.mtp2.ml_dir), 
                     '{}/train.cfg'.format(self.mtp1.ml_dir))
@@ -321,12 +349,16 @@ class TwoShareMTPCalculator(Calculator):
         elif level == 'accurate':
             return self.mtp2.get_loss(frames)
 
+    def select(self, new_frames):
+        diff_frames = self.mtp1.select(new_frames)
+        return diff_frames
+
     def train(self):
         self.mtp1.train()
         shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir), 
                     '{}/train.cfg'.format(self.mtp2.ml_dir))
-        shutil.copy('{}/pot.mtp'.format(self.mtp1.ml_dir), 
-                    '{}/pot.mtp'.format(self.mtp2.ml_dir))
+        # shutil.copy('{}/pot.mtp'.format(self.mtp1.ml_dir), 
+        #             '{}/pot.mtp'.format(self.mtp2.ml_dir))
         self.mtp2.train()
 
     @property

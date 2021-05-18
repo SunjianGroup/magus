@@ -22,7 +22,8 @@ class GulpCalculator(ClusterCalculator):
             'pressure': pressure,
             'exe_cmd': exeCmd,
         }
-
+        self.main_info.append('gulp_setup')
+        
     def scf_job(self, index):
         job_name = self.job_prefix + '_s_' + str(index)
         shutil.copy("{}/gpot".format(self.input_dir), 'gpot')
@@ -46,6 +47,24 @@ class GulpCalculator(ClusterCalculator):
             f.write(yaml.dump(self.gulp_setup))
         content = "python -m magus.calculators.gulp gulpSetup.yaml initPop.traj optPop.traj"
         self.J.sub(content, name=job_name, file='relax.sh', out='relax-out', err='relax-err')
+
+    def scf_serial(self, calcPop):
+        shutil.copy("{}/gpot".format(self.input_dir), 'gpot')
+        if not os.path.exists("{}/goption.scf".format(self.input_dir)):
+            with open("{}/goption.scf".format(self.input_dir), 'w') as f:
+                f.write('nosymmetry conp gradients\n')
+        shutil.copy("{}/goption.scf".format(self.input_dir), 'goption')
+        opt_pop = calc_gulp(self.gulp_setup, calcPop)
+        return opt_pop     
+
+    def relax_serial(self, calcPop):
+        shutil.copy("{}/gpot".format(self.input_dir), 'gpot')
+        if not os.path.exists("{}/goption.relax".format(self.input_dir)):
+            with open("{}/goption.relax".format(self.input_dir), 'w') as f:
+                f.write('opti conjugate nosymmetry conp\n')
+        shutil.copy("{}/goption.relax".format(self.input_dir), 'goption')
+        opt_pop = calc_gulp(self.gulp_setup, calcPop)
+        return opt_pop
 
 
 def calc_gulp(gulp_setup, frames):

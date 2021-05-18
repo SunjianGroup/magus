@@ -28,7 +28,7 @@ class Generator:
         checkParameters(self.p,parameters,[],{'radius':radius})
 
     def update_volume_ratio(self, volume_ratio):
-        log.debug("change volRatio from {} to {}".format(self.p.volRatio, volume_ratio))
+        log.info("change volRatio from {} to {}".format(self.p.volRatio, volume_ratio))
         self.p.volRatio = volume_ratio
 
     def get_swap(self):

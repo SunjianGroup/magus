@@ -164,6 +164,13 @@ def parse_args():
         default="input.yaml",
         help="the input parameter file in yaml format"
     )
+    parser_calc.add_argument(
+        "-p",
+        "--pressure",
+        type=int, 
+        default=None,
+        help="hehe"
+    )
     # generate
     parser_gen = subparsers.add_parser(
         "gen",

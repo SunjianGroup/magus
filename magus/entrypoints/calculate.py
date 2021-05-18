@@ -1,10 +1,13 @@
 from magus.parameters import magusParameters
 from ase.io import read, write
 
+
 def calculate(*args, filename=None, input_file='input.yaml', 
-              mode='relax', **kwargs):
+              mode='relax', pressure=None, **kwargs):
     parameters = magusParameters('input.yaml')
-    to_calc = read(filename)
+    if pressure is not None:
+        parameters.p_dict['pressure'] = pressure
+    to_calc = read(filename, index=':')
     try:
         calc = parameters.get_MLCalculator()
     except:
@@ -14,4 +17,3 @@ def calculate(*args, filename=None, input_file='input.yaml',
     else:
         calced = calc.scf(to_calc)
     write('out.traj', calced)
-
