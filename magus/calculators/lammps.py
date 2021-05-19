@@ -23,6 +23,7 @@ class LammpsCalculator(ClusterCalculator):
             'exe_cmd': exeCmd,
             'save_traj': saveTraj,
         }
+        self.main_info.append('lammps_setup')
 
     def scf_job(self, index):
         job_name = self.job_prefix + '_s_' + str(index)
@@ -39,6 +40,16 @@ class LammpsCalculator(ClusterCalculator):
             f.write(yaml.dump(self.lammps_setup))
         content = "python -m magus.calculators.lammps lammpsSetup.yaml initPop.traj optPop.traj"
         self.J.sub(content, name=job_name, file='relax.sh', out='relax-out', err='relax-err')
+
+    def scf_serial(self, calcPop):
+        shutil.copy("{}/in.scf".format(self.input_dir), 'in.lammps')
+        opt_pop = calc_lammps(self.lammps_setup, calcPop)
+        return opt_pop     
+
+    def relax_serial(self, calcPop):
+        shutil.copy("{}/in.relax".format(self.input_dir), 'in.lammps')
+        opt_pop = calc_lammps(self.lammps_setup, calcPop)
+        return opt_pop
 
 
 def calc_lammps_once(lammps_setup, atoms):
