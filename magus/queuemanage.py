@@ -120,7 +120,8 @@ class SLURMSystemManager(BaseJobManager):
         self.reload()
         with open(file, 'w') as f:
             f.write(
-                "SBATCH --nodes={1}\n"
+                "SBATCH --nodes=1\n"
+                "SBATCH --ntasks-per-node={1}\n"
                 "SBATCH --time={7}\n"
                 "SBATCH --job-name={4}\n"
                 "SBATCH --output={2}\n"

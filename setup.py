@@ -12,10 +12,10 @@ libraries = ['boost_python', 'boost_numpy', 'python3.6m']
 library_dirs = ['/fs00/software/anaconda/3-5.0.1/lib']
 
 # for installaion at other places
-#d = yaml.load(open('paths.yaml'))
-#include_dirs = d['include_dirs']
-#libraries = d['libraries']
-#library_dirs = d['library_dirs']
+#paths = yaml.load(open('paths.yaml'))
+#include_dirs = paths['include_dirs']
+#libraries = paths['libraries']
+#library_dirs = paths['library_dirs']
 
 #generatenew
 module_GenerateNew = Extension('magus.GenerateNew',
@@ -47,9 +47,9 @@ setup(
     email="141120108@smail.nju.edu",
     url="https://git.nju.edu.cn/gaaooh/magus",
     packages=find_packages(),
-    scripts=[
-        "tools/magus-clean","tools/magus-search","tools/magus-prepare","tools/magus-summary",
-    ],
+    #scripts=[
+    #    "tools/magus-clean","tools/magus-search","tools/magus-prepare","tools/magus-summary",
+    #],
     python_requires=">=3.6",
     install_requires=[
         "numpy",
