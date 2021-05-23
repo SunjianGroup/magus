@@ -22,21 +22,12 @@ molDetector: 1
 
 #main calculator settings
 MainCalculator:
- calculator: vasp
+ jobPrefix: ['Vasp1', 'Vasp2']
  mode: parallel
  calcNum: 2
- #ase settings
- #epsArr: [0.5]
- #stepArr: [30]
- #maxRelaxStep: 0.5
- #mainoptimizer: fire
- 
  #vasp settings
  xc: PBE
  ppLabel: ['','']
- 
- #gulp settings
- #exeCmd: gulp < input > output
  
  #parallel settings
  numParallel: 4

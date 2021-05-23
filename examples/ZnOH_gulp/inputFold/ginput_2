@@ -1,6 +1,0 @@
-time 240
-space
-1
-maxcyc 300
-library ./ReaxFF.lib
-

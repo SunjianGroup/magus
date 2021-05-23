@@ -7,14 +7,9 @@ test/
 .history
 examples/*/*
 !examples/*/inputFold
-examples/*/inputFold/train.cfg
 !examples/*/input.yaml
 !examples/*/job
-!examples/*/runpara
-!examples/*/runserial
 !examples/*/Seeds
-!examples/*/summary.py
-
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

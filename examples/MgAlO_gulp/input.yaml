@@ -20,28 +20,12 @@ chkMol: False
 
 #main calculator settings
 MainCalculator:
- calculator: gulp
+ jobPrefix: ['Gulp1', 'Gulp2', 'Gulp3', 'Gulp4']
  mode: parallel
  calcNum: 4
- #ase settings
- #epsArr: [0.5]
- #stepArr: [30]
- maxRelaxStep: 0.5
- #mainoptimizer: fire
- 
- #vasp settings
- #xc: PBE
- #ppLabel: ['']
- 
- #gulp settings
- exeCmd: gulp < input > output
  #parallel settings
  numParallel: 8
  numCore: 4
- #queueName: e52692v2ib!
- queueName: e5v3ib
+ queueName: e52692v2ib!
  waitTime: 60
 
-
-##ML
-#useml: True
