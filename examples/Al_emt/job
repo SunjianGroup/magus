@@ -2,6 +2,6 @@
 #BSUB -n 4
 #BSUB -e err
 #BSUB -o out
-#BSUB -q e5v3ib
+#BSUB -q e52692v2ib!
 
-python -m magus.search --debug
+magus search

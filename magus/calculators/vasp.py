@@ -73,6 +73,9 @@ def calc_vasp(calc, frames):
             energy = atoms.get_potential_energy()
             forces = atoms.get_forces()
             stress = atoms.get_stress()
+            # get the energy without PV becaruse new ase version gives enthalpy, should be removed if ase fix the bug
+            atoms_tmp = read('OUTCAR', format='vasp-out')
+            energy = atoms_tmp.get_potential_energy()
         except:
             s = sys.exc_info()
             log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))

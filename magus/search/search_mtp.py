@@ -27,6 +27,8 @@ class MLMagus(Magus):
         super().__init__(parameters, atoms_generator, pop_generator,
                          main_calculator, Population, restart)
         self.ml_calculator = ml_calculator
+        log.debug('ML Calculator information:')
+        log.debug(ml_calculator.__str__())
         self.get_initial_pot(epoch=ml_calculator.init_times)
 
     def get_initial_pot(self, epoch=1):
@@ -69,14 +71,14 @@ class MLMagus(Magus):
     def select_to_add(self, frames):
         trainset = self.ml_calculator.trainset
         energy_mae = self.ml_calculator.get_loss(trainset)[0]
-        energies = self.ml_calculator.predict_energies(frames)
+        frames_ = self.ml_calculator.calc_efs(frames)
         to_add = []
         log.debug('compare begin...\ntarget\tpredict\n')
-        for i, atoms in enumerate(frames):
-            target_energies = atoms.info['energy'] / len(atoms)
-            predict_energies = energies[i] / len(atoms)
-            log.debug("{:.5f}\t{:.5f}\n".format(target_energies, predict_energies))
-            error_per_atom = target_energies - predict_energies
+        for i, (atoms, atoms_) in enumerate(zip(frames, frames_)):
+            target_energy = atoms.info['energy'] / len(atoms)
+            predict_energy = atoms_.info['energy'] / len(atoms_)
+            log.debug("{:.5f}\t{:.5f}\n".format(target_energy, predict_energy))
+            error_per_atom = target_energy - predict_energy
             if abs(error_per_atom) > energy_mae:
                 to_add.append(atoms)
         return to_add
@@ -95,20 +97,23 @@ class MLMagus(Magus):
         relaxPop.del_duplicate()
         relaxPop.calc_dominators()
         relaxPop.save("mlgen", self.curgen)
-        #######  select cfgs to do dft scf  #######
-        to_relax = self.select_to_relax(relaxPop.frames)
-        #######  compare target and predict energy  #######   
-        dft_relaxed_pop = self.main_calculator.relax(to_relax)
-        relax_step = sum([atoms.info['relax_step'][-1] for atoms in dft_relaxed_pop])
-        log.info('DFT relax {} structures with {} scf'.format(len(dft_relaxed_pop), relax_step))
-        DFTRelaxedPop = self.Population(dft_relaxed_pop, 'dft_relaxed_pop', self.curgen)
-        DFTRelaxedPop.find_spg()
-        DFTRelaxedPop.del_duplicate()
-        DFTRelaxedPop.save('gen', self.curgen)
-        self.curPop = DFTRelaxedPop
-        to_add = self.select_to_add(dft_relaxed_pop)
-        self.ml_calculator.updatedataset(to_add)
-        self.ml_calculator.train()
+        if self.parameters.DFTRelax:
+            #######  select cfgs to do dft relax  #######
+            to_relax = self.select_to_relax(relaxPop.frames)
+            #######  compare target and predict energy  #######   
+            dft_relaxed_pop = self.main_calculator.relax(to_relax)
+            relax_step = sum([atoms.info['relax_step'][-1] for atoms in dft_relaxed_pop])
+            log.info('DFT relax {} structures with {} scf'.format(len(dft_relaxed_pop), relax_step))
+            DFTRelaxedPop = self.Population(dft_relaxed_pop, 'dft_relaxed_pop', self.curgen)
+            DFTRelaxedPop.find_spg()
+            DFTRelaxedPop.del_duplicate()
+            DFTRelaxedPop.save('gen', self.curgen)
+            self.curPop = DFTRelaxedPop
+            to_add = self.select_to_add(dft_relaxed_pop)
+            self.ml_calculator.updatedataset(to_add)
+            self.ml_calculator.train()
+        else:
+            self.curPop = relaxPop
         self.set_goodPop()
         self.goodPop.save('good', '')
         self.goodPop.save('good', self.curgen)

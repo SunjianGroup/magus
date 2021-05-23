@@ -13,7 +13,7 @@ log_level = {
 def set_logger(name=None, level="INFO", log_path="log.txt"):
     level = log_level[level]
     log = logging.getLogger(name)
-    log.setLevel(level)
+    log.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     formatter = logging.Formatter("%(message)s")
     ch.setFormatter(c_formatter)

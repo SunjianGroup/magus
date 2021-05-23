@@ -21,7 +21,7 @@ class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
-        Default={'threshold':1.0,'maxAttempts':50,'method':1,
+        Default={'threshold':1.0,'maxAttempts':50,'method':1, 'p_pri':0., 
         'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3, 'choice':0}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
@@ -63,7 +63,7 @@ class Generator:
             maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
         return minVolume,maxVolume,minLattice,maxLattice
 
-    def Generate_ind(self,spg,numlist):
+    def Generate_ind(self, spg, numlist):
         spg=int(spg)
         numType = len(numlist)
         generator = GenerateNew.Info()
@@ -84,7 +84,7 @@ class Generator:
         generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
-        generator.GetConventional = True
+        generator.GetConventional = True if np.random.rand() > self.p.p_pri else False
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
         # TODO should be encapsulated into HanYu code

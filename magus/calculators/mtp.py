@@ -56,7 +56,7 @@ class MTPCalculator(ClusterCalculator):
         self.scf_num = 0
         self.static_need_update = True
         self.main_info.extend(
-            ['weights', 'scaled_by_force', 'min_dist', 'force_tolerance'
+            ['weights', 'scaled_by_force', 'min_dist', 'force_tolerance', 
              'stress_tolerance', 'init_times', 'n_epoch', 'ignore_weights',
              'ml_dir',])
 
@@ -86,9 +86,13 @@ class MTPCalculator(ClusterCalculator):
         return w0 * np.exp(np.log(w0) * (enthalpy - self.E_min) / (self.E_min - self.E_mean))
 
     def reweighting(self):
+        new_set = []
+        if self.static_need_update:
+            self.update_static()
         for atoms in self.trainset:
             atoms.info['energy_weight'] = self.get_weight(atoms)
-        dump_cfg(self.trainset, 'train.cfg', self.symbol_to_type)
+            new_set.append(atoms)
+        dump_cfg(new_set, 'train.cfg', self.symbol_to_type)
 
     def train(self, epoch=None):
         epoch = epoch or self.n_epoch
@@ -113,7 +117,7 @@ class MTPCalculator(ClusterCalculator):
     def trainset(self):
         return load_cfg('{}/train.cfg'.format(self.ml_dir), self.type_to_symbol)
 
-    def predict_energies(self, frames):
+    def calc_efs(self, frames):
         if isinstance(frames, Atoms):
             frames = [frames]
         nowpath = os.getcwd()
@@ -122,13 +126,12 @@ class MTPCalculator(ClusterCalculator):
         exeCmd = "mlp calc-efs pot.mtp tmp.cfg out.cfg"
         exitcode = subprocess.call(exeCmd, shell=True)
         if exitcode != 0:
-            raise RuntimeError('MTP predict_energies exited with exit code: {}.'.format(exitcode))
+            raise RuntimeError('MTP calc-efs exited with exit code: {}.'.format(exitcode))
         result = load_cfg('out.cfg', self.type_to_symbol)
-        enengies = [atoms.info['energy'] for atoms in result]
         os.remove('tmp.cfg')
         os.remove('out.cfg')
         os.chdir(nowpath)
-        return enengies        
+        return result
         
     def updatedataset(self, frames):
         dump_cfg(frames, '{}/train.cfg'.format(self.ml_dir), self.symbol_to_type, mode='a')
@@ -354,22 +357,25 @@ class TwoShareMTPCalculator(Calculator):
         return diff_frames
 
     def train(self):
+        log.debug('train robust...')
         self.mtp1.train()
         shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir), 
                     '{}/train.cfg'.format(self.mtp2.ml_dir))
-        # shutil.copy('{}/pot.mtp'.format(self.mtp1.ml_dir), 
-        #             '{}/pot.mtp'.format(self.mtp2.ml_dir))
+        if self.mtp2_train_len != len(self.mtp2.trainset):
+            self.mtp2_train_len = len(self.mtp2.trainset)
+            self.mtp2.static_need_update = True
+        log.debug('train accurate...')
         self.mtp2.train()
 
     @property
     def trainset(self):
         return self.mtp2.trainset
     
-    def predict_energies(self, frames, level='accurate'):
+    def calc_efs(self, frames, level='accurate'):
         if level == 'robust':
-            return self.mtp1.predict_energies(frames)
+            return self.mtp1.calc_efs(frames)
         elif level == 'accurate':
-            return self.mtp2.predict_energies(frames)
+            return self.mtp2.calc_efs(frames)
 
 
 class MTPLammpsCalculator(MTPCalculator):
