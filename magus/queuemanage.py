@@ -121,17 +121,21 @@ class SLURMSystemManager(BaseJobManager):
         self.reload()
         with open(file, 'w') as f:
             f.write(
-                "SBATCH --nodes=1\n"
-                "SBATCH --ntasks-per-node={1}\n"
-                "SBATCH --time={7}\n"
-                "SBATCH --job-name={4}\n"
-                "SBATCH --output={2}\n"
+                "#!/bin/bash\n\n"
+                "#SBATCH --no-requeue\n"
+                "#SBATCH --mem=1000M\n"
+                "#SBATCH --time=01:00:00\n"
+                "#SBATCH --nodes=1\n"
+                "#SBATCH --ntasks-per-node={1}\n"
+                #"#SBATCH --time={7}\n"
+                "#SBATCH --job-name={4}\n"
+                "#SBATCH --output={2}\n"
                 "{5}\n"
                 "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content)
                 )
-        command = 'sbatch' + file
+        command = 'sbatch ' + file
         job = dict()
-        jobid = subprocess.check_output(command, shell=True).split()[1][1: -1]
+        jobid = subprocess.check_output(command, shell=True).split()[-1]
         if type(jobid) is bytes:
             jobid = jobid.decode()
         job['id'] = jobid
@@ -139,6 +143,8 @@ class SLURMSystemManager(BaseJobManager):
         job['subtime'] = datetime.datetime.now()
         job['name'] = name
         self.jobs.append(job)
+        # wait a moment so that we can find the job which is just submitted
+        time.sleep(3)
 
     def check_jobs(self):
         log.debug("Checking jobs...")
@@ -147,27 +153,27 @@ class SLURMSystemManager(BaseJobManager):
         allDone = True
         for job in self.jobs:
             try:
-                stat = subprocess.check_output("sacct %s | grep %s | awk '{print $3}'"% (job['id'], job['id']), shell=True)
+                stat = subprocess.check_output("sacct --format=jobid,state | grep '%s ' | awk '{print $2}'"% (job['id']), shell=True)
                 stat = stat.decode()[:-1]
             except:
                 s = sys.exc_info()
                 log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
                 stat = ''
-            # log.debug(job['id'], stat)
-            if stat == 'DONE' or stat == '':
+            log.debug("{}\t{}".format(job['id'], stat))
+            if stat == 'COMPLETED' or stat == '':
                 job['state'] = 'DONE'
-            elif stat == 'PEND':
+            elif stat == 'PENDING':
                 job['state'] = 'PEND'
                 allDone = False
-            elif stat == 'RUN':
+            elif stat == 'RUNNING':
                 if 'begintime' not in job.keys():
                     job['begintime'] = datetime.datetime.now()
                 job['state'] = 'RUN'
                 allDone = False
-                runtime = (nowtime - job['begintime']).total_seconds()
-                if runtime > self.kill_time:
-                    self.kill(job['id'])
-                    log.warning('job {} id {} has run {}s, ni pao ni ma ne?'.format(job['name'],job['id'],runtime))
+                #runtime = (nowtime - job['begintime']).total_seconds()
+                #if runtime > self.kill_time:
+                #    self.kill(job['id'])
+                #    log.warning('job {} id {} has run {}s, ni pao ni ma ne?'.format(job['name'],job['id'],runtime))
             else:
                 job['state'] = 'ERROR'
             if self.verbose:

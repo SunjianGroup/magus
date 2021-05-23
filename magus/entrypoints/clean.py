@@ -3,6 +3,7 @@ import os
 remain = ['results', 'inputFold', 'input.yaml', 'Seeds']
 def clean(*args, force=False, **kwargs):
     os.system('mv allparameters.yaml log.txt *err* *out* results/')
+    os.system('rm -r allparameters.yaml log.txt *err* *out* results/')
     os.system('cp -r input* results/')
     os.system('rm -rf calcFold')
     if force:

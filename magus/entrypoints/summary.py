@@ -6,7 +6,7 @@ import numpy as np
 import spglib as spg
 
 
-pd.options.display.max_rows = 50
+pd.options.display.max_rows = 100
 
 def summary(*args, filenames=[], prec=0.1, add_features=[], sorted_by='enthalpy',
             save=False, outdir='.', reverse=False, show_number=20,
