@@ -57,6 +57,7 @@
 - 若希望使用自己安装的conda需要修改setup.py
 - 使用此方法无需再进行 **开发者安装**
 #### 开发者安装
+- 方法一
 - 在`~/.bashrc`中设置路径：
 
   ```shell
@@ -86,6 +87,11 @@
       ```
       可以参考子项目的的README文件。
       编译生成的`lrpot.so`需要放在`magus/`目录下。
+
+- 方法二
+- 设置`paths.yaml`后，运行`python setup.py develop`。`paths.yaml`的具体内容请参考`setup.py`的注释。
+
+
 #### 设置ase的vasp接口
 - 建一个`run_vasp.py`:
 
