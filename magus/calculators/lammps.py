@@ -1,53 +1,125 @@
-import os
+import os, subprocess, shutil, logging, copy, sys, yaml
+import numpy as np
+from ase.io import read, write
+from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
-from magus.utils import *
+from ase.io.lammpsdata import read_lammps_data, write_lammps_data
+from ase.io.lammpsrun import read_lammps_dump_text
+#TODO: return None
 
-
+# units must be real!!
 class LammpsCalculator(ClusterCalculator):
-    def __init__(self, parameters, prefix='Lammps'):
-        super().__init__(parameters, prefix)
-        Requirement = ['symbols']
-        Default = {'exeCmd':'', 'jobPrefix': 'Lammps'}
-        checkParameters(self.p,parameters, Requirement, Default)
+    def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Lammps',
+                 pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
+                 exeCmd='', saveTraj=False, atomStyle='atomic', *arg, **kwargs):
+        super().__init__(workDir=workDir, queueName=queueName, numCore=numCore, 
+                         numParallel=numParallel, jobPrefix=jobPrefix, pressure=pressure, 
+                         Preprocessing=Preprocessing, waitTime=waitTime, 
+                         verbose=verbose, killtime=killtime)
+        self.lammps_setup = {
+            'pressure': pressure,
+            'symbols': symbols,
+            'atom_style': atomStyle,
+            'exe_cmd': exeCmd,
+            'save_traj': saveTraj,
+        }
+        self.main_info.append('lammps_setup')
 
-    def lammps_job(self, calcDic, jobName):
+    def scf_job(self, index):
+        job_name = self.job_prefix + '_s_' + str(index)
+        shutil.copy("{}/in.scf".format(self.input_dir), 'in.lammps')
         with open('lammpsSetup.yaml', 'w') as f:
-            f.write(yaml.dump(calcDic))
-        with open('parallel.sh', 'w') as f:
-            f.write(
-                "#BSUB -q {0}\n"
-                "#BSUB -n {1}\n"
-                "#BSUB -o out\n"
-                "#BSUB -e err\n"
-                "#BSUB -J {2}\n"
-                "{3}\n"
-                "python -m magus.runscripts.runlammps lammpsSetup.yaml"
-                "".format(self.p.queueName, self.p.numCore, jobName, self.p.Preprocessing))
-        self.J.bsub('bsub < parallel.sh',jobName)
+            f.write(yaml.dump(self.lammps_setup))
+        content = "python -m magus.calculators.lammps lammpsSetup.yaml initPop.traj optPop.traj"
+        self.J.sub(content, name=job_name, file='scf.sh', out='scf-out', err='scf-err')
 
-    def scfjob(self):
-        calcDic = {
-            'calcNum': 0,
-            'pressure': self.p.pressure,
-            'exeCmd': self.p.exeCmd,
-            'inputDir': "{}/inputFold".format(self.p.workDir),
-            'numCore': self.p.numCore,
-            'symbol_to_type': {j: i for i, j in enumerate(self.p.symbols)},
-            'type_to_symbol': {i: j for i, j in enumerate(self.p.symbols)},
-        }
-        index = os.getcwd().split('/')[-1]
-        jobName = self.p.jobPrefix + '_s_' + str(index)
-        self.lammps_job(calcDic, jobName)
+    def relax_job(self, index):
+        job_name = self.job_prefix + '_r_' + str(index)
+        shutil.copy("{}/in.relax".format(self.input_dir), 'in.lammps')
+        with open('lammpsSetup.yaml', 'w') as f:
+            f.write(yaml.dump(self.lammps_setup))
+        content = "python -m magus.calculators.lammps lammpsSetup.yaml initPop.traj optPop.traj"
+        self.J.sub(content, name=job_name, file='relax.sh', out='relax-out', err='relax-err')
 
-    def relaxjob(self):
-        calcDic = {
-            'calcNum': self.p.calcNum,
-            'pressure': self.p.pressure,
-            'exeCmd': 'mpirun -np {} {}'.format(self.p.numCore, self.p.exeCmd),
-            'inputDir': "{}/inputFold".format(self.p.workDir),
-            'symbol_to_type': {j: i for i, j in enumerate(self.p.symbols)},
-            'type_to_symbol': {i: j for i, j in enumerate(self.p.symbols)},
-        }
-        index = os.getcwd().split('/')[-1]
-        jobName = self.p.jobPrefix + '_r_' + str(index)
-        self.lammps_job(calcDic, jobName)
+    def scf_serial(self, calcPop):
+        shutil.copy("{}/in.scf".format(self.input_dir), 'in.lammps')
+        opt_pop = calc_lammps(self.lammps_setup, calcPop)
+        return opt_pop     
+
+    def relax_serial(self, calcPop):
+        shutil.copy("{}/in.relax".format(self.input_dir), 'in.lammps')
+        opt_pop = calc_lammps(self.lammps_setup, calcPop)
+        return opt_pop
+
+
+def calc_lammps_once(lammps_setup, atoms):
+    specorder = lammps_setup['symbols']
+    atom_style = lammps_setup['atom_style']
+    exe_cmd = lammps_setup['exe_cmd']
+    pressure = lammps_setup['pressure']
+    save_traj = lammps_setup['save_traj']
+    write_lammps_data('data', atoms, specorder=specorder, atom_style=atom_style)
+    exitcode = subprocess.call(exe_cmd, shell=True)
+    if exitcode != 0 and exitcode != 8:
+        raise RuntimeError('Lammps exited with exit code: %d.  ' % exitcode)
+    # break because of MTP
+    if exitcode == 8:
+        return None
+    with open('out.dump') as f:
+        new_atoms = read_lammps_dump_text(f, specorder=specorder)
+    thermo_content = []
+    if not os.path.exists('log.lammps'):
+        raise RuntimeError('Lammps failed, no log.lammps!')
+    with open('log.lammps') as f:
+        line = 'chongchongchong!'
+        while line:
+            line = f.readline()
+            if 'Error' in line:
+                raise RuntimeError('Lammps failed, please check log.lammps!')
+            if 'Step Temp Press' in line:
+                thermo_args = line.split()
+                line = f.readline()
+                while 'Loop time of' not in line:
+                    thermo_content.append(
+                        {arg: float(value) for arg, value in zip(thermo_args, line.split())}
+                    )
+                    line = f.readline()
+                break
+    energy = thermo_content[-1]['PotEng']
+    enthalpy = (energy + pressure * GPa * new_atoms.get_volume()) / len(new_atoms)
+    new_atoms.info['enthalpy'] = round(enthalpy, 3)
+    new_atoms.info['energy'] = energy
+    new_atoms.info['forces'] = new_atoms.get_forces()
+    new_atoms.info['stress'] = np.array(
+        [-thermo_content[-1][arg] for arg in ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")])
+    if save_traj:
+        with open('out.dump') as f:
+            traj = read_lammps_dump_text(f, index=slice(None, None, None), specorder=specorder)
+        for i, atoms in enumerate(traj):
+            energy = thermo_content[i]['PotEng']
+            enthalpy = (energy + pressure * GPa * atoms.get_volume()) / len(atoms)
+            new_atoms.info['enthalpy'] = round(enthalpy, 3)
+            new_atoms.info['energy'] = energy
+            atoms.info['forces'] = atoms.get_forces()
+            atoms.info['stress'] = np.array(
+                [-thermo_content[i][arg] for arg in ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")])
+        new_atoms.info['traj'] = traj
+    return new_atoms
+
+
+def calc_lammps(lammps_setup, frames):
+    new_frames = []
+    for i, atoms in enumerate(frames):
+        new_atoms = calc_lammps_once(lammps_setup, atoms)
+        if new_atoms is not None:
+            new_frames.append(new_atoms)
+    return new_frames
+
+
+if  __name__ == "__main__":
+    lammps_setup_file, input_traj, output_traj = sys.argv[1:]
+    lammps_setup = yaml.load(open(lammps_setup_file))
+
+    init_pop = read(input_traj, format='traj', index=':',)
+    opt_pop = calc_lammps(lammps_setup, init_pop)
+    write(output_traj, opt_pop)

@@ -11,6 +11,7 @@ from ase.geometry import cellpar_to_cell,cell_to_cellpar
 from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
+import logging
 from .utils import *
 from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 from .population import RcsInd
@@ -27,9 +28,19 @@ class Generator:
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
 
-    def updatevolRatio(self,volRatio):
-        self.p.volRatio=volRatio
-        logging.debug("new volRatio: {}".format(self.p.volRatio))
+    def update_volume_ratio(self, volume_ratio):
+        log.info("change volRatio from {} to {}".format(self.p.volRatio, volume_ratio))
+        self.p.volRatio = volume_ratio
+
+    def get_swap(self):
+        M = np.array([
+            [[1,0,0],[0,1,0],[0,0,1]],
+            [[0,1,0],[1,0,0],[0,0,1]],
+            [[0,1,0],[0,0,1],[1,0,0]],
+            [[1,0,0],[0,0,1],[0,1,0]],
+            [[0,0,1],[1,0,0],[0,1,0]],
+            [[0,0,1],[0,1,0],[1,0,0]]])
+        return M[np.random.randint(6)]
 
     def getVolumeandLattice(self,numlist):
         # Recalculate atomic radius, considering the change of radius in molecular crystal mode
@@ -61,16 +72,12 @@ class Generator:
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
         generator.dimension = self.p.dimension
-        try:
+        
+        if hasattr(self.p, 'vacuum'):
             generator.vacuum = self.p.vacuum
-        except:
-            pass
-
-        try:
+        if hasattr(self.p, 'choice'):
             generator.choice = self.p.choice
-        except:
-            pass
-
+        
         if self.p.molMode:
             generator.threshold=self.p.bondRatio
         else:
@@ -81,6 +88,11 @@ class Generator:
         generator.GetConventional = self.p.GetConventional
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
+        # TODO should be encapsulated into HanYu code
+        swap_matrix = self.get_swap() 
+        minLattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ minLattice
+        maxLattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ maxLattice
+
         generator.minVolume = minVolume
         generator.maxVolume = maxVolume
         generator.SetLatticeMins(minLattice[0], minLattice[1], minLattice[2], minLattice[3], minLattice[4], minLattice[5])
@@ -124,10 +136,16 @@ class Generator:
         if label:
             cell = generator.GetLattice(0)
             cell = np.reshape(cell, (3,3))
-            positions = generator.GetPosition(0)
-            positions = np.reshape(positions, (-1, 3))
-            positions = np.dot(positions,cell)
-            atoms = ase.Atoms(cell=cell, positions=positions, numbers=numbers, pbc=1)
+            cell_ = np.linalg.inv(swap_matrix) @ cell
+            Q, L = np.linalg.qr(cell_.T)
+            scaled_positions = generator.GetPosition(0)
+            scaled_positions = np.reshape(scaled_positions, (-1, 3))
+            positions = scaled_positions @ cell @ Q
+            if np.linalg.det(L) < 0:
+                L[2, 2] *= -1
+                positions[:, 2] *= -1
+            atoms = ase.Atoms(cell=L.T, positions=positions, numbers=numbers, pbc=1)
+            atoms.wrap(pbc=[1, 1, 1])
             atoms = build.sort(atoms)
             return label, atoms
         else:

@@ -3,7 +3,6 @@ import os
 import logging
 import numpy as np
 from .utils import find_spg, symbols_and_formula
-from .xrd import compare_xrd
 import copy
 from ase.phasediagram import PhaseDiagram
 import abc

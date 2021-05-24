@@ -2,6 +2,7 @@
 Base module for all operators that create offspring.
 steal from ase.ga
 """
+#TODO how to select, za lun pan du a ?
 import numpy as np
 import logging, copy
 from ase import Atoms, Atom 
@@ -12,6 +13,11 @@ from .population import Population
 from .molecule import Molfilter
 import ase.io
 from .utils import *
+
+
+log = logging.getLogger(__name__)
+
+
 class OffspringCreator:
     def __init__(self,tryNum=10):
         self.tryNum = tryNum
@@ -90,10 +96,10 @@ class Crossover(OffspringCreator):
                 if newind.check_formula() and newind.check_mol():
                     break
         else:
-            logging.debug('fail {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
+            log.debug('fail {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
             return None
 
-        logging.debug('success {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
+        log.debug('success {} between {} and {}'.format(self.descriptor,f.info['identity'],m.info['identity']))
         # remove some parent infomation
         rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull','energy','forces']
         for k in rmkeys:
@@ -769,6 +775,11 @@ class PopGenerator:
         self.uqLabels = uqLabels
         self.subpops = subpops
     def get_pairs(self, Pop, crossNum ,clusterNum, tryNum=50,k=0.3):
+        ##################################
+        #temp
+        #si ma dang huo ma yi
+        k = 2 / len(Pop)
+        ##################################
         pairs = []
         labels,_ = Pop.clustering(clusterNum)
         fail = 0
@@ -794,6 +805,11 @@ class PopGenerator:
 
     def get_inds(self,Pop,mutateNum,k=0.3):
         #Pop = self.Pop
+        ##################################
+        #temp
+        #si ma dang huo ma yi
+        k = 2 / len(Pop)
+        ##################################
         dom = np.array([ind.info['dominators'] for ind in Pop.pop])
         edom = np.exp(-k*dom)
         p = edom/np.sum(edom)
@@ -823,7 +839,7 @@ class PopGenerator:
         for op,num in zip(self.oplist,self.numlist):
             if num == 0:
                 continue
-            logging.debug('name:{} num:{}'.format(op.descriptor,num))
+            log.debug('name:{} num:{}'.format(op.descriptor,num))
             if op.optype == 'Mutation':
                 mutate_inds = self.get_inds(Pop,num)
                 for i,ind in enumerate(mutate_inds):
@@ -845,7 +861,7 @@ class PopGenerator:
                     newind = op.get_new_individual(parents,chkMol=self.p.chkMol)
                     if newind:
                         newPop.append(newind)
-            logging.debug("popsize after {}: {}".format(op.descriptor, len(newPop)))
+            log.debug("popsize after {}: {}".format(op.descriptor, len(newPop)))
 
         if self.p.calcType == 'var':
             newPop.check_full()
@@ -856,6 +872,11 @@ class PopGenerator:
         return newPop
 
     def select(self,Pop,num,k=0.3):
+        ##################################
+        #temp
+        #si ma dang huo ma yi
+        k = 2 / len(Pop)
+        ##################################
         if num < len(Pop):
             pardom = np.array([ind.info['pardom'] for ind in Pop.pop])
             edom = np.e**(-k*pardom)
@@ -892,47 +913,3 @@ class MLselect(PopGenerator):
             return Pop
         else:
             return Pop
-
-
-if __name__ == '__main__':
-    from .population import Individual
-    from .readparm import read_parameters
-    from .utils import EmptyClass
-    from ase.calculators.emt import EMT
-    from ase.calculators.lj import LennardJones
-    import ase.io
-    import numpy as np
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--debug", help="print debug information", action='store_true', default=False)
-    args = parser.parse_args()
-    if args.debug:
-        logging.basicConfig(filename='log.txt', level=logging.DEBUG, format="%(message)s")
-        logging.info('Debug mode')
-    else:
-        logging.basicConfig(filename='log.txt', level=logging.INFO, format="%(message)s")
-    parameters = read_parameters('input.yaml')
-    p = EmptyClass()
-    for key, val in parameters.items():
-        setattr(p, key, val)
-    pop_ = []
-    traj = ase.io.read('good.traj',':')
-    for ind in traj:
-        pop_.append(Individual(ind,p))
-
-    pop = Population(pop_,p)
-
-    calc = LennardJones()
-    soft = SoftMutation(calc)
-    cutandsplice = CutAndSplicePairing()
-    perm = PermMutation()
-    lattice = LatticeMutation()
-    ripple = RippleMutation()
-    slip = SlipMutation()
-
-    oplist = [soft,cutandsplice,lattice,perm,ripple,slip]
-    numlist = [10,10,10,10,10,10]
-    popgen = PopGenerator(numlist,oplist,p)
-    newpop = popgen.next_pop(pop)
-    newpop.save('new.traj')
