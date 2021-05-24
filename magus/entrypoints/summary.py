@@ -7,7 +7,7 @@ import spglib as spg
 from pymatgen import Molecule
 from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 
-pd.options.display.max_rows = 50
+pd.options.display.max_rows = 100
 
 def summary(*args, filenames=[], prec=0.1, add_features=[], sorted_by='enthalpy',
             save=False, outdir='.', reverse=False, show_number=20, cluster = False,

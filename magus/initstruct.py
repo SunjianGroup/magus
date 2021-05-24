@@ -18,12 +18,15 @@ from .population import RcsInd
 import math
 
 
+log = logging.getLogger(__name__)
+
+
 class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
-        Default={'threshold':1.0,'maxAttempts':50,'method':1, 'GetConventional': True,
-        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3}
+        Default={'threshold':1.0,'maxAttempts':50,'method':1, 'p_pri':0.,
+        'GetConventional': True, 'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
@@ -85,6 +88,7 @@ class Generator:
         generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
+        #generator.GetConventional = True if np.random.rand() > self.p.p_pri else False
         generator.GetConventional = self.p.GetConventional
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
@@ -347,7 +351,7 @@ def read_seeds(parameters, seedFile, goodSeed=False):
         else:
             readPop = ase.io.read(seedFile, index=':', format='traj')
         if len(readPop) > 0:
-            logging.info("Reading Seeds ...")
+            log.info("Reading Seeds ...")
             
         seedPop = readPop
         #seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)

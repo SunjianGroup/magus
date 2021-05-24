@@ -30,6 +30,7 @@ class magusParameters:
         Requirement = ['calcType','MainCalculator','popSize','numGen','saveGood','symbols']
         Default = {
             'spacegroup':list(range(1, 231)),
+            'DFTRelax': True,
             'initSize':p.popSize,
             'goodSize':p.popSize,
             'molMode':False,

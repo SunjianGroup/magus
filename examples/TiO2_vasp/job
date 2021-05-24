@@ -4,4 +4,4 @@
 #BSUB -o out
 #BSUB -q e52692v2ib!
 
-python -m magus.search --debug
+magus search

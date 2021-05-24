@@ -10,7 +10,6 @@ maxAt: 12
 symbols: ['Al']
 formula: [1]
 
-
 fullEles: True
 eleSize: 0
 dRatio: 0.6
@@ -19,25 +18,12 @@ randFrac: 0.4
 pressure: 0
 addSym: False
 
-
 #main calculator settings
 MainCalculator:
+ jobPrefix: Al_EMT
  calculator: emt
- calcNum: 1
- epsArr: [0.5]
- stepArr: [30]
- maxRelaxTime: 300
- maxRelaxStep: 0.5
- mainoptimizer: fire
- #vasp parameters
- #xc: PBE
- #ppLabel: ['']
-
- #parallel settings
- #numParallel: 10
- #numCore: 12
- #queueName: e52692v2ib!
- #waitTime: 100
-
-#offspring settings
+ eps: 0.05
+ maxStep: 30
+ maxMove: 0.1
+ optimizer: bfgs
 

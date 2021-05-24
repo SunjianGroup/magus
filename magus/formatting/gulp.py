@@ -51,7 +51,7 @@ def load_gulp(filename):
                 cell.append([float(c) for c in lines[i].split()])
                 i += 1
         i += 1
-    atoms = Atoms(cell=cell, positions=positions)
+    atoms = Atoms(cell=cell, positions=positions, pbc=True)
     if scaled:
         atoms.set_scaled_positions(positions)
     atoms.set_chemical_symbols(symbols)

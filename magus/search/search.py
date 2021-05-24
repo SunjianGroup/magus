@@ -23,6 +23,8 @@ class Magus:
         self.atoms_generator = atoms_generator
         self.pop_generator = pop_generator
         self.main_calculator = main_calculator
+        log.debug('Main Calculator information:')
+        log.debug(main_calculator.__str__())
         self.Population = Population
         self.seed_dir = '{}/Seeds'.format(self.parameters.workDir)
         if restart:
