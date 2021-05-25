@@ -204,6 +204,30 @@ def parse_args():
         default=10,
         help="generate number"
     )
+    #For reconstructions, get a slab
+    parser_slab = subparsers.add_parser(
+        "getslab",
+        help="get the slab model used in rcs-magus",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_slab.add_argument(
+        "filename",
+        type=str,
+        default= 'Ref/layerslices.traj',
+        help="traj of slab model, default is './Ref/layerslices.traj'",
+    )
+    #generation energy analizer, a quick version of summary
+    parser_ana = subparsers.add_parser(
+        "analyze",
+        help="get energy tendency of evolution",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_ana.add_argument(
+        "filename",
+        type=str,
+        default= 'results',
+        help="dictionary of results",
+    )
     parsed_args = parser.parse_args()
     if parsed_args.command is None:
         parser.print_help()
@@ -225,6 +249,10 @@ def main():
         calculate(**dict_args)
     elif args.command == "gen":
         generate(**dict_args)
+    elif args.command == "getslab":
+        getslab(**dict_args)
+    elif args.command == "analyze":
+        analyze(**dict_args)
     elif args.command is None:
         pass
     else:

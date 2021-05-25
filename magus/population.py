@@ -17,6 +17,7 @@ from .molecule import Molfilter
 from ase.constraints import FixAtoms
 from .reconstruct import fixatoms, weightenCluster
 from ase import neighborlist
+from scipy import sparse
 
 #clusters
 try:

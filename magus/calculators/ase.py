@@ -1,4 +1,4 @@
-from magus.calculators.base import Calculator
+from magus.calculators.base import Calculator, split1
 from ase.constraints import ExpCellFilter
 import logging, traceback, os, yaml
 import numpy as np
@@ -31,13 +31,14 @@ class ASECalculator(Calculator):
         'fire': FIRE,
     }
     def __init__(self, workDir, jobPrefix='ASE', pressure=0., eps=0.05, maxStep=100,
-                 optimizer='bfgs', maxMove=0.1, relaxLattice=True, *arg, **kwargs):
+                 optimizer='bfgs', maxMove=0.1, relaxLattice=True, mode = 'serial', *arg, **kwargs):
         super().__init__(workDir=workDir, pressure=pressure, jobPrefix=jobPrefix)
         self.eps = eps
         self.max_step = maxStep
         self.max_move = maxMove
         self.relax_lattice = relaxLattice
         self.optimizer = self.optimizer_dict[optimizer]
+        self.mode = mode
         #self.set_calc()
 
     def set_relax_calc(self):
@@ -85,7 +86,7 @@ class ASECalculator(Calculator):
                 for i in range(_numparallel)]
 
         else:
-            results = [pool.apply_async(self.scf_serial, args=([calcPop[j] for j in runArray[i]])) \
+            results = [pool.apply_async(runjob, args=([calcPop[j] for j in runArray[i]], 'ase{}.log'.format(i), 'calc{}.traj'.format(i), "{}".format(self.calc_dir))) \
                 for i in range(_numparallel)]
 
         resultPop = [ind for p in results for ind in p.get()]
@@ -99,10 +100,10 @@ class ASECalculator(Calculator):
         self.set_scf_calc()
         return self.calculate(calcPop, self.scf_serial)
 
-    def relax_serial(self, calcPop, logfile='aserelax.log', trajname='calc.traj', workdir = '.', *args):
+    def relax_serial(self, calcPop, logfile='aserelax.log', trajname='calc.traj', workdir = '.'):
         os.chdir(workdir)
         new_frames = []
-        error_frames = []
+        error_frames = []  
         for i, atoms in enumerate(calcPop):
             atoms.set_calculator(self.relax_calc)
             if self.relax_lattice:
@@ -138,9 +139,11 @@ class ASECalculator(Calculator):
         write('errorTraj.traj', error_frames)
 
         return new_frames
-    
-    def scf_serial(self, calcPop, *args):
-        
+
+    #TODO: cannot add *args here, or calcPop will be divided into list of args. How to slove it?
+    #def scf_serial(self, calcPop, *args):
+    def scf_serial(self, calcPop, logfile=None, trajname=None, workdir = '.'):
+        os.chdir(workdir)
         for atoms in calcPop:
             atoms.set_calculator(self.scf_calc)
             try:

@@ -3,7 +3,7 @@ import numpy as np
 from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
-from .formatting.orca import OrcaIo, RelaxOrca
+from magus.formatting.orca import OrcaIo, RelaxOrca
 
 log = logging.getLogger(__name__)
 

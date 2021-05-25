@@ -62,7 +62,8 @@ class magusParameters:
             'comparator': 'energy',
         }
         if p.calcType=='rcs':
-            logging.info("rcs mode: \nlayerfile= "+p.layerfile)
+            log = logging.getLogger(__name__)
+            log.info("rcs mode: \nlayerfile= "+p.layerfile)
             
         checkParameters(p,p,Requirement,Default)
 
