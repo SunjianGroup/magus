@@ -31,7 +31,7 @@ class ASECalculator(Calculator):
         'fire': FIRE,
     }
     def __init__(self, workDir, jobPrefix='ASE', pressure=0., eps=0.05, maxStep=100,
-                 optimizer='bfgs', maxMove=0.1, relaxLattice=True, mode = 'serial', *arg, **kwargs):
+                 optimizer='bfgs', maxMove=0.1, relaxLattice=True, mode = 'serial', kill_time =1000000, *arg, **kwargs):
         super().__init__(workDir=workDir, pressure=pressure, jobPrefix=jobPrefix)
         self.eps = eps
         self.max_step = maxStep
@@ -39,6 +39,7 @@ class ASECalculator(Calculator):
         self.relax_lattice = relaxLattice
         self.optimizer = self.optimizer_dict[optimizer]
         self.mode = mode
+        self.kill_time = kill_time
         #self.set_calc()
 
     def set_relax_calc(self):
@@ -88,9 +89,12 @@ class ASECalculator(Calculator):
         else:
             results = [pool.apply_async(runjob, args=([calcPop[j] for j in runArray[i]], 'ase{}.log'.format(i), 'calc{}.traj'.format(i), "{}".format(self.calc_dir))) \
                 for i in range(_numparallel)]
-
-        resultPop = [ind for p in results for ind in p.get()]
         
+        resultPop = []
+        try:
+            resultPop = [ind for p in results for ind in p.get(timeout=self.kill_time)]
+        except mp.TimeoutError:
+            log.warning("Exception timeout: calculator {} {} terminated after {} seconds".format(self.__class__.__name__, runjob.__name__, self.kill_time))
         return resultPop
     
     def relax(self, calcPop):
@@ -136,7 +140,7 @@ class ASECalculator(Calculator):
             atoms.wrap()
             atoms.set_calculator(None)
             new_frames.append(atoms)
-        write('errorTraj.traj', error_frames)
+        write('errorTraj.traj', error_frames, append = True)
 
         return new_frames
 

@@ -10,9 +10,6 @@ from ase import Atoms, Atom
 from .utils import symbols_and_formula
 from collections import Counter
 
-def str_(l):
-    l=str(l)
-    return l[l.find('[')+1:l.find(']')]
 
 class move:
     def __init__(self, originpositions, shift, atomnumber, atomname, lattice, spacegroup = 1, eq_atoms=None):
@@ -126,22 +123,11 @@ class reconstruct:
             return label, None
 
     def WritePoscar(self, filename):
-        f=open(filename,'w')
-        f.write("filename\n")
-        f.write('1 \n')
-        for i in range(3):
-            f.write(str_(self.lattice[i])+'\n')
-
-        for name in self.atomname:
-            f.write(name+'  ')
-
-        f.write('\n')
-        f.write(str_(np.array(self.atomnum)))
-        f.write('\nDirect\n') 
-        po=self.positions
-        for i in range(len(po)):
-            f.write(str_(po[i])+'\n')
-        f.close()
+        numbers = []
+        for i, name in enumerate(self.atomname):
+            numbers.extend([name]*self.atomnum[i])
+        atoms = Atoms(cell = self.lattice, positions=np.dot(self.positions, self.lattice), numbers=numbers)
+        ase.io.write(filename, atoms, format = 'vasp', vasp5=1)
         return
 
 class resetLattice:

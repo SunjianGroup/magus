@@ -510,9 +510,9 @@ class Individual:
         if self.p.chkMol:
             check_mol = self.check_mol(a)
         if not check_cellpar:
-            log.debug("Fail in check_cellpar")
+            log.debug("Fail in check_cellpar, origin = {}".format(origin))
         if not check_distance:
-            log.debug("Fail in check_distance")
+            log.debug("Fail in check_distance, origin = {}".format(origin))
         if not check_mol:
             log.debug("Fail in check_mol, origin = {}".format(origin))
         if not check_formula:
@@ -880,6 +880,7 @@ class RcsInd(Individual):
 
         if atoms.__class__.__name__ == 'Molfilter':
             atoms = atoms.to_atoms()
+        atoms.set_pbc([True, True, False])
         atoms.wrap()
         newind.atoms = atoms
         newind.sort()
@@ -1116,6 +1117,13 @@ class RcsInd(Individual):
         ats = self.addvacuum(add=-1, atoms=atoms)
         return ats
 
+    def get_volRatio(self):
+        volume = self.atoms.get_volume()
+        top = np.max(self.atoms.get_scaled_positions(wrap = True)[:, 2])
+        extended = self.atoms.get_cell_lengths_and_angles()[2]
+        extra = (self.layerslices[0]+self.layerslices[1]).get_cell_lengths_and_angles()[2] + self.p.vacuum
+        self.volRatio = (top - extra/extended)*volume/self.get_ball_volume()
+        return self.volRatio
 
 class ClusInd(FixInd):
     def __init__(self, parameters):

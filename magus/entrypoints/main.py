@@ -228,6 +228,21 @@ def parse_args():
         default= 'results',
         help="dictionary of results",
     )
+    #for developers: mutation test
+    parser_mutate = subparsers.add_parser(
+        "mutate",
+        help="mutation test",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    arg_mus = ['input_file', 'seed_file', 'output_file']
+    arg_def = ['input.yaml', 'seed.traj', 'result']
+    for i,key in enumerate(arg_mus):
+        parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i])
+
+    from .mutate import _applied_operations_
+    for key in _applied_operations_:
+        parser_mutate.add_argument("--"+key, type=int, default=0)
+    
     parsed_args = parser.parse_args()
     if parsed_args.command is None:
         parser.print_help()
@@ -253,6 +268,8 @@ def main():
         getslab(**dict_args)
     elif args.command == "analyze":
         analyze(**dict_args)
+    elif args.command == 'mutate':
+        mutate(**dict_args)
     elif args.command is None:
         pass
     else:

@@ -13,23 +13,29 @@ from .population import Population
 from .molecule import Molfilter
 import ase.io
 from .utils import *
+from spglib import get_symmetry_dataset
+from collections import Counter
 
 
 log = logging.getLogger(__name__)
 
 
 class OffspringCreator:
-    def __init__(self,tryNum=10):
-        self.tryNum = tryNum
+    parm = {'tryNum':10}
+    def __init__(self, **kwargs):
+        for key in self.parm:
+            value = kwargs[key] if key in kwargs else self.parm[key]
+            setattr(self, key, value)
+
         self.descriptor = type(self).__name__
 
     def get_new_individual(self):
         pass
 
 class Mutation(OffspringCreator):
-    def __init__(self, tryNum=10):
+    def __init__(self, **kwargs):
         self.optype = 'Mutation'
-        super().__init__(tryNum=tryNum)
+        super().__init__(**kwargs)
 
     def mutate(self,ind):
         raise NotImplementedError(self.descriptor)
@@ -73,9 +79,9 @@ class Mutation(OffspringCreator):
         return newind
 
 class Crossover(OffspringCreator):
-    def __init__(self, tryNum=10):
+    def __init__(self, **kwargs):
         self.optype = 'Crossover'
-        super().__init__(tryNum=tryNum)
+        super().__init__(**kwargs)
 
     def cross(self,ind):
         raise NotImplementedError(self.descriptor)
@@ -125,10 +131,10 @@ class SoftMutation(Mutation):
       __ https://dx.doi.org/10.1016/j.cpc.2010.06.007
 
     """
-    def __init__(self, calculator, bounds=[0.5,2.0],tryNum=10):
-        self.bounds = bounds
+    parm = {'tryNum':10 ,'bounds': [0.5,2.0]}
+    def __init__(self, calculator = None, **kwargs):
         self.calc = calculator
-        super().__init__(tryNum=tryNum)
+        super().__init__(**kwargs)
 
     def _get_hessian(self, atoms, dx):
         N = len(atoms)
@@ -181,13 +187,10 @@ class SoftMutation(Mutation):
         return ind(atoms)
 
 class PermMutation(Mutation):
-    def __init__(self, fracSwaps=0.5,tryNum=10):
-        """
-        fracSwaps -- max ratio of atoms exchange
-        """
-        self.fracSwaps = fracSwaps
-        super().__init__(tryNum=tryNum)
-
+    parm = {'tryNum':10, 'fracSwaps':0.5} 
+    """
+    fracSwaps -- max ratio of atoms exchange
+    """
     def mutate(self, ind):
         fracSwaps = self.fracSwaps
         atoms = ind.atoms.copy()
@@ -229,14 +232,11 @@ class PermMutation(Mutation):
         return ind(atoms)
 
 class LatticeMutation(Mutation):
-    def __init__(self, sigma=0.1, cellCut=1,tryNum=10):
-        """
-        sigma: Gauss distribution standard deviation
-        cellCut: coefficient of gauss distribution in cell mutation
-        """
-        self.sigma = sigma
-        self.cellCut = cellCut
-        super().__init__(tryNum=tryNum)
+    parm = {'tryNum':10, 'sigma': 0.1, 'cellCut': 1}
+    """
+    sigma: Gauss distribution standard deviation
+    cellCut: coefficient of gauss distribution in cell mutation
+    """
 
     def mutate(self,ind):
         sigma = self.sigma
@@ -275,10 +275,7 @@ class LatticeMutation(Mutation):
 
 
 class SlipMutation(Mutation):
-    def __init__(self, cut=0.5, randRange=[0.5, 2],tryNum=10):
-        self.cut = cut
-        self.randRange = randRange
-        super().__init__(tryNum=tryNum)
+    parm = {'tryNum':10, 'cut':0.5, 'randRange':[0.5, 2]}
 
     def mutate(self, ind):
         '''
@@ -303,13 +300,10 @@ class SlipMutation(Mutation):
 
         return ind(atoms)
 
+import math
 class LyrSlipMutation(Mutation):
-    def __init__(self, cut=0.2, randRange=[0, 1],tryNum=10):
-        self.cut = cut
-        self.randRange = randRange
-        super().__init__(tryNum=tryNum)
-        import math
-        
+    parm = {'tryNum':10, 'cut':0.2, 'randRange':[0, 1]}
+
     def mutate(self, ind):
         """
         slip of one layer.
@@ -331,9 +325,7 @@ class LyrSlipMutation(Mutation):
 
 from magus.reconstruct import resetLattice
 class LyrSymMutation(Mutation):
-    def __init__(self, tryNum=10, symprec = 1e-4):
-        super().__init__(tryNum=tryNum)
-        self.symprec = symprec
+    parm = {'tryNum':10, 'symprec': 1e-4}
     
     def mirrorsym(self, atoms, rot):
         #TODO: remove the self.threshold below
@@ -458,11 +450,7 @@ class LyrSymMutation(Mutation):
         return ind(atoms)
 
 class RippleMutation(Mutation):
-    def __init__(self, rho=0.3, mu=2, eta=1,tryNum=10):
-        self.rho = rho
-        self.mu = mu
-        self.eta = eta
-        super().__init__(tryNum=tryNum)
+    parm = {'tryNum':10, 'rho':0.3, 'mu':2, 'eta':1}
 
     def mutate(self,ind):
         '''
@@ -487,10 +475,7 @@ class RippleMutation(Mutation):
         return ind(atoms)
 
 class RotateMutation(Mutation):
-    def __init__(self, p=1,tryNum=10):
-        self.p = p
-        super().__init__(tryNum=tryNum)
-
+    parm = {'tryNum':10, 'p':1}
     def mutate(self,ind):
         atoms = ind.atoms.copy()
         # atoms = Molfilter(atoms)
@@ -510,9 +495,7 @@ class ShellMutation(Mutation):
     def Exp_j = exp(-(r_ij-R_i-R_j)/d); Oi = sum_j (Exp_j) / max_j(Exp_j)
     d is the empirically determined parameter set to be 0.23.
     """
-    def __init__(self, d=0.23,tryNum=10):
-        super().__init__(tryNum=tryNum)
-        self.d = d
+    parm = {'tryNum':10, 'd':0.23}
     
     def mutate(self,ind, addatom = True, addfrml = None):
         
@@ -559,9 +542,7 @@ class CluSymMutation(LyrSymMutation):
     I put it here for it is very easy to implement with codes we have now.
     And since population is randrotated before mutation, maybe it doesnot matter if 'm' and '2'_axis is specified.  
     """
-    def __init__(self, tryNum = 10):
-        super().__init__(tryNum = tryNum)
-    
+
     def mutate(self, ind):
 
         self.threshold = ind.p.dRatio
@@ -586,11 +567,7 @@ class CluSymMutation(LyrSymMutation):
 
 
 class FormulaMutation(Mutation):
-    def __init__(self, symbols, p1=0.5, p2=0.2, tryNum=10):
-        self.p1 = p1
-        self.p2 = p2
-        self.symbols = symbols
-        super().__init__(tryNum=tryNum)
+    parm = {'tryNum':10, 'symbols': None, 'p1':0.5, 'p2':0.2}
 
     def mutate(self,ind):
         """
@@ -632,33 +609,77 @@ class RattleMutation(Mutation):
         atoms. Atoms are rattled uniformly within a sphere of this
         radius.  
     """
-    def __init__(self, p=0.5, rattle_range=3, dRatio=0.7,tryNum=10):
-        self.p = p
-        self.rattle_range = rattle_range
-        self.dRatio = dRatio
-        super().__init__(tryNum=tryNum)
+    parm = {'tryNum':10, 'p': 0.25, 'rattle_range': 4, 'dRatio':0.7, 'keepsym': False, 'symprec': 1e-1}
 
-    def mutate(self, ind):
-        """ Rattles atoms one at a time within a sphere of radius self.rattle_range.
-        """
-        atoms = ind.atoms.copy()
-        Natoms = len(atoms)
-        for i,atom in enumerate(atoms):
+    #random movement around pos.
+    def rattle(self, pos):
+        r = self.rattle_range * np.random.rand()**(1/3)
+        theta = np.random.uniform(0,np.pi)
+        phi = np.random.uniform(0,2*np.pi)
+        newpos = pos + r*np.array([np.sin(theta)*np.cos(phi), 
+                                np.sin(theta)*np.sin(phi),
+                                np.cos(theta)])
+        return newpos
+
+    def mutate_normal(self, atoms):
+        for i, _ in enumerate(atoms):
             if np.random.rand() < self.p:
                 newatoms = atoms.copy()
                 del newatoms[i]
                 pos,symbol = atoms[i].position,atoms[i].symbol
                 for _ in range(200):
-                    r = self.rattle_range * np.random.rand()**(1/3)
-                    theta = np.random.uniform(0,np.pi)
-                    phi = np.random.uniform(0,2*np.pi)
-                    newpos = pos + r*np.array([np.sin(theta)*np.cos(phi), 
-                                          np.sin(theta)*np.sin(phi),
-                                          np.cos(theta)])
+                    newpos = self.rattle(pos)
                     if check_new_atom_dist(newatoms, pos, symbol, self.dRatio):
                         atoms[i].position = newpos
                         break
+        return atoms
+
+    def mutate(self, ind):
+        """ Rattles atoms one at a time within a sphere of radius self.rattle_range.
+        """
+        atoms = ind.atoms.copy()
+        atoms = self.mutate_normal(atoms) if not self.keepsym else self.mutate_sym(atoms)
+        
         return ind(atoms)
+
+    def mutate_sym(self, atoms):
+        sym_ds = get_symmetry_dataset(atoms, self.symprec)
+        eq_at = sym_ds['equivalent_atoms']
+        
+        for key in list(Counter(eq_at).keys()):
+            eq = np.where(eq_at == key)[0]
+
+            if np.random.rand() < 1 - (1-self.p)**len(eq):
+                newatoms = atoms.copy()
+                del newatoms[eq]
+                pos,symbol = atoms[key].position,atoms[key].symbol
+                for _ in range(200):
+                    _p_ = self.rattle(pos)
+                    
+                    newpos = np.dot(_p_, np.linalg.inv(atoms.get_cell()))
+                    newpos = np.dot(sym_ds['rotations'], newpos) + sym_ds['translations']
+    
+                    for i, _ in enumerate(newpos):
+                        for j, _ in enumerate(np.where(atoms.get_pbc())[0]):
+                            newpos[i][j] += -int(newpos[i][j]) if newpos[i][j] >= 0 else -int(newpos[i][j]) +1
+
+                    newpos = np.dot(newpos, atoms.get_cell())
+
+                    for _pos_ in newpos:
+                        if check_new_atom_dist(newatoms, _pos_, symbol, self.dRatio):
+                            newatoms += Atom(position=_pos_, symbol=symbol)
+                        else:
+                            break
+                    else:
+                        for i, index in enumerate(eq):
+                            atoms[index].position = newpos[i]
+                        else:
+                            for j in range(i, len(newpos)):
+                                atoms += Atom(position=newpos[j], symbol=symbol)
+                            #It is only a temp solution. Relying on ind.merge() to solve the following problem.
+                        break
+
+        return atoms
        
 class CutAndSplicePairing(Crossover):
     """ A cut and splice operator for bulk structures.
@@ -673,9 +694,7 @@ class CutAndSplicePairing(Crossover):
 
       __ https://doi.org/10.1016/j.cpc.2010.07.048
     """
-    def __init__(self, cutDisp=0):
-        self.cutDisp = cutDisp
-        super().__init__()
+    parm = {'tryNum':10, 'cutDisp':0}
 
     def cross(self, ind1, ind2):
         """
@@ -726,9 +745,7 @@ class ReplaceBallPairing(Crossover):
     TODO rotate the replace ball
     how to rotate the ball to make energy lower
     """
-    def __init__(self, cutrange=[1,2]):
-        self.cutrange = cutrange
-        super().__init__()
+    parm = {'tryNum':10, 'cutrange':[1,2]}
 
     def cross(self, ind1, ind2):
         """replace some atoms in a ball
@@ -836,7 +853,10 @@ class PopGenerator:
             Pop.add_symmetry()
         newPop = Pop([],'initpop',Pop.gen+1)
 
-        for op,num in zip(self.oplist,self.numlist):
+        operation_keys = list(self.oplist.keys())
+        for key in operation_keys:
+            op = self.oplist[key]
+            num = self.numlist[key]
             if num == 0:
                 continue
             log.debug('name:{} num:{}'.format(op.descriptor,num))

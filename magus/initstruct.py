@@ -390,7 +390,7 @@ class ReconstructGenerator():
         checkParameters(para_t, parameters, Requirement,Default)
         
         if os.path.exists("Ref") and os.path.exists("Ref/refslab.traj") and os.path.exists("Ref/layerslices.traj"):
-            logging.info("Used layerslices in Ref.")
+            log.info("Used layerslices in Ref.")
         else:
             if not os.path.exists("Ref"):
                 os.mkdir('Ref')
@@ -481,9 +481,10 @@ class ReconstructGenerator():
         ind.info['size'] = size
 
         return ind
-
-    def updatevolRatio(self,volRatio):
-        return self.rcs_generator.updatevolRatio(volRatio)
+        
+    def update_volume_ratio(self, volume_ratio):
+        pass
+        #return self.rcs_generator.update_volume_ratio(volume_ratio)
     def Generate_ind(self,spg,numlist):
         return self.rcs_generator.Generate_ind(spg,numlist)
 
@@ -657,7 +658,8 @@ class ReconstructGenerator():
             label,ind = self.rcs_generator.Generate_ind(spg,numlist)
 
             if label:
-                label, ind = self.reset_rind_lattice(ind, _x, _y, botp = 'refbot', type = 'bot')
+                #label, ind = self.reset_rind_lattice(ind, _x, _y, botp = 'refbot', type = 'bot')
+                label, ind = self.reset_rind_lattice(ind, _x, _y, botp = 'refbot')
             if label:
                 _bot_ = (self.layerslices[1] * (_x, _y, 1)).copy()
                 _bot_.info['size'] = [_x, _y]

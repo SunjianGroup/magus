@@ -773,7 +773,7 @@ def check_dist(pop, threshold=0.7):
 
 def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
     newPosition = wrap_positions([newPosition],atoms.cell)[0]
-    supAts = atoms * (3,3,3)
+    supAts = atoms * [3 if pbc == True else 1 for pbc in atoms.pbc]
     rs = [covalent_radii[num] for num in supAts.get_atomic_numbers()]
     rnew = covalent_radii[atomic_numbers[newSymbol]]
     # Place the new atoms in the centeral cell
