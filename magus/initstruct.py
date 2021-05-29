@@ -21,8 +21,8 @@ class Generator:
     def __init__(self,parameters):
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
-        Default={'threshold':1.0,'maxAttempts':50,'method':1, 'p_pri':0., 
-        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3, 'choice':0}
+        Default={'threshold':1.0,'maxAttempts':50,'method':1, 'p_pri':0.,
+        'GetConventional': None, 'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
@@ -71,12 +71,12 @@ class Generator:
         generator.spgnumber = 1
         generator.maxAttempts = self.p.maxAttempts
         generator.dimension = self.p.dimension
-        try:
-            if self.p.vacuum:
-                generator.vacuum = self.p.vacuum
-        except:
-            pass
-        generator.choice = self.p.choice
+        
+        if hasattr(self.p, 'vacuum'):
+            generator.vacuum = self.p.vacuum
+        if hasattr(self.p, 'choice'):
+            generator.choice = self.p.choice
+        
         if self.p.molMode:
             generator.threshold=self.p.bondRatio
         else:
@@ -84,7 +84,10 @@ class Generator:
         generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
-        generator.GetConventional = True if np.random.rand() > self.p.p_pri else False
+        if self.p.GetConventional is None:
+            generator.GetConventional = True if np.random.rand() > self.p.p_pri else False
+        else:
+            generator.GetConventional = self.p.GetConventional
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
         # TODO should be encapsulated into HanYu code

@@ -25,7 +25,21 @@ def set_ind(parameters):
         return FixInd(parameters)
     if parameters.calcType == 'var':
         return VarInd(parameters)
+    
+def set_comparator(parameters):
+    
+    from .comparator import FingerprintComparator, Comparator
+    from .compare.naive import NaiveComparator
+    from .compare.bruteforce import ZurekComparator
+    from .compare.base import OrGate, AndGate
 
+    if parameters.comparator == 'energy':
+        return Comparator(dE=parameters.diffE, dV=parameters.diffV)
+    elif parameters.comparator == 'fingerprint':
+        return FingerprintComparator(dE=parameters.diffE, dV=parameters.diffV)
+    elif parameters.comparator == 'zurek':
+        return AndGate([NaiveComparator(dE=parameters.diffE, dV=parameters.diffV), ZurekComparator()])
+    
 class Population:
     """
     a class of atoms population
@@ -71,6 +85,8 @@ class Population:
     def append(self,ind):
         if ind.__class__.__name__ == 'Atoms':
             ind = self.Individual(ind)
+        elif isinstance(ind, Individual):
+            ind = ind.copy()
         ind.info['identity'] = [self.name, len(self.pop)]
         self.pop.append(ind)
         return True
@@ -245,13 +261,8 @@ class Individual:
         #     checkParameters(self.p,parameters,[],{'symprec':0.01})
 
         #TODO add more comparators
-        from .comparator import FingerprintComparator, Comparator
-        from .compare.naive import NaiveComparator
-        from .compare.bruteforce import ZurekComparator
-        from .compare.base import OrGate, AndGate
-        #self.comparator = FingerprintComparator()
-        #self.comparator = Comparator(dE=self.p.diffE, dV=self.p.diffV)
-        self.comparator = AndGate([NaiveComparator(dE=self.p.diffE, dV=self.p.diffV), ZurekComparator()])
+        self.comparator = set_comparator(parameters)
+        
         #fingerprint
         self.cf = ZernikeFp(parameters)
 
@@ -449,14 +460,17 @@ class Individual:
         check_distance = self.check_distance(a)
         check_formula = self.check_formula(a)
         check_mol = True
+        origin = self.atoms.info['origin'] if 'origin' in self.atoms.info else 'Unknown'
         if self.p.chkMol:
             check_mol = self.check_mol(a)
         if not check_cellpar:
-            log.debug("Fail in check_cellpar")
+            log.debug("Fail in check_cellpar, origin = {}".format(origin))
         if not check_distance:
-            log.debug("Fail in check_distance")
+            log.debug("Fail in check_distance, origin = {}".format(origin))
         if not check_mol:
-            log.debug("Fail in check_mol")
+            log.debug("Fail in check_mol, origin = {}".format(origin))
+        if not check_formula:
+            log.debug("Fail in check_formula, origin = {}".format(origin))
         return check_cellpar and check_distance and check_mol and check_formula
 
     def sort(self):
