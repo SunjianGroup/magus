@@ -11,7 +11,7 @@ from copy import deepcopy
 
 
 __all__ = ['EMTCalculator', 'LJCalculator', 'XTBCalculator', 
-           'VaspCalculator', 'GulpCalculator', 'QUIPCalculator'
+           'VaspCalculator', 'GulpCalculator', 'QUIPCalculator',
            'MTPCalculator', 'MTPLammpsCalculator',]
 calc_dict = {
     'vasp': VaspCalculator,
