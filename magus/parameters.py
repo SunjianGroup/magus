@@ -4,7 +4,7 @@ import ase.io
 import math, os, yaml, logging, copy
 from functools import reduce
 import numpy as np
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator, ReconstructGenerator, ClusterGenerator
 from .utils import *
 from .queuemanage import JobManager
 from .population import Population
@@ -61,6 +61,10 @@ class magusParameters:
             #'ratNum': 0,
             'comparator': 'zurek',
         }
+        if p.calcType=='rcs':
+            log = logging.getLogger(__name__)
+            log.info("rcs mode: \nlayerfile= "+p.layerfile)
+            
         checkParameters(p,p,Requirement,Default)
 
         # p.initSize = p.popSize
@@ -76,7 +80,10 @@ class magusParameters:
                 assert 1 <= s1 < s2 <= 230, 'Please check the format of spacegroup'
                 expandSpg.extend(list(range(s1, s2+1)))
         p.spgs = expandSpg
-
+        
+        if p.calcType=='rcs':
+            p.originlayer=p.workDir+'/'+p.layerfile
+            
         if p.molMode:
             from ase import build
             assert hasattr(p,'molFile'), 'Please define molFile'
@@ -114,6 +121,12 @@ class magusParameters:
                     raise Exception("Ni deng hui , zhe ge hai mei jia ne")
                 else:
                     AtomsGenerator = VarGenerator(self.parameters)
+
+            elif self.parameters.calcType == 'rcs':
+                AtomsGenerator = ReconstructGenerator(self.parameters)
+            elif self.parameters.calcType == 'clus':
+                AtomsGenerator = ClusterGenerator(self.parameters)
+                
             else:
                 raise Exception("Undefined calcType '{}'".format(self.parameters.calcType))
             self.AtomsGenerator = AtomsGenerator
@@ -219,6 +232,11 @@ class magusParameters:
                 self.FitnessCalculator.append(fit_dict['Enthalpy'])
             elif self.parameters.calcType == 'var':
                 self.FitnessCalculator.append(fit_dict['Ehull'])
+            elif self.parameters.calcType == 'rcs':
+                self.FitnessCalculator.append(fit_dict['Eo'])
+            elif self.parameters.calcType == 'clus':
+                self.FitnessCalculator.append(fit_dict['Enthalpy'])
+
         return self.FitnessCalculator
 
     def get_Population(self):

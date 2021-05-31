@@ -7,3 +7,6 @@
 [submodule "mtp-api"]
 	path = mtp-api
 	url = git@git.nju.edu.cn:bigd4/mtp-api.git
+[submodule "moveatom"]
+	path = moveatom
+	url = git@git.nju.edu.cn:HanYu/moveatom.git

@@ -5,6 +5,7 @@ from .gulp import GulpCalculator
 from .mtp import MTPCalculator, MTPLammpsCalculator, TwoShareMTPCalculator
 from .lammps import LammpsCalculator
 from .base import AdjointCalculator
+from .orca import OrcaCalculator
 from string import digits
 import logging
 from copy import deepcopy
@@ -12,7 +13,7 @@ from copy import deepcopy
 
 __all__ = ['EMTCalculator', 'LJCalculator', 'XTBCalculator', 
            'VaspCalculator', 'GulpCalculator', 'QUIPCalculator',
-           'MTPCalculator', 'MTPLammpsCalculator',]
+           'MTPCalculator', 'MTPLammpsCalculator', 'OrcaCalculator',]
 calc_dict = {
     'vasp': VaspCalculator,
     'emt': EMTCalculator,
@@ -23,6 +24,7 @@ calc_dict = {
     'quip': QUIPCalculator,
     'mtp': MTPCalculator,
     'mtp-lammps': MTPLammpsCalculator,
+    'orca': OrcaCalculator,
     }
 connect_dict = {
     'naive': AdjointCalculator,
