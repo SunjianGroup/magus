@@ -33,8 +33,8 @@ class VaspCalculator(ClusterCalculator):
         self.main_info.append('vasp_setup')
 
     def scf_job(self, index):
+        self.cp_input_to()
         job_name = self.job_prefix + '_s_' + str(index)
-        shutil.copy("{}/INCAR".format(self.input_dir), 'INCAR')
         with open('vaspSetup.yaml', 'w') as f:
             f.write(yaml.dump(self.vasp_setup))
             f.write('scf: True')
@@ -43,8 +43,8 @@ class VaspCalculator(ClusterCalculator):
                    out='scf-out', err='scf-err')
 
     def relax_job(self, index):
+        self.cp_input_to()
         job_name = self.job_prefix + '_r_' + str(index)
-        shutil.copy("{}/INCAR".format(self.input_dir), 'INCAR')
         with open('vaspSetup.yaml', 'w') as f:
             f.write(yaml.dump(self.vasp_setup))
         content = "python -m magus.calculators.vasp vaspSetup.yaml initPop.traj optPop.traj"
@@ -52,14 +52,14 @@ class VaspCalculator(ClusterCalculator):
                    out='relax-out', err='relax-err')
 
     def scf_serial(self, calcPop):
-        shutil.copy("{}/INCAR".format(self.input_dir), 'INCAR')
+        self.cp_input_to()
         calc = get_calc(self.vasp_setup)
         calc.set(nsw=0)
         opt_pop = calc_vasp(calc, calcPop)
         return opt_pop     
 
     def relax_serial(self, calcPop):
-        shutil.copy("{}/INCAR".format(self.input_dir), 'INCAR')
+        self.cp_input_to()
         calc = get_calc(self.vasp_setup)
         opt_pop = calc_vasp(calc, calcPop)
         return opt_pop    

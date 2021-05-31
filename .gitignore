@@ -8,6 +8,7 @@ test/
 paths.yaml
 examples/*/*
 !examples/*/inputFold
+!examples/*/*.xyz
 !examples/*/input.yaml
 !examples/*/job
 !examples/*/Seeds

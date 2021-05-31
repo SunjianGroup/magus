@@ -8,7 +8,7 @@ import spglib as spg
 
 pd.options.display.max_rows = 50
 
-def summary(*args, filenames=[], prec=0.1, add_features=[], sorted_by='enthalpy',
+def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], sorted_by='enthalpy',
             save=False, outdir='.', reverse=False, show_number=20,
             **kwargs):
     all_frames = []
@@ -17,14 +17,18 @@ def summary(*args, filenames=[], prec=0.1, add_features=[], sorted_by='enthalpy'
         for atoms in frames:
             atoms.info['source'] = filename.split('.')[0]
         all_frames.extend(frames)
-    show_features = ['symmetry', 'enthalpy', 'parentE', 'origin', 'fullSym', 'priSym']
+    show_features = [feature for feature in ['symmetry', 'enthalpy', 'parentE', 'origin', 'fullSym', 'priSym']\
+            if feature not in remove_features]
     show_features.extend(add_features)
     if len(filenames) > 1 and 'source' not in show_features:
         show_features.append('source')
-    try:
-        key_index = show_features.index(sorted_by)
-    except:
-        print('{} not in show features, auto choose enthalpy as sort feature'.format(sorted_by))
+    if sorted_by.lower() in ['', 'none']:
+        sorted_by = None
+    else:
+        try:
+            key_index = show_features.index(sorted_by)
+        except:
+            print('{} not in show features, auto choose enthalpy as sort feature'.format(sorted_by))
         key_index = show_features.index('enthalpy')
     for i, atoms in enumerate(all_frames):  
         atoms.info['symmetry'] = spg.get_spacegroup(atoms, prec)
@@ -39,7 +43,8 @@ def summary(*args, filenames=[], prec=0.1, add_features=[], sorted_by='enthalpy'
         atoms.info['fullSym'] = atoms.get_chemical_formula()
         atoms.info['row'] = [atoms.info[feature] if feature in atoms.info.keys() else None \
                              for feature in show_features]
-    all_frames.sort(key=lambda atoms:atoms.info['row'][key_index] or 100)
+    if sorted_by is not None:
+        all_frames.sort(key=lambda atoms:atoms.info['row'][key_index] or 100)
     if save:
         if not os.path.isdir(outdir):
             os.makedirs(outdir)

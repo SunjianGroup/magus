@@ -133,7 +133,7 @@ class Magus:
     def one_step(self):
         self.set_volume_ratio()
         initPop = self.get_initPop()
-        initPop.save()
+        initPop.save('init', self.curgen)
         #######  relax  #######
         relaxpop = self.main_calculator.relax(initPop.frames)
         relaxPop = self.Population(relaxpop, 'relaxpop', self.curgen)
@@ -143,7 +143,7 @@ class Magus:
         # find spg before delete duplicate
         relaxPop.find_spg()
         relaxPop.del_duplicate()
-        relaxPop.save('gen')
+        relaxPop.save('gen', self.curgen)
         self.curPop = relaxPop
         self.set_goodPop()
         self.goodPop.save('good', '')

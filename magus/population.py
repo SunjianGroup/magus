@@ -251,7 +251,7 @@ class Individual:
         from .compare.base import OrGate, AndGate
         #self.comparator = FingerprintComparator()
         #self.comparator = Comparator(dE=self.p.diffE, dV=self.p.diffV)
-        self.comparator = AndGate([NaiveComparator(dE=self.p.diffE, dV=self.p.diffV), ZurekComparator()])
+        self.comparator = OrGate([NaiveComparator(dE=self.p.diffE, dV=self.p.diffV), ZurekComparator()])
         #fingerprint
         self.cf = ZernikeFp(parameters)
 

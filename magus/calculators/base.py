@@ -39,6 +39,11 @@ class Calculator(abc.ABC):
         out += yaml.dump(d)
         return out
     
+    def cp_input_to(self, path='.'):
+        for filename in os.listdir(self.input_dir):
+            shutil.copy(os.path.join(self.input_dir, filename), 
+                        os.path.join(path, filename))
+
     def pre_processing(self, calcPop):
         if isinstance(calcPop[0], Individual):
             self.atomstype = 'Individual'

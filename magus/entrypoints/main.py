@@ -1,6 +1,8 @@
 import argparse, logging
 from magus.entrypoints import *
 from magus.calculators import calc_dict
+from magus.logger import set_logger
+from magus import __version__
 
 def parse_args():
 
@@ -9,10 +11,35 @@ def parse_args():
                     "Universal structure Searcher",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument(
+        "-v",
+        "--version",
+        help="print version",
+        action='version', 
+        version=__version__
+    ) 
+    parser_log = argparse.ArgumentParser(
+        add_help=False, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser_log.add_argument(
+        "-ll",
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="set verbosity level by strings: ERROR, WARNING, INFO and DEBUG",
+    )
+    parser_log.add_argument(
+        "-lp",
+        "--log-path",
+        type=str,
+        default="log.txt",
+        help="set log file to log messages to disk",
+    )
     subparsers = parser.add_subparsers(title="Valid subcommands", dest="command")
     # search
     parser_search = subparsers.add_parser(
         "search",
+        parents=[parser_log],
         help="search structures",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -22,13 +49,6 @@ def parse_args():
         type=str, 
         default="input.yaml",
         help="the input parameter file in yaml format"
-    )
-    parser_search.add_argument(
-        "-l",
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default="INFO",
-        help="set verbosity level by strings: ERROR, WARNING, INFO and DEBUG",
     )
     parser_search.add_argument(
         "-m",
@@ -94,6 +114,14 @@ def parse_args():
         help="sorted by which arg",
     )
     parser_sum.add_argument(
+        "-rm",
+        "--remove-features",
+        type=str,
+        nargs="+",
+        default=[],
+        help="the features to be removed from the show features",
+    ) 
+    parser_sum.add_argument(
         "-a",
         "--add-features",
         type=str,
@@ -142,6 +170,7 @@ def parse_args():
     # calculate
     parser_calc = subparsers.add_parser(
         "calc",
+        parents=[parser_log],
         help="calculate many structures",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -174,6 +203,7 @@ def parse_args():
     # generate
     parser_gen = subparsers.add_parser(
         "gen",
+        parents=[parser_log],
         help="generate many structures",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -207,6 +237,8 @@ def parse_args():
 def main():
     args = parse_args()
     dict_args = vars(args)
+    if args.command in ['search', 'calc', 'gen']:
+        set_logger(level=dict_args['log_level'], log_path=dict_args['log_path'])
     if args.command == "search":
         search(**dict_args)
     elif args.command == "clean":

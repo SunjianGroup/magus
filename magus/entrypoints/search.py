@@ -1,5 +1,4 @@
 import logging
-from magus.logger import set_logger
 from magus.parameters import magusParameters
 from magus.search.search import Magus
 from magus.search.search_mtp import MLMagus
@@ -8,9 +7,8 @@ from magus.search.search_mtp import MLMagus
 log = logging.getLogger(__name__)
 
 
-def search(*args, input_file='input.yaml', log_level='INFO', 
+def search(*args, input_file='input.yaml', 
            use_ml=False, restart=False, **kwargs):
-    set_logger(level=log_level, log_path='log.txt')
     log.info(" Initialize ".center(40, "="))
     parameters = magusParameters('input.yaml')
     atoms_generator = parameters.get_AtomsGenerator()
