@@ -5,6 +5,7 @@ test/
 .vscode
 .vs
 .history
+.VSCodeCounter
 paths.yaml
 examples/*/*
 !examples/*/inputFold
