@@ -840,6 +840,79 @@ class OganovComparator(ClusComparator):
     def looks_like(self,aInd,bInd):
         return super().looks_like(aInd, bInd)
 
+class symposmerge:
+    def __init__(self, positions, length, dmprec = 4):
+        self.positions = positions
+        self.length = length
+        self.prec = dmprec
+        self.dmupdate()
+
+    #update distance matrix 
+    def dmupdate(self):
+        l = len(self.positions)
+        self.distance_matrix = np.full((l, l), 0.)
+        for i in range(l):
+            for j in range(i+1, l):
+                self.distance_matrix[i][j] = np.round(math.sqrt(np.sum([x**2 for x in self.positions[i] - self.positions[j]])), self.prec)
+        self.sorted_dis = np.unique(np.sort(self.distance_matrix.flatten()))
+        #print("updatedm = {}".format(self.distance_matrix))
+    
+    #return index of [i,j] whose i-j distance eqs sorted_dis[mindis]
+    def where(self, mindis = 1):
+        pair_index = np.nonzero(self.distance_matrix == self.sorted_dis[mindis])
+        #print("distance eq {}th mindis, {}: {}".format(mindis, self.sorted_dis[mindis], [[i, j] for i,j in zip(pair_index[0], pair_index[1])]))
+        return [[i, j] for i,j in zip(pair_index[0], pair_index[1])]
+    
+    
+    def merge_pos(self):
+        positions = self.positions
+        #print("merge_pos, {} to {}".format(positions, self.length))
+        while len(positions) > self.length:
+            to_merge = []
+            for mindis in range(1, len(self.sorted_dis)):
+                m = self.where(mindis)
+                if len(m) > 1:
+                    to_merge = m
+                    break
+            else:
+                mindis = 1
+                to_merge = self.where(1)
+
+            #print("to_merge {}".format(to_merge))
+
+            if len(np.unique(np.array(to_merge))) < len(np.array(to_merge).flatten()):
+                _m, originindex = [], []
+                for m0 in to_merge:
+                    for index, pairs in enumerate(_m):
+                        share = [(i in pairs) for i in m0]
+                        if np.any(share):
+                            _m[index] =  np.unique([*pairs, *m0])
+                            originindex[index].append(m0)
+                            break
+                    else:
+                        _m.append(m0)
+                        originindex.append([m0])
+                
+                for index, pairs in enumerate(_m):
+                    if not len(pairs) == len(originindex[index]) and not len(pairs) ==2:
+                        for ith,p in enumerate(pairs):
+                            if np.all([p in x for x in originindex[index]]):
+                                _m[index] = [x for x in _m[index] if not x==p]
+
+                to_merge = _m
+
+            merged_pos = np.array([np.mean(positions[m], axis=0) for m in to_merge])
+
+            to_merge = [x for m in to_merge for x in m ]
+            positions = np.delete(positions, to_merge, 0)
+            positions = np.append(positions, merged_pos, axis=0)
+
+
+            self.positions = positions.copy()
+            self.dmupdate()
+        
+        return positions if len(positions) == self.length else None
+
         
 
 if __name__ == '__main__':

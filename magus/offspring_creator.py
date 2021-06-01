@@ -592,6 +592,7 @@ class FormulaMutation(Mutation):
         else:
             return None
 
+from .reconstruct import symposmerge
 class RattleMutation(Mutation):
     """Class to perform rattle mutations on structures.
     Modified from GOFEE
@@ -645,9 +646,11 @@ class RattleMutation(Mutation):
     def mutate_sym(self, atoms):
         sym_ds = get_symmetry_dataset(atoms, self.symprec)
         eq_at = sym_ds['equivalent_atoms']
-        
+        #print("eq_at = {}, rot = {}, tran = {}".format(eq_at, sym_ds['rotations'], sym_ds['translations']))
+
         for key in list(Counter(eq_at).keys()):
             eq = np.where(eq_at == key)[0]
+            #print('key = {}, eq = {}'.format(key, eq))
 
             if np.random.rand() < 1 - (1-self.p)**len(eq):
                 newatoms = atoms.copy()
@@ -664,7 +667,10 @@ class RattleMutation(Mutation):
                             newpos[i][j] += -int(newpos[i][j]) if newpos[i][j] >= 0 else -int(newpos[i][j]) +1
 
                     newpos = np.dot(newpos, atoms.get_cell())
-
+                    if not len(newpos) == len(eq):
+                        newpos = symposmerge(newpos, len(eq)).merge_pos()
+                        if newpos is None:
+                            continue
                     for _pos_ in newpos:
                         if check_new_atom_dist(newatoms, _pos_, symbol, self.dRatio):
                             newatoms += Atom(position=_pos_, symbol=symbol)
@@ -673,12 +679,7 @@ class RattleMutation(Mutation):
                     else:
                         for i, index in enumerate(eq):
                             atoms[index].position = newpos[i]
-                        else:
-                            for j in range(i, len(newpos)):
-                                atoms += Atom(position=newpos[j], symbol=symbol)
-                            #It is only a temp solution. Relying on ind.merge() to solve the following problem.
-                        break
-
+                        break  
         return atoms
        
 class CutAndSplicePairing(Crossover):

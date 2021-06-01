@@ -194,7 +194,7 @@ class magusParameters:
                 if hasattr(self.parameters, inputkey):
                     op_nums[key] = getattr(self.parameters, inputkey)
 
-            print(op_nums)
+            #print(op_nums)
 
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
