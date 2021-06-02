@@ -324,7 +324,7 @@ class LyrSlipMutation(Mutation):
         atoms.wrap()
         return ind(atoms)
 
-from magus.reconstruct import resetLattice
+# from magus.reconstruct import resetLattice
 class LyrSymMutation(Mutation):
     parm = {'tryNum':10, 'symprec': 1e-4}
     
@@ -488,7 +488,7 @@ class RotateMutation(Mutation):
                 mol.rotate(phi,theta,psi)
         return ind(atoms)
 
-from .reconstruct import weightenCluster
+# from .reconstruct import weightenCluster
 class ShellMutation(Mutation):
     """
     Original proposed by Lepeshkin et al. in J. Phys. Chem. Lett. 2019, 10, 102−106

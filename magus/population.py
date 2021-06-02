@@ -15,7 +15,7 @@ from .descriptor import ZernikeFp
 import copy
 from .molecule import Molfilter
 from ase.constraints import FixAtoms
-from .reconstruct import fixatoms, weightenCluster
+# from .reconstruct import fixatoms, weightenCluster
 from ase import neighborlist
 from scipy import sparse
 
@@ -46,7 +46,7 @@ def set_comparator(parameters):
     from .compare.naive import NaiveComparator
     from .compare.bruteforce import ZurekComparator
     from .compare.base import OrGate, AndGate
-    from .reconstruct import OverlapMatrixComparator, OganovComparator
+    # from .reconstruct import OverlapMatrixComparator, OganovComparator
 
     if parameters.comparator == 'energy':
         return NaiveComparator(dE=parameters.diffE, dV=parameters.diffV)

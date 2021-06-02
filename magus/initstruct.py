@@ -13,7 +13,7 @@ import ase,ase.io
 import copy
 import logging
 from .utils import *
-from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
+# from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 from .population import RcsInd
 import math
 
@@ -338,7 +338,7 @@ class VarGenerator(Generator):
 def read_seeds(seed_file):
     seedPop = []
     if not os.path.exists(seed_file):
-        raise Exception("no seed file: {}".format(seed_file))
+        return []
     if 'traj' in seed_file:
         readPop = ase.io.read(seed_file, index=':', format='traj')
     elif 'POSCARS' in seed_file:

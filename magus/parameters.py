@@ -4,7 +4,7 @@ import ase.io
 import math, os, yaml, logging, copy
 from functools import reduce
 import numpy as np
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator, ReconstructGenerator, ClusterGenerator
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator#, ReconstructGenerator, ClusterGenerator
 from .utils import *
 from .queuemanage import JobManager
 from .population import Population
