@@ -30,7 +30,9 @@ class Calculator(abc.ABC):
         self.calc_dir = "{}/calcFold/{}".format(self.work_dir, self.job_prefix)
         if os.path.exists(self.calc_dir):
             shutil.rmtree(self.calc_dir)
-        os.makedirs(self.calc_dir)
+        #os.makedirs(self.calc_dir)
+        # make sure parameter files are copied, such as VASP's vdw kernel file and XTB's parameters
+        shutil.copytree(self.input_dir, self.calc_dir)
         self.main_info = ['job_prefix', 'pressure', 'input_dir', 'calc_dir']
 
     def __str__(self):

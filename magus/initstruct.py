@@ -45,6 +45,7 @@ class Generator:
         # Recalculate atomic radius, considering the change of radius in molecular crystal mode
         atomicR = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         Volume = np.sum(4*np.pi/3*np.array(atomicR)**3*np.array(numlist))*self.p.volRatio
+        #log.debug("Estimated volume: {}".format(Volume))
         minVolume = Volume*0.5
         maxVolume = Volume*1.5
         minLattice= [2*np.max(self.p.radius)]*3+[60]*3
