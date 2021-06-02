@@ -6,6 +6,7 @@ from itertools import combinations, product
 import numpy as np
 from scipy.spatial import cKDTree as KDTree
 from ase import Atom, Atoms
+from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from ase.build.tools import niggli_reduce
 import spglib
 
@@ -338,3 +339,12 @@ class ZurekComparator:
             if len(closest_in_s2) != len(set(closest_in_s2)):
                 return False
         return True
+
+class ASEComparator:
+    def __init__(self):
+        self.comparator = SymmetryEquivalenceCheck(to_primitive=True)
+
+    def looks_like(self, atoms1, atoms2):
+        atoms1 = atoms1.atoms
+        atoms2 = atoms2.atoms
+        return self.comparator.compare(atoms1, atoms2)

@@ -1,0 +1,44 @@
+calcType: fix
+pressure: 0
+poolSize: 2000
+initSize: 200
+popSize: 200
+numGen: 40
+saveGood: 4
+
+#structure parameters
+minAt: 12
+maxAt: 12
+p_pri: 0.5
+symbols: ['B']
+formula: [1]
+dRatio: 0.8
+volRatio: 3.0
+addSym: True
+randFrac: 0.3
+molDetector: 2
+#run settings
+DFTRelax: False
+
+#main calculator settings
+MainCalculator:
+ jobPrefix: Vasp
+ #vasp settings
+ xc: PBE
+ ppLabel: ['']
+ #parallel settings
+ numParallel: 20
+ numCore: 24
+ queueName: 9242opa!
+ waitTime: 30
+
+MLCalculator:
+ jobPrefix: MTP
+ calculator: mtp
+ init_times: 0
+ min_dist: 1.2
+ queueName: 9242opa!
+ numCore: 48
+ waitTime: 10
+ force_tolerance: 0.001
+ stress_tolerance: 0.01

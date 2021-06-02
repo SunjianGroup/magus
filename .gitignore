@@ -5,12 +5,18 @@ test/
 .vscode
 .vs
 .history
+.VSCodeCounter
 paths.yaml
 examples/*/*
 !examples/*/inputFold
+!examples/*/*.xyz
 !examples/*/input.yaml
 !examples/*/job
 !examples/*/Seeds
+!examples/*/summary.py
+mypps/
+run_vasp.py
+tools/csp*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

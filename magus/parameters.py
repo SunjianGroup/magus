@@ -4,7 +4,7 @@ import ase.io
 import math, os, yaml, logging, copy
 from functools import reduce
 import numpy as np
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator, ReconstructGenerator, ClusterGenerator
 from .utils import *
 from .queuemanage import JobManager
 from .population import Population
@@ -59,7 +59,12 @@ class magusParameters:
             'diffE': 0.01,
             'diffV': 0.05,
             #'ratNum': 0,
+            'comparator': 'zurek',
         }
+        if p.calcType=='rcs':
+            log = logging.getLogger(__name__)
+            log.info("rcs mode: \nlayerfile= "+p.layerfile)
+            
         checkParameters(p,p,Requirement,Default)
 
         # p.initSize = p.popSize
@@ -75,7 +80,10 @@ class magusParameters:
                 assert 1 <= s1 < s2 <= 230, 'Please check the format of spacegroup'
                 expandSpg.extend(list(range(s1, s2+1)))
         p.spgs = expandSpg
-
+        
+        if p.calcType=='rcs':
+            p.originlayer=p.workDir+'/'+p.layerfile
+            
         if p.molMode:
             from ase import build
             assert hasattr(p,'molFile'), 'Please define molFile'
@@ -113,6 +121,12 @@ class magusParameters:
                     raise Exception("Ni deng hui , zhe ge hai mei jia ne")
                 else:
                     AtomsGenerator = VarGenerator(self.parameters)
+
+            elif self.parameters.calcType == 'rcs':
+                AtomsGenerator = ReconstructGenerator(self.parameters)
+            elif self.parameters.calcType == 'clus':
+                AtomsGenerator = ClusterGenerator(self.parameters)
+                
             else:
                 raise Exception("Undefined calcType '{}'".format(self.parameters.calcType))
             self.AtomsGenerator = AtomsGenerator
@@ -121,46 +135,72 @@ class magusParameters:
 
     def get_PopGenerator(self):
         if not hasattr(self,'PopGenerator'):
-            cutandsplice = CutAndSplicePairing()
-            perm = PermMutation()
-            lattice = LatticeMutation()
-            ripple = RippleMutation()
-            slip = SlipMutation()
-            rot = RotateMutation()
-            rattle = RattleMutation(p=0.25,rattle_range=4,dRatio=1)
-            form = FormulaMutation(symbols=self.parameters.symbols)
+            #here's a suggestion. For crossovers, name it with 'xxPairing'; for mutations, name it with 'xxMutation'.
+            #Modifying parms with input.yaml:
+            #-OffspringCreator:
+            #--xxNum [number of mutations]
+            #--xx:
+            #---parmA, parmB...
+            _applied_operations_ = [CutAndSplicePairing, ReplaceBallPairing, 
+                                  SoftMutation, PermMutation, LatticeMutation, RippleMutation, SlipMutation,
+                                  RotateMutation, RattleMutation, FormulaMutation, 
+                                  LyrSlipMutation, LyrSymMutation, ShellMutation, CluSymMutation]
+            operations = {}
+            op_nums = {}
+            inputparm = getattr(self.parameters, 'OffspringCreator') if hasattr(self.parameters, 'OffspringCreator') else {}
+            for methods in _applied_operations_:
+                method_name = methods.__name__.lower()
+                keyname = method_name[:-7] if method_name[-1]=='g' else method_name[:-8]
+                if keyname in inputparm:
+                    _parm_ = inputparm[keyname]
+                    operations[keyname] = methods(**_parm_, symbols = self.parameters.symbols, dRatio = self.parameters.dRatio)
+                else:
+                    operations[keyname] = methods(symbols = self.parameters.symbols, dRatio = self.parameters.dRatio)
+                op_nums[keyname] = 0
+            
+            #here's the special one 'softmutation'. Not tested yet. 
+            #operations['soft'] = SoftMutation(calculator = self.get_MainCalculator().calcs[-1], bounds=[1.0,2.5])
+
             num = 3*int((1-self.parameters.randFrac)*self.parameters.popSize/8)+1
-            Requirement = []
-            cutNum,slipNum,latNum,ripNum,ratNum = [num]*5
-            permNum = num if len(self.parameters.symbols) > 1 else 0
-            rotNum = num if self.parameters.molDetector != 0 else 0
-            #rotNum = num if self.parameters.molMode else 0
-            formNum = num if not self.parameters.chkMol and self.parameters.calcType=='var' else 0
-            soft = None
-            softNum = 0
-            Default = {'cutNum':cutNum,'permNum': permNum, 'rotNum': rotNum,
-                'slipNum': slipNum,'latNum': latNum, 'ripNum': ripNum, 'softNum':softNum, 
-                'formNum': formNum,'ratNum':ratNum}
-            checkParameters(self.parameters,self.parameters,Requirement,Default)
-            numlist = [
-                self.parameters.cutNum,
-                self.parameters.permNum,
-                self.parameters.latNum,
-                self.parameters.ripNum,
-                self.parameters.slipNum,
-                self.parameters.rotNum,
-                self.parameters.softNum,
-                self.parameters.formNum,
-                self.parameters.ratNum,
-                ]
-            oplist = [cutandsplice,perm,lattice,ripple,slip,rot,soft,form,rattle]
+            
+            for key in ['cutandsplice', 'slip', 'lattice', 'ripple', 'rattle']:
+                op_nums[key] = num
+            
+            if len(self.parameters.symbols) > 1:
+                op_nums['perm'] = num 
+            if self.parameters.molDetector != 0:
+                op_nums['rotate'] = num
+            if not self.parameters.chkMol and self.parameters.calcType=='var':
+                op_nums['formula'] = num
+
+            if self.parameters.calcType=='rcs':
+                op_nums['lattce'] = 0
+                op_nums['formula'] = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
+                op_nums['lyrslip'] = num
+                op_nums['lyrsym'] = num
+                
+            if self.parameters.calcType=='clus':
+                op_nums['slip'] = 0
+                #op_nums['soft'] = num
+                op_nums['shell'], op_nums['clusym'] = [num]*2
+                operations['ripple'] = RippleMutation(rho=0.05)
+                operations['rattle'] = RattleMutation(p=0.25,rattle_range=0.8,dRatio=self.parameters.dRatio)
+
+            for key in list(op_nums.keys()):
+                inputkey = key + 'Num'
+                if inputkey in inputparm:
+                    op_nums[key] = inputparm[inputkey]
+                #compatible with old format settings
+                if hasattr(self.parameters, inputkey):
+                    op_nums[key] = getattr(self.parameters, inputkey)
+
             if self.parameters.Algo == 'EA':
                 if self.parameters.mlpredict:
                     assert self.parameters.useml, "'useml' must be True"
                     calc = self.MLCalculator.calc
-                    self.PopGenerator = MLselect(numlist,oplist,calc,self.parameters)
+                    self.PopGenerator = MLselect(op_nums,operations,calc,self.parameters)
                 else:
-                    self.PopGenerator = PopGenerator(numlist,oplist,self.parameters)
+                    self.PopGenerator = PopGenerator(op_nums,operations,self.parameters)
             self.parameters.attach(self.PopGenerator.p)
         return self.PopGenerator
 
@@ -192,6 +232,11 @@ class magusParameters:
                 self.FitnessCalculator.append(fit_dict['Enthalpy'])
             elif self.parameters.calcType == 'var':
                 self.FitnessCalculator.append(fit_dict['Ehull'])
+            elif self.parameters.calcType == 'rcs':
+                self.FitnessCalculator.append(fit_dict['Eo'])
+            elif self.parameters.calcType == 'clus':
+                self.FitnessCalculator.append(fit_dict['Enthalpy'])
+
         return self.FitnessCalculator
 
     def get_Population(self):

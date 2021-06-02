@@ -1,0 +1,35 @@
+calcType: fix
+pressure: 0
+initSize: 20
+popSize: 20
+numGen: 40
+saveGood: 2
+
+#structure parameters
+minAt: 6
+maxAt: 12
+p_pri: 0.1
+symbols: ['Ti','O']
+formula: [2, 4]
+fullEles: True
+eleSize: 0
+
+dRatio: 0.8
+volRatio: 2.0
+addSym: False
+
+#main calculator settings
+MainCalculator:
+ jobPrefix: ['q', 'w', 'e' ,'r']
+ calculator: vasp
+ mode: parallel
+ #vasp settings
+ xc: PBE
+ ppLabel: ['', '_s']
+ #parallel settings
+ numParallel: 10
+ numCore: 24
+ queueName: 9242opa!
+ #queueName: e5v3ib
+ waitTime: 30
+

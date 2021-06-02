@@ -1,21 +1,21 @@
-import os
-import io
+import os, io, sysconfig
 from setuptools import setup, find_packages
 from distutils.core import Extension
 import yaml
 
-# for installation on NJU machine
-include_dirs = [
-    '/fs00/software/anaconda/3-5.0.1/include',
-    '/fs00/software/anaconda/3-5.0.1/include/python3.6m']
-libraries = ['boost_python', 'boost_numpy', 'python3.6m']
-library_dirs = ['/fs00/software/anaconda/3-5.0.1/lib']
-
-# for installaion at other places
-#paths = yaml.load(open('paths.yaml'))
-#include_dirs = paths['include_dirs']
-#libraries = paths['libraries']
-#library_dirs = paths['library_dirs']
+try:
+    include_dirs = os.getenv('MAGUS_INCLUDE_PATH').split(':') 
+except:
+    include_dirs = [
+        sysconfig.get_config_var('INCLUDEDIR'),
+        sysconfig.get_config_var('INCLUDEPY'),
+        ]
+python_ld_lib = os.getenv('MAGUS_PY_LIB') or sysconfig.get_config_var('INCLUDEPY').split('/')[-1]
+libraries = ['boost_python', 'boost_numpy', python_ld_lib]
+try:
+    library_dirs = os.getenv('MAGUS_LD_LIBRARY_PATH').split(':')
+except:
+    library_dirs = [sysconfig.get_config_var('LIBDIR')]
 
 #generatenew
 module_GenerateNew = Extension('magus.GenerateNew',

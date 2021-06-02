@@ -57,6 +57,7 @@ class Magus:
             self.keepPop = self.Population([], 'keepPop')
 
     def read_seeds(self):
+        log.info("Reading Seeds ...")
         seedpop = read_seeds(self.parameters, '{}/POSCARS_{}'.format(self.seed_dir, self.curgen))
         seedPop = self.Population(seedpop, 'seedpop', self.curgen)
         if self.parameters.chkSeed:
@@ -93,7 +94,7 @@ class Magus:
         goodPop = self.curPop + self.goodPop + self.keepPop
         goodPop.del_duplicate()
         goodPop.calc_dominators()
-        goodPop.select(self.parameters.popSize)
+        goodPop.select(self.parameters.popSize, delete_highE = True, high = 0.8)
         log.debug("good ind:")
         for ind in goodPop.pop:
             log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
@@ -133,7 +134,7 @@ class Magus:
     def one_step(self):
         self.set_volume_ratio()
         initPop = self.get_initPop()
-        initPop.save()
+        initPop.save('init', self.curgen)
         #######  relax  #######
         relaxpop = self.main_calculator.relax(initPop.frames)
         relaxPop = self.Population(relaxpop, 'relaxpop', self.curgen)
@@ -143,7 +144,7 @@ class Magus:
         # find spg before delete duplicate
         relaxPop.find_spg()
         relaxPop.del_duplicate()
-        relaxPop.save('gen')
+        relaxPop.save('gen', self.curgen)
         self.curPop = relaxPop
         self.set_goodPop()
         self.goodPop.save('good', '')

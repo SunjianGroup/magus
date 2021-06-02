@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 # units must be real!!
 class GulpCalculator(ClusterCalculator):
-    def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Lammps',
+    def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Gulp',
                  pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
                  exeCmd='gulp < input > output', *arg, **kwargs):
         super().__init__(workDir=workDir, queueName=queueName, numCore=numCore, 
@@ -23,46 +23,40 @@ class GulpCalculator(ClusterCalculator):
             'exe_cmd': exeCmd,
         }
         self.main_info.append('gulp_setup')
-        
-    def scf_job(self, index):
-        job_name = self.job_prefix + '_s_' + str(index)
-        shutil.copy("{}/gpot".format(self.input_dir), 'gpot')
         if not os.path.exists("{}/goption.scf".format(self.input_dir)):
             with open("{}/goption.scf".format(self.input_dir), 'w') as f:
                 f.write('nosymmetry conp gradients\n')
-        shutil.copy("{}/goption.scf".format(self.input_dir), 'goption')
+        if not os.path.exists("{}/goption.relax".format(self.input_dir)):
+            with open("{}/goption.relax".format(self.input_dir), 'w') as f:
+                f.write('opti conjugate nosymmetry conp\n')
+        
+    def scf_job(self, index):
+        self.cp_input_to('.')
+        job_name = self.job_prefix + '_s_' + str(index)
+        shutil.copy('goption.scf', 'goption')
         with open('gulpSetup.yaml', 'w') as f:
             f.write(yaml.dump(self.gulp_setup))
         content = "python -m magus.calculators.gulp gulpSetup.yaml initPop.traj optPop.traj"
         self.J.sub(content, name=job_name, file='scf.sh', out='scf-out', err='scf-err')
 
     def relax_job(self, index):
+        self.cp_input_to('.')
         job_name = self.job_prefix + '_r_' + str(index)
-        shutil.copy("{}/gpot".format(self.input_dir), 'gpot')
-        if not os.path.exists("{}/goption.relax".format(self.input_dir)):
-            with open("{}/goption.relax".format(self.input_dir), 'w') as f:
-                f.write('opti conjugate nosymmetry conp\n')
-        shutil.copy("{}/goption.relax".format(self.input_dir), 'goption')
+        shutil.copy('goption.relax', 'goption')
         with open('gulpSetup.yaml', 'w') as f:
             f.write(yaml.dump(self.gulp_setup))
         content = "python -m magus.calculators.gulp gulpSetup.yaml initPop.traj optPop.traj"
         self.J.sub(content, name=job_name, file='relax.sh', out='relax-out', err='relax-err')
 
     def scf_serial(self, calcPop):
-        shutil.copy("{}/gpot".format(self.input_dir), 'gpot')
-        if not os.path.exists("{}/goption.scf".format(self.input_dir)):
-            with open("{}/goption.scf".format(self.input_dir), 'w') as f:
-                f.write('nosymmetry conp gradients\n')
-        shutil.copy("{}/goption.scf".format(self.input_dir), 'goption')
+        self.cp_input_to('.')
+        shutil.copy('goption.scf', 'goption')
         opt_pop = calc_gulp(self.gulp_setup, calcPop)
         return opt_pop     
 
     def relax_serial(self, calcPop):
-        shutil.copy("{}/gpot".format(self.input_dir), 'gpot')
-        if not os.path.exists("{}/goption.relax".format(self.input_dir)):
-            with open("{}/goption.relax".format(self.input_dir), 'w') as f:
-                f.write('opti conjugate nosymmetry conp\n')
-        shutil.copy("{}/goption.relax".format(self.input_dir), 'goption')
+        self.cp_input_to('.')
+        shutil.copy('goption.relax', 'goption')
         opt_pop = calc_gulp(self.gulp_setup, calcPop)
         return opt_pop
 
@@ -83,6 +77,7 @@ def calc_gulp(gulp_setup, frames):
             if exitcode != 0:
                 raise RuntimeError('Gulp exited with exit code: %d.  ' % exitcode)
             new_atoms = load_gulp('output')
+            new_atoms.info = atoms.info
             enthalpy = (new_atoms.info['energy'] + pressure * GPa * new_atoms.get_volume()) / len(new_atoms)
             new_atoms.info['enthalpy'] = round(enthalpy, 3)
             new_frames.append(new_atoms)
