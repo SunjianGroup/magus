@@ -4,8 +4,11 @@ from ase.io import read, write
 from ase import Atoms
 import numpy as np
 import spglib as spg
-from pymatgen import Molecule
-from pymatgen.symmetry.analyzer import PointGroupAnalyzer
+try:
+    from pymatgen import Molecule
+    from pymatgen.symmetry.analyzer import PointGroupAnalyzer
+except:
+    pass
 
 pd.options.display.max_rows = 100
 
