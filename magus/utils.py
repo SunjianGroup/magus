@@ -283,7 +283,11 @@ def atoms2molcryst(atoms, coef=1.1):
     Return: MolCryst
     """
     QG = quotient_graph(atoms, coef)
-    graphs = nx.connected_component_subgraphs(QG)
+    #graphs = nx.connected_component_subgraphs(QG)
+    try:
+        graphs = nx.connected_component_subgraphs(QG)
+    except:
+        graphs = [QG.subgraph(c) for c in nx.connected_components(QG)]
     partition = []
     offSets = np.zeros([len(atoms), 3])
     for G in graphs:
@@ -331,7 +335,10 @@ def primitive_atoms2molcryst(atoms, coef=1.1):
     Return: tags and offsets
     """
     QG = quotient_graph(atoms, coef)
-    graphs = nx.connected_component_subgraphs(QG)
+    try:
+        graphs = nx.connected_component_subgraphs(QG)
+    except:
+        graphs = [QG.subgraph(c) for c in nx.connected_components(QG)]
     partition = []
     offSets = np.zeros([len(atoms), 3])
     tags = np.zeros(len(atoms))
@@ -361,7 +368,11 @@ def atoms2communities(atoms, coef=1.1):
     Return: MolCryst
     """
     QG = quotient_graph(atoms, coef)
-    graphs = nx.connected_component_subgraphs(QG)
+    #graphs = nx.connected_component_subgraphs(QG)
+    try:
+        graphs = nx.connected_component_subgraphs(QG)
+    except:
+        graphs = [QG.subgraph(c) for c in nx.connected_components(QG)]
     partition = []
     offSets = np.zeros([len(atoms), 3])
     for SG in graphs:
@@ -396,7 +407,11 @@ def primitive_atoms2communities(atoms, coef=1.1):
     Return: tags and offsets
     """
     QG = quotient_graph(atoms, coef)
-    graphs = nx.connected_component_subgraphs(QG)
+    #graphs = nx.connected_component_subgraphs(QG)
+    try:
+        graphs = nx.connected_component_subgraphs(QG)
+    except:
+        graphs = [QG.subgraph(c) for c in nx.connected_components(QG)]
     partition = []
     offSets = np.zeros([len(atoms), 3])
     tags = np.zeros(len(atoms))

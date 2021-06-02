@@ -122,9 +122,13 @@ class QUIPCalculator(ASECalculator):
 
 class XTBCalculator(ASECalculator):
     def set_calc(self):
-        with open("{}/xtb_relax.yaml".format(self.input_dir)) as f:
+        with open("{}/xtb.yaml".format(self.input_dir)) as f:
             params = yaml.load(f)
             self.relax_calc = XTB(**params)
-        with open("{}/xtb_scf.yaml".format(self.input_dir)) as f:
-            params = yaml.load(f)
             self.scf_calc = XTB(**params)
+#        with open("{}/xtb_relax.yaml".format(self.input_dir)) as f:
+#            params = yaml.load(f)
+#            self.relax_calc = XTB(**params)
+#        with open("{}/xtb_scf.yaml".format(self.input_dir)) as f:
+#            params = yaml.load(f)
+#            self.scf_calc = XTB(**params)
