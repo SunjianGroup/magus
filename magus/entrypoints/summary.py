@@ -4,12 +4,13 @@ from ase.io import read, write
 from ase import Atoms
 import numpy as np
 import spglib as spg
-
+from pymatgen import Molecule
+from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 
 pd.options.display.max_rows = 100
 
 def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], sorted_by='enthalpy',
-            save=False, outdir='.', reverse=False, show_number=20,
+            save=False, outdir='.', reverse=False, show_number=20, cluster = False,
             **kwargs):
     all_frames = []
     for filename in filenames:
@@ -17,7 +18,7 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
         for atoms in frames:
             atoms.info['source'] = filename.split('.')[0]
         all_frames.extend(frames)
-    show_features = [feature for feature in ['symmetry', 'enthalpy', 'parentE', 'origin', 'fullSym', 'priSym']\
+    show_features = [feature for feature in ['symmetry', 'enthalpy', 'parentE', 'origin', 'fullSym', 'priSym', 'Eo', 'energy']\
             if feature not in remove_features]
     show_features.extend(add_features)
     if len(filenames) > 1 and 'source' not in show_features:
@@ -31,7 +32,11 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
             print('{} not in show features, auto choose enthalpy as sort feature'.format(sorted_by))
         key_index = show_features.index('enthalpy')
     for i, atoms in enumerate(all_frames):  
-        atoms.info['symmetry'] = spg.get_spacegroup(atoms, prec)
+        if cluster:
+            molecule = Molecule(atoms.symbols,atoms.get_positions())
+            atoms.info['symmetry'] = PointGroupAnalyzer(molecule, prec).sch_symbol
+        else:
+            atoms.info['symmetry'] = spg.get_spacegroup(atoms, prec)
         atoms.info['cellpar'] = np.round(atoms.cell.cellpar(), 2).tolist()
         atoms.info['lengths'] = atoms.info['cellpar'][:3]
         atoms.info['angles'] = atoms.info['cellpar'][3:]

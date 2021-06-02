@@ -1,0 +1,78 @@
+calcType: rcs
+pressure: 0
+initSize: 40
+popSize: 40
+numGen: 20
+saveGood: 5
+randFrac: 0.3
+
+#slab model
+layerfile: 'SnO2.cif'
+direction: [1,1,0]
+cutslices: 2
+bulk_layernum: 1
+relaxable_layernum: 1
+rcs_layernum: 1
+AtomsToAdd: [[-2], [-10]]
+#DefectToAdd: [[0]]
+rcs_x: [1]
+rcs_y: [4]
+vacuum: 10
+extra_c: 1.5
+
+#structure parameters
+minAt: 1
+maxAt: 200
+symbols: ['Sn', 'O']
+formula: [22, 38]
+fullEles: True
+eleSize: 0
+spacegroup: [1-17]
+choice: 0
+dimension: 2
+dRatio: 0.5
+volRatio: 3
+addSym: False
+
+#evolution settings
+range: 6
+permNum: 0
+formNum: 0
+lyrslipNum: 0
+lyrsymNum: 0
+diffE: 0.1
+
+refE: 0
+refFrml: {'Sn':4, 'O':8}
+#queueName: e52692v2ib
+#queueName: 9242opa! 
+#numCore: 24
+
+
+#main calculator settings
+MainCalculator:
+ calculator: vasp
+ mode: parallel
+ calcNum: 2
+
+ #ase settings
+ #epsArr: [0.01]
+ #stepArr: [400]
+ #maxRelaxStep: 0.5
+ #relaxLattice: False
+ #mainoptimizer: fire
+ 
+ #vasp settings
+ xc: PBE
+ ppLabel: ['']
+ 
+ #gulp settings
+ #exeCmd: gulp < input > output
+ 
+ #parallel settings
+ numParallel: 5
+ numCore: 12
+ #queueName: 9242opa! 
+ queueName: e52692v2ib!
+ waitTime: 120
+

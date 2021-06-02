@@ -5,13 +5,17 @@ except:
     import GenerateNew
 from ase.data import atomic_numbers, covalent_radii
 from ase import Atoms,build
-from ase.spacegroup import Spacegroup
+from ase.spacegroup import Spacegroup 
+from spglib import get_symmetry_dataset
 from ase.geometry import cellpar_to_cell,cell_to_cellpar
 from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
 import logging
 from .utils import *
+from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
+from .population import RcsInd
+import math
 
 
 log = logging.getLogger(__name__)
@@ -194,7 +198,9 @@ class BaseGenerator(Generator):
                         self.afterprocessing(ind,nfm)
                         buildPop.append(ind)
         return buildPop
-
+class CellsplitGenerator(Generator):
+    pass
+    
 class LayerGenerator(BaseGenerator):
     def __init__(self, p):
         super().__init__(p)
@@ -329,31 +335,360 @@ class VarGenerator(Generator):
 
 
 
-def read_seeds(parameters, seedFile, goodSeed=False):
+def read_seeds(seed_file):
     seedPop = []
-    setSym = parameters.symbols
-    setFrml = parameters.formula
-    minAt = parameters.minAt
-    maxAt = parameters.maxAt
-    calcType = parameters.calcType
-
-    if os.path.exists(seedFile):
-        if goodSeed:
-            readPop = ase.io.read(seedFile, index=':', format='traj')
-        else:
-            readPop = ase.io.read(seedFile, index=':', format='vasp-xdatcar')
-        if len(readPop) > 0:
-            log.info("Reading Seeds ...")
-
-        seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
-        for ind in seedPop:
-            if goodSeed:
-                ind.info['origin'] = 'goodseed'
-            else:
-                ind.info['origin'] = 'seed'
+    if not os.path.exists(seed_file):
+        raise Exception("no seed file: {}".format(seed_file))
+    if 'traj' in seed_file:
+        readPop = ase.io.read(seed_file, index=':', format='traj')
+    elif 'POSCARS' in seed_file:
+        readPop = ase.io.read(seed_file, index=':', format='vasp-xdatcar')
+    else:
+        try:
+            readPop = ase.io.read(seed_file, index=':')
+        except:
+            raise Exception("unknown file format: {}".format(seed_file))
+    seedPop = readPop
+    for i, ind in enumerate(seedPop):
+        ind.info['origin'] = 'seed'
     return seedPop
 
+def read_ref(bulkFile):
+    bulk = ase.io.read(bulkFile, index =':', format='traj')
+    if len(bulk) >0:
+        logging.info("Reading Refslab ...")
+    
+    from ase.constraints import FixAtoms
 
+    for ind in bulk:
+        c = FixAtoms(indices=range(len(ind) ))
+        ind.set_constraint(c)
+
+    return bulk
+    
+class ReconstructGenerator():
+    def __init__(self,parameters):
+        para_t = EmptyClass()
+        Requirement=['layerfile']
+        Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'randratio':0.5,
+        'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'matrix': None, 'extra_c':1.0, 
+        'dimension':2, 'choice':0 }
+
+        checkParameters(para_t, parameters, Requirement,Default)
+        
+        if os.path.exists("Ref") and os.path.exists("Ref/refslab.traj") and os.path.exists("Ref/layerslices.traj"):
+            log.info("Used layerslices in Ref.")
+        else:
+            if not os.path.exists("Ref"):
+                os.mkdir('Ref')
+            #here starts to get Ref/refslab to calculate refE            
+            ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
+            #here starts to split layers into [bulk, relaxable, rcs]
+            originatoms = ase.io.read(para_t.layerfile)
+            layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
+            cutcell(originatoms, layernums, totslices = para_t.cutslices, direction= para_t.direction,rotate = para_t.rotate, vacuum = para_t.extra_c, matrix = para_t.matrix)
+            #layer split ends here    
+
+        self.range=para_t.range
+        
+        self.ind=RcsInd(parameters)
+
+        #here get new parameters for self.generator 
+        _parameters = copy.deepcopy(parameters)
+        _parameters.attach(para_t)
+        self.layerslices = ase.io.read("Ref/layerslices.traj", index=':', format='traj')
+        
+        setlattice = []
+        if len(self.layerslices)==3:
+            #mode = 'reconstruct'
+            self.ref = self.layerslices[2]
+            vertical_dis = self.ref.get_scaled_positions()[:,2].copy()
+            mincell = self.ref.get_cell().copy()
+            mincell[2] *= (np.max(vertical_dis) - np.min(vertical_dis))*1.2
+            setlattice = list(cell_to_cellpar(mincell))
+        else:
+            #mode = 'add atoms'
+            para_t.randratio = 0
+            self.ref = self.layerslices[1].copy()
+            lattice = self.ref.get_cell().copy()
+            lattice [2]/= para_t.relaxable_layernum
+            self.ref.set_cell(lattice)
+            setlattice = list(cell_to_cellpar(lattice))
+
+        setlattice = np.round(setlattice, 3)
+        setlattice[3:] = [i if np.round(i) != 60 else 120.0 for i in setlattice[3:]]
+        self.symtype = 'hex' if 120 in np.round(setlattice[3:]) else 'orth'
+
+        self.reflattice = list(setlattice).copy()
+        target = self.ind.get_targetFrml()
+        _symbol = [s for s in target]
+        requirement = {'minLattice': setlattice, 'maxLattice':setlattice, 'symbols':_symbol}
+
+        for key in requirement:
+            if not hasattr(_parameters, key):
+                setattr(_parameters,key,requirement[key])
+            else:
+                if getattr(_parameters,key) == requirement[key]:
+                    pass
+                else:
+                    logging.info("warning: change user defined {} to {} to match rcs layer".format(key, requirement[key]))
+                    setattr(_parameters,key,requirement[key])
+
+        self.rcs_generator =Generator(_parameters)
+        self.rcs_generator.p.choice =_parameters.choice
+        #got a generator! next put all parm together except changed ones
+
+        self.p = EmptyClass()
+        self.p.attach(para_t)
+        self.p.attach(self.rcs_generator.p)
+
+        origindefault={'symbols':parameters.symbols}
+        origindefault['minLattice'] = parameters.minLattice if hasattr(parameters, 'minLattice') else None
+        origindefault['maxLattice'] = parameters.maxLattice if hasattr(parameters, 'maxLattice') else None
+
+        for key in origindefault:
+            if not hasattr(self.p, key):
+                pass
+            else:
+                setattr(self.p,key,origindefault[key])
+        
+        #some other settings
+        minFrml = int(np.ceil(self.p.minAt/sum(self.p.formula)))
+        maxFrml = int(self.p.maxAt/sum(self.p.formula))
+        self.p.numFrml = list(range(minFrml, maxFrml + 1))
+        self.threshold = self.p.dRatio
+        self.maxAttempts = 100
+
+    def afterprocessing(self,ind,nfm, origin, size):
+        ind.info['symbols'] = self.p.symbols
+        ind.info['formula'] = self.p.formula
+        ind.info['numOfFormula'] = nfm
+        ind.info['parentE'] = 0
+        ind.info['origin'] = origin
+        ind.info['size'] = size
+
+        return ind
+        
+    def update_volume_ratio(self, volume_ratio):
+        pass
+        #return self.rcs_generator.update_volume_ratio(volume_ratio)
+    def Generate_ind(self,spg,numlist):
+        return self.rcs_generator.Generate_ind(spg,numlist)
+
+    def reconstruct(self, ind):
+
+        c=reconstruct(self.range, ind.copy(), self.threshold, self.maxAttempts)
+        label, pos=c.reconstr()
+        numbers=[]
+        if label:
+            for i in range(len(c.atomnum)):
+                numbers.extend([atomic_numbers[c.atomname[i]]]*c.atomnum[i])
+            cell=c.lattice
+            pos=np.dot(pos,cell)
+            atoms = ase.Atoms(cell=cell, positions=pos, numbers=numbers, pbc=1)
+            
+            return label, atoms
+        else:
+            return label, None
+
+    def rand_displacement(self, extraind, bottomind): 
+        rots = []
+        trs = []
+        for ind in list([bottomind, extraind]):
+            sym = spglib.get_symmetry_dataset(ind,symprec=0.2)
+            if not sym:
+                sym = spglib.get_symmetry_dataset(ind)
+            if not sym:
+                return False, extraind
+            rots.append(sym['rotations'])
+            trs.append(sym['translations'])
+
+        m = match_symmetry(*zip(rots, trs), z_axis_only = True)
+        if not m.has_shared_sym:
+            return False, extraind
+        _dis_, rot = m.get()
+        #_dis_, rot = match_symmetry(*zip(rots, trs)).get() 
+        _dis_[2] = 0
+        _dis_ = np.dot(-_dis_, extraind.get_cell())
+
+        extraind.translate([_dis_]*len(extraind))
+        return True, extraind
+
+    def get_spg(self, kind, grouptype):
+        if grouptype == 'layergroup':
+            if kind == 'hex':
+                #sym = 'c*', 'p6*', 'p3*', 'p-6*', 'p-3*' 
+                return [1, 2, 22, 26, 35, 36, 47, 48] + range(65, 81)  + [10, 13, 18]
+            else:
+                return list(range(1, 65))
+        elif grouptype == 'planegroup':
+            if kind == 'hex':
+                return [1, 2, 5, 9] + list(range(13, 18))
+            else:
+                return list(range(1, 13))
+
+    def reset_rind_lattice(self, atoms, _x, _y, botp = 'refbot', type = 'bot'):
+
+        refcell = (self.ref * (_x, _y, 1)).get_cell_lengths_and_angles()
+        cell = atoms.get_cell_lengths_and_angles()
+
+        if not np.allclose(cell[:2], refcell[:2], atol=0.1):
+            return False, None
+        if not np.allclose(cell[3:], refcell[3:], atol=0.5):
+            #'hex' lattice
+            if np.round(refcell[-1] + cell[-1] )==180:
+                atoms = resetLattice(atoms = atoms.copy(), expandsize = (4,1,1)).get(np.dot(np.diag([-1, 1, 1]), atoms.get_cell() ))
+
+            else:
+                return False, None
+        atoms.set_cell(np.dot(np.diag([1,1, refcell[2]/cell[2]]) ,atoms.get_cell()))
+        refcell = (self.ref * (_x, _y, 1)).get_cell()
+        atoms.set_cell(refcell, scale_atoms = True)
+        pos = atoms.get_scaled_positions(wrap = False)
+        refpos = self.ref.get_scaled_positions(wrap = True)
+        bot = np.min(pos[:,2]) if type == 'bot' else np.mean(pos[:, 2])
+        tobot = np.min(refpos[:,2])*atoms.get_cell()[2] if isinstance(botp, str) else botp
+        atoms.translate([ tobot - bot*atoms.get_cell()[2]]* len(atoms))
+        return True, atoms
+        
+        
+    def reset_generator_lattice(self, _x, _y, spg):
+        symtype = 'default'
+        if self.symtype == 'hex':
+            if (self.rcs_generator.p.choice == 0 and spg < 13) or (self.rcs_generator.p.choice == 1 and spg < 65):
+                #for hex-lattice, 'a' must equal 'b'
+                if self.reflattice[0] == self.reflattice[1] and _x == _y:    
+                    symtype = 'hex'
+
+        if symtype == 'hex':
+            self.rcs_generator.p.GetConventional = False
+        elif symtype == 'default': 
+            self.rcs_generator.p.GetConventional = True
+
+        self.rcs_generator.p.minLattice = list(self.reflattice *np.array([_x, _y]+[1]*4))
+        self.rcs_generator.p.maxLattice = self.rcs_generator.p.minLattice
+        return symtype
+
+    def Generate_pop(self,popSize,initpop=False, inspg = None):
+        buildPop = []
+        tryNum=0
+
+        while tryNum<self.p.maxtryNum*popSize and popSize*self.p.randratio > len(buildPop):
+            nfm = np.random.choice(self.p.numFrml)
+            spg = 1
+            _x = np.random.choice(self.p.rcs_x)
+            _y = np.random.choice(self.p.rcs_y)
+
+            ind = self.ref * (_x , _y, 1)
+            add, rm = self.ind.AtomToModify()
+            
+            if rm:
+                for symbol in rm:
+                    while rm[symbol] > 0:
+                        eq_at = dict(zip(range(len(ind)), get_symmetry_dataset(ind,1e-2)['equivalent_atoms']))
+                        indices = [atom.index for atom in ind if atom.symbol == symbol]
+                        lucky_atom_to_rm = eq_at[np.random.choice(indices)]
+                        eq_ats_with_him = np.array([i for i in eq_at if eq_at[i] == lucky_atom_to_rm])
+                        size = np.random.choice(range(1,np.min([rm[symbol] , len(eq_ats_with_him)])+1))
+                        _to_del = np.random.choice(eq_ats_with_him, size =size, replace=False)
+                        rm[symbol] -= len(_to_del)
+                        del ind[_to_del]
+            
+
+            if add:
+                numlist = np.array([add[s] for s in self.rcs_generator.p.symbols])
+                spg = np.random.choice(self.p.spgs) if self.p.choice == 0 else np.random.choice(self.get_spg(self.symtype, 'planegroup'))                
+                self.rcs_generator.p.choice = 0
+                self.reset_generator_lattice(_x, _y, spg)
+
+                label,extraind = self.rcs_generator.Generate_ind(spg,numlist)
+                if label:
+                    botp = np.max(ind.get_scaled_positions()[:,2]) + np.random.choice(range(5,20))/100
+                    label, extraind = self.reset_rind_lattice(extraind, _x, _y, botp = botp *ind.get_cell()[2], type = 'bot')
+                if label:
+                    ind.info['size'] = [_x, _y]
+                    bottom = self.ind(ind)
+                    label, extraind = self.rand_displacement(extraind, bottom.addbulk_relaxable_vacuum()) 
+                    ind += extraind
+                if not label:
+                    tryNum+=1
+                    continue
+            
+            label,ind = self.reconstruct(ind)
+            if label:
+                self.afterprocessing(ind,nfm,'rand.randmove', [_x, _y])
+                ref = self.ref * (_x , _y, 1)
+                ind.set_cell(ref.get_cell().copy(), scale_atoms=True)
+                ind.info['size'] = [_x, _y]
+                ind = self.ind.addbulk_relaxable_vacuum(atoms = ind)
+                buildPop.append(ind)
+                
+            else:
+                tryNum+=1
+
+        #add random structure
+        while tryNum<self.p.maxtryNum*popSize and popSize > len(buildPop):
+            
+            #spg = np.random.choice(self.p.spgs)
+            spg = inspg if inspg else np.random.choice(self.p.spgs)
+            nfm = np.random.choice(self.p.numFrml)
+            _x = np.random.choice(self.p.rcs_x)
+            _y = np.random.choice(self.p.rcs_y)
+
+            target = self.ind.get_targetFrml(_x , _y)
+            numlist = np.array([target[s] for s in self.rcs_generator.p.symbols])
+
+            self.reset_generator_lattice(_x,_y, spg)
+            self.rcs_generator.p.choice = self.p.choice
+            #logging.debug("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
+            #logging.debug("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
+            label,ind = self.rcs_generator.Generate_ind(spg,numlist)
+
+            if label:
+                #label, ind = self.reset_rind_lattice(ind, _x, _y, botp = 'refbot', type = 'bot')
+                label, ind = self.reset_rind_lattice(ind, _x, _y, botp = 'refbot')
+            if label:
+                _bot_ = (self.layerslices[1] * (_x, _y, 1)).copy()
+                _bot_.info['size'] = [_x, _y]
+                
+                label, ind = self.rand_displacement(ind, self.ind.addvacuum(add = 1, atoms = self.ind.addextralayer('bulk', atoms=_bot_, add = 1)))
+            if label:
+                self.afterprocessing(ind,nfm,'rand.symmgen', [_x, _y])
+                ind = self.ind.addbulk_relaxable_vacuum(atoms = ind)
+                buildPop.append(ind)
+            if not label:
+                tryNum+=1
+
+        return buildPop
+
+
+class ClusterGenerator(BaseGenerator):
+    def __init__(self,parameters):
+        super().__init__(parameters)
+        Default = {'vacuum':10}
+        checkParameters(self.p,parameters, [], Default)
+        self.p.dimension = 0
+
+    def afterprocessing(self,ind,nfm):
+        super().afterprocessing(ind,nfm)
+
+    def getVolumeandLattice(self,numlist):
+        #For cluster genertor, generates atom positions lies in distance (from origin) range of (minLattice[0], maxLattice[0])
+        atomicR = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
+        Volume = np.sum(4*np.pi/3*np.array(atomicR)**3*np.array(numlist))*self.p.volRatio
+        minVolume = Volume*0.5
+        maxVolume = Volume*1.5
+        minLattice = [3*self.p.dRatio*np.mean(atomicR)]*3 + [60,60,60] if not self.p.minLattice else self.p.minLattice
+        maxLattice = [(4 * Volume / (4/3 * math.pi))**(1.0/3)]*3 + [120,120,120] if not self.p.maxLattice else self.p.maxLattice
+
+        return minVolume,maxVolume,minLattice,maxLattice
+
+    def Generate_pop(self,popSize,initpop=False):
+        pop =  super().Generate_pop(popSize,initpop)
+        for ind in pop:
+            ind.set_pbc([0,0,0])
+        return pop
+        
 #test
 if __name__ == '__main__':
     class EmptyClass:

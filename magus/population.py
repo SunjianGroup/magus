@@ -14,6 +14,18 @@ from sklearn import cluster
 from .descriptor import ZernikeFp
 import copy
 from .molecule import Molfilter
+from ase.constraints import FixAtoms
+from .reconstruct import fixatoms, weightenCluster
+from ase import neighborlist
+from scipy import sparse
+
+#clusters
+try:
+    from pymatgen import Molecule
+    from pymatgen.symmetry.analyzer import PointGroupAnalyzer
+except:
+    pass
+
 #TODO
 # check seed?
 
@@ -25,17 +37,30 @@ def set_ind(parameters):
         return FixInd(parameters)
     if parameters.calcType == 'var':
         return VarInd(parameters)
-    
+    if parameters.calcType == 'rcs':
+        return RcsInd(parameters)
+    if parameters.calcType == 'clus':
+        return ClusInd(parameters)
+
 def set_comparator(parameters):
     from .compare.naive import NaiveComparator
     from .compare.bruteforce import ZurekComparator
     from .compare.base import OrGate, AndGate
+    from .reconstruct import OverlapMatrixComparator, OganovComparator
 
     if parameters.comparator == 'energy':
         return NaiveComparator(dE=parameters.diffE, dV=parameters.diffV)
     elif parameters.comparator == 'zurek':
-        return OrGate([NaiveComparator(dE=parameters.diffE, dV=parameters.diffV), ZurekComparator()])
-    
+        return AndGate([NaiveComparator(dE=parameters.diffE, dV=parameters.diffV), ZurekComparator()])
+    elif parameters.comparator == 'ognv':
+        default = {'diffComp': 0.1, 'width': 0.075, 'delta': 0.05, 'dimComp': 630, 'maxR': 15}
+        checkParameters(parameters, parameters, [], default)
+        return OganovComparator(tolerance = parameters.diffComp, width = parameters.width, delta = parameters.delta, dimComp = parameters.dimComp, maxR = parameters.maxR)
+    elif parameters.comparator == 'matrix':
+        default = {'diffComp': 0.1, 'width': 1.0, 'orbital': 's'}
+        checkParameters(parameters, parameters, [], default)
+        return OverlapMatrixComparator(orbital= parameters.orbital, tolerance = parameters.diffComp, width = parameters.width)
+
 class Population:
     """
     a class of atoms population
@@ -228,11 +253,32 @@ class Population:
         for ind in self.pop:
             ind.add_symmetry()
 
-    def select(self,n):
+    '''function in reconstract'''
+    def removebulk_relaxable_vacuum(self):        
+        for ind in self.pop:
+            ind.removebulk_relaxable_vacuum()  
+        #self.pop = list(map(lambda ind:ind.removebulk_relaxable_vacuum(), self.pop))  
+        
+    def addbulk_relaxable_vacuum(self):
+        #self.pop = list(map(lambda ind:ind.addbulk_relaxable_vacuum(), self.pop))
+        for ind in self.pop:
+            ind.addbulk_relaxable_vacuum()  
+
+    def randrotate(self):
+        self.pop = list(map(lambda ind:ind.randrotate(), self.pop))  
+
+    def select(self,n, delete_highE = False, high = 0.6):
         # self.calc_dominators()
         self.pop = sorted(self.pop, key=lambda x:x.info['dominators'])
         if len(self) > n:
             self.pop = self.pop[:n]
+        if delete_highE:
+            enthalpys = [ind.atoms.info['enthalpy'] for ind in self.pop]
+            high *= np.min(enthalpys)
+            logging.info("select without enthalpy higher than {} eV/atom, pop length before selecting: {}".format(high, len(self.pop)))
+            self.pop = [ind for ind in self.pop if ind.atoms.info['enthalpy'] <= high]
+            logging.info("select end with pop length: {}".format(len(self.pop)))
+            
 
     def bestind(self):
         # self.calc_dominators()
@@ -287,7 +333,6 @@ class Individual:
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self, obj)
-        # return self.comparator.looks_like(self.atoms, obj.atoms)
 
     def copy(self):
         atoms = self.atoms.copy()
@@ -429,6 +474,7 @@ class Individual:
                 x1 = np.where(nums == type1)
                 x2 = np.where(nums == type2)
                 if np.min(distances[x1].T[x2]) < (covalent_radii[type1]+covalent_radii[type2])*threshold:
+                    log.info("distance: {} < threshold {}".format(np.min(distances[x1].T[x2]) , (covalent_radii[type1]+covalent_radii[type2])*threshold))
                     return False
         return True
 
@@ -503,7 +549,7 @@ class Individual:
             mAts = atoms
         self.atoms = mAts
 
-    def repair_atoms(self):
+    def repair_atoms(self, weighten = False):
         """
         sybls: a list of symbols
         toFrml: a list of formula after repair
@@ -536,7 +582,14 @@ class Individual:
         #remove before add
         while toremove:
             del_symbol = np.random.choice(list(toremove.keys()))
-            del_index = np.random.choice([atom.index for atom in repatoms if atom.symbol==del_symbol])
+            del_index = []
+            
+            if not weighten:
+                del_index = np.random.choice([atom.index for atom in repatoms if atom.symbol==del_symbol])
+            else:
+                indices = [atom.index for atom in repatoms if atom.symbol==del_symbol]
+                del_index = weightenCluster().choseAtom(repatoms[indices])
+
             if toadd:
                 #if some symbols need to add, change symbol directly
                 add_symbol = np.random.choice(list(toadd.keys()))
@@ -556,7 +609,13 @@ class Individual:
             add_symbol = np.random.choice(list(toadd.keys()))
             for _ in range(self.p.repairtryNum):
                 # select a center atoms
-                centerAt = repatoms[np.random.randint(0,len(repatoms))]
+                centerAt = []
+
+                if not weighten:
+                    centerAt = repatoms[np.random.randint(0,len(repatoms))]
+                else:
+                    centerAt = repatoms[weightenCluster().choseAtom(repatoms)]
+                
                 basicR = covalent_radii[centerAt.number] + covalent_radii[atomic_numbers[add_symbol]]
                 # random position in spherical coordination
                 radius = basicR * (dRatio + np.random.uniform(0,0.3))
@@ -732,3 +791,503 @@ class VarInd(Individual):
             a = atoms.copy()
         # return super().check(atoms=a) and self.check_full(atoms=a)
         return super().check(atoms=a)
+
+class RcsInd(Individual):
+    def __init__(self, parameters):
+
+        super().__init__(parameters)
+
+        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None, 'DefectToAdd':None, 'refE':0, 'refFrml':None, 'fixbulk':True}
+        checkParameters(self.p,parameters, Requirement=[], Default=default )
+        self.layerslices = ase.io.read("Ref/layerslices.traj", index=':', format='traj')
+        
+        self.minAt = self.p.minAt 
+        self.maxAt = self.p.maxAt
+
+        if self.p.SymbolsToAdd:
+            self.p.symbols.extend([s for s in self.p.SymbolsToAdd if s not in self.p.symbols])
+        def split_modifier(modifier):
+            res = []
+            for i in range(np.min( [ len(self.p.symbols), len(modifier) ])):
+                expand = []
+                for item in modifier[i]:
+                    if isinstance(item, int):
+                        expand.append(item)
+                    elif isinstance(item, str):
+                        if '~' not in item:
+                            raise Exception ("wrong format")
+                        s1, s2 = item.split('~')
+                        s1, s2 = int(s1), int(s2)
+                        expand.extend(list(range(s1, s2+1)))
+                res.append(expand)
+            return res
+
+
+        if self.p.AtomsToAdd:
+            assert len(self.p.AtomsToAdd)== len(self.p.symbols), 'Please check the length of AddAtoms'
+            try:
+                self.p.AtomsToAdd = split_modifier(self.p.AtomsToAdd)
+            except:
+                raise RuntimeError("wrong format of atomstoadd")
+        if self.p.DefectToAdd:
+            try:
+                self.p.DefectToAdd =  split_modifier(self.p.DefectToAdd)
+            except:
+                raise RuntimeError("wrong format of defectstoadd")
+    
+    @property
+    def modified_atoms(self):
+        if not hasattr(self, "_modified_atoms"):
+            mod = [None, None]      #=(add, rm)
+            if not self.p.AtomsToAdd is None:
+                for index, m in enumerate(mod):
+                    mod[index] = [[abs(i) for i in l if (index == 0 and i>=0) or (index == 1 and i<0)] for l in self.p.AtomsToAdd]
+                    mod[index] = None if np.sum([len(l) for l in mod[index]]) == 0 else mod[index]
+
+            if not self.p.DefectToAdd is None:
+                mod[1] = [l.extend(self.p.DefectToAdd[i]) for i,l in enumerate(mod[1])] if mod[1] else self.p.DefectToAdd.copy()
+            
+            self._modified_atoms = mod.copy()
+        return self._modified_atoms
+    
+    def AtomToModify(self):
+        mod = self.modified_atoms.copy()
+        for index, m in enumerate(mod):
+            if m:
+                mod[index] = {s:(np.random.choice(i) if len(i) else 0) for s,i in zip(self.p.symbols, m)}
+                mod[index] = None if np.sum([mod[index][s] for s in mod[index]]) ==0 else mod[index]
+        
+        return mod
+    
+    def __call__(self,atoms):
+        newind = self.__new__(self.__class__)
+        newind.p = self.p
+
+        newind.minAt = self.minAt
+        newind.maxAt = self.maxAt
+        newind.layerslices = self.layerslices
+
+        newind.comparator = self.comparator
+        newind.cf = self.cf
+        newind.inputMols = self.inputMols
+        newind.molCounters = self.molCounters
+        newind.inputFormulas = self.inputFormulas
+
+        if atoms.__class__.__name__ == 'Molfilter':
+            atoms = atoms.to_atoms()
+        atoms.set_pbc([True, True, False])
+        atoms.wrap()
+        newind.atoms = atoms
+        newind.sort()
+        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula))) }
+
+        if 'size' in atoms.info:
+            #used in generator and mutation cases
+            newind.info['size'] = atoms.info['size']
+        elif hasattr(self, "atoms"):
+            if 'size' in self.atoms.info:
+                #used in crossover cases only, modify later...?
+                newind.info['size'] = self.atoms.info['size']
+                newind.atoms.set_cell(self.atoms.get_cell()[:], scale_atoms = True)
+        if 'size' not in newind.info:
+            logging.warn("size unknown for reconstruction individual. [1,1] was set but it may lead to an error. ")
+            newind.info['size'] = [1,1]
+            
+        newind.info['fitness'] = {}
+        return newind
+
+    #def needrepair(self):
+    #    #check if atoms need repair
+    def check_formula(self, atoms=None):
+        # check if the current formual is right
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        Natoms = len(a)
+        if Natoms < self.minAt or Natoms > self.maxAt:
+            return False
+
+        symbols, formula = symbols_and_formula(a)
+        nowFrml = {s:i for s,i in zip(symbols, formula)}
+
+        targetFrml = self.get_refFrml(self.info['size'][0], self.info['size'][1])
+        
+        if self.minAt == self.p.minAt:  #with bulk and relaxable
+            _symbols, _formula = symbols_and_formula(self.layerslices[0]+self.layerslices[1])
+            _bottom = {s:i*(self.info['size'][0] *self.info['size'][1]) for s,i in zip(_symbols, _formula)}
+            for s in _bottom:
+                targetFrml[s] = list(np.array(targetFrml[s])+_bottom[s]) if s in targetFrml else [_bottom[s]]
+    
+        for s in nowFrml:
+            if s not in targetFrml:
+                logging.info("symbol '{}' not in targetFrml".format(s))
+                return False
+
+            if nowFrml[s] not in targetFrml[s]:
+                logging.info("targetFrml={} , nowformula={} for symbol '{}'. ".format(targetFrml[s], nowFrml[s] ,s))
+                return False
+                
+        return True     
+        
+    def get_refFrml(self, rcs_x , rcs_y):
+
+        if len(self.layerslices)==3:
+            benchmark = self.layerslices[2] * (rcs_x, rcs_y, 1)
+            symbol, formula = symbols_and_formula(benchmark)
+
+            targetFrml = {s:i for s,i in zip(symbol,formula)}
+        elif len(self.layerslices)==2:
+            targetFrml = {}
+        
+        add, rm = self.modified_atoms.copy()
+        if add:
+            Add = {s:i for s,i in zip(self.p.symbols, add)}
+            for s in Add:
+                targetFrml[s] = [num + targetFrml[s] for num in Add[s]] if s in targetFrml else Add[s] 
+        else:
+            targetFrml = {s:[targetFrml[s]] for s in targetFrml}
+            #if self.p.SymbolsToAdd:
+                #for i in range(len(self.p.SymbolsToAdd)):
+                    #setattr(targetFrml,self.p.SymbolsToAdd[i],self.p.AtomsToAdd[i+len(self.p.symbols)])
+        if rm:
+            Defect = {s:i for s,i in zip(self.p.symbols, rm)}
+            for s in targetFrml:
+                targetFrml[s] = list(set( [i-j for i in targetFrml[s] for j in Defect[s]])) if s in Defect else targetFrml[s]
+        
+        return targetFrml
+
+    def get_targetFrml(self, rcs_x=1, rcs_y=1):
+
+        if hasattr(self,"atoms"):
+            _x = self.info['size'][0]
+            _y = self.info['size'][1]
+
+            targetFrml = self.get_refFrml(_x, _y)
+            symbols, formula = symbols_and_formula(self.atoms)
+            nowFrml = {s:i for s,i in zip(symbols, formula)}
+            bestFrml = nowFrml.copy()
+
+            for s in targetFrml:
+                if s not in bestFrml:
+                    bestFrml[s] = np.random.choice(targetFrml[s])
+
+                elif nowFrml[s] in targetFrml[s]:
+                    pass
+                else:
+                    if np.random.rand()<0.3:
+                        bestFrml[s] = targetFrml[s][0] if nowFrml[s] < targetFrml[s][0] else targetFrml[s][-1]
+                    else:
+                        bestFrml[s] = np.random.choice(targetFrml[s])
+            
+        else:
+            targetFrml = self.get_refFrml(rcs_x, rcs_y)
+            for s in targetFrml:
+                targetFrml[s] = np.random.choice(targetFrml[s])
+            bestFrml = targetFrml
+
+        if hasattr(self,"info"):
+            self.info['formula'] = np.array([targetFrml[s] for s in targetFrml])
+            self.info['numOfFormula'] = 1
+
+        return bestFrml
+
+    def substrate_sym(self, symprec = 1e-4):
+        
+        if not hasattr(self, "substrate_symmetry"):
+            rlxatoms = self.layerslices[1] * (*self.info['size'], 1)
+            rlxatoms.info['size'] = self.info['size']
+            allatoms = self.addextralayer('bulk', atoms = rlxatoms, add = 1)
+            
+            symdataset = spglib.get_symmetry_dataset(allatoms, symprec= symprec)
+            self.substrate_symmetry = list(zip(symdataset['rotations'], symdataset['translations']))
+            self.substrate_symmetry = [s for s in self.substrate_symmetry if ( (s[0]==s[0]*np.reshape([1,1,0]*2+[0]*3, (3,3))+ np.reshape([0]*8+[1], (3,3))).all()  and not (s[0]==np.eye(3)).all())]
+            cell = allatoms.get_cell()[:]
+
+            #some simple tricks for '2', 'm', '4', '3', '6' symmetry. No sym_matrix containing 'z'_axis transformation are included.
+            for i, s in enumerate(self.substrate_symmetry):
+                r = s[0]
+                sample = np.array([*np.random.uniform(1,2,2), 0])
+                sample_prime = np.dot(r, sample)
+                cart, cart_prime = np.dot(sample, cell), np.dot(sample_prime, cell)
+                length = np.sum([i**2 for i in cart])
+                angle = math.acos(np.dot(cart, cart_prime)/ length) / math.pi * 180
+                if not (np.round(angle) == np.array([180, 90, 120, 60])).any():
+                    self.substrate_symmetry[i] = self.substrate_symmetry[i]+('m',)
+                else:
+                    self.substrate_symmetry[i] = self.substrate_symmetry[i]+(int(np.round(360.0/angle)),)
+
+            #self.substrate_symmetry is a list of tuple (r, t, multiplity), in which multiplity = 2 for '2', 'm', others = self.rotaterank.
+
+        return self.substrate_symmetry
+
+    def addextralayer(self, type, changeAtomNum = True, atoms = None, add = 1):
+        #if atoms, return atoms.addextra, else self.atoms is changed and returned
+        #add: addextralayer if add = 1; else rmextralayer 
+
+        change_Minat_Maxat = changeAtomNum if atoms is None else False
+        sz = self.info['size'] if atoms is None else (atoms.info['size'] if 'size' in atoms.info else [1,1])
+
+        if type=='relaxable':
+            FixExtraAtoms=False
+            extratoms=self.layerslices[1] * (*sz, 1)
+        elif type=='bulk':
+            FixExtraAtoms=True 
+            extratoms=self.layerslices[0] * (*sz, 1)
+
+        atoms_top = atoms.copy() if atoms else self.atoms.copy()
+
+        atoms_bottom=extratoms.copy()
+        
+        if change_Minat_Maxat:
+            self.minAt += len(atoms_bottom) * add
+            self.maxAt += len(atoms_bottom) * add
+
+        newcell=atoms_top.get_cell()
+        newcell[2]+=atoms_bottom.get_cell()[2] * add
+        atoms_top.set_cell(newcell)
+
+        trans=[atoms_bottom.get_cell()[2]* add]*len(atoms_top)
+        atoms_top.translate(trans)
+        if add == 1:
+            # addextralayer
+            atn = len(atoms_top)
+            atoms_top+=atoms_bottom
+
+            if FixExtraAtoms:
+                if self.p.fixbulk:
+                    c = FixAtoms(indices=range( atn , len(atoms_top) ))
+                    atoms_top.set_constraint(c)
+                else:
+                    c = fixatoms(indices=range( atn , len(atoms_top) ))
+                    atoms_top.set_constraint(c)
+        else :
+            # rmextralayer
+
+            #pos=atoms_top.get_scaled_positions(wrap=False)
+            #del atoms_top[[atom.index for atom in atoms_top if pos[atom.index][2]<0]]
+            
+            vertical_dis = atoms_top.get_scaled_positions(wrap=False)[ : , 2 ].copy()
+            indices = sorted(range(len(atoms_top)), key=lambda x:vertical_dis[x])
+            indices = indices[ len(atoms_bottom) :  ]
+            atoms_top = atoms_top[indices]
+
+        if atoms is None:
+            if 'spg' in self.info:
+                self.find_spg()
+            self.atoms = atoms_top 
+
+        return atoms_top 
+
+    def addvacuum(self, add = 1, atoms = None):
+        #if atoms, return atoms.addvc, else self.atoms is changed and returned
+
+        vacuum=self.p.vacuum*add
+        newatoms = atoms.copy() if atoms else self.atoms.copy()
+
+        ratio = 1.0*vacuum/newatoms.get_cell_lengths_and_angles()[2]
+        newcell = newatoms.get_cell()
+        newcell[2]*=2*ratio+1
+        trans=[newatoms.get_cell()[2]*ratio]*len(newatoms)
+
+        newatoms.set_cell(newcell)
+        newatoms.translate(trans)
+        if atoms is None:
+            self.atoms = newatoms 
+        return newatoms 
+
+    def addbulk_relaxable_vacuum(self, atoms = None):
+        ats = self.addextralayer('relaxable',add=1, atoms=atoms) 
+        atoms = ats if atoms else None
+        ats = self.addextralayer('bulk',add=1, atoms=atoms)
+        atoms = ats if atoms else None    
+        ats = self.addvacuum(add=1, atoms=atoms)
+        return ats
+        
+    def removebulk_relaxable_vacuum(self, atoms = None):
+        ats = self.addextralayer('bulk', add=-1, atoms=atoms) 
+        atoms = ats if atoms else None
+        ats = self.addextralayer('relaxable',add=-1, atoms=atoms)
+        atoms = ats if atoms else None
+        ats = self.addvacuum(add=-1, atoms=atoms)
+        return ats
+
+    def get_volRatio(self):
+        volume = self.atoms.get_volume()
+        top = np.max(self.atoms.get_scaled_positions(wrap = True)[:, 2])
+        extended = self.atoms.get_cell_lengths_and_angles()[2]
+        extra = (self.layerslices[0]+self.layerslices[1]).get_cell_lengths_and_angles()[2] + self.p.vacuum
+        self.volRatio = (top - extra/extended)*volume/self.get_ball_volume()
+        return self.volRatio
+
+class ClusInd(FixInd):
+    def __init__(self, parameters):
+        super().__init__(parameters)
+        default= {'vacuum':10, 'cutoff':1.0, 'weighten': True}
+        checkParameters(self.p,parameters, Requirement=[], Default=default )
+        
+        from pkg_resources import resource_filename
+        from monty.serialization import loadfn
+        #TODO: long logs appear if use 'resource_filename' on pyxtal. Setting logconfig to > debug also solves it. But why??
+        #file = resource_filename("pyxtal", "database/symbols.json")
+        file = '/fs08/home/js_hanyu/.local/lib/python3.6/site-packages/pyxtal/database/symbols.json'
+        self.pointgroup_symbols = loadfn(file)["point_group"]
+        
+
+    #slightly modified from FixInd, without periodic boundary conditions
+    def __call__(self,atoms):
+        newind = self.__new__(self.__class__)
+        newind.p = self.p
+        newind.pointgroup_symbols = self.pointgroup_symbols
+        newind.comparator = self.comparator
+        newind.cf = self.cf
+        newind.inputMols = self.inputMols
+        newind.molCounters = self.molCounters
+        newind.inputFormulas = self.inputFormulas
+
+        if atoms.__class__.__name__ == 'Molfilter':
+            atoms = atoms.to_atoms()
+
+        atoms = self.reset_center(atoms)
+        atoms.set_pbc([0,0,0])
+        newind.atoms = atoms
+        newind.sort()
+        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
+        newind.info['fitness'] = {}
+        return newind
+    
+    @property
+    def bounding_sphere(self):
+        positions = self.atoms.get_positions()
+        center = np.mean(positions, axis=0)
+        return math.sqrt(np.max([np.sum([x**2 for x in (p - center)]) for p in positions]))
+    
+    @property
+    def fingervector(self):
+        if not hasattr(self, '_finger_vector'):
+            self._finger_vector = self.comparator.fingervector(self.atoms)
+        return self._finger_vector
+
+    def randrotate(self, atoms = None):
+        newind=self.copy()
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        theta = np.random.uniform(0,2*np.pi)
+        phi = np.random.uniform(0,np.pi)
+        angle = np.random.uniform(0,180)
+        a.rotate(angle, v=[np.sin(phi)*np.cos(theta), np.sin(phi)*np.sin(theta), np.cos(phi)], center='COU', rotate_cell=False)
+        a = self.reset_center(a)
+        newind.atoms = a
+        return newind
+    
+    def reset_center(self, atoms = None):
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+
+        pos = a.get_positions().copy()
+        newlattice =[]
+        for i in range(3):
+            ref = sorted(pos[:,i])
+            newlattice.append(ref[-1] - ref[0] + self.p.vacuum)
+
+        trans = [np.array(newlattice)/2 - np.mean(pos, axis = 0)]*len(a)
+        a.translate(trans)
+        newlattice.extend([90,90,90])
+        a.set_cell (newlattice)
+
+        return a
+        
+    def get_volRatio(self):
+        #cell = self.atoms.get_cell_lengths_and_angles()[:3] 
+        #cell -= np.array([self.p.vacuum]*3)
+        #self.volRatio = cell[0]*cell[1]*cell[2]/self.get_ball_volume()
+        self.volRatio = 4/3 * math.pi * self.bounding_sphere**3 / self.get_ball_volume()
+        return self.volRatio
+
+    def _connecty_(self,atoms):
+        cutOff = np.array(neighborlist.natural_cutoffs(atoms))*self.p.cutoff
+        neighborList = neighborlist.NeighborList(cutOff, self_interaction=False, bothways=True)
+        neighborList.update(atoms)
+        matrix = neighborList.get_connectivity_matrix()
+        return sparse.csgraph.connected_components(matrix)
+
+    def check(self, atoms=None):    
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        check_connection = self.check_connection(a)
+        if not check_connection:
+            logging.debug("Fail in check_connection >_< cluster origin '{}'".format(self.atoms.info['origin'] if 'origin' in self.atoms.info else 'Unknown'))
+        check_energy = True
+        if 'energy' in a.info:
+            check_energy = (a.info['energy'] != 10000) 
+            if not check_energy:
+                logging.debug("Fail in check_energy for energy = 10000")
+        return super().check(atoms) and check_connection and check_energy
+
+    def check_connection(self,atoms=None):
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        n_components, _ = self._connecty_(a)
+        return False if n_components > 1 else True
+
+    def repair_atoms(self):
+        n_components, component_list = self._connecty_(self.atoms)
+        if n_components ==1:
+            return super().repair_atoms(weighten=self.p.weighten)
+        else:
+            logging.debug("By repair_atoms: attempts to make cluster unite again!")
+            oldatoms = self.atoms.copy()
+            for _ in range(self.p.repairtryNum):
+                a = self.atoms
+                originpos = a.get_positions().copy()
+                originc = np.mean(originpos, axis = 0)
+                for subclus in range(n_components):
+                    sc = [i for i in range(len(a)) if component_list[i] == subclus]
+                    randcenter = [np.random.uniform(0, self.bounding_sphere/5), np.random.uniform(0,math.pi), np.random.uniform(0,2*math.pi)]
+                    randcenter = randcenter[0] * np.array([math.sin(randcenter[1])*math.cos(randcenter[2]),math.sin(randcenter[1])*math.sin(randcenter[2]),math.cos(randcenter[1])])
+                    originpos[sc] += ( originc - np.mean(originpos[sc], axis = 0) + randcenter)
+                a.set_positions(originpos)
+                
+                ith =0
+                while ith < len(a)-1:
+                    dises = a.get_distances(ith, range(ith+1, len(a))) 
+                    to_merge = [i+ith+1 for i in range(len(dises)) if dises[i] < self.p.dRatio*(covalent_radii[a[ith].number]+covalent_radii[a[i+ith+1].number])]
+                    if len(to_merge):
+                        lucky_index = np.random.choice(to_merge)
+                        newpos = (a[ith].position + a[lucky_index].position)/2
+                        a[lucky_index].position = newpos
+                        del a[ith]
+                    else:
+                        ith +=1
+
+                if super().repair_atoms(weighten=self.p.weighten):
+                    return True
+                else:
+                    self.atoms = oldatoms.copy()
+            logging.debug("repair_atoms failed...")
+            self.atoms = None 
+            return False
+    
+    def find_spg(self):
+        atoms = self.atoms
+        symprec = self.p.symprec
+        molecule = Molecule(atoms.symbols,atoms.get_positions())
+        
+        spg = PointGroupAnalyzer(molecule, symprec).sch_symbol
+        if spg in self.pointgroup_symbols:
+            spg = self.pointgroup_symbols.index(spg) + 1
+        else:
+            spg = 1
+        
+        atoms.info['spg'] = spg
+        atoms.info['priNum'] = atoms.get_atomic_numbers()
+        atoms.info['priVol'] = 4/3 * math.pi * self.bounding_sphere**3
+        self.atoms = atoms

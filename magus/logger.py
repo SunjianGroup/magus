@@ -2,7 +2,7 @@ import logging
 
 
 c_formatter = logging.Formatter("%(message)s")
-f_formatter = logging.Formatter("%(message)s")
+f_formatter = logging.Formatter("%(asctime)s   %(message)s",datefmt='%H:%M:%S')
 log_level = {
     "DEBUG":   logging.DEBUG, 
     "INFO":    logging.INFO, 
