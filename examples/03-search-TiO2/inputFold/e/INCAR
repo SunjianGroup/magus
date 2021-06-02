@@ -1,4 +1,5 @@
 PREC = Normal
+ENCUT = 400
 EDIFF = 1e-4
 IBRION = 2
 ISIF = 3
@@ -10,6 +11,6 @@ ISTART = 0
 LCHARG = FALSE
 LWAVE = FALSE
 #Crude optimisation
-EDIFFG = 1e-3
+EDIFFG = -2e-2
 KSPACING = 0.618
 #ALGO = Fast

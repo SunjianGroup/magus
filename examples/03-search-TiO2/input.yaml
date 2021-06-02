@@ -10,12 +10,12 @@ minAt: 6
 maxAt: 12
 p_pri: 0.1
 symbols: ['Ti','O']
-formula: [1,2]
+formula: [2, 4]
 fullEles: True
 eleSize: 0
 
 dRatio: 0.8
-volRatio: 1.5
+volRatio: 2.0
 addSym: False
 
 #main calculator settings
@@ -28,8 +28,8 @@ MainCalculator:
  ppLabel: ['', '_s']
  #parallel settings
  numParallel: 10
- numCore: 18
- queueName: e52692v2ib!
+ numCore: 24
+ queueName: 9242opa!
  #queueName: e5v3ib
  waitTime: 30
 
