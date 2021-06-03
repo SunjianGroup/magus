@@ -229,7 +229,31 @@ class MoleculeGenerator(Generator):
         Default = {'molMode':True, 'symprec':0.1, 'threshold_mol': 1.0}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [get_radius(mol) for mol in self.p.inputMols]
+        self.volume = [sum([4*np.pi/3*(covalent_radii[num])**3
+            for num in mol.get_atomic_numbers()])
+            for mol in self.p.inputMols ]
         checkParameters(self.p,parameters,[],{'radius':radius})
+
+    def getVolumeandLattice(self,numlist):
+        # Recalculate atomic radius, considering the change of radius in molecular crystal mode
+        Volume = np.sum(self.volume*np.array(numlist))*self.p.volRatio
+        minVolume = Volume*0.5
+        maxVolume = Volume*1.5
+        minLattice= [2*np.max(self.p.radius)]*3+[60]*3
+        # maxLattice= [maxVolume/2/np.max(self.p.radius)]*3+[120]*3
+        maxLattice= [maxVolume**(1./3)]*3+[120]*3
+        if self.p.minLattice:
+            minLattice = self.p.minLattice
+            minVolume = np.linalg.det(cellpar_to_cell(minLattice)) 
+        if self.p.maxLattice:
+            maxLattice = self.p.maxLattice
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice)) 
+        if self.p.fixCell:
+            minLattice = self.p.setCellPar
+            minVolume = np.linalg.det(cellpar_to_cell(minLattice))
+            maxLattice = [l+0.01 for l in minLattice]
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
+        return minVolume,maxVolume,minLattice,maxLattice
 
     def afterprocessing(self,ind,nfm):
         ind.info['symbols'] = self.p.symbols
