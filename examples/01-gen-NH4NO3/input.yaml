@@ -17,7 +17,7 @@ addSym: True
 spacegroup: [56]
 dRatio: 0.8
 threshold_mol: 1.5
-volRatio: 8
+volRatio: 30
 randFrac: 0.4
 molDetector: 1
 
