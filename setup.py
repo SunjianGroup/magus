@@ -10,8 +10,9 @@ except:
         sysconfig.get_config_var('INCLUDEDIR'),
         sysconfig.get_config_var('INCLUDEPY'),
         ]
-python_ld_lib = os.getenv('MAGUS_PY_LIB') or sysconfig.get_config_var('INCLUDEPY').split('/')[-1]
-libraries = ['boost_python', 'boost_numpy', python_ld_lib]
+# python_ld_lib = os.getenv('MAGUS_PY_LIB') or sysconfig.get_config_var('INCLUDEPY').split('/')[-1]
+libraries = ['boost_python', 'boost_numpy']
+# libraries.append(python_ld_lib)
 try:
     library_dirs = os.getenv('MAGUS_LD_LIBRARY_PATH').split(':')
 except:
@@ -42,9 +43,9 @@ with open('README.md') as f:
 
 setup(
     name="magus",
-    version="1.0.0",
+    version="1.0.2",
     author="Gao Hao, Wang Junjie, Han Yu, DC, Sun Jian",
-    email="141120108@smail.nju.edu",
+    author-email="141120108@smail.nju.edu",
     url="https://git.nju.edu.cn/gaaooh/magus",
     packages=find_packages(),
     #scripts=[

@@ -15,9 +15,9 @@ molType: 'fix'
 chkMol: True
 addSym: True
 spacegroup: [56]
-dRatio: 0.8
-threshold_mol: 1.5
-volRatio: 30
+bondRatio: 0.5
+threshold_mol: 1.0
+volRatio: 15
 randFrac: 0.4
 molDetector: 1
 
