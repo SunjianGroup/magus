@@ -1,0 +1,1218 @@
+% Manual for the MAGUS program
+% TODO: 例子中结果展示
+%
+\documentclass[12pt]{article}
+% to add true appendix, now useless
+%\usepackage{appendix}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{url}
+\usepackage{multicol}
+\usepackage[sort,super]{natbib} 
+\usepackage[nottoc]{tocbibind}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{CTEX}
+\usepackage[most]{tcolorbox} % Required for boxes that split across pages
+\usepackage{indentfirst}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{minted}
+\usepackage{paracol} %分栏
+% dirtree字体问题
+\usepackage{fontspec}
+\setmonofont{Source Code Pro}
+% 文字背景色
+\usepackage{xcolor}
+\usepackage{soul}
+\definecolor{Seashell}{gray}{0.95} 
+\newcommand{\code}[1]{
+  \begingroup
+  \sethlcolor{Seashell}
+  {\hl{\texttt{~#1~}}}
+  \endgroup
+}
+\newcommand{\keyword}[1]{\texttt{#1}}
+\newcommand{\file}[1]{\texttt{#1}}
+\newcommand{\textshift}[1]{{\addtolength{\leftskip}{10mm}\texttt{{#1}}\par}}
+\newcommand{\textshiftleft}[1]{{\addtolength{\leftskip}{-10mm}{#1}\par}}
+
+% 页面设置
+\textheight 22cm
+\textwidth 16cm
+\oddsidemargin 1mm
+\topmargin -15mm
+
+% 段落设置
+\baselineskip=14pt
+\parskip 5pt
+\setlength{\parindent}{2em} % 首行缩进,如果不需要缩进使用,则在段落前使用 \noindent 
+
+% 页眉页脚设置
+\usepackage{fancyhdr}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\setlength{\headheight}{15pt}
+\pagestyle{fancy}
+\lhead{\slshape\nouppercase{\leftmark}} % controls the left corner of the header
+\chead{} % controls the center of the header
+\rhead{MAGUS 1.0.2} % controls the right corner of the header
+\lfoot{\today} % controls the left corner of the footer
+\cfoot{} % controls the center of the footer
+\rfoot{Page~\thepage} % controls the right corner of the footer
+\renewcommand*{\thefootnote}{\fnsymbol{footnote}}
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Title page 
+
+\begin{titlepage}
+
+\begin{center}
+
+\vspace{2.0cm}
+\begin{figure}[hbtp]
+\centering
+\includegraphics[scale=0.2]{pic/temp_logo.png}
+\end{figure}
+\vspace{0.5cm}
+\hrule
+\vspace{1.5cm}
+
+\textbf{ 
+\Large MAGUS: \vspace{0.7cm} \\
+Machine learning And Graph theory assisted \vspace{0.5cm} \\
+Universal structure Searcher}
+\vspace{1.5cm}
+
+\textbf{高豪, 王俊杰, 韩瑜, Dc, 孙建}
+%}
+
+\vspace{0.5cm}
+
+\vspace{2.0cm}
+
+\textbf{\Large 使用手册}
+
+\textbf{Version 1.0.2, \today.}
+
+\vspace{2.0cm}
+
+\textcolor{blue}{\url{https://git.nju.edu.cn/gaaooh/magus}}
+
+\end{center}
+
+\vspace{1.0cm}
+
+\end{titlepage}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\setcounter{tocdepth}{3}
+\tableofcontents
+
+\newpage
+\section{安装}
+
+\subsection{依赖}
+Python >= 3.6\par
+NumPy \par
+SciPy \par
+Scikit-learn\par
+PyYAML\par
+Ase>=3.19\par
+Networkx==2.1\par
+Spglib\par
+Pandas\par
+可选项:\par
+Pytest >= 3.6.1: unittest\par
+Xtb == 6.3: XTBCalculator\par
+Mlip: MTPCalculator
+\subsection{准备}
+\subsubsection{设置ase的vasp接口}
+\begin{itemize}
+    \item [1)] 
+    新建一个\file{run\_vasp.py}:
+    \begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{python}
+import subprocess
+exitcode = subprocess.call("mpiexec.hydra /your/path/to/vasp", shell=True)
+    \end{minted}
+    \end{tcolorbox}
+    \item [2)] 
+    建立\file{mypps}目录存放vasp赝势，可以用软连接:
+    \begin{verbatim}
+    mypps/
+    ├── potpaw
+    ├── potpaw_GGA
+    └── potpaw_PBE
+    \end{verbatim}
+    \begin{tcolorbox}[breakable, enhanced]
+        \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ ln -s /your/path/PBE-5.4 mypps/potpaw_PBE
+        \end{minted}
+    \end{tcolorbox}
+    三个子目录分别对应LDA, PW91, PBE
+    也可以加入其他赝势库。
+    \item [3)] 
+    设置环境变量:
+    \begin{tcolorbox}[breakable, enhanced]
+        \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ export VASP_SCRIPT=/your/path/run_vasp.py
+$ export VASP_PP_PATH=/your/path/mypps
+        \end{minted}
+    \end{tcolorbox}
+    更多信息见:\textcolor{blue}{\url{https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html\#module-ase.calculators.vasp}}\par
+    \textbf{注意: run\_vasp.py和mypps不要放在magus目录下}
+\end{itemize}
+\subsubsection{机器学习包安装}
+TwoShareMTPCalculator使用了修改过的mtp代码,官方版本不支持此功能.如需使用可进入magus/mtp-api目录，按其中教程安装。
+详见:\textcolor{blue}{\url{https://git.nju.edu.cn/bigd4/mtp-api}}
+
+\subsection{pip安装}
+magus安装需要boost\_python,boost\_numpy.若所使用的python环境(如anaconda-3/5.0.1)的lib中有会自动探测路径,
+否则需要在环境变量中给出相应路径(无需写入bashrc)
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ export MAGUS_INCLUDE_PATH=your_path_to_include_dir: your_path_to_py_include_dir
+$ export MAGUS_LD_LIBRARY_PATH=your_ld_library_path
+    \end{minted}
+\end{tcolorbox}
+配置好后执行（其实不行，因为包还没有上传，呵呵）：
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ pip install magus --upgrade
+    \end{minted}
+\end{tcolorbox}
+
+  若直接在集群安装需加入\verb|--user|参数
+\subsection{source安装}
+\subsubsection{代码下载}
+克隆库到本地并初始化子项目:
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ git clone git@git.nju.edu.cn:gaaooh/magus.git
+$ git submodule init
+$ git submodule update
+    \end{minted}
+\end{tcolorbox}
+\texttt 
+或直接下载压缩包.
+\subsubsection{编译GenerateNew模块}
+进入magus/generatenew中,编译generatenew.so文件,并将其放入magus/magus文件夹下.
+如使用集群anaconda/3-5.0.1,命令为:
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include 
+-I/fs00/software/anaconda/3-5.0.1/include/python3.6m 
+-L/fs00/software/anaconda/3-5.0.1/lib -lboost_python 
+-lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
+    \end{minted}
+\end{tcolorbox}
+具体可见:
+\textcolor{blue}{\url{https://git.nju.edu.cn/HanYu/generatenew}}
+\subsubsection{编译lrpot模块}
+进入magus/lrpot中,编译lrpot.so文件,并将其放入magus/magus文件夹下.
+如使用集群anaconda/3-5.0.1,命令为:
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include 
+-I/fs00/software/anaconda/3-5.0.1/include/python3.6m 
+-L/fs00/software/anaconda/3-5.0.1/lib -lboost_python 
+-lboost_numpy -lpython3.6m lrpot.cpp -o lrpot.so -shared -fPIC
+\end{minted}
+\end{tcolorbox}
+具体可见:
+\textcolor{blue}{\url{https://git.nju.edu.cn/bigd4/lrpot}}
+\subsubsection{设置入口}
+新建magus文件：
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{python}
+import re
+import sys
+from magus.entrypoints.main import main
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+    sys.exit(main())
+    \end{minted}
+\end{tcolorbox}
+保存后执行\code{chmod +x magus}设置为可执行文件。
+\subsubsection{设置环境变量}
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ export PYTHONPATH=$PYTHONPATH:/your/path/magus
+$ export PATH=$PATH:/your/path/magus
+    \end{minted}
+\end{tcolorbox}
+\subsection{检查安装}
+\begin{tcolorbox}
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ magus -v
+    \end{minted}
+\tcblower
+1.0.2
+\end{tcolorbox}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{输入文件}
+一个典型的结构搜索任务一般包含以下文件：
+\begin{itemize}
+    \item \file{input.yaml},给出任务的主要参数.详见 \ref{inputpara}
+    \item \file{inputFold},补充\file{input.yaml}中定义的Calculator所需要的一些额外的信息,
+    如Vasp的\file{INCAR}，Lammps的\file{in.lammps}等.详见 \ref{inputfold}
+    \item \file{Seeds},给出种子结构,可指定在哪一代加入.详见 \ref{seed}
+\end{itemize}
+\subsection{input.yaml参数} \label{inputpara}
+
+\subsubsection{基本参数}
+\begin{itemize}
+    \item calcType: 计算类型，可用值:  fix（定组分）,var（变组分）
+    \item pressure: 压强(GPa)
+    \item DFTRelax: 用于ML搜索中，是否将结果用DFT优化
+    \item molMode: 是否打开分子晶体模式
+    \item symprec: 默认值：0.1, 判断空间群时容忍误差
+\end{itemize}
+
+\subsubsection{种群相关}
+\begin{itemize}
+    \item initSize: 初代种群大小
+    \item popSize: 种群大小
+    \item numGen: 迭代次数
+    \item saveGood: 聚类后保留结构数
+\end{itemize}
+
+\subsubsection{结构产生}
+\begin{itemize}
+    \item spacegroup: 随机结构的空间群，
+    例：[1,2,20-30]
+    \item minAt: 最小原子数
+    \item maxAt: 最大原子数
+    \item symbols: 元素类型
+    例：['Ti', 'O'], 外层是方括号，每个元素用引号括起来
+    \item formula: 元素比例
+    例： [1, 2] (定组分),[[1,0],[0,1]] (变组分)
+    \item fullEles: 若值为True,则产生的结构含有'symbols'中所有元素
+    \item eleSize: 变组分搜索时，初代每种单质随机产生的结构数
+    \item volRatio: 随机产生结构时的体积参数
+    \item dRatio: 判断原子距离是否过近的标准
+    \item addSym: 产生结构之前是否为父代加入对称性
+\end{itemize}
+
+\subsubsection{结构演化}
+\begin{itemize}
+    \item randFrac: 随机结构比例
+    \item molDetector: 结构演化时判断分子片段的方法
+    可用值：0(不判断分子局域结构，默认值)  1(自动判断分子局域结构)  2(使用Girvan-Newman算法划分局域结构)
+    \item cutNum: cutNum
+    \item permNum: permNum
+    \item rotNum: rotNum\dots
+\end{itemize} 
+
+\subsubsection{煮计算器}
+主计算器定义了Magus搜索时使用的MainCalculator，以下所有参数都定义于MainCalculator条目下，需要缩进：
+\begin{itemize}
+    \item jobPrefix: 计算器所需附属文件在\file{inputFold}文件夹中的名称,如\file{EMT}, \file{OvO}等
+    如需使用多个计算器串接则给出对应列表，如：['Gulp', 'Vasp1', 'Vasp2']\label{jobprefix}
+    \item calculator: 程序种类，如未给出则按照jobPrefix文件名判断，可用值：
+    {vasp, gulp, lammps, emt, xtb, lj, quip}
+    \item mode: 运行方式，可用值: serial (串行), parallel (并行)
+    \item xc: （VASP）交换关联类型，可用值: PBE, LDA, PW-91
+    \item ppLabel: （VASP）VASP赝势的后缀，与symbols顺序一致，若无后缀则填入''，如：['\_sv', '']。
+    \item exeCmd: (gulp, lammps) 运行结构优化程序的命令，如gulp < input > output，mpirun -np 4 lmp\_mpi -in in.lammps
+\end{itemize}
+以下选项为并行模式下的队列控制选项，同样适用于代理计算器
+\begin{itemize}
+    \item numParallel: 并行优化结构的数目
+    \item numCore: 结构优化使用的核数
+    \item queueName: 结构优化任务的队列
+    \item verbose: log中是否显示详细队列信息
+    \item waitTime: 检查任务的时间间隔(s)
+    \item killTime: 杀死任务的时间间隔(s)
+    \item Preprocessing: 提交脚本时的预处理
+\end{itemize}
+
+\subsubsection{代理计算器}
+代理计算器定义了MLMagus搜索时使用的MLCalculator，以下所有参数都定义于MLCalculator条目下，需要缩进：
+\begin{itemize}
+    \item jobPrefix: 同\ref{jobprefix}
+    \item calculator: 程序种类，如未给出则按照jobPrefix文件名判断，可用值：
+    {mtp, mtp-lammps}
+    \item connect: 多个mtp的连接方式，可用值：[naive, share-trainset]
+    \item force\_tolerance: 结构优化力收敛判据，默认值：0.05
+    \item stress\_tolerance: 结构优化应力收敛判据，默认值：1.
+    \item weights: 训练时能量、力、应力权重，默认值：[1., 0.01, 0.001]
+    \item scaled\_by\_force：训练时给予较小力的额外权重，默认值：0.
+    \item min\_dist: 优化时最小距离, 默认值：0.5
+    \item n\_epoch：训练代数，默认值：200
+    \item init\_times：初始化力场次数，如果已有训练过的力场可设为0.默认值：2 
+\end{itemize}
+
+\subsection{inputFold} \label{inputfold}
+\file{inputFold}中为不同calculator所需要的补充文件，放在对应的\file{jobPrefix}文件夹中。
+以下为各calculator所需文件的示例，内容可根据需要修改（名字不行）：
+\subsubsection{Vasp}
+\begin{tcolorbox}[enhanced, breakable, title = {INCAR}]
+就是INCAR
+\tcblower
+\begin{verbatim}                                
+PREC = Accurate
+EDIFF = 1e-4
+EDIFFG = 1e-3
+IBRION = 2
+ISIF = 3
+NSW = 40
+ISMEAR = 0
+SIGMA = 0.050
+POTIM = 0.250
+ISTART = 0
+LCHARG = FALSE
+LWAVE = FALSE
+KSPACING = 0.314
+NCORE= 4
+\end{verbatim}
+\end{tcolorbox}
+注意：\file{INCAR}中不需要给出pstress
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Gulp输入文件
+\subsubsection{Gulp}
+% relax文件
+\begin{tcolorbox}[enhanced, breakable, title = {goption.relax}]
+gulp优化参数配置
+\tcblower
+\begin{verbatim}                                
+    opti conjugate nosymmetry conp
+\end{verbatim}
+\end{tcolorbox}
+% scf文件
+\begin{tcolorbox}[enhanced, breakable, title = {goption.scf}]
+gulp自洽参数配置
+\tcblower
+\begin{verbatim}                                
+    nosymmetry conp gradients
+\end{verbatim}
+\end{tcolorbox}
+% 势函数
+\begin{tcolorbox}[enhanced, breakable, title = {goption.scf}]
+gulp势函数文件
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text}                                
+space                                                                                                         
+1
+species
+Mg  2.0 
+Al  3.0 
+O  -2.0
+lennard 12 6
+Mg O   1.50 0.00 0.00 6.0 
+Al O   1.50 0.00 0.00 6.0 
+O O    1.50 0.00 0.00 6.0 
+Mg Mg  1.50 0.00 0.00 6.0 
+Mg Al  1.50 0.00 0.00 6.0 
+Al Al  1.50 0.00 0.00 6.0 
+buck
+Mg O 1428.5 0.2945 0.0 0.0 7.0 
+Al O 1114.9 0.3118 0.0 0.0 7.0 
+O O  2023.8 0.2674 0.0 0.0 7.0 
+maxcyc 850 
+switch rfo 0.010
+time 60
+\end{minted}
+\end{tcolorbox}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Lammps输入文件
+\subsubsection{Lammps}
+% relax文件
+\begin{tcolorbox}[enhanced, breakable,title = {in.relax}]
+lammps优化参数配置，可替换为分子动力学等等
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text}                                
+clear
+atom_style atomic 
+units metal
+boundary p p p 
+read_data data            #此行不可更改
+### interactions
+pair_style lj/cut 2.5 
+pair_coeff * * 1 1 
+mass 1 35.450000 
+mass 2 22.989769 
+### run 
+fix fix_nve all nvt temp 300.0 300.0 100 
+dump dump_all all custom 1 out.dump id type x y z vx vy vz fx fy fz
+# 最终输出必须为 out.dump
+thermo_style custom step temp press pxx pyy pzz pxy pxz pyz ke pe etotal
+# 需要pxx pyy pzz pxy pxz pyz
+thermo 1
+run 10
+\end{minted}
+\end{tcolorbox}
+% scf文件
+\begin{tcolorbox}[enhanced, breakable, title = {in.scf}]
+lammps自洽计算参数配置
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text}                               
+clear
+atom_style atomic 
+units metal
+boundary p p p 
+read_data data
+### interactions
+pair_style lj/cut 2.5 
+pair_coeff * * 1 1 
+mass 1 35.450000 
+mass 2 22.989769 
+### run 
+fix fix_nve all nve 
+dump dump_all all custom 1 out.dump id type x y z vx vy vz fx fy fz
+thermo_style custom step temp press pxx pyy pzz pxy pxz pyz ke pe etotal
+thermo 1
+run 10
+\end{minted}
+\end{tcolorbox}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ASE输入文件
+\subsubsection{ASE系列 (EMT, LJ, XTB\dots)}
+\begin{tcolorbox}[enhanced, breakable, title = {EMT, LJ, XTB\dots}]
+建个文件夹就完事了，除非如XTB需要相关配置文件
+\tcblower
+xtb.yaml \\下次一定
+\end{tcolorbox}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MTP输入文件
+% mlip.ini
+\subsubsection{MTP}
+\begin{tcolorbox}[enhanced, breakable, title = {mlip.ini}]
+active learning控制参数，详见
+\textcolor{blue}{\url{https://git.nju.edu.cn/bigd4/mtp-api/-/blob/master/doc/manual/manual.pdf}}
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+mtp-filename                        pot.mtp                 #改不得                                                                 
+select                              TRUE                  
+    select:site-en-weight           1.0     
+    select:energy-weight            0.0   
+    select:force-weight             0.0  
+    select:stress-weight            0.0 
+    select:threshold                1.5 
+    select:threshold-break          7.0 
+    select:save-selected            B-preselected.cfg       #改不得
+    select:load-state               A-state.als             #改不得
+\end{minted}
+\end{tcolorbox}
+%pot.mtp
+\begin{tcolorbox}[enhanced, breakable, title = {pot.mtp}]
+mtp使用势场，可从untrained\_mtps中拷贝，仅可改变标注了作用的参数。
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+MTP                                                                                                           
+version = 1.1.0
+potential_name = MTP1m
+species_count = 1                 # 原子种类数量
+potential_tag = 
+radial_basis_type = RBChebyshev
+    min_dist = 2                  # 原子最小间距
+    max_dist = 5                  # 原子环境最大考虑半径
+    radial_basis_size = 8         # 基函数个数
+    radial_funcs_count = 3 
+alpha_moments_count = 84
+alpha_index_basic_count = 46     
+\end{minted}
+\end{tcolorbox}
+%train.cfg
+\begin{tcolorbox}[enhanced, breakable, title = {train.cfg}]
+训练集，若不存在，将自动生成空训练集
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+BEGIN_CFG                                                                                                     
+Size
+4
+Supercell
+2.457244 0.0 0.0
+0.0 -2.457244 0.0
+0.0 0.0 -2.457244
+AtomData: id type cartes_x cartes_y cartes_z fx fy fz 
+1 0 0.0 0.0 0.0 0.0 -0.0 0.0 
+2 0 0.0 -1.228622 -1.228622 0.0 -0.0 -0.0  
+3 0 1.228622 -1.228622 0.0 -0.0 0.0 0.0 
+4 0 1.228622 0.0 -1.228622 0.0 -0.0 -0.0  
+Energy
+-15.79300182
+EnergyWeight
+0.02195049074783156
+PlusStress: xx yy zz yz xz xy 
+26.253439887628005 26.253439887628005 26.253439887628005 -0.0 0.0 0.0
+END_CFG    
+\end{minted}
+\end{tcolorbox}
+\subsection{Seeds} \label{seed}
+%POSCARS_i
+POSCARS\_i为第i代加入的种子文件，如有\file{POSCAR\_1}$\sim$\file{POSCAR\_9}希望在第一代加入，
+\file{POSCAR\_10}$\sim$\file{POSCAR\_19}希望第二代加入，执行\code{cat POSCAR\_\{1..9\} > POSCARS\_1};
+\code{cat POSCAR\_\{10..19\} > POSCARS\_2}后将\file{POSCARS\_1}与\file{POSCARS\_2}放入\file{Seeds}中即可。
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{程序指令}
+\file{magus}文件为程序运行的入口，通过运行\file{magus}可以得到所有的指令与介绍，
+通过 \code{magus [commond] -h} 可获得其帮助。
+\begin{center}
+\begin{tabular}{p{100pt}<{\centering} p{200pt}<{\centering}}
+    \toprule
+    指令                   & 用途 \\
+    \midrule 
+    search~\ref{search}    & 结构搜索 \\
+    summary~\ref{summary}  & 事后总结 \\
+    clean                  & 事后清理 \\
+    prepare                & 事前准备 \\
+    calc~\ref{calc}        & 批量计算 \\
+    gen~                   & 批量产生 \\
+    \bottomrule
+\end{tabular}
+\end{center}
+\subsection{search} \label{search}
+结构搜索模块，使用时直接提交命令\code{magus search}即可。可选择参数如下：
+\begin{itemize}
+    \item -h --help \\
+    展示帮助文档
+    \item -i INPUTFILE, --input-file INPUTFILE \\
+    指定输入参数文件，默认为\file{input.yaml}
+    \item -l LEVEL, --log-level LEVEL\\
+    指定log.txt文件logging等级，可选项：DEBUG,INFO,WARNING,ERROR。默认为INFO
+    \item -m, --use-ml   \\ 
+    是否使用机器学习模块
+    \item -r, --restart \\   
+    是否为继续上次任务，使用此选项目录内应保留上次作业的\file{results}与\file{log.txt}
+\end{itemize}
+\subsection{summary} \label{summary}
+用于总结一条或多条ase traj格式的轨迹，参数如下：
+\begin{itemize}
+    \item -h --help \\
+    展示帮助文档
+    \item -p PREC, --prec PREC  \\
+    判断空间群的精度，默认值为0.1
+    \item -r, --reverse     \\    
+    是否倒着输出，默认正着输出
+    \item -s, --save \\ 
+    是否将此轨迹中所有结构输出为POSCAR，默认不输出，以防文件夹很乱
+    \item -o OUTDIR, --outdir OUTDIR\\
+    POSCAR输出的目录
+    \item  -n SHOW\_NUMBER, --show-number SHOW\_NUMBER \\
+    展示条目数量，默认为20
+    \item  -sb SORTED\_BY, --sorted-by SORTED\_BY\\
+    用哪个关键字排序，默认为enthalpy
+    \item -rm REMOVE\_FEATURES [REMOVE\_FEATURES ...], 
+    --remove-features REMOVE\_FEATURES [REMOVE\_FEATURES ...]\\
+    需要移除展示的信息
+    \item -a ADD\_FEATURES [ADD\_FEATURES ...], 
+    --add-features ADD\_FEATURES [ADD\_FEATURES ...]\\
+    需要附加展示的其他信息
+\end{itemize}
+一个例子如下：
+\begin{tcolorbox}[enhanced, breakable]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash} 
+$ magus summary good.traj ref.traj -a volume -rm priSym parentE -n 10
+    \end{minted}
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+        symmetry  enthalpy  origin fullSym   volume source
+1   I-43d (220)     0.412   random    Li16  123.164    ref
+2   Cmc2_1 (36)     0.416     seed    Li88  647.965   good
+3     Aea2 (41)     0.419     None    Li40  301.519    ref
+4     Ama2 (40)     0.419   random    Li88  645.352   good
+5    P3c1 (158)     0.422   Rattle    Li88  644.677   good
+6        Cc (9)     0.423   Rattle    Li88  646.661   good
+7        Cm (8)     0.427  Lattice    Li88  649.852   good
+8        P1 (1)     0.427     Slip    Li88  647.470   good
+9     Aea2 (41)     0.429   random    Li88  647.528   good
+10    Aea2 (41)     0.429   Rattle    Li88  647.652   good
+\end{minted} 
+\end{tcolorbox}
+
+\subsection{calc} \label{calc}
+根据\file{input.yaml}中定义的calculator，计算给出的traj，结果会输出于\file{out.traj}，
+可用\code{magus summary out.traj}命令查看。
+\begin{itemize}
+    \item -h --help \\
+    展示帮助文档
+    \item -m MODE, --mode MODE \\
+    计算类型，可用值：scf, relax. 默认为relax
+    \item -i INPUTFILE, --input-file INPUTFILE  \\    
+    指定参数所在文件，默认为\file{input.yaml}
+    \item -p PRESSURE, --pressure PRESSURE \\ 
+    指定压强，若不给出则使用INPUTFILE中给出的压强
+\end{itemize}
+如若需对\file{in.traj}中的结构在10GPa下优化，运行命令为：
+\begin{tcolorbox}
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash} 
+$ magus calc in.traj -p 10
+    \end{minted}
+\end{tcolorbox}
+此命令与MtpCalculator或MTPLammpsCalculator结合，可以on the fly的得到机器学习的训练集。
+\newpage
+\section{输出文件}
+结构搜索过程中，将会产生\file{log.txt},\file{calcFold}与\file{results}, 如果搜索时加入-m选项，
+会额外产生\file{MLFold}。
+\subsection{calcFold}
+\file{calcFold}中为\file{input.yaml}定义的计算器计算过程中所产生的文件。
+一个典型的结构搜索任务将产生如下结构的\file{calcFold}：
+
+\begin{verbatim}
+        calcFold
+        ├── MTP
+        │   ├── epoch00
+        │   ├── epoch01
+        │   ├── epoch02
+        │   └── job_controller
+        └── Vasp
+            ├── 00
+            ├── 01
+            ├── 02
+            ├── 03
+            └── job_controller
+\end{verbatim}
+\par
+如果并行模式计算过程中发生错误，报错信息将在对应的文件夹中出现。
+此外，并行模式中计算器文件夹下会产生\file{job\_controller}文件，
+可通过修改其中内容改变作业提交的参数。如：
+
+\begin{center}
+    \begin{tabular}{p{200pt}<{\centering} p{200pt}<{\centering}}
+        \begin{tcolorbox}[title=old\_job\_controller]
+            \begin{minted}[breaklines, breaksymbolleft={},]{yaml} 
+kill_time: 100000                                                             
+num_core: 48
+pre_processing: ''
+queue_name: 9242opa!
+verbose: false
+            \end{minted}
+        \end{tcolorbox}                   
+        & 
+        \begin{tcolorbox}[title=new\_job\_controller]
+            \begin{minted}[breaklines, breaksymbolleft={},]{yaml} 
+kill_time: 100000                                                              
+num_core: 64
+pre_processing: ''
+queue_name: 7702ib
+verbose: false
+            \end{minted}
+        \end{tcolorbox}
+    \end{tabular}
+\end{center}
+\par
+这些改变将被记录在\file{log.txt}中：
+\begin{tcolorbox}[title=log.txt]
+    \begin{minted}[breaklines, breaksymbolleft={},]{text} 
+Be careful, the following settings are changed                                                
+    num_core: 48 -> 64
+    queue_name: 9242opa! -> 7702ib
+    \end{minted}
+\end{tcolorbox}                   
+
+\subsection{mlFold}
+\file{mlFold}中为\file{input.yaml}中定义的机器学习模块执行挑选、训练的部分。
+如果提交任务时此文件夹不存在，将会使用\file{inputFold}中对应的文件。
+训练或挑选中发生错误报错信息将在对应文件夹中出现，此外，可在\file{train-out}中查看训练集上的误差。
+\par
+若已经进行过一次MLMagus搜索并得到了一个不错的势，可以不用删除\file{mlFold}以在以后的搜索中使用；
+或者复制\file{pot.mtp}与\file{train.cfg}到其他\file{inputFold}中反复使用。
+此时可将init\_times设为0，代表不再在初始化时训练力场。
+\subsection{results}
+\file{results}中记录了各代生成的各种结构，可根据需要使用summary命令查看。
+\begin{itemize}
+    \item \file{good.traj}\\
+    目前最优的popSize个结构
+    \item \file{good\{i\}.traj}\\
+    第i代最优的popSize个结构
+    \item \file{best.traj}\\
+    历代最优的结构，使用summary查看时注意需添加-sb None或--sorted\_by None选项，
+    否则会默认按焓值排序显示而不是代数的顺序
+    \item \file{keep\{i\}.traj}\\
+    第i代经过聚类后保留的goodSize个结构
+    \item \file{init\{i\}.traj}\\
+    第i代产生的初始结构
+    \item \file{raw\{i\}.traj}\\
+    第i代的初始结构经过第一性结构优化后的结构，可用于debug
+    \item \file{gen\{i\}.traj}\\
+    第i代种群，一般为raw\{i\}.traj或mlraw\{i\}.traj经过check后的结果
+    若机器学习搜索使用第一性验证，则为mlraw\{i\}.traj中低能结构第一性优化后额结果。
+    第一性验证则为
+    \item \file{mlraw\{i\}.traj}\\
+    第i代的初始结构经过机器学习结构优化后的结构，可用于debug
+    \item \file{mlgen\{i\}.traj}\\
+    mlraw\{i\}.traj经过check的结果
+\end{itemize}
+\newpage
+\section{例子}
+\subsection{\texorpdfstring{$NH_4NO_3$分子晶体产生}{分子晶体产生}} \label{molgen}
+目标：
+产生10个$Pccn$的$NH_4NO_3$分子晶体。\par
+准备：\file{input.yaml}, \file{NH4.xyz}, \file{NO3.xyz}
+% input.yaml
+\begin{tcolorbox}[enhanced, breakable, title = {\file{input.yaml}}]
+结构产生控制文件
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{yaml}
+    minAt: 72                        # 最小原子数
+    maxAt: 72                        # 最大原子数
+    symbols: ['H', 'N', 'O']         # 待产生结构所含元素
+    molMode: True                    # 分子晶体模式
+    molFile: ['NH4.xyz', 'NO3.xyz']  # 所含分子结构
+    molFormula: [1, 1]               # 分子组分
+    molType: 'fix'
+    spacegroup: [56]                 # 指定56号空间群Pccn
+    dRatio: 0.8                      # 原子间最小距离比
+    threshold_mol: 1.5               # 分子间最小距离比
+    volRatio: 8                      # 体积比
+\end{minted}
+\end{tcolorbox}
+% NH4.xyz
+\begin{tcolorbox}[enhanced, breakable, title = {\file{NH4.xyz}}]
+    \begin{minted}[breaklines, breaksymbolleft={},]{text} 
+    5                                                                                 
+    NH4
+    H    4.511281    4.375470    3.210227
+    H    3.584655    4.486488    1.796710
+    H    4.670180    3.191076    2.019142
+    H    3.246077    3.272899    2.937012
+    N    4.000271    3.837356    2.488938
+    \end{minted}
+\end{tcolorbox}
+% NO3.xyz
+\begin{tcolorbox}[enhanced, breakable, title = {\file{NO3.xyz}}]
+    \begin{minted}[breaklines, breaksymbolleft={},]{text} 
+    4                                                                                 
+    NO3
+    N    2.012707    2.014563    4.870574
+    O    1.714319    0.953807    5.478185
+    O    2.311095    3.075319    5.478185
+    O    2.012707    2.014563    3.582428
+\end{minted}
+\end{tcolorbox}
+运行：\code{magus gen -n 10} \par
+结果：目标结构\file{gen.traj}
+\subsection{MTP大批量优化随机结构} \label{mtpB}
+目标：使用MTP力场优化1000个$B_{12}$随机结构\par
+准备：待优化结构\file{gen.traj}，\file{inputFold}，\file{input.yaml},
+其中，inputFold结构为：
+\begin{verbatim}
+        inputFold/
+            ├── MTP
+            │   ├── mlip.ini
+            │   ├── pot.mtp
+            │   └── train.cfg
+            └── Vasp
+                └── INCAR
+\end{verbatim}
+
+% input.yaml
+\begin{tcolorbox}[enhanced, breakable, title = {\file{input.yaml}}]
+定义主计算器与机器学习计算器
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{yaml}
+#main calculator settings
+    MainCalculator:
+        jobPrefix: Vasp          # 标准能量由Vasp给出
+        #vasp settings
+        xc: PBE 
+        ppLabel: ['']
+        #parallel settings
+        numParallel: 20
+        numCore: 24
+        queueName: 9242opa!
+        waitTime: 30
+
+    MLCalculator:
+        jobPrefix: MTP
+        calculator: mtp
+        min_dist: 1.2           # MTPrelax最小距离
+        queueName: 9242opa!
+        numCore: 48
+        waitTime: 10
+        force_tolerance: 0.001 
+        stress_tolerance: 0.01
+\end{minted}
+\end{tcolorbox}
+% INCAR
+\begin{tcolorbox}[enhanced, breakable, title = {\file{INCAR}}]
+    不会有人不会写INCAR把
+    \tcblower
+    \begin{minted}[breaklines, breaksymbolleft={},]{text}                                                     
+    PREC = Accurate
+    EDIFF = 1e-4
+    IBRION = 2 
+    ISIF = 3 
+    NSW = 40
+    ISMEAR = 0 
+    SIGMA = 0.050
+    POTIM = 0.250
+    ISTART = 0 
+    LCHARG = FALSE
+    LWAVE = FALSE
+    #Crude optimisation
+    EDIFFG = 1e-3
+    KSPACING = 0.314
+    NCORE = 4
+    \end{minted}
+\end{tcolorbox}
+% pot.mtp
+\begin{tcolorbox}[enhanced, breakable, title = {\file{pot.mtp}}]
+    MTP势函数文件，这里只给出表头
+    \tcblower
+    \begin{minted}[breaklines, breaksymbolleft={},]{text}
+    MTP                                                                                   
+    version = 1.1.0
+    potential_name = MTP1m
+    scaling = 1.497018669914417e-02
+    species_count = 1                     # 只有B原子一种
+    potential_tag = 
+    radial_basis_type = RBChebyshev
+        min_dist = 1.277113860000000e+00  
+        # 最小距离1.27，由于train中设置了--update，此项不必特别设置，会自动更新
+        max_dist = 6.000000000000000e+00
+        radial_basis_size = 12
+        radial_funcs_count = 5
+    \end{minted}
+\end{tcolorbox}
+% mlip.ini
+\begin{tcolorbox}[enhanced, breakable, title = {\file{mlip.ini}}]
+    active控制文件
+    \tcblower
+    \begin{minted}[breaklines, breaksymbolleft={},]{text}
+    mtp-filename                    pot.mtp                                               
+    select                          TRUE               
+        select:site-en-weight           1.0                  
+        select:energy-weight            0.0                  
+        select:force-weight             0.0                
+        select:stress-weight            0.0                 
+        select:threshold                1.5                
+        select:threshold-break          7.0               
+        select:save-selected            B-preselected.cfg   
+        select:load-state               A-state.als        
+    \end{minted}
+\end{tcolorbox}
+运行：提交\code{magus calc gen.traj}命令到队列\par
+结果：MTP优化后的结构\file{out.traj}，
+势文件\file{mlFold/MTP/pot.mtp}
+\subsection{\texorpdfstring{$TiO_2$定组分结构搜索}{TiO2定组分结构搜索}} \label{fixsearch}
+目标：搜索12个原子$TiO_2$的结构\par
+准备：\file{input.yaml}, \file{inputFold}\par
+由于初始结构往往杂乱无章，因此往往使用多个\file{INCAR}分步优化,
+据说合适的做法是固定体积优化原子位置与晶格形状(ISIF=4),
+然后放开体积限制优化原子位置与晶格(ISIF=3), 
+最后进行高精度的单点能自洽运算(NSW=0)
+% input.yaml
+\begin{tcolorbox}[enhanced, breakable, title = {\file{input.yaml}}]
+    给出搜索所需参数
+    \tcblower
+    \begin{minted}[breaklines, breaksymbolleft={},]{yaml}
+    calcType: fix                 # 定组分搜索
+    pressure: 0                   # 0GPa
+    initSize: 20                  # 初始生成20个结构
+    popSize: 20                   # 每代维持20个结构
+    numGen: 10                    # 搜索10代                                                                                      
+    saveGood: 3                   # 每代保存3个结构
+
+    #structure parameters
+    minAt: 12                     
+    maxAt: 12
+    symbols: ['Ti', 'O']
+    formula: [1, 2]
+
+    dRatio: 0.6                   # 最小半径比
+    volRatio: 3                   # 最小体积比
+    addSym: False                 # 不在父代中加入对称性
+
+    #main calculator settings
+    MainCalculator:
+        jobPrefix: ['q', 'w', 'e' ,'r']
+        # 这里只是为了说明只要给出calculator，jobPrefix可以随意命名，实际建议用更清晰的方式命名。
+        calculator: vasp
+        mode: parallel
+        #vasp settings
+        xc: PBE 
+        ppLabel: ['', '_s']
+        #parallel settings
+        numParallel: 5
+        queueName: 7702ib
+        waitTime: 30
+    \end{minted}
+    \end{tcolorbox}
+
+\begin{paracol}{2}
+    \begin{tcolorbox}[enhanced, breakable, title=\file{q/INCAR}]
+        \begin{minted}[breaklines, breaksymbolleft={},]{text} 
+PREC = Normal
+EDIFF = 1e-3
+IBRION = 2 
+ISIF = 4 
+NSW = 85
+ISMEAR = 0
+SIGMA = 0.06
+POTIM = 0.20
+LCHARG = FALSE
+LWAVE = FALSE
+#Crude optimisation
+EDIFFG = 1e-2
+KSPACING = 1.256
+LREAL = A 
+ALGO = Fast
+        \end{minted}
+    \end{tcolorbox}                   
+    %
+    \begin{tcolorbox}[enhanced, breakable, title=\file{e/INCAR}]
+        \begin{minted}[breaklines, breaksymbolleft={},]{text} 
+PREC = Normal
+EDIFF = 1e-4
+IBRION = 2 
+ISIF = 3 
+NSW = 70
+ISMEAR = 0
+SIGMA = 0.060
+POTIM = 0.250
+ISTART = 0 
+LCHARG = FALSE
+LWAVE = FALSE
+#Crude optimisation
+EDIFFG = 1e-3
+KSPACING = 0.618
+#ALGO = Fast
+        \end{minted}
+    \end{tcolorbox}  
+    \switchcolumn[1]
+    \begin{tcolorbox}[enhanced, breakable, title=\file{w/INCAR}]
+        \begin{minted}[breaklines, breaksymbolleft={},]{text} 
+PREC = Normal
+EDIFF = 1e-3
+IBRION = 2 
+ISIF = 3 
+NSW = 100 
+ISMEAR = 0
+SIGMA = 0.060
+POTIM = 0.020
+LCHARG = FALSE
+LWAVE = FALSE
+#Crude optimisation
+EDIFFG = 1e-2
+KSPACING = 0.942
+LREAL = A 
+ALGO = Fast
+        \end{minted}
+    \end{tcolorbox}           
+    %
+    \begin{tcolorbox}[enhanced, breakable, title=\file{r/INCAR}]
+        \begin{minted}[breaklines, breaksymbolleft={},]{text} 
+PREC = Normal
+EDIFF = 1e-4
+IBRION = 2 
+ISIF = 2 
+NSW = 0 
+ISMEAR = 0 
+SIGMA = 0.060
+POTIM = 0.250
+ISTART = 0 
+LCHARG = FALSE
+LWAVE = FALSE
+#Crude optimisation
+EDIFFG = 1e-3
+KSPACING = 0.618
+#ALGO = Fast
+        \end{minted}
+    \end{tcolorbox}
+\end{paracol}
+运行：提交\code{magus search}到队列\par
+结果：搜索结果\file{results/good.traj}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{\texorpdfstring{$Zn_x(OH)_y$变组分结构搜索}{ZnOH变组分结构搜索}}
+目标：搜索8-16个原子$Zn_x(OH)_y$的结构\par
+准备：\file{input.yaml}, \file{inputFold}\par
+使用Gulp经验势优化，因此种群数目与代数可以大大增加。
+% input.yaml
+\begin{tcolorbox}[enhanced, breakable, title = {\file{input.yaml}}]
+    给出搜索所需参数
+    \tcblower
+    \begin{minted}[breaklines, breaksymbolleft={},]{yaml}
+    calcType: var               # 变组分搜索
+    pressure: 0
+    initSize: 150 
+    popSize: 150 
+    numGen: 60
+    saveGood: 8
+    #structure parameters
+    minAt: 8
+    maxAt: 16
+    symbols: ['Zn','O','H']
+    formula: [[1,0,0],[0,1,1]]  # Zn : (OH) = 1 : 1
+    fullEles: True
+    eleSize: 5
+    dRatio: 0.5 
+    volRatio: 10
+    addSym: False
+    #main calculator settings
+    MainCalculator:
+        jobPrefix: ['Gulp1', 'Gulp2']  
+        # 若jobPrefix给出计算器名称，可不指定calculator                                                 
+        mode: parallel
+        #gulp settings
+        exeCmd: gulp < input > output
+        #parallel settings
+        numParallel: 5
+        numCore: 4
+        queueName: e52692v2ib!
+        waitTime: 30
+    \end{minted}
+    \end{tcolorbox}
+
+\begin{tcolorbox}[enhanced, breakable, title=\file{Gulp1/gpot}]
+定义gulp所使用的势，其中\file{ReaxFF.lib}是相应的反应力场文件
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+    time 240                                                                                                                    
+    space
+    1
+    maxcyc 300 
+    library ./ReaxFF.lib
+    lennard epsilon
+    Zn  Zn  0.0150 1.00 0.0 8.0 
+    Zn  O   0.0150 1.00 0.0 8.0 
+    Zn  H   0.0150 0.80 0.0 8.0 
+    H  H    0.0150 0.60 0.0 8.0 
+    O  O    0.0150 0.80 0.0 8.0 
+    H  O    0.0150 0.80 0.0 8.0
+\end{minted}
+\end{tcolorbox}
+\begin{tcolorbox}[enhanced, breakable, title=\file{Gulp1/goption.relax}]
+relax所使用命令，conv代表第一代粗优固定晶格优化
+\tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+    opti spatial conj nosymmetry conv
+\end{minted}
+\end{tcolorbox}   
+%
+类似的：
+\begin{tcolorbox}[enhanced, breakable, title=\file{Gulp2/gpot}]
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+    time 240                                                                                                                    
+    space
+    1
+    maxcyc 300 
+    library ./ReaxFF.lib
+\end{minted}
+\end{tcolorbox}
+\begin{tcolorbox}[enhanced, breakable, title=\file{Gulp1/goption.relax}]
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+    opti spatial conj nosymmetry conv
+\end{minted}
+\end{tcolorbox}
+运行：提交\code{magus search}到队列\par
+结果：搜索结果\file{results/good.traj}
+\subsection{\texorpdfstring{$MgSiO_3$机器学习结构搜索}{MgSiO3机器学习结构搜索}}
+目标：使用MTP加速搜索10-20个原子$MgSiO_3$的结构\par
+准备：\file{input.yaml}, \file{inputFold}\par
+与\ref{mtpB}类似，准备好相应的\file{pot.mtp}, \file{mlip.ini}, 
+不同的是需要把\file{pot.mtp}中的原子种类改为3种
+% input.yaml
+\begin{tcolorbox}[enhanced, breakable, title = {\file{input.yaml}}]
+    搜索所需参数，计算器部分与\ref{mtpB}类似，不再赘述
+    \tcblower
+    \begin{minted}[breaklines, breaksymbolleft={},]{yaml}
+    calcType: fix                                                              
+    poolSize: 2000    # 预训练生成的代挑选随机结构，可以设的很大
+    initSize: 400
+    popSize: 400
+    numGen: 60
+    saveGood: 3
+
+    #structure parameters
+    DFTRelax: False   # 不使用DFT验证能量
+    minAt: 10
+    maxAt: 20
+    symbols: ['Mg','Si','O']
+    formula: [1, 1, 3]
+    molDetector: 2    # 2号分子探测算法
+    dRatio: 0.8 
+    volRatio: 1.3 
+    randFrac: 0.4 
+    pressure: 150 
+    addSym: True
+    softNum: 0
+    \end{minted}
+\end{tcolorbox}
+%
+\begin{tcolorbox}[enhanced, breakable, title=\file{MTP/pot.mtp}]
+    表头部分，主要区别为分子种类被替换成了3
+    \tcblower
+\begin{minted}[breaklines, breaksymbolleft={},]{text} 
+    MTP                                                                        
+    version = 1.1.0
+    potential_name = MTP1m
+    scaling = 7.002314814814817e-01
+    species_count = 3 
+    potential_tag = 
+    radial_basis_type = RBChebyshev
+        min_dist = 5.000000000000000e-01
+        max_dist = 5.000000000000000e+00
+        radial_basis_size = 12
+        radial_funcs_count = 4
+\end{minted}
+\end{tcolorbox}
+运行：提交\code{magus search -m}到队列\par
+结果：搜索结果\file{results/good.traj}
+\subsection{\texorpdfstring{$CH_4$分子晶体搜索}{CH4分子晶体搜索}}
+目标：甲烷晶体结构搜索
+准备：\file{input.yaml}, \file{inputFold}, \file{CH4.xyz}\par
+\file{input.yaml}可参照\ref{molgen}与\ref{fixsearch}中的设置：
+\begin{tcolorbox}[enhanced, breakable, title=\file{MTP/pot.mtp}]
+\begin{minted}[breaklines, breaksymbolleft={},]{yaml} 
+    calcType: fix                                                              
+    initSize: 20
+    popSize: 20
+    numGen: 40
+    saveGood: 3
+    pressure: 50
+    minAt: 20
+    maxAt: 20
+    symbols: ['C', 'H']
+    ## mol crystal
+    molMode: True
+    molFile: ['CH4.xyz']
+    molFormula: [4] 
+    molType: 'fix'
+    chkMol: True
+    addSym: True
+    
+    dRatio: 0.8 
+    volRatio: 5
+    randFrac: 0.4 
+    molDetector: 2
+    
+    #main calculator settings
+    MainCalculator:
+        jobPrefix: ['Vasp1', 'Vasp2']
+        mode: parallel
+        #vasp settings
+        xc: PBE 
+        ppLabel: ['','']
+        #parallel settings
+        numParallel: 4
+        numCore: 24
+        queueName: 9242opa!
+\end{minted}
+\end{tcolorbox}
+\begin{tcolorbox}[enhanced, breakable, title=\file{MTP/pot.mtp}]
+    \begin{minted}[breaklines, breaksymbolleft={},]{text} 
+    5                                                                          
+    C  H   
+    C    2.260984    1.227715    2.255654
+    H    2.597307    0.217093    2.238728
+    H    1.194544    1.227505    2.236584
+    H    2.611534    1.725297    1.379429
+    H    2.590593    1.698611    3.156207
+    \end{minted}
+\end{tcolorbox}
+运行：提交\code{magus search} 到队列\par
+结果：搜索结果\file{results/good.traj}
+\newpage
+\section{常见问题}
+\end{document}

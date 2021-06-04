@@ -107,13 +107,13 @@ class MLMagus(Magus):
             DFTRelaxedPop = self.Population(dft_relaxed_pop, 'dft_relaxed_pop', self.curgen)
             DFTRelaxedPop.find_spg()
             DFTRelaxedPop.del_duplicate()
-            DFTRelaxedPop.save('gen', self.curgen)
             self.curPop = DFTRelaxedPop
             to_add = self.select_to_add(dft_relaxed_pop)
             self.ml_calculator.updatedataset(to_add)
             self.ml_calculator.train()
         else:
             self.curPop = relaxPop
+        self.curPop.save('gen', self.curgen)
         self.set_goodPop()
         self.goodPop.save('good', '')
         self.goodPop.save('good', self.curgen)

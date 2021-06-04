@@ -2,7 +2,7 @@ import numpy as np
 from ase.atoms import Atoms
 import re
 from ase.units import GPa, eV, Ang
-
+# TODO: 0d, 1d, 2d...
 
 def dump_gulp(atoms, filename, mode='w'):
     with open(filename, mode) as f:
@@ -17,7 +17,7 @@ def dump_gulp(atoms, filename, mode='w'):
 
 def load_gulp(filename):
     pv = 0
-    forces, symbols, positions, cell, stress = [], [], [], [], []
+    forces, stress = [], []
     i = 0
     with open(filename) as f:
         lines = f.readlines()
@@ -33,6 +33,7 @@ def load_gulp(filename):
                 i += 1
             forces = np.array(forces)
         if 'coordinates of atoms' in lines[i]:
+            positions, symbols = [], []
             scaled = 'fractional' in lines[i]
             i += 6
             while '------' not in lines[i]:
@@ -45,7 +46,9 @@ def load_gulp(filename):
             for _ in range(6):
                 stress.append(lines[i].split()[4])
                 i += 1
-        if 'Final Cartesian lattice vectors' in lines[i]:
+        if 'Cartesian lattice vectors' in lines[i]:
+            # if set conv, first lattice will be read
+            cell = []
             i += 2
             for _ in range(3):
                 cell.append([float(c) for c in lines[i].split()])

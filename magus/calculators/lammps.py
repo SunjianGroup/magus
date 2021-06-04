@@ -7,7 +7,7 @@ from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
 #TODO: return None
 
-# units must be real!!
+# units must be metal!!
 class LammpsCalculator(ClusterCalculator):
     def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Lammps',
                  pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
@@ -26,28 +26,32 @@ class LammpsCalculator(ClusterCalculator):
         self.main_info.append('lammps_setup')
 
     def scf_job(self, index):
+        self.cp_input_to()
+        shutil.copy('in.scf', 'in.lammps')
         job_name = self.job_prefix + '_s_' + str(index)
-        shutil.copy("{}/in.scf".format(self.input_dir), 'in.lammps')
         with open('lammpsSetup.yaml', 'w') as f:
             f.write(yaml.dump(self.lammps_setup))
         content = "python -m magus.calculators.lammps lammpsSetup.yaml initPop.traj optPop.traj"
         self.J.sub(content, name=job_name, file='scf.sh', out='scf-out', err='scf-err')
 
     def relax_job(self, index):
+        self.cp_input_to()
+        shutil.copy('in.relax', 'in.lammps')
         job_name = self.job_prefix + '_r_' + str(index)
-        shutil.copy("{}/in.relax".format(self.input_dir), 'in.lammps')
         with open('lammpsSetup.yaml', 'w') as f:
             f.write(yaml.dump(self.lammps_setup))
         content = "python -m magus.calculators.lammps lammpsSetup.yaml initPop.traj optPop.traj"
         self.J.sub(content, name=job_name, file='relax.sh', out='relax-out', err='relax-err')
 
     def scf_serial(self, calcPop):
-        shutil.copy("{}/in.scf".format(self.input_dir), 'in.lammps')
+        self.cp_input_to()
+        shutil.copy('in.scf', 'in.lammps')
         opt_pop = calc_lammps(self.lammps_setup, calcPop)
         return opt_pop     
 
     def relax_serial(self, calcPop):
-        shutil.copy("{}/in.relax".format(self.input_dir), 'in.lammps')
+        self.cp_input_to()
+        shutil.copy('in.relax', 'in.lammps')
         opt_pop = calc_lammps(self.lammps_setup, calcPop)
         return opt_pop
 
@@ -91,7 +95,7 @@ def calc_lammps_once(lammps_setup, atoms):
     new_atoms.info['energy'] = energy
     new_atoms.info['forces'] = new_atoms.get_forces()
     new_atoms.info['stress'] = np.array(
-        [-thermo_content[-1][arg] for arg in ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")])
+        [-thermo_content[-1][arg] for arg in ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")]) * 1e-4
     if save_traj:
         with open('out.dump') as f:
             traj = read_lammps_dump_text(f, index=slice(None, None, None), specorder=specorder)
@@ -102,7 +106,7 @@ def calc_lammps_once(lammps_setup, atoms):
             new_atoms.info['energy'] = energy
             atoms.info['forces'] = atoms.get_forces()
             atoms.info['stress'] = np.array(
-                [-thermo_content[i][arg] for arg in ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")])
+                [-thermo_content[i][arg] for arg in ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")]) * 1e-4
         new_atoms.info['traj'] = traj
     return new_atoms
 

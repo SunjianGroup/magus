@@ -26,7 +26,7 @@ class Generator:
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
         Default={'threshold':1.0,'maxAttempts':50,'method':1, 'p_pri':0.,
-        'GetConventional': True, 'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3}
+        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
@@ -47,8 +47,7 @@ class Generator:
 
     def getVolumeandLattice(self,numlist):
         # Recalculate atomic radius, considering the change of radius in molecular crystal mode
-        atomicR = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
-        Volume = np.sum(4*np.pi/3*np.array(atomicR)**3*np.array(numlist))*self.p.volRatio
+        Volume = np.sum(4*np.pi/3*np.array(self.p.radius)**3*np.array(numlist))*self.p.volRatio
         minVolume = Volume*0.5
         maxVolume = Volume*1.5
         minLattice= [2*np.max(self.p.radius)]*3+[60]*3
@@ -67,7 +66,7 @@ class Generator:
             maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
         return minVolume,maxVolume,minLattice,maxLattice
 
-    def Generate_ind(self,spg,numlist):
+    def Generate_ind(self, spg, numlist):
         spg=int(spg)
         numType = len(numlist)
         generator = GenerateNew.Info()
@@ -88,8 +87,7 @@ class Generator:
         generator.method=self.p.method
         generator.forceMostGeneralWyckPos=False
         generator.UselocalCellTrans = 'y'
-        #generator.GetConventional = True if np.random.rand() > self.p.p_pri else False
-        generator.GetConventional = self.p.GetConventional
+        generator.GetConventional = True if np.random.rand() > self.p.p_pri else False
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
         # TODO should be encapsulated into HanYu code
@@ -231,7 +229,31 @@ class MoleculeGenerator(Generator):
         Default = {'molMode':True, 'symprec':0.1, 'threshold_mol': 1.0}
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [get_radius(mol) for mol in self.p.inputMols]
+        self.volume = [sum([4*np.pi/3*(covalent_radii[num])**3
+            for num in mol.get_atomic_numbers()])
+            for mol in self.p.inputMols ]
         checkParameters(self.p,parameters,[],{'radius':radius})
+
+    def getVolumeandLattice(self,numlist):
+        # Recalculate atomic radius, considering the change of radius in molecular crystal mode
+        Volume = np.sum(self.volume*np.array(numlist))*self.p.volRatio
+        minVolume = Volume*0.5
+        maxVolume = Volume*1.5
+        minLattice= [2*np.max(self.p.radius)]*3+[60]*3
+        # maxLattice= [maxVolume/2/np.max(self.p.radius)]*3+[120]*3
+        maxLattice= [maxVolume**(1./3)]*3+[120]*3
+        if self.p.minLattice:
+            minLattice = self.p.minLattice
+            minVolume = np.linalg.det(cellpar_to_cell(minLattice)) 
+        if self.p.maxLattice:
+            maxLattice = self.p.maxLattice
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice)) 
+        if self.p.fixCell:
+            minLattice = self.p.setCellPar
+            minVolume = np.linalg.det(cellpar_to_cell(minLattice))
+            maxLattice = [l+0.01 for l in minLattice]
+            maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
+        return minVolume,maxVolume,minLattice,maxLattice
 
     def afterprocessing(self,ind,nfm):
         ind.info['symbols'] = self.p.symbols
@@ -337,33 +359,22 @@ class VarGenerator(Generator):
 
 
 
-def read_seeds(parameters, seedFile, goodSeed=False):
+def read_seeds(seed_file):
     seedPop = []
-    setSym = parameters.symbols
-    setFrml = parameters.formula
-    minAt = parameters.minAt
-    maxAt = parameters.maxAt
-    calcType = parameters.calcType
-
-    if os.path.exists(seedFile):
-        if goodSeed:
-            readPop = ase.io.read(seedFile, index=':', format='traj')
-        else:
-            readPop = ase.io.read(seedFile, index=':', format='traj')
-        if len(readPop) > 0:
-            log.info("Reading Seeds ...")
-            
-        seedPop = readPop
-        #seedPop = read_bare_atoms(readPop, setSym, setFrml, minAt, maxAt, calcType)
-        for i, ind in enumerate(seedPop):
-            if 'origin' in ind.info:
-                seedPop[i].info['origin'] += '-seed'
-            else:
-                seedPop[i].info['origin'] = 'seed'
-            #if goodSeed:
-                #ind.info['origin'] = 'goodseed'
-            #else:
-                #ind.info['origin'] = 'seed'
+    if not os.path.exists(seed_file):
+        return []
+    if 'traj' in seed_file:
+        readPop = ase.io.read(seed_file, index=':', format='traj')
+    elif 'POSCARS' in seed_file:
+        readPop = ase.io.read(seed_file, index=':', format='vasp-xdatcar')
+    else:
+        try:
+            readPop = ase.io.read(seed_file, index=':')
+        except:
+            raise Exception("unknown file format: {}".format(seed_file))
+    seedPop = readPop
+    for i, ind in enumerate(seedPop):
+        ind.info['origin'] = 'seed'
     return seedPop
 
 def read_ref(bulkFile):
@@ -574,10 +585,12 @@ class ReconstructGenerator():
                     symtype = 'hex'
 
         if symtype == 'hex':
-            self.rcs_generator.p.GetConventional = False
+            #self.rcs_generator.p.GetConventional = False
+            self.rcs_generator.p.p_pri = 1
         elif symtype == 'default': 
-            self.rcs_generator.p.GetConventional = True
-
+            #self.rcs_generator.p.GetConventional = True
+            self.rcs_generator.p.p_pri = 0
+            
         self.rcs_generator.p.minLattice = list(self.reflattice *np.array([_x, _y]+[1]*4))
         self.rcs_generator.p.maxLattice = self.rcs_generator.p.minLattice
         return symtype

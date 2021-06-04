@@ -32,6 +32,7 @@ class OffspringCreator:
     def get_new_individual(self):
         pass
 
+
 class Mutation(OffspringCreator):
     def __init__(self, **kwargs):
         self.optype = 'Mutation'
@@ -49,7 +50,7 @@ class Mutation(OffspringCreator):
             if not chkMol:
                 newind.merge_atoms()
                 # if not newind.check_distance():
-                #     logging.debug("Too close atoms in merged ind!")
+                #     log.debug("Too close atoms in merged ind!")
                 if newind.repair_atoms():
                     break
             else:
@@ -57,9 +58,9 @@ class Mutation(OffspringCreator):
                 if newind.check_formula() and newind.check_mol():
                     break
         else:
-            logging.debug('fail {} in {}'.format(self.descriptor,ind.info['identity']))
+            log.debug('fail {} in {}'.format(self.descriptor,ind.info['identity']))
             return None
-        logging.debug('success {} in {}'.format(self.descriptor,ind.info['identity']))
+        log.debug('success {} in {}'.format(self.descriptor,ind.info['identity']))
         # remove some parent infomation
         rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull', 'energy','forces']
         for k in rmkeys:

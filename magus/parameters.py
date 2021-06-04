@@ -59,7 +59,7 @@ class magusParameters:
             'diffE': 0.01,
             'diffV': 0.05,
             #'ratNum': 0,
-            'comparator': 'energy',
+            'comparator': 'zurek',
         }
         if p.calcType=='rcs':
             log = logging.getLogger(__name__)

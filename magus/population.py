@@ -15,7 +15,7 @@ from .descriptor import ZernikeFp
 import copy
 from .molecule import Molfilter
 from ase.constraints import FixAtoms
-from .reconstruct import fixatoms, weightenCluster
+# from .reconstruct import fixatoms, weightenCluster
 from ase import neighborlist
 from scipy import sparse
 
@@ -43,17 +43,13 @@ def set_ind(parameters):
         return ClusInd(parameters)
 
 def set_comparator(parameters):
-    
-    from .comparator import FingerprintComparator, Comparator
     from .compare.naive import NaiveComparator
     from .compare.bruteforce import ZurekComparator
     from .compare.base import OrGate, AndGate
     from .reconstruct import OverlapMatrixComparator, OganovComparator
 
     if parameters.comparator == 'energy':
-        return Comparator(dE=parameters.diffE, dV=parameters.diffV)
-    elif parameters.comparator == 'fingerprint':
-        return FingerprintComparator(dE=parameters.diffE, dV=parameters.diffV)
+        return NaiveComparator(dE=parameters.diffE, dV=parameters.diffV)
     elif parameters.comparator == 'zurek':
         return AndGate([NaiveComparator(dE=parameters.diffE, dV=parameters.diffV), ZurekComparator()])
     elif parameters.comparator == 'ognv':
@@ -107,7 +103,7 @@ class Population:
             newPop.append(ind)
         return newPop
 
-    def append(self,ind):
+    def append(self, ind):
         if ind.__class__.__name__ == 'Atoms':
             ind = self.Individual(ind)
         elif isinstance(ind, Individual):
@@ -122,7 +118,7 @@ class Population:
         #    self.pop.append(ind)
         #    return True
 
-    def extend(self,pop):
+    def extend(self, pop):
         for ind in pop:
             self.append(ind)
 
@@ -305,7 +301,6 @@ class Individual:
         # if self.p.addSym:
         #     checkParameters(self.p,parameters,[],{'symprec':0.01})
 
-        #TODO add more comparators
         self.comparator = set_comparator(parameters)
         
         #fingerprint

@@ -5,9 +5,11 @@ test/
 .vscode
 .vs
 .history
+.VSCodeCounter
 paths.yaml
 examples/*/*
 !examples/*/inputFold
+!examples/*/*.xyz
 !examples/*/input.yaml
 !examples/*/job
 !examples/*/Seeds
@@ -15,7 +17,11 @@ examples/*/*
 mypps/
 run_vasp.py
 tools/csp*
-
+# tex info
+/doc/*
+!/doc/pic
+!/doc/manual.tex
+!/doc/manual.pdf
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
