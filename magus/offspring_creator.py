@@ -441,10 +441,15 @@ class LyrSymMutation(Mutation):
         atoms.translate([-np.dot(trans, atoms.get_cell())] * len(atoms))
         atoms.wrap()
 
-        if mult == 'm':
-            atoms = self.mirrorsym(atoms, r)
-        else:
-            atoms = self.axisrotatesym(atoms, r, mult)
+        try:
+            if mult == 'm':
+                atoms = self.mirrorsym(atoms, r)
+            else:
+                atoms = self.axisrotatesym(atoms, r, mult)
+        except:
+            pass
+        #Note: very very little possibility that some sym-ed cell are hollow in the center and no atoms left in the new resetedlattice.
+        #Avoiding this could be complicated, so use an try method.
         
         atoms.translate([np.dot(trans, atoms.get_cell())] * len(atoms))
         return ind(atoms)
@@ -645,6 +650,9 @@ class RattleMutation(Mutation):
 
     def mutate_sym(self, atoms):
         sym_ds = get_symmetry_dataset(atoms, self.symprec)
+        if sym_ds['international'] == 'P1':
+            return self.mutate_normal(atoms)
+
         eq_at = sym_ds['equivalent_atoms']
         #print("eq_at = {}, rot = {}, tran = {}".format(eq_at, sym_ds['rotations'], sym_ds['translations']))
 
@@ -677,9 +685,12 @@ class RattleMutation(Mutation):
                         else:
                             break
                     else:
-                        for i, index in enumerate(eq):
-                            atoms[index].position = newpos[i]
-                        break  
+                        newspg = spglib.get_spacegroup(newatoms, self.symprec)
+                        if not newspg == 'P1 (1)':
+                            for i, index in enumerate(eq):
+                                atoms[index].position = newpos[i]
+                            break  
+
         return atoms
        
 class CutAndSplicePairing(Crossover):

@@ -279,10 +279,9 @@ class Population:
         if delete_highE:
             enthalpys = [ind.atoms.info['enthalpy'] for ind in self.pop]
             high *= np.min(enthalpys)
-            logging.info("select without enthalpy higher than {} eV/atom, pop length before selecting: {}".format(high, len(self.pop)))
+            lenpop = len(self.pop)
             self.pop = [ind for ind in self.pop if ind.atoms.info['enthalpy'] <= high]
-            logging.info("select end with pop length: {}".format(len(self.pop)))
-            
+            log.info("select without enthalpy higher than {} eV/atom, pop length changed from {} to {}".format(high, lenpop, len(self.pop)))
 
     def bestind(self):
         # self.calc_dominators()
@@ -1124,6 +1123,24 @@ class RcsInd(Individual):
         extra = (self.layerslices[0]+self.layerslices[1]).get_cell_lengths_and_angles()[2] + self.p.vacuum
         self.volRatio = (top - extra/extended)*volume/self.get_ball_volume()
         return self.volRatio
+
+    def check_sym(self, atoms =None):
+        a = self.atoms if atoms is None else atoms
+        if spglib.get_spacegroup(a, self.p.symprec) == 'P1 (1)':
+            if np.random.rand() < 0.7:
+                return False
+        return True
+    
+    def check(self, atoms=None):    
+        if atoms is None:
+            a = self.atoms.copy()
+        else:
+            a = atoms.copy()
+        check_sym = self.check_sym(a)
+        if not check_sym:
+            log.debug("P1 structrue deleted. origin '{}'".format(self.atoms.info['origin'] if 'origin' in self.atoms.info else 'Unknown'))
+    
+        return super().check(atoms) and check_sym 
 
 class ClusInd(FixInd):
     def __init__(self, parameters):

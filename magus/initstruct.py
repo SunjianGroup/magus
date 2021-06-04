@@ -369,7 +369,7 @@ def read_seeds(parameters, seedFile, goodSeed=False):
 def read_ref(bulkFile):
     bulk = ase.io.read(bulkFile, index =':', format='traj')
     if len(bulk) >0:
-        logging.info("Reading Refslab ...")
+        log.info("Reading Refslab ...")
     
     from ase.constraints import FixAtoms
 
@@ -444,7 +444,7 @@ class ReconstructGenerator():
                 if getattr(_parameters,key) == requirement[key]:
                     pass
                 else:
-                    logging.info("warning: change user defined {} to {} to match rcs layer".format(key, requirement[key]))
+                    log.info("warning: change user defined {} to {} to match rcs layer".format(key, requirement[key]))
                     setattr(_parameters,key,requirement[key])
 
         self.rcs_generator =Generator(_parameters)
@@ -653,8 +653,8 @@ class ReconstructGenerator():
 
             self.reset_generator_lattice(_x,_y, spg)
             self.rcs_generator.p.choice = self.p.choice
-            #logging.debug("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
-            #logging.debug("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
+            #log.debug("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
+            #log.debug("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
             label,ind = self.rcs_generator.Generate_ind(spg,numlist)
 
             if label:

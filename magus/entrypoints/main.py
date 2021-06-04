@@ -216,6 +216,12 @@ def parse_args():
         default= 'Ref/layerslices.traj',
         help="traj of slab model, default is './Ref/layerslices.traj'",
     )
+    parser_slab.add_argument(
+        "slabfile",
+        type=str,
+        default= 'slab.vasp',
+        help="slab file",
+    )
     #generation energy analizer, a quick version of summary
     parser_ana = subparsers.add_parser(
         "analyze",
