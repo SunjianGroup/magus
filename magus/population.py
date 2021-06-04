@@ -51,7 +51,7 @@ def set_comparator(parameters):
     if parameters.comparator == 'energy':
         return NaiveComparator(dE=parameters.diffE, dV=parameters.diffV)
     elif parameters.comparator == 'zurek':
-        return AndGate([NaiveComparator(dE=parameters.diffE, dV=parameters.diffV), ZurekComparator()])
+        return OrGate([NaiveComparator(dE=parameters.diffE, dV=parameters.diffV), ZurekComparator()])
     elif parameters.comparator == 'ognv':
         default = {'diffComp': 0.1, 'width': 0.075, 'delta': 0.05, 'dimComp': 630, 'maxR': 15}
         checkParameters(parameters, parameters, [], default)

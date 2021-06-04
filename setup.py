@@ -1,7 +1,6 @@
 import os, io, sysconfig
 from setuptools import setup, find_packages
 from distutils.core import Extension
-import yaml
 
 try:
     include_dirs = os.getenv('MAGUS_INCLUDE_PATH').split(':') 
@@ -42,10 +41,10 @@ with open('README.md') as f:
 
 
 setup(
-    name="magus",
+    name="magus-test",
     version="1.0.2",
     author="Gao Hao, Wang Junjie, Han Yu, DC, Sun Jian",
-    author-email="141120108@smail.nju.edu",
+    author_email="141120108@smail.nju.edu",
     url="https://git.nju.edu.cn/gaaooh/magus",
     packages=find_packages(),
     #scripts=[

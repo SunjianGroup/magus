@@ -1,0 +1,2 @@
+recursive-include generatenew *
+recursive-include lrpot *
