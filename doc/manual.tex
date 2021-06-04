@@ -181,10 +181,10 @@ $ export MAGUS_INCLUDE_PATH=your_path_to_include_dir: your_path_to_py_include_di
 $ export MAGUS_LD_LIBRARY_PATH=your_ld_library_path
     \end{minted}
 \end{tcolorbox}
-配置好后执行（其实不行，因为包还没有上传，呵呵）：
+配置好后执行：
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
-$ pip install magus --upgrade
+$ pip install -i https://repo.nju.edu.cn/repository/pypi-nju/simple magus-test --upgrade
     \end{minted}
 \end{tcolorbox}
 
@@ -202,7 +202,7 @@ $ git submodule update
 \texttt 
 或直接下载压缩包.
 \subsubsection{编译GenerateNew模块}
-进入magus/generatenew中,编译generatenew.so文件,并将其放入magus/magus文件夹下.
+进入\file{magus/generatenew}中,编译\file{generatenew.so}文件,并将其放入magus/magus文件夹下.
 如使用集群anaconda/3-5.0.1,命令为:
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
@@ -215,7 +215,7 @@ $ g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include
 具体可见:
 \textcolor{blue}{\url{https://git.nju.edu.cn/HanYu/generatenew}}
 \subsubsection{编译lrpot模块}
-进入magus/lrpot中,编译lrpot.so文件,并将其放入magus/magus文件夹下.
+进入\file{magus/lrpot}中,编译\file{lrpot.so}文件,并将其放入magus/magus文件夹下.
 如使用集群anaconda/3-5.0.1,命令为:
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
@@ -228,7 +228,7 @@ $ g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include
 具体可见:
 \textcolor{blue}{\url{https://git.nju.edu.cn/bigd4/lrpot}}
 \subsubsection{设置入口}
-新建magus文件：
+新建\file{magus}文件：
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{python}
 import re
@@ -241,12 +241,14 @@ if __name__ == '__main__':
 \end{tcolorbox}
 保存后执行\code{chmod +x magus}设置为可执行文件。
 \subsubsection{设置环境变量}
+在\file{bashrc}中加入
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
 $ export PYTHONPATH=$PYTHONPATH:/your/path/magus
 $ export PATH=$PATH:/your/path/magus
     \end{minted}
 \end{tcolorbox}
+
 \subsection{检查安装}
 \begin{tcolorbox}
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
@@ -254,6 +256,14 @@ $ magus -v
     \end{minted}
 \tcblower
 1.0.2
+\end{tcolorbox}
+
+\subsection{设置自动补全（可选）}
+在\file{bashrc}中加入
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ source your_path_to_magus/auto_complete.sh
+    \end{minted}
 \end{tcolorbox}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \newpage
@@ -1215,4 +1225,17 @@ relax所使用命令，conv代表第一代粗优固定晶格优化
 结果：搜索结果\file{results/good.traj}
 \newpage
 \section{常见问题}
+使用时遇到疑问或bug可在\textcolor{blue}{\url{https://git.nju.edu.cn/gaaooh/magus}}中提出issue.
+\begin{enumerate}
+    \item \textbf{为啥pip安装时报错"ModuleNotFoundError: No module named 'yaml'"?}
+    \par
+    那你装一个啊
+    \begin{tcolorbox}[enhanced, breakable]
+        \begin{minted}[breaklines, breaksymbolleft={},]{bash} 
+$ pip install pyyaml
+        \end{minted}
+    \end{tcolorbox}
+    
+\end{enumerate}
+
 \end{document}
