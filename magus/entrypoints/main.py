@@ -241,13 +241,15 @@ def parse_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser_slab.add_argument(
-        "filename",
+        "-f",
+        "--filename",
         type=str,
         default= 'Ref/layerslices.traj',
         help="traj of slab model, default is './Ref/layerslices.traj'",
     )
     parser_slab.add_argument(
-        "slabfile",
+        "-s",
+        "--slabfile",
         type=str,
         default= 'slab.vasp',
         help="slab file",
@@ -259,7 +261,8 @@ def parse_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser_ana.add_argument(
-        "filename",
+        "-f",
+        "--filename",
         type=str,
         default= 'results',
         help="dictionary of results",

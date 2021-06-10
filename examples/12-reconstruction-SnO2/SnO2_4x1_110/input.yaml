@@ -52,6 +52,7 @@ refFrml: {'Sn':4, 'O':8}
 #main calculator settings
 MainCalculator:
  calculator: vasp
+ jobPrefix: ['vasp1', 'vasp2']
  mode: parallel
  calcNum: 2
 

@@ -201,12 +201,12 @@ class Population:
         log.info('del_duplicate survival: {}'.format(len(newpop)))
         self.pop = newpop
 
-    def check(self):
+    def check(self, delP1 = False):
         log.info("check population {}, popsize:{}".format(self.name,len(self.pop)))
         checkpop = []
         for ind in self.pop:
             #log.debug("checking {}".format(ind.info['identity']))
-            if not ind.need_check() or ind.check():
+            if not ind.need_check() or ind.check(delP1 = delP1):
                 checkpop.append(ind)
         log.info("check survival: {}".format(len(checkpop)))
         self.pop = checkpop
@@ -1119,19 +1119,19 @@ class RcsInd(Individual):
         self.volRatio = (top - extra/extended)*volume/self.get_ball_volume()
         return self.volRatio
 
-    def check_sym(self, atoms =None):
+    def check_sym(self, atoms =None, p = 0.7):
         a = self.atoms if atoms is None else atoms
         if spglib.get_spacegroup(a, self.p.symprec) == 'P1 (1)':
-            if np.random.rand() < 0.7:
+            if np.random.rand() < p:
                 return False
         return True
     
-    def check(self, atoms=None):    
+    def check(self, atoms=None, delP1 = False):
         if atoms is None:
             a = self.atoms.copy()
         else:
             a = atoms.copy()
-        check_sym = self.check_sym(a)
+        check_sym = self.check_sym(a, p = (1 if delP1 == True else 0.7))
         if not check_sym:
             log.debug("P1 structrue deleted. origin '{}'".format(self.atoms.info['origin'] if 'origin' in self.atoms.info else 'Unknown'))
     

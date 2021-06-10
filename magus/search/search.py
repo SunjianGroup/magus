@@ -31,10 +31,13 @@ class Magus:
             if not os.path.exists("results") or not os.path.exists("log.txt"):
                 raise Exception("cannot restart without results or log.txt")
             content = 'grep "Generation" log.txt | tail -n 1'
-            self.curgen = int(subprocess.check_output(content, shell=True).split()[2])
-            content = 'grep "volRatio" log.txt | tail -n 1' 
-            volume_ratio = float(subprocess.check_output(content, shell=True).split()[-1])
-            self.atoms_generator.update_volume_ratio(volume_ratio)
+            self.curgen = int(subprocess.check_output(content, shell=True).split()[3])
+            try:
+                content = 'grep "volRatio" log.txt | tail -n 1' 
+                volume_ratio = float(subprocess.check_output(content, shell=True).split()[-1])
+                self.atoms_generator.update_volume_ratio(volume_ratio)
+            except:
+                pass
             best_pop = read('results/best.traj', ':')
             good_pop = read('results/good.traj', ':')
             keep_pop = read('results/keep{}.traj'.format(self.curgen - 1), ':')
@@ -58,7 +61,8 @@ class Magus:
 
     def read_seeds(self):
         log.info("Reading Seeds ...")
-        seedpop = read_seeds('{}/POSCARS_{}'.format(self.seed_dir, self.curgen))
+        #seedpop = read_seeds('{}/POSCARS_{}'.format(self.seed_dir, self.curgen))
+        seedpop = read_seeds('{}/seed.traj'.format(self.seed_dir))
         seedPop = self.Population(seedpop, 'seedpop', self.curgen)
         if self.parameters.chkSeed:
             seedPop.check()
@@ -69,6 +73,9 @@ class Magus:
         if self.curgen == 1:
             initPop = self.Population([], 'initpop', self.curgen)
             n_random = self.parameters.initSize
+            ## read seeds
+            seedPop = self.read_seeds()
+            initPop.extend(seedPop)
         else:
             initPop = self.pop_generator.next_Pop(self.curPop + self.keepPop)
             n_random = self.parameters.popSize - len(initPop)
@@ -77,9 +84,7 @@ class Magus:
             addpop = self.atoms_generator.Generate_pop(n_random, initpop=self.curgen==1)
             log.info("random generate population with {} strutures".format(len(addpop)))
             initPop.extend(addpop)
-        ## read seeds
-        seedPop = self.read_seeds()
-        initPop.extend(seedPop)
+        
         # check and log
         initPop.check()
         log.info("Generate new initial population with {} individuals:".format(len(initPop)))
@@ -140,7 +145,7 @@ class Magus:
         relaxPop = self.Population(relaxpop, 'relaxpop', self.curgen)
         # save raw date before checking
         relaxPop.save('raw')
-        relaxPop.check()
+        relaxPop.check(delP1 = True)
         # find spg before delete duplicate
         relaxPop.find_spg()
         relaxPop.del_duplicate()

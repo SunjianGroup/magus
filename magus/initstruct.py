@@ -395,7 +395,7 @@ class ReconstructGenerator():
         para_t = EmptyClass()
         Requirement=['layerfile']
         Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'randratio':0.5,
-        'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'matrix': None, 'extra_c':1.0, 
+        'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'matrix': None, 'extra_c':1.0, 'pcell': True,
         'dimension':2, 'choice':0 }
 
         checkParameters(para_t, parameters, Requirement,Default)
@@ -409,8 +409,14 @@ class ReconstructGenerator():
             ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
             #here starts to split layers into [bulk, relaxable, rcs]
             originatoms = ase.io.read(para_t.layerfile)
+            xy = [1,1]
+
+            if np.any(np.array([*para_t.rcs_x, *para_t.rcs_y])%1 > 0) or para_t.pcell == False:
+                xy= [para_t.rcs_x[0], para_t.rcs_y[0]]
+
             layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
-            cutcell(originatoms, layernums, totslices = para_t.cutslices, direction= para_t.direction,rotate = para_t.rotate, vacuum = para_t.extra_c, matrix = para_t.matrix)
+            cutcell(originatoms, layernums, totslices = para_t.cutslices, vacuum = para_t.extra_c, direction= para_t.direction,
+                    xy = xy, rotate = para_t.rotate, pcell = para_t.pcell ,matrix = para_t.matrix)
             #layer split ends here    
 
         self.range=para_t.range

@@ -9,7 +9,9 @@ import copy
 from ase import Atoms, Atom
 from .utils import symbols_and_formula
 from collections import Counter
+import math
 
+log = logging.getLogger(__name__)
 
 class move:
     def __init__(self, originpositions, shift, atomnumber, atomname, lattice, spacegroup = 1, eq_atoms=None):
@@ -171,22 +173,44 @@ class resetLattice:
 
 from ase.geometry import cell_to_cellpar
 class cutcell:
-    def __init__(self,originstruct, layernums, totslices= None, direction=[0,0,1], rotate = 0, vacuum = 1.0, matrix = None):
+    def __init__(self,originstruct, layernums, totslices= None, vacuum = 1.0, direction=[0,0,1], 
+        xy = [1,1], rotate = 0, pcell = True, 
+        matrix = None):
         """
+        @parameters:
         [auto, but be given is strongly suggested] totslices: layer number of originstruct
         layernums: layer number of [bulk, relaxable, rcs_region]
         [*aborted] startpos:  start position of bulk layer, default =0.9 to keep atoms which are very close to z=1(0?)s.
-        direction: miller indices
-        rotate: [not implied yet] angle of R.
         vacuum: [in Ang] vacuum to add to rcs_layer  
-        matrix: 2x2 matrix. For matrix notations.
+        direction: miller indices
+        + wood's notation:
+           xy: (1, 1)
+           rotate: [not implied yet] angle of R.
+           pcell: if False, get c(nxn) cell
+        + matrix notation:
+           matrix: 2x2 matrix. For matrix notations.
         """
-        originatoms = originstruct.copy()
-        atoms=originatoms.copy()
+        self.atoms = originstruct.copy()
 
-        #TODO: add rotate
-        
         #2. get surface of conventional cell
+        newcell = np.dot(self.direct(direction), self.atoms.get_cell())
+        
+        #3. get primitive surface vector and startpos
+        surface_vector = self.get_pcell(self.atoms, newcell, totslices)
+
+        #4. get surface cell! if matrix notation/wood's notation exists, expand cell.
+        ## matrix notation only or wood's notation only 
+        if matrix:
+            surface_vector = self.matrix_notation(matrix, surface_vector)
+        else:
+            surface_vector = self.wood_notation(xy, rotate, pcell, surface_vector)
+        ##4.5. maybe it's better to expand supercell too!
+        self.supercell.expand((1, 1, 0))
+
+        #5. cutcell!
+        self.cut(layernums, totslices, surface_vector, vacuum)
+
+    def direct(self, direction):
         newcell_c = direction                                               #warning: for orth-cells only. 
         rx, ry, rz = [i if not i==0 else 1e+10 for i in direction]
             
@@ -212,12 +236,12 @@ class cutcell:
 
         newcell.append(newcell_c)
         newcell = np.array(newcell)
-        logging.debug("cutcell with conventional surface vector\n{}".format(newcell))
-        newcell = np.dot(newcell, atoms.get_cell())
-        
-        #3. get primitive surface vector and startpos
-        supercell = resetLattice(atoms)
-        newlattice = supercell.get(newcell)
+        log.debug("cutcell with conventional surface vector\n{}".format(newcell))
+        return newcell
+    
+    def get_pcell(self, atoms, newcell, totslices):
+        self.supercell = resetLattice(atoms)
+        newlattice = self.supercell.get(newcell)
         allayers = None
         if totslices is None:
             for totslices in range(8, 1,-1):
@@ -227,7 +251,7 @@ class cutcell:
                         break
                 except:
                     pass
-            logging.warning("Number of total layers is not given. Used auto-detected value {}.".format(totslices))
+            log.warning("Number of total layers is not given. Used auto-detected value {}.".format(totslices))
         else:
             allayers = LayerIdentifier(newlattice, prec = 0.5/totslices, n_clusters = totslices +1, lprec = 0.4/totslices)
 
@@ -243,6 +267,8 @@ class cutcell:
         
         onelayer.set_cell(onelayer.get_cell()[:] * np.reshape([1]*6 + [2.33]*3, (3,3)))
         #print(startpos)
+        self.startpos = startpos
+
         surface_vector = spg.get_symmetry_dataset(onelayer,symprec = 1e-4)['primitive_lattice']
         abcc, abcp = cell_to_cellpar(onelayer.get_cell()[:])[:3], cell_to_cellpar(surface_vector)[:3]
         axisc = np.where(abcp == abcc[2])[0]
@@ -253,34 +279,52 @@ class cutcell:
         #vasp does not work if the triple product of the basis vectors is negative sad:< 
         if np.dot(np.cross(*surface_vector[:2]), newcell[2]) < 0:
             surface_vector[[0,1]] = surface_vector[[1,0]]
+        surface_vector[2] = newcell[2]
+        
+        log.debug("primitive surface vector\n{}".format(np.dot(surface_vector, np.linalg.inv(atoms.get_cell()))))
+        return surface_vector
 
-        #4. get surface cell! if matrix notation exists, expand cell.
-        logging.debug("primitive surface vector\n{}".format(np.dot(surface_vector, np.linalg.inv(atoms.get_cell()))))
-        if matrix:
-            surface_vector[:2] = np.dot(matrix, surface_vector[:2])
-            logging.debug("changed by matrix notation\n{}".format(np.dot(surface_vector, np.linalg.inv(atoms.get_cell()))))
-            #maybe it's better to expand supercell too!
-            supercell.expand((1, 1, 0))
+    def matrix_notation(self, matrix, surface_vector):
+        surface_vector[:2] = np.dot(matrix, surface_vector[:2])
+        log.debug("changed by matrix notation\n{}".format(np.dot(surface_vector, np.linalg.inv(self.atoms.get_cell()))))
+        return surface_vector
 
+    def wood_notation(self, xy, rotate, pcell, surface_vector):
+        #TODO: add rotate
+        
+        #here modify some sqrt(2)/ sqrt(3) xy.
+        for i, x in enumerate(xy):
+            if abs(x - 1.4) < 0.1:
+                xy[i] = math.sqrt(2)
+            elif abs(x - 1.6) < 0.1:
+                xy[i] = math.sqrt(3)
+
+        surface_vector[:2] = np.dot(np.diag([*xy, 1]), surface_vector)[:2]
+        if not pcell:
+            surface_vector[:2] = [surface_vector[0] + surface_vector[1], surface_vector[0] - surface_vector[1]]/2
+        log.debug("changed by wood's notation\n{}".format(np.dot(surface_vector, np.linalg.inv(self.atoms.get_cell()))))
+        return surface_vector
+
+    def cut(self, layernums, totslices, surface_vector, vacuum):
         #5. expand unit surface cell on z direction
         bot, mid, top = layernums[0], layernums[1], layernums[2]
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
-        slicepos = slicepos + np.array([startpos]*4)
-        logging.info("cutslice = {}".format(slicepos)) 
+        slicepos = slicepos + np.array([self.startpos]*4)
+        log.info("cutslice = {}".format(slicepos)) 
 
         #6. build bulk, relaxable, rcs layer slices 
         pop= []
         if slicepos[-1]==slicepos[-2]:
             slicepos = slicepos[:-1]
-            logging.info("warning: rcs layer have no atoms. Change mode to adatoms.")  
+            log.info("warning: rcs layer have no atoms. Change mode to adatoms.")  
 
         for i in range(1, len(slicepos)):
 
             cell = surface_vector.copy()
-            cell[2] = newcell[2] * (slicepos[i]-slicepos[i-1])
-            origin = (slicepos[i-1] if i==1 else slicepos[i-1]-slicepos[i-2]) * newcell[2]
+            cell[2] = surface_vector[2] * (slicepos[i]-slicepos[i-1])
+            origin = (slicepos[i-1] if i==1 else slicepos[i-1]-slicepos[i-2]) * surface_vector[2]
 
-            layerslice = supercell.get(cell, neworigin = origin)
+            layerslice = self.supercell.get(cell, neworigin = origin)
 
             if len(layerslice)==0:
                 slicename = ['bulk', 'relaxable', 'reconstruct']
@@ -295,7 +339,7 @@ class cutcell:
             cell[2]*= ( 1.0 + vacuum/pop[2].get_cell_lengths_and_angles()[2])
             pop[2].set_cell(cell)
         
-        logging.info("save cutslices into file layerslices.traj")
+        log.info("save cutslices into file layerslices.traj")
         ase.io.write("Ref/layerslices.traj",pop,format='traj')
 
 
@@ -616,7 +660,7 @@ class match_symmetry:
                 
         return (np.array([np.random.uniform(0,1), np.random.uniform(0,1),0]), np.eye(3))
 
-import math
+
 class weightenCluster:
     def __init__(self, d = 0.23):
         self.d = d

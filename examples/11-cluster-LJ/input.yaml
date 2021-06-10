@@ -31,6 +31,7 @@ diffE: 0.01
 #main calculator settings
 MainCalculator:
  calculator: lj
+ jobPrefix: lj
  mode: parallel
  calcNum: 1
  #ase settings

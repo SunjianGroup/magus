@@ -63,7 +63,7 @@ class magusParameters:
         }
         if p.calcType=='rcs':
             log = logging.getLogger(__name__)
-            log.info("rcs mode: \nlayerfile= "+p.layerfile)
+            log.info("rcs mode: used layerfile '{}'".format(p.layerfile))
             
         checkParameters(p,p,Requirement,Default)
 
