@@ -31,7 +31,7 @@ class Magus:
             if not os.path.exists("results") or not os.path.exists("log.txt"):
                 raise Exception("cannot restart without results or log.txt")
             content = 'grep "Generation" log.txt | tail -n 1'
-            self.curgen = int(subprocess.check_output(content, shell=True).split()[2])
+            self.curgen = int(subprocess.check_output(content, shell=True).split()[-2])
             content = 'grep "volRatio" log.txt | tail -n 1' 
             volume_ratio = float(subprocess.check_output(content, shell=True).split()[-1])
             self.atoms_generator.update_volume_ratio(volume_ratio)
@@ -94,7 +94,7 @@ class Magus:
         goodPop = self.curPop + self.goodPop + self.keepPop
         goodPop.del_duplicate()
         goodPop.calc_dominators()
-        goodPop.select(self.parameters.popSize, delete_highE = True, high = 0.8)
+        goodPop.select(self.parameters.popSize)
         log.debug("good ind:")
         for ind in goodPop.pop:
             log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
@@ -137,6 +137,8 @@ class Magus:
         initPop.save('init', self.curgen)
         #######  relax  #######
         relaxpop = self.main_calculator.relax(initPop.frames)
+        relax_step = sum([sum(atoms.info['relax_step']) for atoms in relaxpop])
+        log.info('DFT relax {} structures with {} scf'.format(len(relaxpop), relax_step))
         relaxPop = self.Population(relaxpop, 'relaxpop', self.curgen)
         # save raw date before checking
         relaxPop.save('raw')

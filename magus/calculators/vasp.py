@@ -100,6 +100,8 @@ def calc_vasp(calc, frames):
         else:
             atoms.info['relax_step'] = list(atoms.info['relax_step'])
         atoms.info['relax_step'].append(len(traj))
+        # remove calculator becuase some strange error when save .traj
+        atoms.set_calculator(None)
         log.debug("VASP finish")
         shutil.copy("OUTCAR", "OUTCAR-{}".format(i))
         new_frames.append(atoms)
