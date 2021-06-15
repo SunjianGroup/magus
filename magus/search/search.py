@@ -31,7 +31,7 @@ class Magus:
             if not os.path.exists("results") or not os.path.exists("log.txt"):
                 raise Exception("cannot restart without results or log.txt")
             content = 'grep "Generation" log.txt | tail -n 1'
-            self.curgen = int(subprocess.check_output(content, shell=True).split()[3])
+            self.curgen = int(subprocess.check_output(content, shell=True).split()[-2])
             try:
                 content = 'grep "volRatio" log.txt | tail -n 1' 
                 volume_ratio = float(subprocess.check_output(content, shell=True).split()[-1])
@@ -142,6 +142,8 @@ class Magus:
         initPop.save('init', self.curgen)
         #######  relax  #######
         relaxpop = self.main_calculator.relax(initPop.frames)
+        relax_step = sum([sum(atoms.info['relax_step']) for atoms in relaxpop])
+        log.info('DFT relax {} structures with {} scf'.format(len(relaxpop), relax_step))
         relaxPop = self.Population(relaxpop, 'relaxpop', self.curgen)
         # save raw date before checking
         relaxPop.save('raw')

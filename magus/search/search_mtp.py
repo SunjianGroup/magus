@@ -52,7 +52,7 @@ class MLMagus(Magus):
             self.ml_calculator.train()
         log.info('Done!')
 
-    def select_to_relax(self, frames, init_num=5, min_num=20):
+    def select_to_relax(self, frames, init_num=3, min_num=20):
         try:
             ground_enthalpy = self.goodPop.bestind()[0].atoms.info['enthalpy']
         except:

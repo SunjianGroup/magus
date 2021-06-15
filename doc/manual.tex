@@ -181,6 +181,14 @@ $ export MAGUS_INCLUDE_PATH=your_path_to_include_dir: your_path_to_py_include_di
 $ export MAGUS_LD_LIBRARY_PATH=your_ld_library_path
     \end{minted}
 \end{tcolorbox}
+如：
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ CONDA_PATH=/fs00/software/anaconda/3-5.0.1
+$ export MAGUS_INCLUDE_PATH=$CONDA_PATH/include: $CONDA_PATH/include/python3.6m
+$ export MAGUS_LD_LIBRARY_PATH=$CONDA_PATH/lib
+    \end{minted}
+\end{tcolorbox}
 配置好后执行：
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
