@@ -42,7 +42,7 @@ with open('README.md') as f:
 
 setup(
     name="magus-test",
-    version="1.0.2",
+    version="1.0.3",
     author="Gao Hao, Wang Junjie, Han Yu, DC, Sun Jian",
     author_email="141120108@smail.nju.edu",
     url="https://git.nju.edu.cn/gaaooh/magus",
