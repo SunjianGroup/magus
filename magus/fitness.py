@@ -42,8 +42,16 @@ class EhullFitness(FitnessCalculator):
             ind.info['enthalpy'] = ind.atoms.info['enthalpy']
             ind.info['fitness']['ehull'] = -ehull
 
-class EoFitness(FitnessCalculator):
+class ErcsFitness(FitnessCalculator):
     def calc(self, Pop):
+        """
+        if len(Pop.Individual.layerslices) == 3:
+            return self.Eo(Pop)
+        elif len(Pop.Individual.layerslices) == 2:
+        """
+        return self.Eform(Pop)
+        
+    def Eo(self, Pop):
     # modified from var_fitness
         symbols = Pop.Individual.p.symbols
 
@@ -59,9 +67,12 @@ class EoFitness(FitnessCalculator):
                 if len(atomnum)>1:
                     mark = 'var'
                     break
+
+        compound = Pop.Individual.p.compound
+        compoundE = Pop.Individual.p.compoundE
             
         if mark == 'fix':
-            refE_perAtom  = Pop.Individual.p.refE/np.sum([Pop.Individual.p.refFrml[s] for s in Pop.Individual.p.refFrml])
+            refE_perAtom  = compoundE/np.sum([compound[s] for s in compound])
 
             for ind in pop:
                 scale = 1.0 / ind.info['size'][0] / ind.info['size'][1]
@@ -72,8 +83,8 @@ class EoFitness(FitnessCalculator):
 
         else:
 
-            refE_perUnit = Pop.Individual.p.refE / Pop.Individual.p.refFrml[symbols[1]]
-            ref_num0 =  1.0*Pop.Individual.p.refFrml[symbols[0]] / Pop.Individual.p.refFrml[symbols[1]]
+            refE_perUnit = compoundE / compound[symbols[1]]
+            ref_num0 =  1.0*compound[symbols[0]] / compound[symbols[1]]
             '''
             define Eo = E_slab - numB*E_ref, [E_ref = energy of unit A(a/b)B]
             define delta_n = numA - numB *(a/b)
@@ -102,10 +113,22 @@ class EoFitness(FitnessCalculator):
                 pop[i].info['enthalpy'] = pop[i].atoms.info['enthalpy']
                 pop[i].info['fitness']['ehull'] = -ehull
                 pop[i].info['Eo'] = Eo[i]
-        
+
+    def Eform(self, Pop):
+    #define E_form = E_total - E_ideal - sum_x (nxux)
+    #Lu et al, Carbon 159 (2020) 9-15, https://doi.org/10.1016/j.carbon.2019.12.003
+        uxdict = Pop.Individual.p.adEs
+        for ind in Pop:
+            ind.info['enthalpy'] = ind.atoms.info['enthalpy']
+            symbol, formula = symbols_and_formula(ind.atoms)
+            frml = {s:i for s,i in zip(symbol, formula)}
+            Eform = ind.atoms.info['energy'] - np.sum([frml[s]*uxdict[s] for s in frml.keys()])
+            ind.atoms.info['Eo'] = Eform
+            ind.info['Eo'] = Eform
+            ind.info['fitness']['Eform'] = -Eform
 
 fit_dict = {
     'Enthalpy': EnthalpyFitness(),
     'Ehull': EhullFitness(),
-    'Eo': EoFitness(),
+    'Ercs': ErcsFitness(),
 }

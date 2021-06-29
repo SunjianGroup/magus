@@ -405,7 +405,7 @@ class ReconstructGenerator():
         else:
             if not os.path.exists("Ref"):
                 os.mkdir('Ref')
-            #here starts to get Ref/refslab to calculate refE            
+            #here starts to get Ref/refslab to calculate refE
             ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
             #here starts to split layers into [bulk, relaxable, rcs]
             originatoms = ase.io.read(para_t.layerfile)
@@ -417,7 +417,11 @@ class ReconstructGenerator():
             layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
             cutcell(originatoms, layernums, totslices = para_t.cutslices, vacuum = para_t.extra_c, direction= para_t.direction,
                     xy = xy, rotate = para_t.rotate, pcell = para_t.pcell ,matrix = para_t.matrix)
-            #layer split ends here    
+            #layer split ends here
+            from .entrypoints.getslab import getslab
+            slab = getslab(slabfile = None)
+            slab.info['size'] = xy
+            ase.io.write("Ref/refslab.traj", slab, append = True)
 
         self.range=para_t.range
         
@@ -448,7 +452,9 @@ class ReconstructGenerator():
         setlattice = np.round(setlattice, 3)
         setlattice[3:] = [i if np.round(i) != 60 else 120.0 for i in setlattice[3:]]
         self.symtype = 'hex' if 120 in np.round(setlattice[3:]) else 'orth'
-
+        if para_t.pcell == False:
+            self.symtype = 'c-cell'
+            
         self.reflattice = list(setlattice).copy()
         target = self.ind.get_targetFrml()
         _symbol = [s for s in target]
@@ -546,14 +552,20 @@ class ReconstructGenerator():
 
     def get_spg(self, kind, grouptype):
         if grouptype == 'layergroup':
+            cstar = [1, 2, 22, 26, 35, 36, 47, 48, 10, 13, 18]
             if kind == 'hex':
                 #sym = 'c*', 'p6*', 'p3*', 'p-6*', 'p-3*' 
-                return [1, 2, 22, 26, 35, 36, 47, 48] + range(65, 81)  + [10, 13, 18]
+                return cstar + range(65, 81) 
+            elif kind == 'c-cell':
+                return cstar
             else:
                 return list(range(1, 65))
         elif grouptype == 'planegroup':
+            cstar = [1, 2, 5, 9]
             if kind == 'hex':
-                return [1, 2, 5, 9] + list(range(13, 18))
+                return cstar + list(range(13, 18))
+            elif kind == 'c-cell':
+                return cstar
             else:
                 return list(range(1, 13))
 

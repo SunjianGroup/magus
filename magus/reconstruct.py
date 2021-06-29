@@ -172,6 +172,7 @@ class resetLattice:
         return supercell[index].copy()
 
 from ase.geometry import cell_to_cellpar
+from math import gcd
 class cutcell:
     def __init__(self,originstruct, layernums, totslices= None, vacuum = 1.0, direction=[0,0,1], 
         xy = [1,1], rotate = 0, pcell = True, 
@@ -182,7 +183,7 @@ class cutcell:
         layernums: layer number of [bulk, relaxable, rcs_region]
         [*aborted] startpos:  start position of bulk layer, default =0.9 to keep atoms which are very close to z=1(0?)s.
         vacuum: [in Ang] vacuum to add to rcs_layer  
-        direction: miller indices
+        direction: miller indices[orth cells] / bravais-miller indices[hex cells]
         + wood's notation:
            xy: (1, 1)
            rotate: [not implied yet] angle of R.
@@ -191,9 +192,13 @@ class cutcell:
            matrix: 2x2 matrix. For matrix notations.
         """
         self.atoms = originstruct.copy()
-
+        #1. if direction is in bravais-miller indices, turn to miller indices
+        if len(direction) == 4:
+            direction = self.tomillerindex(direction)
+            log.debug('changed bravais-miller indices direction to miller index = {}'.format(direction))
+        
         #2. get surface of conventional cell
-        newcell = np.dot(self.direct(direction), self.atoms.get_cell())
+        newcell = self.get_ccell(direction)
         
         #3. get primitive surface vector and startpos
         surface_vector = self.get_pcell(self.atoms, newcell, totslices)
@@ -209,9 +214,21 @@ class cutcell:
 
         #5. cutcell!
         self.cut(layernums, totslices, surface_vector, vacuum)
+    
+    def tomillerindex(self, direction):
+        """
+        [UVW] <-> [uvtw]
+        u = (2U - V) / 3            v = (2V - U) / 3
+        t = -(u+v) = -(U+V) / 3
+        w = W
+        """
+        assert direction[2] == -direction[0] - direction[1], "for bravais-miller indices [uvtw], t must eqs -(u+v)"
+        miller = np.array([direction[0]*2 + direction[1], direction[0] + 2*direction[1], direction[-1]])
+        return miller / gcd(gcd(miller[0], miller[1]), miller[2])
 
-    def direct(self, direction):
-        newcell_c = direction                                               #warning: for orth-cells only. 
+    def get_ccell(self, direction):
+        #Step A: analyze direction
+        #newcell_c = direction                                               #warning: for orth-cells only. 
         rx, ry, rz = [i if not i==0 else 1e+10 for i in direction]
             
         points = [[1/rx, 0, 0], [0, 1/ry, 0], [0, 0, 1/rz]]             #cross points at axis. 1/h, 1/k, 1/l
@@ -229,14 +246,27 @@ class cutcell:
             newcell.append(newcell_a)
             i+=1
 
-        for i, _ in enumerate(newcell):
-            for j, _ in enumerate(newcell[i]):
-                while 0 < abs(newcell[i][j])  < 1:
-                    newcell[i] *= 1/abs(newcell[i][j])
+        def norm(cell):
+            for i, c in enumerate(cell):
+                cell[i] = np.round(c, 3)
+                cell[i] *= 1000
+            return np.array(cell)/gcd(gcd(int(cell[0]), int(cell[1])), int(cell[-1]))
 
-        newcell.append(newcell_c)
-        newcell = np.array(newcell)
-        log.debug("cutcell with conventional surface vector\n{}".format(newcell))
+        for i, _ in enumerate(newcell):
+            newcell[i] = norm(newcell[i])
+
+        #newcell.append(newcell_c)
+
+        #Step B: dot product of direction x cell
+        newcell = np.dot(np.array(newcell), self.atoms.get_cell())
+        newcell_c = np.cross(*newcell)
+        
+        newc = norm(np.dot(newcell_c, np.linalg.inv(self.atoms.get_cell())))
+        newcell = np.array([*newcell, np.dot(newc, self.atoms.get_cell())])
+
+        #newcell = np.array([*newcell, newcell_c])
+        log.debug("cutcell with conventional surface vector\n{}".format(np.dot(newcell, np.linalg.inv(self.atoms.get_cell()))))
+
         return newcell
     
     def get_pcell(self, atoms, newcell, totslices):
@@ -301,7 +331,7 @@ class cutcell:
 
         surface_vector[:2] = np.dot(np.diag([*xy, 1]), surface_vector)[:2]
         if not pcell:
-            surface_vector[:2] = [surface_vector[0] + surface_vector[1], surface_vector[0] - surface_vector[1]]/2
+            surface_vector[:2] = np.array([surface_vector[0] + surface_vector[1], surface_vector[0] - surface_vector[1]])/2
         log.debug("changed by wood's notation\n{}".format(np.dot(surface_vector, np.linalg.inv(self.atoms.get_cell()))))
         return surface_vector
 
@@ -323,12 +353,12 @@ class cutcell:
             cell = surface_vector.copy()
             cell[2] = surface_vector[2] * (slicepos[i]-slicepos[i-1])
             origin = (slicepos[i-1] if i==1 else slicepos[i-1]-slicepos[i-2]) * surface_vector[2]
-
-            layerslice = self.supercell.get(cell, neworigin = origin)
-
-            if len(layerslice)==0:
+            try:
+                layerslice = self.supercell.get(cell, neworigin = origin)
+            except:
                 slicename = ['bulk', 'relaxable', 'reconstruct']
-                raise Exception("No atom in {} layer".format(slicename[i-1]))
+                raise Exception("No atom in {} layer, function cutcell exit.".format(slicename[i-1]))
+                return
 
             layerslice=sort_elements(layerslice)
             pop.append(layerslice)

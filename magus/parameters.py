@@ -235,7 +235,7 @@ class magusParameters:
             elif self.parameters.calcType == 'var':
                 self.FitnessCalculator.append(fit_dict['Ehull'])
             elif self.parameters.calcType == 'rcs':
-                self.FitnessCalculator.append(fit_dict['Eo'])
+                self.FitnessCalculator.append(fit_dict['Ercs'])
             elif self.parameters.calcType == 'clus':
                 self.FitnessCalculator.append(fit_dict['Enthalpy'])
 

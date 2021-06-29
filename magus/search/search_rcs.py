@@ -266,12 +266,15 @@ class Magus:
             refE = self.MainCalculator.relax(refPop.frames)
             refE = self.Population(refE,'refpop',0)
             refE.save('ref', 0)
-            self.parameters.refE = refE [0].atoms.info['energy']
-            self.Population.Individual.p.refE = self.parameters.refE
 
-            symbol, formula = symbols_and_formula(refE[0].atoms)
-            self.parameters.refFrml = {s:i for s, i in zip(symbol, formula)}
-            self.Population.Individual.p.refFrml = self.parameters.refFrml
+            compound= {s:i for s, i in symbols_and_formula(refE[0].atoms)}
+            surface = {s:i for s, i in symbols_and_formula(refE[1].atoms)}
+            
+            refdict = {'compound':compound, 'compoundE': refE [0].atoms.info['energy'], 
+                            'slabE': refE[1].atoms.info['energy'], 'slabsize': refE[1].atoms.info['size'], 'slab': surface}
+
+            self.parameters.refE = refdict
+            self.Population.Individual.p.refE = self.parameters.refE
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

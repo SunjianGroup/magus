@@ -796,7 +796,7 @@ class RcsInd(Individual):
 
         super().__init__(parameters)
 
-        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None, 'DefectToAdd':None, 'refE':0, 'refFrml':None, 'fixbulk':True}
+        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None, 'DefectToAdd':None, 'refE':None, 'fixbulk':True}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
         self.layerslices = ase.io.read("Ref/layerslices.traj", index=':', format='traj')
         
