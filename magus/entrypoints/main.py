@@ -267,6 +267,14 @@ def parse_args():
         default= 'results',
         help="dictionary of results",
     )
+    parser_ana.add_argument(
+        "-e",
+        "--to-excel",
+        type=str,
+        default= None,
+        help="output to excel",
+    )
+
     #for developers: mutation test
     parser_mutate = subparsers.add_parser(
         "mutate",

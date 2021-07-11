@@ -44,12 +44,11 @@ class EhullFitness(FitnessCalculator):
 
 class ErcsFitness(FitnessCalculator):
     def calc(self, Pop):
-        """
+        
         if len(Pop.Individual.layerslices) == 3:
             return self.Eo(Pop)
         elif len(Pop.Individual.layerslices) == 2:
-        """
-        return self.Eform(Pop)
+            return self.Eform(Pop)
         
     def Eo(self, Pop):
     # modified from var_fitness
@@ -68,8 +67,8 @@ class ErcsFitness(FitnessCalculator):
                     mark = 'var'
                     break
 
-        compound = Pop.Individual.p.compound
-        compoundE = Pop.Individual.p.compoundE
+        compound = Pop.Individual.p.refE['compound']
+        compoundE = Pop.Individual.p.refE['compoundE']
             
         if mark == 'fix':
             refE_perAtom  = compoundE/np.sum([compound[s] for s in compound])
@@ -117,7 +116,7 @@ class ErcsFitness(FitnessCalculator):
     def Eform(self, Pop):
     #define E_form = E_total - E_ideal - sum_x (nxux)
     #Lu et al, Carbon 159 (2020) 9-15, https://doi.org/10.1016/j.carbon.2019.12.003
-        uxdict = Pop.Individual.p.adEs
+        uxdict = Pop.Individual.p.ref['adEs']
         for ind in Pop:
             ind.info['enthalpy'] = ind.atoms.info['enthalpy']
             symbol, formula = symbols_and_formula(ind.atoms)

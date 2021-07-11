@@ -261,16 +261,17 @@ class cutcell:
         newcell = np.dot(np.array(newcell), self.atoms.get_cell())
         newcell_c = np.cross(*newcell)
         
+        #TODO: if some direction cannot be simplified and gets too large in c, delete 2Ls below and add the 3rd L.
         newc = norm(np.dot(newcell_c, np.linalg.inv(self.atoms.get_cell())))
         newcell = np.array([*newcell, np.dot(newc, self.atoms.get_cell())])
-
         #newcell = np.array([*newcell, newcell_c])
         log.debug("cutcell with conventional surface vector\n{}".format(np.dot(newcell, np.linalg.inv(self.atoms.get_cell()))))
 
         return newcell
     
     def get_pcell(self, atoms, newcell, totslices):
-        self.supercell = resetLattice(atoms)
+        #TODO: if slab is not complete, expand expandsize. Time cost may increase.
+        self.supercell = resetLattice(atoms, expandsize = (16,16,16))
         newlattice = self.supercell.get(newcell)
         allayers = None
         if totslices is None:
@@ -306,9 +307,6 @@ class cutcell:
         if not axisc[0] ==2:
             surface_vector[[axisc[0], 2]] = surface_vector[[2, axisc[0]]]
 
-        #vasp does not work if the triple product of the basis vectors is negative sad:< 
-        if np.dot(np.cross(*surface_vector[:2]), newcell[2]) < 0:
-            surface_vector[[0,1]] = surface_vector[[1,0]]
         surface_vector[2] = newcell[2]
         
         log.debug("primitive surface vector\n{}".format(np.dot(surface_vector, np.linalg.inv(atoms.get_cell()))))
@@ -368,6 +366,14 @@ class cutcell:
             cell = pop[2].get_cell()
             cell[2]*= ( 1.0 + vacuum/pop[2].get_cell_lengths_and_angles()[2])
             pop[2].set_cell(cell)
+        
+        #vasp does not work if the triple product of the basis vectors is negative. Make a check.
+        cell = pop[0].get_cell()
+        if np.dot(np.cross(*cell[:2]), cell[2]) < 0:
+            for i, ind in enumerate(pop):
+                cell = ind.get_cell()
+                cell[[0,1]] = cell[[1,0]]
+                pop[i].set_cell(cell, scale_atoms = True)
         
         log.info("save cutslices into file layerslices.traj")
         ase.io.write("Ref/layerslices.traj",pop,format='traj')

@@ -458,7 +458,7 @@ class ReconstructGenerator():
         self.reflattice = list(setlattice).copy()
         target = self.ind.get_targetFrml()
         _symbol = [s for s in target]
-        requirement = {'minLattice': setlattice, 'maxLattice':setlattice, 'symbols':_symbol}
+        requirement = {'minLattice': list(setlattice), 'maxLattice':list(setlattice), 'symbols':_symbol}
 
         for key in requirement:
             if not hasattr(_parameters, key):

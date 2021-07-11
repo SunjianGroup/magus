@@ -15,6 +15,7 @@ from magus.parameters import magusParameters
 from magus.initstruct import ReconstructGenerator, Generator
 import spglib
 import ase.io
+from magus.utils import sort_elements
 
 def getslab(filename = 'Ref/layerslices.traj', slabfile = 'slab.vasp', *args, **kwargs):
     logging.basicConfig(level=logging.DEBUG, format="%(asctime)s   %(message)s",datefmt='%H:%M:%S')
@@ -38,6 +39,6 @@ def getslab(filename = 'Ref/layerslices.traj', slabfile = 'slab.vasp', *args, **
         rcs.addextralayer('bulk', add = 1)
 
     if not slabfile is None:
-        ase.io.write(slabfile, rcs, format = 'vasp',vasp5=True,direct = True)
+        ase.io.write(slabfile, sort_elements(rcs), format = 'vasp',vasp5=True,direct = True)
     else:
         return rcs
