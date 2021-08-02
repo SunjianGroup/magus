@@ -704,7 +704,7 @@ class weightenCluster:
     def Exp_j(self, ith, jth):
         return math.exp(-(self.atoms.get_distance(ith, jth) - self.radii[ith] - self.radii[jth]) / self.d)
     
-    def choseAtom(self, ind):
+    def choseAtom(self, ind, atomnum):
         if isinstance(ind, Atoms):
             self.atoms = ind.copy()
         else:
@@ -719,6 +719,7 @@ class weightenCluster:
         
         probability = np.max(O) - O
         probability = probability / np.sum(probability)
+        probability = np.array([p if self.atoms[i].number == atomnum else 0 for i, p in enumerate(probability)])
         a = np.random.random()
         #print('probability = {}, a = {}'.format(probability, a))
         

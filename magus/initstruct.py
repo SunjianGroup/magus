@@ -26,7 +26,7 @@ class Generator:
         self.p = EmptyClass()
         Requirement=['symbols','formula','minAt','maxAt','spgs','dRatio','fixCell','setCellPar', 'bondRatio', 'molMode']
         Default={'threshold':1.0,'maxAttempts':50,'method':1, 'p_pri':0.,
-        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3}
+        'volRatio':1.5,'maxtryNum':100,'minLattice':None,'maxLattice':None, 'dimension':3, 'choice': 0 }
         checkParameters(self.p,parameters,Requirement,Default)
         radius = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         checkParameters(self.p,parameters,[],{'radius':radius})
@@ -43,7 +43,7 @@ class Generator:
             [[1,0,0],[0,0,1],[0,1,0]],
             [[0,0,1],[1,0,0],[0,1,0]],
             [[0,0,1],[0,1,0],[1,0,0]]])
-        return M[np.random.randint(6)]
+        return M[np.random.randint(6)] if self.p.dimension ==3 else M[0]
 
     def getVolumeandLattice(self,numlist):
         # Recalculate atomic radius, considering the change of radius in molecular crystal mode
@@ -91,6 +91,7 @@ class Generator:
 
         minVolume,maxVolume,minLattice,maxLattice=self.getVolumeandLattice(numlist)
         # TODO should be encapsulated into HanYu code
+        #only fit for 3D conditions !
         swap_matrix = self.get_swap() 
         minLattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ minLattice
         maxLattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ maxLattice
@@ -396,7 +397,7 @@ class ReconstructGenerator():
         Requirement=['layerfile']
         Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'randratio':0.5,
         'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'matrix': None, 'extra_c':1.0, 'pcell': True,
-        'dimension':2, 'choice':0 }
+        'dimension':2, 'choice':0, 'molMode':False }
 
         checkParameters(para_t, parameters, Requirement,Default)
         
@@ -469,8 +470,13 @@ class ReconstructGenerator():
                 else:
                     log.info("warning: change user defined {} to {} to match rcs layer".format(key, requirement[key]))
                     setattr(_parameters,key,requirement[key])
+        
+        if para_t.molMode == False:
+            self.rcs_generator =Generator(_parameters)  
+        else: 
+            self.rcs_generator= MoleculeGenerator(_parameters)
+            para_t.randratio = 0
 
-        self.rcs_generator =Generator(_parameters)
         self.rcs_generator.p.choice =_parameters.choice
         #got a generator! next put all parm together except changed ones
 
@@ -531,7 +537,7 @@ class ReconstructGenerator():
         rots = []
         trs = []
         for ind in list([bottomind, extraind]):
-            sym = spglib.get_symmetry_dataset(ind,symprec=0.2)
+            sym = spglib.get_symmetry_dataset(ind,symprec=1.0)
             if not sym:
                 sym = spglib.get_symmetry_dataset(ind)
             if not sym:
@@ -675,12 +681,12 @@ class ReconstructGenerator():
             
             #spg = np.random.choice(self.p.spgs)
             spg = inspg if inspg else np.random.choice(self.p.spgs)
-            nfm = np.random.choice(self.p.numFrml)
+            nfm = 1
             _x = np.random.choice(self.p.rcs_x)
             _y = np.random.choice(self.p.rcs_y)
 
             target = self.ind.get_targetFrml(_x , _y)
-            numlist = np.array([target[s] for s in self.rcs_generator.p.symbols])
+            numlist = np.array([target[s] for s in self.rcs_generator.p.symbols]) if not self.p.molMode else self.p.molFormula
 
             self.reset_generator_lattice(_x,_y, spg)
             self.rcs_generator.p.choice = self.p.choice

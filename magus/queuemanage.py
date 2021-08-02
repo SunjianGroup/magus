@@ -85,8 +85,9 @@ class BSUBSystemManager(BaseJobManager):
         allDone = True
         for job in self.jobs:
             try:
-                stat = subprocess.check_output("bjobs %s | grep %s | awk '{print $3}'"% (job['id'], job['id']), shell=True)
-                stat = stat.decode()[:-1]
+                stat = subprocess.check_output("bjobs -noheader -o stat {}".format(job['id']), shell=True)
+                stat = stat.decode().split('\n')[0]
+                time.sleep(1)
             except:
                 s = sys.exc_info()
                 log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))

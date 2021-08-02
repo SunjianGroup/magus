@@ -369,7 +369,13 @@ class LyrSymMutation(Mutation):
         ase.io.write('rats1.vasp', outats, format = 'vasp', vasp5=1)
         """
         cpos = np.array([np.dot(np.dot(rot, p), axis) for p in np.dot(ats.get_positions(), axis_1)])
-        index = [i for i, p in enumerate(cpos) if math.sqrt(np.sum([x**2 for x in p - ats[i].position])) >= 2*self.threshold* covalent_radii[ats[i].number] ]
+        index = []
+        for i, p in enumerate(cpos):
+            if math.sqrt(np.sum([x**2 for x in p - ats[i].position])) >= 2*self.threshold* covalent_radii[ats[i].number] :
+                index.append(i)
+            else:
+                rats[i].position = (ats[i].position + p)/2
+        
         ats = ats[index] 
         ats.set_positions(cpos[index])
         
@@ -414,6 +420,8 @@ class LyrSymMutation(Mutation):
         #ase.io.write('rats.vasp', rats, format = 'vasp', vasp5=1)
         index = [i for i in range(len(ats)) if sqrt(np.sum([x**2 for x in ats[i].position])) < 2* self.threshold* covalent_radii[ats[i].number]]
         if len(index):
+            for i in index:
+                rats[i].position[0],  rats[i].position[1] = 0, 0
             del ats[index]
 
         for i in range(mult-1):
@@ -439,6 +447,7 @@ class LyrSymMutation(Mutation):
         substrate_sym = ind.substrate_sym(symprec = self.symprec)
         r, trans, mult = substrate_sym[np.random.choice(len(substrate_sym))]
         atoms = ind.atoms.copy()
+        atoms.set_pbc([1,1,1])
         atoms.translate([-np.dot(trans, atoms.get_cell())] * len(atoms))
         atoms.wrap()
 
@@ -451,8 +460,9 @@ class LyrSymMutation(Mutation):
             pass
         #Note: very very little possibility that some sym-ed cell are hollow in the center and no atoms left in the new resetedlattice.
         #Avoiding this could be complicated, so use an try method.
-        
+
         atoms.translate([np.dot(trans, atoms.get_cell())] * len(atoms))
+        atoms.wrap()
         return ind(atoms)
 
 class RippleMutation(Mutation):
@@ -501,23 +511,25 @@ class ShellMutation(Mutation):
     def Exp_j = exp(-(r_ij-R_i-R_j)/d); Oi = sum_j (Exp_j) / max_j(Exp_j)
     d is the empirically determined parameter set to be 0.23.
     """
-    parm = {'tryNum':10, 'd':0.23}
+    parm = {'tryNum':50, 'd':0.23}
     
-    def mutate(self,ind, addatom = True, addfrml = None):
+    def _mutate_(self,ind, addatom = True, addfrml = None):
         
         atoms = ind.atoms.copy()
-        i = weightenCluster(self.d).choseAtom(ind)
-        
-        if not addatom:
-            del atoms[i]
-        else:
-            if addfrml is None:
-                addfrml = {atoms[0].number: 1}
+        if addfrml is None:
+            addfrml = {atoms[0].number: 1}
 
+        if not addatom:
+            for key in addfrml.keys():
+                for _ in range(addfrml[key]):
+                    i = weightenCluster(self.d).choseAtom(atoms, key)
+                    del atoms[i]
+        else:
             for _ in range(self.tryNum):
                 if addfrml:
                     #borrowed from Individual.repair_atoms
                     atomnum = list(addfrml.keys())[0]
+                    i = weightenCluster(self.d).choseAtom(atoms, atomnum)
                     basicR = covalent_radii[atoms[i].number] + covalent_radii[atomnum]
                     # random position in spherical coordination
                     radius = basicR * (ind.p.dRatio + np.random.uniform(0,0.3))
@@ -539,6 +551,14 @@ class ShellMutation(Mutation):
                     break
 
         return ind(atoms)
+    
+    def mutate(self,ind):
+        ind = self._mutate_(ind, addatom = False, addfrml = {14: 1})
+        ind = self._mutate_(ind, addatom = True, addfrml = {14: 1})
+        if spglib.get_spacegroup(ind.atoms, 0.1) == 'P1 (1)' and np.random.rand() < 0.5:
+            return LyrSymMutation(tryNum = 50).mutate(ind)
+        else:
+            return ind
 
 class CluSymMutation(LyrSymMutation):
     """

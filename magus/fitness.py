@@ -116,7 +116,7 @@ class ErcsFitness(FitnessCalculator):
     def Eform(self, Pop):
     #define E_form = E_total - E_ideal - sum_x (nxux)
     #Lu et al, Carbon 159 (2020) 9-15, https://doi.org/10.1016/j.carbon.2019.12.003
-        uxdict = Pop.Individual.p.ref['adEs']
+        uxdict = Pop.Individual.p.refE['adEs']
         for ind in Pop:
             ind.info['enthalpy'] = ind.atoms.info['enthalpy']
             symbol, formula = symbols_and_formula(ind.atoms)

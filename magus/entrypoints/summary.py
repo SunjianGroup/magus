@@ -33,7 +33,7 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
             key_index = show_features.index(sorted_by)
         except:
             print('{} not in show features, auto choose enthalpy as sort feature'.format(sorted_by))
-        key_index = show_features.index('enthalpy')
+            key_index = show_features.index('enthalpy')
     for i, atoms in enumerate(all_frames):  
         if cluster:
             molecule = Molecule(atoms.symbols,atoms.get_positions())
@@ -51,18 +51,22 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
         atoms.info['fullSym'] = atoms.get_chemical_formula()
         atoms.info['row'] = [atoms.info[feature] if feature in atoms.info.keys() else None \
                              for feature in show_features]
+    
+    alldata = [atoms.info['row'] for atoms in all_frames]
+    df = pd.DataFrame(alldata, columns=show_features)
     if sorted_by is not None:
-        all_frames.sort(key=lambda atoms:atoms.info['row'][key_index] or 100)
+        df = df.sort_values(by=[show_features[key_index]])
+
     if save:
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
-        for i, atoms in enumerate(all_frames):
+        for i, index in enumerate(df.index):
             posname = os.path.join(outdir, "POSCAR_{}.vasp".format(i+1))
-            write(posname, atoms, direct = True, vasp5 = True)
-    alldata = [atoms.info['row'] for atoms in all_frames[:show_number]]
-    df = pd.DataFrame(alldata, columns=show_features)
-    df.index += 1
+            write(posname, all_frames[index], direct = True, vasp5 = True)
+
+    df.index = range(1, len(df)+1)
     if reverse:
-        print(df[::-1])
+        print(df[:-show_number:-1])
     else:
-        print(df)
+        print(df[:show_number])
+        

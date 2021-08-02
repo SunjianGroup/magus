@@ -103,7 +103,7 @@ def parse_args():
         "-n",
         "--show-number",
         type=int,
-        default=20,
+        default=100,
         help="number of show in screen",
     )
     parser_sum.add_argument(
@@ -273,6 +273,13 @@ def parse_args():
         type=str,
         default= None,
         help="output to excel",
+    )
+    parser_ana.add_argument(
+        "-p",
+        "--to_plt",
+        type=str,
+        default= None,
+        help="output to plot",
     )
 
     #for developers: mutation test
