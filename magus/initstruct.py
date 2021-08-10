@@ -52,7 +52,7 @@ class Generator:
         maxVolume = Volume*1.5
         minLattice= [2*np.max(self.p.radius)]*3+[60]*3
         # maxLattice= [maxVolume/2/np.max(self.p.radius)]*3+[120]*3
-        maxLattice= [maxVolume**(1./3)]*3+[120]*3
+        maxLattice= [3*maxVolume**(1./3)]*3+[120]*3
         if self.p.minLattice:
             minLattice = self.p.minLattice
             minVolume = np.linalg.det(cellpar_to_cell(minLattice)) 
@@ -65,6 +65,37 @@ class Generator:
             maxLattice = [l+0.01 for l in minLattice]
             maxVolume = np.linalg.det(cellpar_to_cell(maxLattice))
         return minVolume,maxVolume,minLattice,maxLattice
+
+    def Generate_ind_(self, spg, numlist, n_split):
+        numlist_ = np.ceil(numlist / n_split).astype(np.int)
+        residual = numlist_ * n_split - numlist
+        label, atoms = self.Generate_ind(spg, numlist_)
+        if label:
+            while n_split > 1:
+                i = 2
+                find = False
+                while i < np.sqrt(n_split):
+                    if n_split % i == 0:
+                        find = True
+                        break
+                    i += 1
+                if not find:
+                    i = n_split
+                to_expand = np.argmin(atoms.cell.cellpar()[:3])
+                expand_matrix = [1, 1, 1]
+                expand_matrix[to_expand] = i
+                atoms = atoms * expand_matrix
+                n_split /= i
+            for i, symbol in enumerate(self.p.symbols):
+                while residual[i] > 0:
+                    candidate = [i for i, atom in enumerate(atoms) if atom.symbol == symbol]
+                    to_del = np.random.choice(candidate)
+                    del atoms[to_del]
+                    residual[i] -= 1
+            atoms = atoms[atoms.numbers.argsort()]
+            return label, atoms
+        else:
+            return label, None
 
     def Generate_ind(self, spg, numlist):
         spg=int(spg)
@@ -159,6 +190,10 @@ class BaseGenerator(Generator):
         minFrml = int(np.ceil(self.p.minAt/sum(self.p.formula)))
         maxFrml = int(self.p.maxAt/sum(self.p.formula))
         self.p.numFrml = list(range(minFrml, maxFrml + 1))
+        if hasattr(parameters, 'n_split'):
+            self.p.n_split = parameters.n_split
+        else:
+            self.p.n_split = [1]
 
     def afterprocessing(self,ind,nfm):
         ind.info['symbols'] = self.p.symbols
@@ -175,7 +210,8 @@ class BaseGenerator(Generator):
             nfm = np.random.choice(self.p.numFrml)
             spg = np.random.choice(self.p.spgs)
             numlist=np.array(self.p.formula)*nfm
-            label,ind = self.Generate_ind(spg,numlist)
+            n_split = np.random.choice(self.p.n_split)
+            label,ind = self.Generate_ind_(spg,numlist,n_split)
             if label:
                 self.afterprocessing(ind,nfm)
                 buildPop.append(ind)
@@ -188,12 +224,14 @@ class BaseGenerator(Generator):
                 nfm = np.random.choice(self.p.numFrml)
                 spg = np.random.choice(self.p.spgs)
                 numlist=np.array(self.p.formula)*nfm
-                label,ind = self.Generate_ind(spg,numlist)
+                n_split = np.random.choice(self.p.n_split)
+                label,ind = self.Generate_ind_(spg,numlist,n_split)
                 if label:
                     self.afterprocessing(ind,nfm)
                     buildPop.append(ind)
                 else:
-                    label,ind = self.Generate_ind(1,numlist)
+                    n_split = np.random.choice(self.p.n_split)
+                    label,ind = self.Generate_ind_(1,numlist,n_split)
                     if label:
                         self.afterprocessing(ind,nfm)
                         buildPop.append(ind)
@@ -241,7 +279,7 @@ class MoleculeGenerator(Generator):
         maxVolume = Volume*1.5
         minLattice= [2*np.max(self.p.radius)]*3+[60]*3
         # maxLattice= [maxVolume/2/np.max(self.p.radius)]*3+[120]*3
-        maxLattice= [maxVolume**(1./3)]*3+[120]*3
+        maxLattice= [3*maxVolume**(1./3)]*3+[120]*3
         if self.p.minLattice:
             minLattice = self.p.minLattice
             minVolume = np.linalg.det(cellpar_to_cell(minLattice)) 

@@ -13,11 +13,11 @@ log = logging.getLogger(__name__)
 class GulpCalculator(ClusterCalculator):
     def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Gulp',
                  pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
-                 exeCmd='gulp < input > output', *arg, **kwargs):
+                 exeCmd='gulp < input > output', mode='parallel', *arg, **kwargs):
         super().__init__(workDir=workDir, queueName=queueName, numCore=numCore, 
                          numParallel=numParallel, jobPrefix=jobPrefix, pressure=pressure, 
                          Preprocessing=Preprocessing, waitTime=waitTime, 
-                         verbose=verbose, killtime=killtime)
+                         verbose=verbose, killtime=killtime, mode=mode)
         self.gulp_setup = {
             'pressure': pressure,
             'exe_cmd': exeCmd,
@@ -77,6 +77,7 @@ def calc_gulp(gulp_setup, frames):
             if exitcode != 0:
                 raise RuntimeError('Gulp exited with exit code: %d.  ' % exitcode)
             new_atoms = load_gulp('output')
+            atoms.info.update(new_atoms.info)
             new_atoms.info = atoms.info
             enthalpy = (new_atoms.info['energy'] + pressure * GPa * new_atoms.get_volume()) / len(new_atoms)
             new_atoms.info['enthalpy'] = round(enthalpy, 3)

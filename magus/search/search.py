@@ -137,8 +137,11 @@ class Magus:
         initPop.save('init', self.curgen)
         #######  relax  #######
         relaxpop = self.main_calculator.relax(initPop.frames)
-        relax_step = sum([sum(atoms.info['relax_step']) for atoms in relaxpop])
-        log.info('DFT relax {} structures with {} scf'.format(len(relaxpop), relax_step))
+        try:
+            relax_step = sum([sum(atoms.info['relax_step']) for atoms in relaxpop])
+            log.info('DFT relax {} structures with {} scf'.format(len(relaxpop), relax_step))
+        except:
+            pass
         relaxPop = self.Population(relaxpop, 'relaxpop', self.curgen)
         # save raw date before checking
         relaxPop.save('raw')

@@ -82,7 +82,7 @@ class ClusterCalculator(Calculator, abc.ABC):
         if self.mode == 'parallel':
             self.J = JobManager(
                 queue_name=queueName,
-                num_core=numCore, 
+                num_core=numCore,
                 pre_processing=Preprocessing,
                 verbose=verbose,
                 kill_time=killtime,

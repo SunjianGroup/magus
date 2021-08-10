@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 
 class OffspringCreator:
-    parm = {'tryNum':10}
+    parm = {'tryNum': 50}
     def __init__(self, **kwargs):
         for key in self.parm:
             value = kwargs[key] if key in kwargs else self.parm[key]
@@ -188,7 +188,7 @@ class SoftMutation(Mutation):
         return ind(atoms)
 
 class PermMutation(Mutation):
-    parm = {'tryNum':10, 'fracSwaps':0.5} 
+    parm = {'tryNum':50, 'fracSwaps':0.5} 
     """
     fracSwaps -- max ratio of atoms exchange
     """
@@ -233,7 +233,7 @@ class PermMutation(Mutation):
         return ind(atoms)
 
 class LatticeMutation(Mutation):
-    parm = {'tryNum':10, 'sigma': 0.1, 'cellCut': 1}
+    parm = {'tryNum':50, 'sigma': 0.1, 'cellCut': 1}
     """
     sigma: Gauss distribution standard deviation
     cellCut: coefficient of gauss distribution in cell mutation
@@ -276,7 +276,7 @@ class LatticeMutation(Mutation):
 
 
 class SlipMutation(Mutation):
-    parm = {'tryNum':10, 'cut':0.5, 'randRange':[0.5, 2]}
+    parm = {'tryNum':50, 'cut':0.5, 'randRange':[0.5, 2]}
 
     def mutate(self, ind):
         '''
@@ -451,7 +451,7 @@ class LyrSymMutation(Mutation):
         return ind(atoms)
 
 class RippleMutation(Mutation):
-    parm = {'tryNum':10, 'rho':0.3, 'mu':2, 'eta':1}
+    parm = {'tryNum':50, 'rho':0.3, 'mu':2, 'eta':1}
 
     def mutate(self,ind):
         '''
@@ -476,7 +476,7 @@ class RippleMutation(Mutation):
         return ind(atoms)
 
 class RotateMutation(Mutation):
-    parm = {'tryNum':10, 'p':1}
+    parm = {'tryNum':50, 'p':1}
     def mutate(self,ind):
         atoms = ind.atoms.copy()
         # atoms = Molfilter(atoms)
@@ -610,7 +610,7 @@ class RattleMutation(Mutation):
         atoms. Atoms are rattled uniformly within a sphere of this
         radius.  
     """
-    parm = {'tryNum':10, 'p': 0.25, 'rattle_range': 4, 'dRatio':0.7, 'keepsym': False, 'symprec': 1e-1}
+    parm = {'tryNum':50, 'p': 0.25, 'rattle_range': 4, 'dRatio':0.7, 'keepsym': False, 'symprec': 1e-1}
 
     #random movement around pos.
     def rattle(self, pos):
@@ -695,13 +695,15 @@ class CutAndSplicePairing(Crossover):
 
       __ https://doi.org/10.1016/j.cpc.2010.07.048
     """
-    parm = {'tryNum':10, 'cutDisp':0}
+    parm = {'tryNum':50, 'cutDisp':0}
 
     def cross(self, ind1, ind2):
         """
         cut two cells to get a new cell
         """
         atoms1,atoms2,ratio1,ratio2 = match_lattice(ind1.atoms,ind2.atoms)
+        atoms1.set_scaled_positions(atoms1.get_scaled_positions() + np.random.rand(3))
+        atoms2.set_scaled_positions(atoms2.get_scaled_positions() + np.random.rand(3)) 
         cutCell = (atoms1.get_cell()+atoms2.get_cell())*0.5
         cutCell[2] = (atoms1.get_cell()[2]/ratio1+atoms2.get_cell()[2]/ratio2)*0.5
         cutVol = (atoms1.get_volume()/ratio1+atoms2.get_volume()/ratio2)*0.5
@@ -746,7 +748,7 @@ class ReplaceBallPairing(Crossover):
     TODO rotate the replace ball
     how to rotate the ball to make energy lower
     """
-    parm = {'tryNum':10, 'cutrange':[1,2]}
+    parm = {'tryNum':50, 'cutrange':[1,2]}
 
     def cross(self, ind1, ind2):
         """replace some atoms in a ball
@@ -896,16 +898,18 @@ class PopGenerator:
         ##################################
         #temp
         #si ma dang huo ma yi
-        k = 2 / len(Pop)
+        #k = 2 / len(Pop)
         ##################################
         if num < len(Pop):
-            pardom = np.array([ind.info['pardom'] for ind in Pop.pop])
-            edom = np.e**(-k*pardom)
-            p = edom/np.sum(edom)
-            Pop.pop = list(np.random.choice(Pop.pop,num,False,p=p))
+            # pardom = np.array([ind.info['pardom'] for ind in Pop.pop])
+            # edom = np.e**(-k*pardom)
+            # p = edom/np.sum(edom)
+            # Pop.pop = list(np.random.choice(Pop.pop,num,False,p=p))
+            Pop.pop = list(np.random.choice(Pop.pop, num, False))
             return Pop
         else:
             return Pop
+        
 
     def next_Pop(self,Pop):
         saveGood = self.p.saveGood

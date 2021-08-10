@@ -1037,6 +1037,8 @@ def match_lattice(atoms1,atoms2):
     Returns:
         atoms,atoms,float,float -- two best matched atoms in z direction
     """
+    return atoms1, atoms2, 0.5, 0.5
+    #TODO temporary remove
     def match_fitness(a1,b1,a2,b2):
         #za lao shi you shu zhi cuo wu
         a1,b1,a2,b2 = np.round([a1,b1,a2,b2],3)

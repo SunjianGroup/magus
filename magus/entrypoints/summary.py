@@ -21,7 +21,7 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
         for atoms in frames:
             atoms.info['source'] = filename.split('.')[0]
         all_frames.extend(frames)
-    show_features = [feature for feature in ['symmetry', 'enthalpy', 'parentE', 'origin', 'fullSym', 'priSym', 'Eo', 'energy']\
+    show_features = [feature for feature in ['symmetry', 'enthalpy', 'parentE', 'origin', 'fullSym', 'priSym']\
             if feature not in remove_features]
     show_features.extend(add_features)
     if len(filenames) > 1 and 'source' not in show_features:
@@ -33,7 +33,7 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
             key_index = show_features.index(sorted_by)
         except:
             print('{} not in show features, auto choose enthalpy as sort feature'.format(sorted_by))
-        key_index = show_features.index('enthalpy')
+            key_index = show_features.index('enthalpy')
     for i, atoms in enumerate(all_frames):  
         if cluster:
             molecule = Molecule(atoms.symbols,atoms.get_positions())
