@@ -26,7 +26,7 @@ class ZurekComparator:
 
     def _reduce_to_primitive(self, atoms):
         cell, scaled_pos, numbers = spglib.standardize_cell(atoms, to_primitive=True)
-        atoms_ = Atoms(scaled_positions=scaled_pos, numbers=numbers, cell=cell, pbc=True)
+        atoms_ = atoms.__class__(scaled_positions=scaled_pos, numbers=numbers, cell=cell, pbc=True)
         atoms_.info = atoms.info
         return atoms_
     

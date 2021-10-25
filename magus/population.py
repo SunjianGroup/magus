@@ -241,8 +241,8 @@ class Population:
                 goodpop[label] = ind
         return labels, goodpop
 
-    def get_volRatio(self):
-        volRatios = [ind.get_volRatio() for ind in self.pop]
+    def get_volume_ratio(self):
+        volRatios = [ind.get_volume_ratio() for ind in self.pop]
         return np.mean(volRatios)
 
     def find_spg(self):

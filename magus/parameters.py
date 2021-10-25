@@ -1,6 +1,7 @@
+from ase import build
 from ase.data import atomic_numbers
 from ase.geometry import cellpar_to_cell
-import ase.io
+from ase.io import read
 import math, os, yaml, logging, copy
 from functools import reduce
 import numpy as np
@@ -10,6 +11,7 @@ from .queuemanage import JobManager
 from .population import Population
 from .fitness import fit_dict
 from .calculators import get_calculator
+from .generators import get_random_generator
 from .offspring_creator import *
 ###############################
 
@@ -64,8 +66,11 @@ class magusParameters:
         if p.calcType=='rcs':
             log = logging.getLogger(__name__)
             log.info("rcs mode: \nlayerfile= "+p.layerfile)
-            
+
         checkParameters(p,p,Requirement,Default)
+        for key in Default:
+            if key not in self.p_dict:
+                self.p_dict[key] = Default[key]
 
         # p.initSize = p.popSize
         expandSpg = []
@@ -80,57 +85,28 @@ class magusParameters:
                 assert 1 <= s1 < s2 <= 230, 'Please check the format of spacegroup'
                 expandSpg.extend(list(range(s1, s2+1)))
         p.spgs = expandSpg
-        
+
         if p.calcType=='rcs':
             p.originlayer=p.workDir+'/'+p.layerfile
-            
-        if p.molMode:
-            from ase import build
-            assert hasattr(p,'molFile'), 'Please define molFile'
-            assert hasattr(p,'molFormula'), 'Please define molFormula'
-            mols = [build.sort(ase.io.read("{}/{}".format(p.workDir, f), format='xyz')) for f in p.molFile]
 
-            for mol in mols:
+        if p.molMode:
+            assert hasattr(p,'inputMols'), 'Please define molFile'
+            self.p_dict['input_mols'] = []
+            for i, filename in enumerate(p.inputMols):
+                mol = build.sort(read(filename))
+                for s in mol.get_chemical_symbols():
+                    assert s in p.symbols, "{} of {} not in given symbols".format(s, mol.get_chemical_formula())
                 assert not mol.pbc.any(), "Please provide a molecule ranther than a periodic system!"
-            molSymbols = set(reduce(lambda x,y: x+y, [ats.get_chemical_symbols() for ats in mols]))
-            assert molSymbols == set(p.symbols), 'Please check the compositions of molecules'
-            if p.molType == 'fix':
-                molFrmls = np.array([get_formula(mol, p.symbols) for mol in mols])
-                p.formula = np.dot(p.molFormula, molFrmls).tolist()
-            p.molList = [{'numbers': ats.get_atomic_numbers(),
-                        'positions': ats.get_positions()}
-                        for ats in mols]
-            p.molNum = len(p.molFile)
-            p.inputMols = [Atoms(**molInfo) for molInfo in p.molList]
-            minFrml = int(np.ceil(p.minAt/sum(p.formula)))
-            maxFrml = int(p.maxAt/sum(p.formula))
-            p.numFrml = list(range(minFrml, maxFrml + 1))
+                self.p_dict['input_mols'].append(mol)
+            p.molList = self.p_dict['input_mols']
+
         if p.chkMol:
             assert p.molDetector==1, "If you want to check molecules, molDetector should be 1."
         self.parameters = p
 
     def get_AtomsGenerator(self):
         if not hasattr(self,'AtomsGenerator'):
-            if self.parameters.calcType == 'fix':
-                if self.parameters.molMode:
-                    AtomsGenerator = MoleculeGenerator(self.parameters)
-                else:
-                    AtomsGenerator = BaseGenerator(self.parameters)
-            elif self.parameters.calcType == 'var':
-                if self.parameters.molMode:
-                    raise Exception("Ni deng hui , zhe ge hai mei jia ne")
-                else:
-                    AtomsGenerator = VarGenerator(self.parameters)
-
-            elif self.parameters.calcType == 'rcs':
-                AtomsGenerator = ReconstructGenerator(self.parameters)
-            elif self.parameters.calcType == 'clus':
-                AtomsGenerator = ClusterGenerator(self.parameters)
-                
-            else:
-                raise Exception("Undefined calcType '{}'".format(self.parameters.calcType))
-            self.AtomsGenerator = AtomsGenerator
-            self.parameters.attach(AtomsGenerator.p)
+            self.AtomsGenerator = get_random_generator(self.p_dict)
         return self.AtomsGenerator
 
     def get_PopGenerator(self):

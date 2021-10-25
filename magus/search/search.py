@@ -127,8 +127,7 @@ class Magus:
 
     def set_volume_ratio(self):
         if self.curgen > 1:
-            volume_ratio = self.curPop.get_volRatio()
-            new_volume_ratio = 0.7 * volume_ratio + 0.3 * self.atoms_generator.p.volRatio
+            new_volume_ratio = 0.7 * self.curPop.volume_ratio + 0.3 * self.atoms_generator.volume_ratio
             self.atoms_generator.update_volume_ratio(new_volume_ratio)
 
     def one_step(self):

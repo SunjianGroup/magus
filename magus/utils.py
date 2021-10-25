@@ -1027,6 +1027,26 @@ def checkParameters(instance,parameters,Requirement=[],Default={}):
         else:
             setattr(instance,key,getattr(parameters,key))
 
+
+def check_parameters(instance, parameters, Requirement=[], Default={}):
+    name = instance.__class__.__name__
+    for key in Requirement:
+        if key in parameters:
+            setattr(instance, key, parameters[key])
+        elif snake2camel(key) in parameters:
+            setattr(instance, key, parameters[snake2camel(key)])
+        else:
+            raise Exception("'{}' must have {}".format(name, key))
+
+    for key in Default.keys():
+        if key in parameters:
+            setattr(instance, key, parameters[key])
+        elif snake2camel(key) in parameters:
+            setattr(instance, key, parameters[snake2camel(key)])  
+        else:
+            setattr(instance, key, Default[key])
+
+
 def match_lattice(atoms1,atoms2):
     """lattice matching , 10.1016/j.scib.2019.02.009
     
@@ -1104,3 +1124,56 @@ def stay(func):
         func(*args, **kw)
         os.chdir(currdir)
     return wrapper
+
+def camel2snake(name):
+    snake_case = re.sub(r"(?P<key>[A-Z])", r"_\g<key>", name)
+    return snake_case.lower().strip('_')
+
+def snake2camel(name):
+    return re.sub(r"(_[a-z])", lambda x: x.group(1)[1].upper(), name)
+
+def get_units_numlist(atoms, units):
+    symbols = set(reduce(lambda x, y: x + y, [unit.get_chemical_symbols() for unit in units]))
+    A = [[unit.get_chemical_symbols().count(s) for unit in units] for s in symbols]
+    b = [atoms.get_chemical_symbols().count(s) for s in symbols]
+    return np.rint(np.linalg.pinv(A) @ np.array(b)).astype('int')
+
+def get_units_formula(atoms, units):
+    numlist = get_units_numlist(atoms, units)
+    formula = ''
+    for n, unit in zip(numlist, units):
+        f = unit.get_chemical_formula()
+        if n == 0:
+            f = ''
+        elif n > 1 and len(f) > 1:
+            f = '({}){}'.format(f, n) 
+        formula += f
+    return formula
+
+
+def get_threshold_dict(symbols, radius=None, d_ratio=None, distance_matrix=None):
+    threshold_dict = {}
+    if radius is None:
+        radius = [covalent_radii[atomic_numbers[atom]] for atom in symbols]
+    for si, sj in itertools.combinations_with_replacement(symbols, 2):
+        i, j = symbols.index(si), symbols.index(sj)
+        ri, rj = radius[i], radius[j]
+        if distance_matrix is None:
+            threshold_dict[(si, sj)] = threshold_dict[(sj, si)] = d_ratio
+        else:
+            threshold_dict[(si, sj)] = threshold_dict[(sj, si)] = distance_matrix[i][j] / (ri + rj)
+    return threshold_dict
+
+
+def get_distance_dict(symbols, radius=None, d_ratio=None, distance_matrix=None):
+    distance_dict = {}
+    if radius is None:
+        radius = [covalent_radii[atomic_numbers[atom]] for atom in symbols]
+    for si, sj in itertools.combinations_with_replacement(symbols, 2):
+        i, j = symbols.index(si), symbols.index(sj)
+        ri, rj = radius[i], radius[j]
+        if distance_matrix is None:
+            distance_dict[(sj, si)] = distance_dict[(sj, si)] = d_ratio * (ri + rj)
+        else:
+            distance_dict[(sj, si)] = distance_dict[(sj, si)] = distance_matrix[i][j]
+    return distance_dict
