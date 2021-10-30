@@ -4,6 +4,7 @@ from ase.io import read, write
 from ase import Atoms
 import numpy as np
 import spglib as spg
+import itertools as it
 try:
     from pymatgen import Molecule
     from pymatgen.symmetry.analyzer import PointGroupAnalyzer
@@ -15,12 +16,15 @@ pd.options.display.max_rows = 100
 def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], sorted_by='enthalpy',
             save=False, outdir='.', reverse=False, show_number=20, cluster = False,
             **kwargs):
-    all_frames = []
-    for filename in filenames:
-        frames = read(filename, format='traj', index=':')
-        for atoms in frames:
-            atoms.info['source'] = filename.split('.')[0]
-        all_frames.extend(frames)
+    
+    def get_frames(filenames):
+        for filename in filenames:
+            frames = read(filename, format='traj', index=':')
+            for atoms in frames:
+                atoms.info['source'] = filename.split('.')[0]
+        yield frames
+    all_frames = list(it.chain(get_frames()))
+
     show_features = [feature for feature in ['symmetry', 'enthalpy', 'parentE', 'origin', 'fullSym', 'priSym', 'Eo', 'energy']\
             if feature not in remove_features]
     show_features.extend(add_features)
