@@ -1,6 +1,6 @@
 import os, sys
 import pandas as pd
-from ase.io import read, write
+from ase.io import iread, write
 from ase import Atoms
 import numpy as np
 import spglib as spg
@@ -29,7 +29,7 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
 
     def get_frames(filenames):
         for filename in filenames:
-            frames = read(filename, format='traj', index=':')
+            frames = iread(filename, format='traj', index=':')
             for atoms in frames:
                 atoms.info['source'] = filename.split('.')[0]
                 yield atoms
