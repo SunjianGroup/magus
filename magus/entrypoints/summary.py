@@ -4,7 +4,6 @@ from ase.io import read, write
 from ase import Atoms
 import numpy as np
 import spglib as spg
-import itertools as it
 try:
     from pymatgen import Molecule
     from pymatgen.symmetry.analyzer import PointGroupAnalyzer
@@ -33,7 +32,7 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
             frames = read(filename, format='traj', index=':')
             for atoms in frames:
                 atoms.info['source'] = filename.split('.')[0]
-        yield frames
+                yield atoms
 
     def set_features(all_frames):
         for i, atoms in enumerate(all_frames):  
@@ -61,10 +60,9 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
 
             atoms.info['row'] = [atoms.info[feature] if feature in atoms.info.keys() else None \
                                 for feature in show_features]
-        yield atoms.info['row']
+            yield atoms.info['row']
 
-    all_frames = it.chain(get_frames(filenames))    
-    alldata = set_features(all_frames)
+    alldata = set_features(get_frames(filenames))
     df = pd.DataFrame(alldata, columns=show_features)
     
     if sorted_by is not None:
