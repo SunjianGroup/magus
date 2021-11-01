@@ -60,10 +60,11 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
 
             atoms.info['row'] = [atoms.info[feature] if feature in atoms.info.keys() else None \
                                 for feature in show_features]
-            yield atoms.info['row']
-
-    alldata = set_features(get_frames(filenames))
-    df = pd.DataFrame(alldata, columns=show_features)
+            yield atoms
+    
+    all_frames = list(set_features(get_frames(filenames)))
+    rows = [atoms.info["row"] for atoms in all_frames]    
+    df = pd.DataFrame(rows, columns=show_features)
     
     if sorted_by is not None:
         df = df.sort_values(by=[sorted_by,])
@@ -72,8 +73,11 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
         for i, index in enumerate(df.index):
-            posname = os.path.join(outdir, "POSCAR_{}.vasp".format(i+1))
-            write(posname, all_frames[index], direct = True, vasp5 = True)
+            if i <= show_number:
+                posname = os.path.join(outdir, "POSCAR_{}.vasp".format(i+1))
+                write(posname, all_frames[index], direct = True, vasp5 = True)
+            else:
+                break
 
     df.index = range(1, len(df)+1)
     if reverse:
