@@ -5,9 +5,11 @@ from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
+from magus.utils import CALCULATOR_PLUGIN
 #TODO: return None
 
 # units must be metal!!
+@CALCULATOR_PLUGIN.register('lammps')
 class LammpsCalculator(ClusterCalculator):
     def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Lammps',
                  pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,

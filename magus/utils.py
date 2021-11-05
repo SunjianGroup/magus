@@ -1226,6 +1226,14 @@ class Plugin:
             return plugin
         return wrapper
 
+    def __repr__(self):
+        ret = self.name
+        ret += "\n-------------------"
+        for key, value in self.plugins.items():
+            ret += "\n{}: {}".format(key.ljust(15, ' '), value.__name__)
+        ret += "\n-------------------\n"
+        return ret
+
     def __contains__(self, key):
         return key in self.plugins
 
