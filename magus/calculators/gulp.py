@@ -90,7 +90,7 @@ def calc_gulp(gulp_setup, frames):
 
 if  __name__ == "__main__":
     gulp_setup_file, input_traj, output_traj = sys.argv[1:]
-    gulp_setup = yaml.load(open(gulp_setup_file))
+    gulp_setup = yaml.load(open(gulp_setup_file), Loader=yaml.FullLoader)
 
     init_pop = read(input_traj, format='traj', index=':',)
     opt_pop = calc_gulp(gulp_setup, init_pop)

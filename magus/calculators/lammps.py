@@ -122,7 +122,7 @@ def calc_lammps(lammps_setup, frames):
 
 if  __name__ == "__main__":
     lammps_setup_file, input_traj, output_traj = sys.argv[1:]
-    lammps_setup = yaml.load(open(lammps_setup_file))
+    lammps_setup = yaml.load(open(lammps_setup_file), Loader=yaml.FullLoader)
 
     init_pop = read(input_traj, format='traj', index=':',)
     opt_pop = calc_lammps(lammps_setup, init_pop)

@@ -123,7 +123,7 @@ def get_calc(vasp_setup):
 
 if  __name__ == "__main__":
     vasp_setup_file, input_traj, output_traj = sys.argv[1:]
-    vasp_setup = yaml.load(open(vasp_setup_file))
+    vasp_setup = yaml.load(open(vasp_setup_file), Loader=yaml.FullLoader)
     calc = get_calc(vasp_setup)
     init_pop = read(input_traj, format='traj', index=':',)
     opt_pop = calc_vasp(calc, init_pop)

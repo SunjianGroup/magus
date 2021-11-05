@@ -8,7 +8,7 @@ from xtb.ase.calculator import XTB
 class XTBCalculator(ASECalculator):
     def set_calc(self):
         with open("{}/xtb.yaml".format(self.input_dir)) as f:
-            params = yaml.load(f)
+            params = yaml.load(f, Loader=yaml.FullLoader)
             self.relax_calc = XTB(**params)
             self.scf_calc = XTB(**params)
 #        with open("{}/xtb_relax.yaml".format(self.input_dir)) as f:

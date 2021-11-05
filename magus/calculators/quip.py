@@ -9,8 +9,8 @@ from quippy.potential import Potential as QUIP
 class QUIPCalculator(ASECalculator):
     def set_calc(self):
         with open("{}/quip_relax.yaml".format(self.input_dir)) as f:
-            params = yaml.load(f)
+            params = yaml.load(f, Loader=yaml.FullLoader)
             self.relax_calc = QUIP(**params)
         with open("{}/quip_scf.yaml".format(self.input_dir)) as f:
-            params = yaml.load(f)
+            params = yaml.load(f, Loader=yaml.FullLoader)
             self.scf_scf = QUIP(**params)

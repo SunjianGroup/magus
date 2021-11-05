@@ -252,7 +252,7 @@ class Magus:
     def update_parameters(self):
         if self.MainCalculator.p.mode == 'parallel':
             with open('results/allparameters.yaml') as f:
-                d = yaml.load(f)
+                d = yaml.load(f, Loader=yaml.FullLoader)
             if 'queueName' in d['MainCalculator']:
                 if d['MainCalculator']['queueName'] != self.MainCalculator.p.queueName:
                     logging.warning('*****************\nBe careful, {} is replaced by {}\n*****************'.format(self.MainCalculator.p.queueName, d['MainCalculator']['queueName']))

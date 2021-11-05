@@ -24,7 +24,7 @@ class BaseJobManager:
         if self.control_file is not None:
             changed_info = []
             with open(self.control_file) as f:
-                control_dict = yaml.load(f)
+                control_dict = yaml.load(f, Loader=yaml.FullLoader)
             for key in self.control_keys:
                 if key in control_dict:
                     if getattr(self, key) != control_dict[key]:
