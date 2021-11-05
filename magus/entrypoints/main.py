@@ -1,6 +1,6 @@
 import argparse, logging
 from magus.entrypoints import *
-from magus.calculators import calc_dict
+from magus.calculators import CALCULATOR_PLUGIN
 from magus.logger import set_logger
 from magus import __version__
 
@@ -157,7 +157,7 @@ def parse_args():
     parser_pre.add_argument(
         "-c",
         "--calc-type",
-        choices=calc_dict.keys(),
+        choices=CALCULATOR_PLUGIN.keys(),
         default="vasp",
         help="",
     )
@@ -234,6 +234,20 @@ def parse_args():
         default=10,
         help="generate number"
     )
+    # check full
+    parser_checkpack = subparsers.add_parser(
+        "checkpack",
+        parents=[parser_log],
+        help="check full",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_checkpack.add_argument(
+        "tocheck",
+        nargs='?',
+        choices=["all", "calculators", "comparators", "fingerprints"],
+        default="all",
+        help="the package to check"
+    )
     #For reconstructions, get a slab
     parser_slab = subparsers.add_parser(
         "getslab",
@@ -302,6 +316,8 @@ def main():
         analyze(**dict_args)
     elif args.command == 'mutate':
         mutate(**dict_args)
+    elif args.command == 'checkpack':
+        checkpack(**dict_args)
     elif args.command is None:
         pass
     else:

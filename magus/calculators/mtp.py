@@ -10,12 +10,13 @@ import logging
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
 from magus.calculators.lammps import calc_lammps_once
+from magus.utils import CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN
 
 
 log = logging.getLogger(__name__)
 
 
-# TODO mpiexec.hydra?
+@CALCULATOR_PLUGIN.register('mtp')
 class MTPCalculator(ClusterCalculator):
     def __init__(self, query_calculator, symbols, workDir, queueName, numCore, jobPrefix='MTP',
                  pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
@@ -295,6 +296,7 @@ class MTPCalculator(ClusterCalculator):
         return scfpop
 
 
+@CALCULATOR_CONNECT_PLUGIN.register('share-trainset')
 class TwoShareMTPCalculator(Calculator):
     def __init__(self, mtps):
         assert isinstance(mtps, list), "TwoShareMTP input should be list"
@@ -378,6 +380,7 @@ class TwoShareMTPCalculator(Calculator):
             return self.mtp2.calc_efs(frames)
 
 
+@CALCULATOR_PLUGIN.register('mtp-lammps')
 class MTPLammpsCalculator(MTPCalculator):
     def __init__(self, query_calculator, symbols, workDir, queueName, numCore, jobPrefix='MTP', 
                  pressure=0.0, Preprocessing='', waitTime=200, verbose=False, killtime=100000, 

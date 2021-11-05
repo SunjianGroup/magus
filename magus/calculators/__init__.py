@@ -1,35 +1,15 @@
-# calculators in localopt should be moved here
-from .ase import EMTCalculator, LJCalculator, XTBCalculator, QUIPCalculator
-from .vasp import VaspCalculator
-from .gulp import GulpCalculator
-from .mtp import MTPCalculator, MTPLammpsCalculator, TwoShareMTPCalculator
-from .lammps import LammpsCalculator
-from .base import AdjointCalculator
-from .orca import OrcaCalculator
 from string import digits
 import logging
 from copy import deepcopy
+from magus.utils import load_plugins, CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN
 
 
-__all__ = ['EMTCalculator', 'LJCalculator', 'XTBCalculator', 
-           'VaspCalculator', 'GulpCalculator', 'QUIPCalculator',
-           'MTPCalculator', 'MTPLammpsCalculator', 'OrcaCalculator',]
-calc_dict = {
-    'vasp': VaspCalculator,
-    'emt': EMTCalculator,
-    'lj': LJCalculator,
-    'gulp': GulpCalculator,
-    'xtb': XTBCalculator,
-    'lammps': LammpsCalculator,
-    'quip': QUIPCalculator,
-    'mtp': MTPCalculator,
-    'mtp-lammps': MTPLammpsCalculator,
-    'orca': OrcaCalculator,
-    }
-connect_dict = {
-    'naive': AdjointCalculator,
-    'share-trainset': TwoShareMTPCalculator,
-}
+load_plugins(__file__, 'magus.calculators')
+
+
+log = logging.getLogger(__name__)
+
+
 need_convert = ['jobPrefix', 'eps', 'maxStep', 'optimizer', 'maxMove', 
                 'relaxLattice', 'exeCmd', 'calculator',
                 'queueName', 'numCore', 'Preprocessing', 'waitTime',
@@ -44,9 +24,9 @@ def get_one_calculator(p_dict):
         calculator = p_dict['jobPrefix'].lower().translate(str.maketrans('', '', digits))
     else:
         calculator = p_dict['calculator']
-    if calculator not in calc_dict:
+    if calculator not in CALCULATOR_PLUGIN:
         raise Exception('Unknown calculator: {}'.format(calculator))
-    return calc_dict[calculator](**p_dict)
+    return CALCULATOR_PLUGIN[calculator](**p_dict)
 
 
 def get_calculator(p_dict):
@@ -65,5 +45,5 @@ def get_calculator(p_dict):
             calcs.append(get_one_calculator(p_dict_))
         if 'connect' not in p_dict:
             p_dict['connect'] = 'naive'
-        return connect_dict[p_dict['connect']](calcs)
+        return CALCULATOR_CONNECT_PLUGIN[p_dict['connect']](calcs)
     return get_one_calculator(p_dict)

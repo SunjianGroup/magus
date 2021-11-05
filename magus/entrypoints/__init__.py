@@ -7,5 +7,6 @@ from .generate import generate
 from .analyze import analyze
 from .getslab import getslab
 from .mutate import mutate
+from .checkpack import checkpack
 
-__all__ = ['clean', 'summary', 'prepare', 'search', 'calculate', 'generate', 'analyze', 'getslab', 'mutate']
+__all__ = ['clean', 'summary', 'prepare', 'search', 'calculate', 'generate', 'analyze', 'getslab', 'mutate', 'checkpack']

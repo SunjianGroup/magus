@@ -25,6 +25,10 @@ except ImportError:
     pass
 from importlib import import_module
 from pathlib import Path
+import logging
+
+
+log = logging.getLogger(__name__)
 
 
 class Singleton:
@@ -1213,11 +1217,17 @@ class Plugin:
         self.name = name
         self.plugins = {}
 
+    def keys(self):
+        return self.plugins.keys()
+
     def register(self, plugin_name):
         def wrapper(plugin):
             self.plugins.update({plugin_name: plugin})
             return plugin
         return wrapper
+
+    def __contains__(self, key):
+        return key in self.plugins
 
     def __getitem__(self, key):
         if key in self.plugins:
@@ -1225,16 +1235,19 @@ class Plugin:
         raise NotImplementedError("{} has not been registered in {}".format(key, self.name))
 
 
-def load_plugins(path, PACKAGE_BASE, NOT_LOADABLE = ("__init__.py",)):
+def load_plugins(path, PACKAGE_BASE, NOT_LOADABLE = ("__init__.py",), verbose=False):
     for module_file in Path(path).parent.glob("*.py"):
         if module_file.name not in NOT_LOADABLE:
             module_name = f".{module_file.stem}"
             try:
                 import_module(module_name, PACKAGE_BASE)
             except ImportError:
-                print("Fail when try to import {}{}, because:\n{}".format(PACKAGE_BASE, module_name, traceback.format_exc(1)))
+                if verbose:
+                    print("Fail when try to import {}{}, because:\n{}".format(PACKAGE_BASE, module_name, traceback.format_exc(1)))
 
 
 COMPARATOR_PLUGIN = Plugin('comparator')
 COMPARATOR_CONNECT_PLUGIN = Plugin('comparator_connect')
 FINGERPRINT_PLUGIN = Plugin('fingerprint')
+CALCULATOR_PLUGIN = Plugin('calculator')
+CALCULATOR_CONNECT_PLUGIN = Plugin('calculator_connect')

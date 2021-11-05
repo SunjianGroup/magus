@@ -4,6 +4,7 @@ from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
 from ase.calculators.vasp import Vasp
+from magus.utils import CALCULATOR_PLUGIN
 
 
 log = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ class RelaxVasp(Vasp):
         return True
 
 
+@CALCULATOR_PLUGIN.register('vasp')
 class VaspCalculator(ClusterCalculator):
     def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Vasp',
                  pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
