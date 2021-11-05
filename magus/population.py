@@ -8,7 +8,7 @@ from ase.data import covalent_radii,atomic_numbers
 from ase.neighborlist import neighbor_list
 from ase.atom import Atom
 import spglib
-from .utils import *
+from magus.utils import *
 import logging
 from sklearn import cluster
 from .descriptor import ZernikeFp

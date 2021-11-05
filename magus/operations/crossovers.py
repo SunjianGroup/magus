@@ -1,36 +1,22 @@
-import math
 import numpy as np
-import logging, copy
-from ase import Atoms, Atom 
-from ase.constraints import voigt_6_to_full_3x3_strain as v2f
-from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
-from ase.neighborlist import NeighborList
-from ase.data import covalent_radii,chemical_symbols
-from .population import Population
-from .molecule import Molfilter
-import ase.io
-from .utils import *
-from spglib import get_symmetry_dataset
-from collections import Counter
+from ase.geometry import cell_to_cellpar, cellpar_to_cell
+from ase.neighborlist import NewPrimitiveNeighborList
+from magus.utils import *
+from .base import Crossover
+
+__all__ = ['CutAndSplicePairing', 'ReplaceBallPairing',]
 
 
-log = logging.getLogger(__name__)
-
-
+##################################
+#
+# USPEX—Evolutionary crystal structure prediction. 
+#   Computer Physics Communications 175, 713–720 (2006).
+# XtalOpt: An open-source evolutionary algorithm for crystal structure prediction. 
+#   Computer Physics Communications 182, 372–387 (2011).
+#
+##################################
 class CutAndSplicePairing(Crossover):
-    """ 
-    A cut and splice operator for bulk structures.
 
-    For more information, see also:
-
-    * `Glass, Oganov, Hansen, Comp. Phys. Comm. 175 (2006) 713-720`__
-
-      __ https://doi.org/10.1016/j.cpc.2006.07.020
-
-    * `Lonie, Zurek, Comp. Phys. Comm. 182 (2011) 372-387`__
-
-      __ https://doi.org/10.1016/j.cpc.2010.07.048
-    """
     Default = {'tryNum': 50, 'cut_disp': 0, 'best_match': False}
 
     def cross(self, ind1, ind2):
@@ -39,8 +25,8 @@ class CutAndSplicePairing(Crossover):
             axis = 2
         else:
             axis = np.random.choice([0, 1, 2])
-            atoms1 = ind1.for_mutate
-            atoms2 = ind2.for_mutate
+            atoms1 = ind1.for_heredity()
+            atoms2 = ind2.for_heredity()
 
         atoms1.set_scaled_positions(atoms1.get_scaled_positions() + np.random.rand(3))
         atoms2.set_scaled_positions(atoms2.get_scaled_positions() + np.random.rand(3))
@@ -81,7 +67,7 @@ class ReplaceBallPairing(Crossover):
         replace some atoms in a ball
         """
         cut_radius = np.random.uniform(*self.cutrange)
-        atoms1, atoms2 = ind1.for_mutate, ind2.for_mutate
+        atoms1, atoms2 = ind1.for_heredity(), ind2.for_heredity()
         center_i, center_j = np.random.randint(len(atoms1)), np.random.randint(len(atoms2))
         newatoms = atoms1.__class__(pbc=atoms1.pbc, cell=atoms1.cell)
         positions1, positions2 = atoms1.get_positions(), atoms2.get_positions()

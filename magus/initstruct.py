@@ -12,7 +12,7 @@ from scipy.spatial.distance import cdist, pdist
 import ase,ase.io
 import copy
 import logging
-from .utils import *
+from magus.utils import *
 # from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 from .population import RcsInd
 import math

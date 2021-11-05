@@ -4,8 +4,7 @@ import abc
 import ase
 import logging
 from ase.atoms import Atoms
-from magus.utils import checkParameters, EmptyClass
-from magus.population import Individual
+from magus.populations.individuals import Individual
 from magus.formatting.traj import write_traj
 from magus.queuemanage import JobManager
 
@@ -33,14 +32,20 @@ class Calculator(abc.ABC):
         #os.makedirs(self.calc_dir)
         # make sure parameter files are copied, such as VASP's vdw kernel file and XTB's parameters
         shutil.copytree(self.input_dir, self.calc_dir)
-        self.main_info = ['job_prefix', 'pressure', 'input_dir', 'calc_dir']
+        self.main_info = ['job_prefix', 'pressure', 'input_dir', 'calc_dir']  # main information to print
 
-    def __str__(self):
-        d = {info: getattr(self, info) if hasattr(self, info) else None for info in self.main_info}
-        out  = self.__class__.__name__ + ':\n'
-        out += yaml.dump(d)
-        return out
-        
+    def __repr__(self):
+        ret = self.__class__.__name__
+        ret += "\n-------------------"
+        for info in self.main_info:
+            if hasattr(self, info):
+                value = getattr(self, info)
+                if isinstance(value, dict):
+                    value = yaml.dump(value).rstrip('\n').replace('\n', '\n'.ljust(18))
+                ret += "\n{}: {}".format(info.ljust(15, ' '), value)
+        ret += "\n-------------------\n"
+        return ret
+
     def cp_input_to(self, path='.'):
         for filename in os.listdir(self.input_dir):
             shutil.copy(os.path.join(self.input_dir, filename), 
@@ -78,7 +83,7 @@ class ClusterCalculator(Calculator, abc.ABC):
         self.wait_time = waitTime
         assert mode in ['serial', 'parallel'], "only support 'serial' and 'parallel'"
         self.mode = mode
-        self.main_info.append('mode')
+        self.main_info.append(mode)
         if self.mode == 'parallel':
             self.J = JobManager(
                 queue_name=queueName,
@@ -155,10 +160,10 @@ class AdjointCalculator(Calculator):
     def __init__(self, calclist):
         self.calclist = calclist
     
-    def __str__(self):
+    def __repr__(self):
         out  = self.__class__.__name__ + ':\n'
         for i, calc in enumerate(self.calclist):
-            out += 'Calculator {}: {}'.format(i, calc.__str__())
+            out += 'Calculator {}: {}'.format(i + 1, calc.__repr__())
         return out
 
     def relax(self, calcPop):

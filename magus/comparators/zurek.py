@@ -9,15 +9,17 @@ from ase import Atom, Atoms
 from ase.utils.structure_comparator import SymmetryEquivalenceCheck
 from ase.build.tools import niggli_reduce
 import spglib
+from magus.utils import COMPARATOR_PLUGIN
 
 
 def normalize(cell):
     for i in range(3):
         cell[i] /= np.linalg.norm(cell[i])
 
+
+@COMPARATOR_PLUGIN.register('zurek')
 class ZurekComparator:
-    def __init__(self, angle_tol=3.0, ltol=0.05, stol=0.05, vol_tol=0.05,
-                 to_primitive=False):
+    def __init__(self, angle_tol=3.0, ltol=0.05, stol=0.05, vol_tol=0.05, to_primitive=False, **kwargs):
         self.angle_tol = angle_tol * np.pi / 180.0  # convert to radians
         self.stol = stol
         self.ltol = ltol
@@ -340,11 +342,12 @@ class ZurekComparator:
                 return False
         return True
 
-class ASEComparator:
-    def __init__(self):
-        self.comparator = SymmetryEquivalenceCheck(to_primitive=True)
 
-    def looks_like(self, atoms1, atoms2):
-        atoms1 = atoms1.atoms
-        atoms2 = atoms2.atoms
-        return self.comparator.compare(atoms1, atoms2)
+@COMPARATOR_PLUGIN.register('ase-zurek')
+class ASEComparator:
+    def __init__(self, angle_tol=3.0, ltol=0.05, stol=0.05, vol_tol=0.05, to_primitive=True, **kwargs):
+        self.comparator = SymmetryEquivalenceCheck(
+            angle_tol=angle_tol, ltol=ltol, stol=stol, vol_tol=vol_tol, to_primitive=to_primitive)
+
+    def looks_like(self, ind1, ind2):
+        return self.comparator.compare(ind1, ind2)

@@ -1,33 +1,24 @@
 import logging
-from .naive import NaiveComparator
-from .bruteforce import ZurekComparator
-from .base import OrGate, AndGate
+from magus.utils import load_plugins, COMPARATOR_PLUGIN, COMPARATOR_CONNECT_PLUGIN
 
 
-calc_dict = {
-    'naive': NaiveComparator,
-    'bruteforce': ZurekComparator,
-    }
-connect_dict = {
-    'and': AndGate,
-    'or': OrGate,
-}
+load_plugins(__file__, 'magus.comparators')
+
 
 log = logging.getLogger(__name__)
 
 
-def get_one_comparator(comparator_type, p_dict):
-    if comparator_type not in comparator_dict:
-        raise Exception('Unknown comparator: {}'.format(comparator_type))
-    return comparator_dict[comparator_type](**p_dict)
-
-
-def get_comparator(p_dict=None):
-    if p_dict is None:
-        return OrGate([NaiveComparator(), ZurekComparator()])
-    if type(p_dict['type']) is list:
-        comparators = [get_one_comparator(t, p_dict) for t in p_dict['type']]
-        if 'connect' not in p_dict:
-            p_dict['connect'] = 'and'
-        return connect_dict[p_dict['connect']](comparators)
-    return get_one_calculator(p_dict['type'], p_dict)
+def get_comparator(p_dict):
+    comparators = {
+        'connect': 'or', 
+        'naive': {},
+        'ase-zurek': {},
+        }
+    if 'Comparator' in p_dict:
+        comparators.update(p_dict['Comparator'])
+    comparator_list = []
+    for comparator_name, para in comparators.items():
+        if comparator_name == 'connect':
+            continue
+        comparator_list.append(COMPARATOR_PLUGIN[comparator_name](**{**p_dict, **para}))
+    return COMPARATOR_CONNECT_PLUGIN[comparators['connect']](comparator_list)

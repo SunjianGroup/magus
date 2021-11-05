@@ -3,11 +3,11 @@ import numpy as np
 import ase.io
 import spglib as spg 
 from ase.data import atomic_numbers, covalent_radii
-from .utils import sort_elements
+from magus.utils import sort_elements
 import logging
 import copy
 from ase import Atoms, Atom
-from .utils import symbols_and_formula
+from magus.utils import symbols_and_formula
 from collections import Counter
 
 

@@ -8,14 +8,6 @@ try:
 except ImportError:
     MPI_INSTALLED = False
 
-class Singleton:
-    def __init__(self, cls):
-        self._cls = cls
-
-    def __call__(self):
-        if not hasattr(self, '_instance'):
-            self._instance = self._cls()
-        return self._instance
 
 
 @Singleton

@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-import os, subprocess, shutil, math, random, re, logging, fractions, sys, yaml, itertools
+import os, math, random, re, logging, itertools, traceback
 from collections import Counter
 import numpy as np
 import spglib
@@ -23,7 +23,18 @@ try:
     from functools import reduce
 except ImportError:
     pass
+from importlib import import_module
+from pathlib import Path
 
+
+class Singleton:
+    def __init__(self, cls):
+        self._cls = cls
+
+    def __call__(self):
+        if not hasattr(self, '_instance'):
+            self._instance = self._cls()
+        return self._instance
 
 def toyaml(p):
     if isinstance(p,EmptyClass):
@@ -1177,3 +1188,53 @@ def get_distance_dict(symbols, radius=None, d_ratio=None, distance_matrix=None):
         else:
             distance_dict[(sj, si)] = distance_dict[(sj, si)] = distance_matrix[i][j]
     return distance_dict
+
+def read_seeds(seed_file):
+    seedPop = []
+    if not os.path.exists(seed_file):
+        return []
+    if 'traj' in seed_file:
+        readPop = ase.io.read(seed_file, index=':', format='traj')
+    elif 'POSCARS' in seed_file:
+        readPop = ase.io.read(seed_file, index=':', format='vasp-xdatcar')
+    else:
+        try:
+            readPop = ase.io.read(seed_file, index=':')
+        except:
+            raise Exception("unknown file format: {}".format(seed_file))
+    seedPop = readPop
+    for i, ind in enumerate(seedPop):
+        ind.info['origin'] = 'seed'
+    return seedPop
+
+
+class Plugin:
+    def __init__(self, name):
+        self.name = name
+        self.plugins = {}
+
+    def register(self, plugin_name):
+        def wrapper(plugin):
+            self.plugins.update({plugin_name: plugin})
+            return plugin
+        return wrapper
+
+    def __getitem__(self, key):
+        if key in self.plugins:
+            return self.plugins[key]
+        raise NotImplementedError("{} has not been registered in {}".format(key, self.name))
+
+
+def load_plugins(path, PACKAGE_BASE, NOT_LOADABLE = ("__init__.py",)):
+    for module_file in Path(path).parent.glob("*.py"):
+        if module_file.name not in NOT_LOADABLE:
+            module_name = f".{module_file.stem}"
+            try:
+                import_module(module_name, PACKAGE_BASE)
+            except ImportError:
+                print("Fail when try to import {}{}, because:\n{}".format(PACKAGE_BASE, module_name, traceback.format_exc(1)))
+
+
+COMPARATOR_PLUGIN = Plugin('comparator')
+COMPARATOR_CONNECT_PLUGIN = Plugin('comparator_connect')
+FINGERPRINT_PLUGIN = Plugin('fingerprint')

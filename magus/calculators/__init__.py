@@ -44,7 +44,6 @@ def get_one_calculator(p_dict):
         calculator = p_dict['jobPrefix'].lower().translate(str.maketrans('', '', digits))
     else:
         calculator = p_dict['calculator']
-    print(calculator)
     if calculator not in calc_dict:
         raise Exception('Unknown calculator: {}'.format(calculator))
     return calc_dict[calculator](**p_dict)

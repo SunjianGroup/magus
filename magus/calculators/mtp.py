@@ -311,10 +311,10 @@ class TwoShareMTPCalculator(Calculator):
 
         self.init_times = max(self.mtp1.init_times, self.mtp2.init_times)
 
-    def __str__(self):
+    def __repr__(self):
         out  = self.__class__.__name__ + ':\n'
-        out += 'Robust MTP:' + self.mtp1.__str__()
-        out += 'Accurate MTP:' + self.mtp2.__str__()
+        out += 'Robust MTP:' + self.mtp1.__repr__()
+        out += 'Accurate MTP:' + self.mtp2.__repr__()
         return out
 
     def update_threshold(self, enthalpy):

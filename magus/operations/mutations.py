@@ -1,21 +1,18 @@
-#TODO how to select, za lun pan du a ?
-import math
+import math, copy
 import numpy as np
-import logging, copy
-from ase import Atoms, Atom 
-from ase.constraints import voigt_6_to_full_3x3_strain as v2f
-from ase.geometry import cell_to_cellpar,cellpar_to_cell,get_duplicate_atoms
-from ase.neighborlist import NeighborList
-from ase.data import covalent_radii,chemical_symbols
-from .population import Population
-from .molecule import Molfilter
-import ase.io
-from .utils import *
 from spglib import get_symmetry_dataset
 from collections import Counter
+from ase import Atom 
+from ase.geometry import cell_to_cellpar, cellpar_to_cell
+from ase.data import covalent_radii,chemical_symbols
+from magus.utils import *
+from .base import Mutation
 
-
-log = logging.getLogger(__name__)
+__all__ = [
+    'SoftMutation', 'PermMutation', 'LatticeMutation', 'RippleMutation', 'SlipMutation',
+    'RotateMutation', 'RattleMutation', 'FormulaMutation', 
+    'LyrSlipMutation', 'LyrSymMutation', 'ShellMutation', 'CluSymMutation',
+    ]
 
 
 class SoftMutation(Mutation):
@@ -91,7 +88,7 @@ class PermMutation(Mutation):
     Default = {'tryNum': 50, 'frac_swaps': 0.5}
 
     def mutate(self, ind):
-        atoms = ind.for_mutate
+        atoms = ind.for_heredity()
         num_swaps = np.random.randint(1, min(int(self.frac_swaps * len(atoms)), 2))
         unique_symbols = np.unique([atom.symbol for atom in atoms]) # or use get_chemical_symbol?
         if len(unique_symbols) < 2:
@@ -115,9 +112,13 @@ class LatticeMutation(Mutation):
     Default = {'tryNum': 50, 'sigma': 0.1, 'cell_cut': 1, 'keep_volume': True}
 
     def mutate(self, ind):
-        atoms = ind.for_mutate
-        strain = v2f(np.clip(np.random.normal(0, self.sigma, 6), -self.sigma, self.sigma) * self.cell_cut)
- 
+        atoms = ind.for_heredity()
+        strain = np.clip(np.random.normal(0, self.sigma, 6), -self.sigma, self.sigma) * self.cell_cut
+        strain = np.array([
+            [1 + strain[0], strain[1] / 2, strain[2] / 2],
+            [strain[1] / 2, 1 + strain[3], strain[4] / 2],
+            [strain[2] / 2, strain[4] / 2, 1 + strain[5]],
+            ])
         new_cell = ind.get_cell() @ strain
         if self.keep_volume:
             ratio = ind.get_volume() / np.abs(np.linalg.det(new_cell))
@@ -135,7 +136,7 @@ class SlipMutation(Mutation):
     Default = {'tryNum':50, 'cut': 0.5, 'randRange': [0.5, 2]}
 
     def mutate_bulk(self, ind):
-        atoms = ind.for_mutate
+        atoms = ind.for_heredity()
         scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
         np.random.shuffle(axis)
@@ -151,18 +152,23 @@ class SlipMutation(Mutation):
         return ind.__class__(atoms)
 
 
+##################################
+# XtalOpt: An open-source evolutionary algorithm for crystal structure prediction. 
+#   Computer Physics Communications 182, 372–387 (2011).
+##################################
 class RippleMutation(Mutation):
+
     Default = {'tryNum': 50, 'rho': 0.3, 'mu': 2, 'eta': 1}
 
     def mutate(self, ind):
-        atoms = ind.for_mutate
+        atoms = ind.for_heredity()
         scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
         np.random.shuffle(axis)
 
-        scl_pos[:, axis[0]] += self.rho *
-            np.cos(2 * np.pi * self.mu  * scl_pos[:, axis[1]] + np.random.uniform(0, 2 * np.pi)) *
-            np.cos(2 * np.pi * self.eta * scl_pos[:, axis[2]] + np.random.uniform(0, 2 * np.pi))
+        phase1 = np.cos(2 * np.pi * self.mu  * scl_pos[:, axis[1]] + np.random.uniform(0, 2 * np.pi))
+        phase2 = np.cos(2 * np.pi * self.eta * scl_pos[:, axis[2]] + np.random.uniform(0, 2 * np.pi))
+        scl_pos[:, axis[0]] += self.rho * phase1 * phase2
 
         atoms.set_scaled_positions(scl_pos)
         return ind.__class__(atoms)
@@ -173,7 +179,7 @@ class RotateMutation(Mutation):
 
     def mutate(self, ind):
         # TODO if not mol raise NotImpent
-        atoms = ind.for_mutate
+        atoms = ind.for_heredity()
         for mol in atoms:
             if len(mol) > 1 and np.random.rand() < self.p:
                 phi, theta, psi = np.random.uniform(-1, 1, 3) * np.pi * 2
@@ -230,14 +236,14 @@ class RattleMutation(Mutation):
         return newpos
 
     def mutate_normal(self, ind):
-        atoms = ind.for_mutate
+        atoms = ind.for_heredity()
         for i in range(len(atoms)):
             if np.random.rand() < self.p:
                 atoms[i].position = self.rattle(atoms[i].position)
         return ind.__class__(atoms)
 
     def mutate(self, ind):
-        ind = self.mutate_normal(atoms) if not self.keep_sym else self.mutate_sym(ind)
+        ind = self.mutate_normal(ind) if not self.keep_sym else self.mutate_sym(ind)
         return ind
 
     def mutate_sym(self, atoms):

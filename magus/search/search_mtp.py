@@ -5,7 +5,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
-from magus.initstruct import read_seeds
+from magus.utils import read_seeds
 from .search import Magus
 """
 Pop:class, poplulation
@@ -28,7 +28,7 @@ class MLMagus(Magus):
                          main_calculator, Population, restart)
         self.ml_calculator = ml_calculator
         log.debug('ML Calculator information:')
-        log.debug(ml_calculator.__str__())
+        log.debug(ml_calculator.__repr__())
         self.get_initial_pot(epoch=ml_calculator.init_times)
 
     def get_initial_pot(self, epoch=1):

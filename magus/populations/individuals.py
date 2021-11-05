@@ -1,12 +1,21 @@
 import copy, logging
-from ase.atoms import Atoms
+from ase import Atoms, Atom
 from ase.neighborlist import neighbor_list
 from ase.geometry import get_distances
 from magus.utils import *
+from ..fingerprints import get_fingerprint
+from ..comparators import get_comparator
 
 
 log = logging.getLogger(__name__)
+__all__ = ['Bulk', 'Molecule']
 
+
+def get_Ind(p_dict):
+    ind_dict = {'3d': Bulk, 'mol': Molecule}
+    Ind = ind_dict[p_dict['searchType']]
+    Ind.set_parameters(**p_dict)
+    return Ind
 
 def check_new_atom(atoms, np, symbol, distance_dict):
     distances = get_distances(atoms.positions, np, cell=atoms.cell, pbc=atoms.pbc)[1]
@@ -51,7 +60,7 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=100):
         for _ in range(max_n_try):
             # select a center atoms
             center_atom = rep_atoms[np.random.randint(0, len(rep_atoms))]
-            basic_r = distance_dict[(center_atom.number, add_symbol)]
+            basic_r = distance_dict[(center_atom.symbol, add_symbol)]
             radius = basic_r * (1 + np.random.uniform(0, 0.3))
             theta = np.random.uniform(0, np.pi)
             phi = np.random.uniform(0, 2*np.pi)
@@ -75,7 +84,7 @@ class Individual(Atoms):
         # symbols is a property of atoms, will raise Error if set symbols here
         cls.all_parameters = parameters
         Requirement = [
-            'formula', 'symprec', 'formula_pool', 'cf', 'comparator']
+            'formula', 'symprec', 'formula_pool', 'fp_calc', 'comparator']
         Default={
             'n_repair_try': 3, 
             'max_attempts': 50,
@@ -88,26 +97,24 @@ class Individual(Atoms):
             'radius': None,
             }
         check_parameters(cls, parameters, Requirement, Default)
+        cls.fp_calc = get_fingerprint(parameters)
+        cls.comparator = get_comparator(parameters)
         # atoms.symbols has been used by ase
         cls.symbol_list = parameters['symbols']
         cls.distance_dict = get_distance_dict(cls.symbol_list, cls.radius, cls.d_ratio, cls.distance_matrix)
         if len(np.array(cls.formula).shape) == 1:
             cls.formula = [cls.formula]
 
-    def __init__(self, atoms=None, is_seed=False, *args, **kwargs):
-        if atoms is not None:
-            super().__init__(cell=atoms.cell, pbc=atoms.pbc, info=atoms.info, celldisp=atoms._celldisp.copy())
-            self.arrays = {}
-            for name, a in atoms.arrays.items():
-                self.arrays[name] = a.copy()
-            self.constraints = copy.deepcopy(atoms.constraints)
-        else:
-            super().__init__(*args, **kwargs)
-        if is_seed and not self.check_seed:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'origin' not in self.info:
+            self.info['origin'] = 'Unknown'
+        if self.info['origin'] == 'seed' and not self.check_seed:
             self.check_list = []
         else:
             self.check_list = ['check_cell', 'check_distance', 'check_formula']
-
+        self.info['fitness'] = {}
+        self.info['used'] = 0     # time used in heredity
 
     def __eq__(self, obj):
         return self.comparator.looks_like(self, obj)
@@ -124,7 +131,7 @@ class Individual(Atoms):
     @property
     def fingerprint(self):
         if 'fingerprint' not in self.info:
-            self.info['fingerprint'] = self.cf.get_all_fingerprints(self.atoms)[0]
+            self.info['fingerprint'] = self.fp_calc.get_all_fingerprints(self)[0]
         return self.info['fingerprint']
 
     def find_spg(self):
@@ -136,13 +143,12 @@ class Individual(Atoms):
         except:
             spg = 1
         self.info['spg'] = spg
-        pri_atoms = spglib.find_primitive(atoms, symprec=self.symprec)
+        pri_atoms = spglib.find_primitive(self, symprec=self.symprec)
         if pri_atoms:
             cell, positions, numbers = pri_atoms
             self.info['priNum'] = numbers
-            self.info['priVol'] = abs(np.linalg.det(lattice))
+            self.info['priVol'] = abs(np.linalg.det(cell))
         else:
-            cell, positions, numbers = atoms.cell, 
             self.info['priNum'] = self.get_atomic_numbers()
             self.info['priVol'] = self.get_volume()
 
@@ -155,6 +161,10 @@ class Individual(Atoms):
             self.set_atomic_numbers(numbers)
             return True
         return False
+
+    @property
+    def numlist(self):
+        return [self.get_chemical_symbols().count(s) for s in self.symbol_list] 
 
     @property
     def ball_volume(self):
@@ -207,27 +217,12 @@ class Individual(Atoms):
         self.__init__(atoms)
 
     def merge_atoms(self):
-        i_indices, j_indices = neighbor_list('ij', self, self.distance_dict, max_nbins=100.0)
-        indices = list(range(len(self)))
-        exclude = []
-        exist_i, exist_j = list(i_indices), list(j_indices)
         # exclude atoms in the order of their number of neighbours 
-        while len(exist_i) > 0:
-            bincount = [exist_i.count(i) for i in range(indices)]
-            i_ = np.argmax(bincount)   # remove the atom with the most neighbours 
-            exclude.append(i_)
-            remain_indices = [i for i in range(indices) if exist_i[i] != i_ and exist_j[i] != i_]
-            exist_i = [exist_i[i] for i in remain_indices]
-            exist_j = [exist_j[i] for i in remain_indices]
-
-        if len(exclude) > 0:
-            save = [i for i in indices if i not in exclude]
-            if len(save) > 0: 
-                atoms = self[save]
-            else:
-                # or maybe we should discard this individual
-                atoms = self.__class__(cell=self.get_cell(), pbc=self.get_pbc(), info=self.info)
-            self.__init__(atoms)
+        i = neighbor_list('i', self, self.distance_dict, max_nbins=100.0)
+        while len(i) > 0:
+            i_ = np.argmax(np.bincount(i))   # remove the atom with the most neighbours 
+            del self[i_]
+            i = neighbor_list('i', self, self.distance_dict, max_nbins=100.0)
 
     def get_target_formula(self, n=1):
         symbols = self.get_chemical_symbols()
@@ -261,9 +256,12 @@ class Bulk(Individual):
         if 'radius' in parameters:
             cls.radius = parameters['radius']
         else:
-            cls.radius = [covalent_radii[atomic_numbers[atom]] for atom in cls.symbols]
+            cls.radius = [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
         cls.symbol_numlist_pool = cls.formula_pool @ cls.formula
+
+    def for_heredity(self):
+        return self.copy()
 
 
 class Molecule(Individual):
@@ -272,18 +270,14 @@ class Molecule(Individual):
         cls.all_parameters = parameters
         Requirement = [
             'formula', 'symbols', 'minAt', 'maxAt', 'symprec', 
-            'molDetector', 'bondRatio', 'dRatio', 'comparator', 'cf']
+            'molDetector', 'bondRatio', 'dRatio', 'comparator', 'fp_calc']
         Default={'repairtryNum':3, 'molMode':False, 'chkMol':False,
                  'minLattice':None, 'maxLattice':None, 'dRatio':0.7,
                  'addSym':False, 'chkSeed': True}
         check_parameters(cls, parameters, Requirement, Default)
 
-    def check_mol(self,atoms=None):
-        if atoms is None:
-            a = self.atoms.copy()
-        else:
-            a = atoms.copy()
-
+    def check_mol(self, atoms=None):
+        atoms = atoms or self
         molCryst = Molfilter(a, coef=self.p.bondRatio)
         for mol in molCryst:
             molCt = Counter(mol.symbols)

@@ -1,8 +1,5 @@
-from __future__ import print_function, division
-import os
-import logging
 import numpy as np
-from .utils import find_spg, symbols_and_formula
+from magus.utils import find_spg, symbols_and_formula
 import copy
 from ase.phasediagram import PhaseDiagram
 import abc
@@ -16,31 +13,29 @@ class FitnessCalculator(abc.ABC):
 
 
 class EnthalpyFitness(FitnessCalculator):
-    def calc(self, Pop):
-        for ind in Pop:
-            ind.info['enthalpy'] = ind.atoms.info['enthalpy']
-            ind.info['fitness']['enthalpy'] = -ind.atoms.info['enthalpy']
+    def calc(self, pop):
+        for ind in pop:
+            ind.info['fitness']['enthalpy'] = -ind.info['enthalpy']
 
 
 class EhullFitness(FitnessCalculator):
-    def calc(self, Pop):
-        name = [ind.atoms.get_chemical_formula() for ind in Pop]
-        enth = [ind.atoms.info['enthalpy']*len(ind.atoms) for ind in Pop]
+    def calc(self, pop):
+        name = [ind.get_chemical_formula() for ind in pop]
+        enth = [ind.info['enthalpy']*len(ind) for ind in pop]
         refs = list(zip(name, enth))
-        symbols = Pop.p.symbols
+        symbols = pop.symbols
         # To make sure that the phase diagram can be constructed, we add elements with high energies.
         for sym in symbols:
             refs.append((sym, 100))
         pd = PhaseDiagram(refs, verbose=False)
-        for ind in Pop:
-            refE = pd.decompose(ind.atoms.get_chemical_formula())[0]
-            ehull = ind.atoms.info['enthalpy'] - refE/len(ind.atoms)
+        for ind in pop:
+            refE = pd.decompose(ind.get_chemical_formula())[0]
+            ehull = ind.info['enthalpy'] - refE/len(ind)
             if ehull < 1e-4:
                 ehull = 0
-            ind.atoms.info['ehull'] = ehull
             ind.info['ehull'] = ehull
-            ind.info['enthalpy'] = ind.atoms.info['enthalpy']
             ind.info['fitness']['ehull'] = -ehull
+
 
 class EoFitness(FitnessCalculator):
     def calc(self, Pop):
@@ -102,10 +97,21 @@ class EoFitness(FitnessCalculator):
                 pop[i].info['enthalpy'] = pop[i].atoms.info['enthalpy']
                 pop[i].info['fitness']['ehull'] = -ehull
                 pop[i].info['Eo'] = Eo[i]
-        
+
 
 fit_dict = {
     'Enthalpy': EnthalpyFitness(),
     'Ehull': EhullFitness(),
     'Eo': EoFitness(),
-}
+    }
+
+def get_fitness_calculator(p_dict):
+    fitness_calculator = []
+    if 'Fitness' in p_dict:
+        for fitness in p_dict['Fitness']:
+            fitness_calculator.append(fit_dict[fitness])
+    elif p_dict['formulaType'] == 'fix':
+        fitness_calculator.append(fit_dict['Enthalpy'])
+    elif p_dict['formulaType'] == 'var':
+        fitness_calculator.append(fit_dict['Ehull'])
+    return fitness_calculator

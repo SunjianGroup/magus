@@ -1,29 +1,24 @@
-from scipy.spatial.distance import cdist
-import numpy as np
 from collections import Counter
-import spglib
+from magus.utils import COMPARATOR_PLUGIN
 
+
+@COMPARATOR_PLUGIN.register('naive')
 class NaiveComparator:
-    def __init__(self,dE=0.01,dV=0.05):
+    def __init__(self,dE=0.01, dV=0.05, **kwargs):
         self.dE = dE
         self.dV = dV
 
-    def looks_like(self,aInd,bInd):
-        for ind in [aInd, bInd]:
-            if 'spg' not in ind.atoms.info:
+    def looks_like(self, ind1, ind2):
+        for ind in [ind1, ind2]:
+            if 'spg' not in ind.info:
                 ind.find_spg()
-        a,b = aInd.atoms,bInd.atoms
-        # if a.get_chemical_formula() != b.get_chemical_formula():
-        if Counter(a.info['priNum']) != Counter(b.info['priNum']):
+        if Counter(ind1.info['priNum']) != Counter(ind2.info['priNum']):
             return False
-        if a.info['spg'] != b.info['spg']:
+        if ind1.info['spg'] != ind1.info['spg']:
             return False
-        if abs(1-a.info['priVol']/b.info['priVol']) > self.dV:
+        if abs(1 - ind1.info['priVol'] / ind2.info['priVol']) > self.dV:
             return False
-        #if 'enthalpy' in a.info and 'enthalpy' in b.info:
-        #    if abs(a.info['enthalpy'] - b.info['enthalpy']) > self.dE:
-        if 'energy' in a.info and 'energy' in b.info:
-            if abs(a.info['energy']/len(a) - b.info['energy']/len(b)) > self.dE:
+        if 'energy' in ind1.info and 'energy' in ind2.info:
+            if abs(ind1.info['energy'] / len(ind1) - ind2.info['energy'] / len(ind2)) > self.dE:
                 return False
         return True
-

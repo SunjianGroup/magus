@@ -12,7 +12,7 @@ from ase.data import covalent_radii,chemical_symbols
 from .population import Population
 from .molecule import Molfilter
 import ase.io
-from .utils import *
+from magus.utils import *
 from spglib import get_symmetry_dataset
 from collections import Counter
 

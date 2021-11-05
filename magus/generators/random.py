@@ -139,7 +139,7 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
 class SPGGenerator:
     def __init__(self, **parameters):
         self.all_parameters = parameters
-        Requirement = ['calc_type', 'symbols', 'formula', 'min_n_atoms', 'max_n_atoms']
+        Requirement = ['formula_type', 'symbols', 'formula', 'min_n_atoms', 'max_n_atoms']
         Default = {#'threshold': 1.0,
                    'max_attempts': 50,
                    'method': 1, 
@@ -165,11 +165,24 @@ class SPGGenerator:
         self.volume = np.array([4 * np.pi * r ** 3 / 3 for r in self.radius])
         self.threshold_dict = get_threshold_dict(self.symbols, self.radius, self.d_ratio, self.distance_matrix)
         self.first_pop = True
-        assert self.calc_type in ['fix', 'var'], "calcType must be fix or var"
-        if self.calc_type == 'fix':
+        assert self.formula_type in ['fix', 'var'], "formulaType must be fix or var"
+        if self.formula_type == 'fix':
             self.formula = [self.formula]
         if len(self.formula_pool) == 0:
             self.get_pool()
+        self.main_info = ['formula_type', 'symbols', 'min_n_atoms', 'max_n_atoms']
+
+    def __repr__(self):
+        ret = self.__class__.__name__
+        ret += "\n-------------------"
+        for info in self.main_info:
+            if hasattr(self, info):
+                value = getattr(self, info)
+                if isinstance(value, dict):
+                    value = yaml.dump(value).rstrip('\n').replace('\n', '\n'.ljust(18))
+                ret += "\n{}: {}".format(info.ljust(15, ' '), value)
+        ret += "\n-------------------\n"
+        return ret
 
     def get_units(self):
         return [Atoms(symbols=[s for n, s in zip(f, self.symbols) for _ in range(n)]) for f in self.formula]
@@ -204,7 +217,7 @@ class SPGGenerator:
     def get_n_symbols(self, numlist):
         return {s: n for s, n in zip(self.symbols, numlist)}
 
-    def update_volume_ratio(self, volume_ratio):
+    def set_volume_ratio(self, volume_ratio):
         log.info("change volRatio from {} to {}".format(self.volume_ratio, volume_ratio))
         self.volume_ratio = volume_ratio
 
