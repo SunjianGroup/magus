@@ -1,35 +1,19 @@
-import random, logging, os, sys, shutil, time, json
-import argparse
-import copy
-import numpy as np
-from ase.data import atomic_numbers
-from ase import Atoms, Atom
-import ase.io
-from magus.utils import read_seeds
+import logging
 from .search import Magus
-"""
-Pop:class, poplulation
-pop:list, a list of atoms
-Population: Population(pop) --> Pop
-"""
-#TODO 
-# use same log among different functions
-# change read parameters
-# early converged
 
 
 log = logging.getLogger(__name__)
 
 
 class MLMagus(Magus):
-    def __init__(self, parameters, atoms_generator, pop_generator,
-                 main_calculator, Population, ml_calculator, restart=False):
-        super().__init__(parameters, atoms_generator, pop_generator,
-                         main_calculator, Population, restart)
-        self.ml_calculator = ml_calculator
-        log.debug('ML Calculator information:')
-        log.debug(ml_calculator.__repr__())
-        self.get_initial_pot(epoch=ml_calculator.init_times)
+    def __init__(self, parameters, restart=False):
+        super().__init__(parameters, restart=restart)
+        self.get_initial_pot(epoch=self.ml_calculator.init_times)
+
+    def init_parms(self, parameters):
+        super().init_parms(parameters)
+        self.ml_calculator = parameters.MLCalculator
+        log.debug('ML Calculator information:\n{}'.format(self.ml_calculator))
 
     def get_initial_pot(self, epoch=1):
         if epoch == 0:
@@ -40,21 +24,21 @@ class MLMagus(Magus):
         for i in range(epoch):
             log.info('\tepoch {}'.format(i + 1))
             # get random populations
-            random_pop = self.atoms_generator.Generate_pop(self.parameters.poolSize, initpop=True)
+            random_frames = self.atoms_generator.generate_pop(self.parameters['poolSize'])
             log.info("\tRandom generate population with {} strutures\n"
-                     "\tSelecting...".format(len(random_pop)))
+                     "\tSelecting...".format(len(random_frames)))
             # select to add
-            select_pop = self.ml_calculator.select(random_pop)
-            log.info("\tDone! {} are selected\n\tscf...".format(len(select_pop)))
-            scf_pop = self.main_calculator.scf(select_pop)
-            self.ml_calculator.updatedataset(scf_pop)
+            select_frames = self.ml_calculator.select(random_frames)
+            log.info("\tDone! {} are selected\n\tscf...".format(len(select_frames)))
+            scf_frames = self.main_calculator.scf(select_frames)
+            self.ml_calculator.updatedataset(scf_frames)
             log.info("\tDone! {} structures in the dataset\n\ttraining...".format(len(self.ml_calculator.trainset)))
             self.ml_calculator.train()
         log.info('Done!')
 
     def select_to_relax(self, frames, init_num=3, min_num=20):
         try:
-            ground_enthalpy = self.goodPop.bestind()[0].atoms.info['enthalpy']
+            ground_enthalpy = self.good_pop.bestind()[0].atoms.info['enthalpy']
         except:
             ground_enthalpy = min([atoms.info['enthalpy'] for atoms in frames])
         min_num = min(len(frames), min_num)
@@ -67,7 +51,7 @@ class MLMagus(Magus):
                  ''.format(ground_enthalpy, energy_mse, select_enthalpy))
         to_relax = [atoms for atoms in frames if atoms.info['enthalpy'] <= select_enthalpy]
         return to_relax            
-    
+
     def select_to_add(self, frames):
         trainset = self.ml_calculator.trainset
         energy_mae = self.ml_calculator.get_loss(trainset)[0]
@@ -85,40 +69,39 @@ class MLMagus(Magus):
 
     def one_step(self):
         self.set_volume_ratio()
-        initPop = self.get_initPop()
-        initPop.save()
+        init_pop = self.get_init_pop()
+        init_pop.save()
         #######  local relax by ML  #######
-        relaxpop = self.ml_calculator.relax(initPop.frames)
-        relaxPop = self.Population(relaxpop,'relaxpop',self.curgen)
-        relaxPop.save("mlraw", self.curgen)
-        relaxPop.check()
+        relax_frames = self.ml_calculator.relax(init_pop)
+        relax_pop = self.Population(relax_frames, 'relax', self.curgen)
+        relax_pop.save("mlraw", self.curgen)
+        relax_pop.check()
         # find spg before delete duplicate
-        relaxPop.find_spg()
-        relaxPop.del_duplicate()
-        relaxPop.calc_dominators()
-        relaxPop.save("mlgen", self.curgen)
-        if self.parameters.DFTRelax:
+        relax_pop.find_spg()
+        relax_pop.del_duplicate()
+        relax_pop.calc_dominators()
+        relax_pop.save("mlgen", self.curgen)
+        if self.parameters['DFTRelax']:
             #######  select cfgs to do dft relax  #######
-            to_relax = self.select_to_relax(relaxPop.frames)
+            to_relax = self.select_to_relax(relax_pop)
             #######  compare target and predict energy  #######   
             dft_relaxed_pop = self.main_calculator.relax(to_relax)
             relax_step = sum([atoms.info['relax_step'][-1] for atoms in dft_relaxed_pop])
             log.info('DFT relax {} structures with {} scf'.format(len(dft_relaxed_pop), relax_step))
-            DFTRelaxedPop = self.Population(dft_relaxed_pop, 'dft_relaxed_pop', self.curgen)
-            DFTRelaxedPop.find_spg()
-            DFTRelaxedPop.del_duplicate()
-            self.curPop = DFTRelaxedPop
+
+            dft_relaxed_pop.find_spg()
+            dft_relaxed_pop.del_duplicate()
+            self.cur_pop = dft_relaxed_pop
             to_add = self.select_to_add(dft_relaxed_pop)
             self.ml_calculator.updatedataset(to_add)
             self.ml_calculator.train()
         else:
-            self.curPop = relaxPop
-        self.curPop.save('gen', self.curgen)
-        self.set_goodPop()
-        self.goodPop.save('good', '')
-        self.goodPop.save('good', self.curgen)
-        self.set_keepPop()
-        self.keepPop.save('keep', self.curgen)
-        self.update_bestPop()
-        self.bestPop.save('best', '')
-
+            self.cur_pop = relax_pop
+        self.cur_pop.save('gen', self.curgen)
+        self.set_good_pop()
+        self.good_pop.save('good', '')
+        self.good_pop.save('good', self.curgen)
+        self.set_keep_pop()
+        self.keep_pop.save('keep', self.curgen)
+        self.update_best_pop()
+        self.best_pop.save('best', '')

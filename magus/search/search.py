@@ -8,16 +8,7 @@ log = logging.getLogger(__name__)
 
 class Magus:
     def __init__(self, parameters, restart=False):
-        self.parameters = parameters.p_dict
-        self.atoms_generator = parameters.RandomGenerator
-        self.pop_generator = parameters.NextPopGenerator
-        self.main_calculator = parameters.MainCalculator
-        self.Population = parameters.Population
-        log.debug('Main Calculator information:\n{}'.format(self.main_calculator))
-        log.debug('Random Generator information:\n{}'.format(self.atoms_generator))
-        log.debug('Offspring Creator information:\n{}'.format(self.pop_generator))
-        log.debug('Population information:\n{}'.format(self.Population([])))
-
+        self.init_parms(parameters)
         self.seed_dir = '{}/Seeds'.format(self.parameters['workDir'])
         if restart:
             if not os.path.exists("results") or not os.path.exists("log.txt"):
@@ -47,6 +38,17 @@ class Magus:
             self.best_pop = self.Population([], 'best')
             self.good_pop = self.Population([], 'good')
             self.keep_pop = self.Population([], 'keep')
+
+    def init_parms(self, parameters):
+        self.parameters = parameters.p_dict
+        self.atoms_generator = parameters.RandomGenerator
+        self.pop_generator = parameters.NextPopGenerator
+        self.main_calculator = parameters.MainCalculator
+        self.Population = parameters.Population
+        log.debug('Main Calculator information:\n{}'.format(self.main_calculator))
+        log.debug('Random Generator information:\n{}'.format(self.atoms_generator))
+        log.debug('Offspring Creator information:\n{}'.format(self.pop_generator))
+        log.debug('Population information:\n{}'.format(self.Population([])))
 
     def read_seeds(self):
         log.info("Reading Seeds ...")
@@ -120,13 +122,12 @@ class Magus:
         init_pop = self.get_init_pop()
         init_pop.save('init', self.curgen)
         #######  relax  #######
-        relax_frames = self.main_calculator.relax(init_pop)
+        relax_pop = self.main_calculator.relax(init_pop)
         try:
-            relax_step = sum([sum(atoms.info['relax_step']) for atoms in relax_frames])
-            log.info('DFT relax {} structures with {} scf'.format(len(relax_frames), relax_step))
+            relax_step = sum([sum(atoms.info['relax_step']) for atoms in relax_pop])
+            log.info('DFT relax {} structures with {} scf'.format(len(relax_pop), relax_step))
         except:
             pass
-        relax_pop = self.Population(relax_frames, 'relax', self.curgen)
         # save raw date before checking
         relax_pop.save('raw')
         relax_pop.check()

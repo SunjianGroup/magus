@@ -216,7 +216,7 @@ class MTPCalculator(ClusterCalculator):
         self.train(epoch=self.n_epoch)
         shutil.copy("{}/train-out".format(self.ml_dir), "train-out")
 
-    def relax(self, calcPop, max_epoch=20):
+    def relax_(self, calcPop, max_epoch=20):
         self.scf_num = 0
         # remain info
         for i, atoms in enumerate(calcPop):
@@ -275,7 +275,7 @@ class MTPCalculator(ClusterCalculator):
         os.chdir(nowpath)
         return relaxpop
 
-    def scf(self, calcPop):
+    def scf_(self, calcPop):
         calc_dir = self.calc_dir
         basedir = '{}/epoch{:02d}'.format(calc_dir, 0)
         if not os.path.exists(basedir):
@@ -322,7 +322,7 @@ class TwoShareMTPCalculator(Calculator):
     def update_threshold(self, enthalpy):
         self.max_enthalpy = enthalpy
 
-    def relax(self, calcPop):
+    def relax_(self, calcPop):
         relaxpop = self.mtp1.relax(calcPop)
         shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir), 
                     '{}/train.cfg'.format(self.mtp2.ml_dir))
@@ -337,7 +337,7 @@ class TwoShareMTPCalculator(Calculator):
                     '{}/train.cfg'.format(self.mtp1.ml_dir))
         return relaxpop
 
-    def scf(self, calcPop, level='accurate'):
+    def scf_(self, calcPop, level='accurate'):
         if level == 'robust':
             scfpop = self.mtp1.scf(calcPop)
         elif level == 'accurate':
@@ -407,7 +407,7 @@ class MTPLammpsCalculator(MTPCalculator):
             return None
         return new_atoms.info['traj']
 
-    def relax(self, calcPop, max_epoch=20):
+    def relax_(self, calcPop, max_epoch=20):
         assert len(calcPop) == 1 , 'MTP active lammps only support one atoms now'
         self.scf_num = 0
         nowpath = os.getcwd()

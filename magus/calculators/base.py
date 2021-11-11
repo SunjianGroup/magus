@@ -4,7 +4,7 @@ import abc
 import ase
 import logging
 from ase.atoms import Atoms
-from magus.populations.individuals import Individual
+from magus.populations.populations import Population
 from magus.formatting.traj import write_traj
 from magus.queuemanage import JobManager
 from magus.utils import CALCULATOR_CONNECT_PLUGIN
@@ -58,26 +58,29 @@ class Calculator(abc.ABC):
                         os.path.join(path, filename))
 
     def pre_processing(self, calcPop):
-        if isinstance(calcPop[0], Individual):
-            self.atomstype = 'Individual'
-            self.Pop = calcPop
-            return calcPop.frames
-        elif isinstance(calcPop[0], Atoms):
-            self.atomstype = 'Atoms'
-            return calcPop
-
-    def post_processing(self, pop):
-        if self.atomstype == 'Atoms':
-            return pop
-        elif self.atomstype == 'Individual':
-            return self.Pop(pop)
-
-    @abc.abstractmethod
-    def relax(self,calcPop):
         pass
-    
+
+    def post_processing(self, calcPop, pop):
+        if isinstance(calcPop, Population):
+            pop = calcPop.__class__(pop)
+        return pop
+
+    def relax(self, calcPop):
+        self.pre_processing(calcPop)
+        pop = self.relax_(calcPop)
+        return self.post_processing(pop)
+
+    def scf(self, calcPop):
+        self.pre_processing(calcPop)
+        pop = self.scf_(calcPop)
+        return self.post_processing(calcPop, pop)
+
     @abc.abstractmethod
-    def scf(self,calcPop):
+    def relax_(self, calcPop):
+        pass
+
+    @abc.abstractmethod
+    def scf_(self, calcPop):
         pass
 
 class ClusterCalculator(Calculator, abc.ABC):
@@ -117,7 +120,7 @@ class ClusterCalculator(Calculator, abc.ABC):
         self.J.wait_jobs_done(self.wait_time)
         os.chdir(self.work_dir)
 
-    def scf(self, calcPop):
+    def scf_(self, calcPop):
         if self.mode == 'parallel':
             self.paralleljob(calcPop, self.scf_job)
             scfPop = self.read_parallel_results()
@@ -126,7 +129,7 @@ class ClusterCalculator(Calculator, abc.ABC):
             scfPop = self.scf_serial(calcPop)
         return scfPop
 
-    def relax(self, calcPop):
+    def relax_(self, calcPop):
         if self.mode == 'parallel':
             self.paralleljob(calcPop, self.relax_job)
             relaxPop = self.read_parallel_results()
@@ -181,7 +184,7 @@ class ASECalculator(Calculator):
     def set_calc(self):
         raise NotImplementedError
 
-    def relax(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
+    def relax_(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
         os.chdir(self.calc_dir)
         new_frames = []
         error_frames = []
@@ -221,7 +224,7 @@ class ASECalculator(Calculator):
         os.chdir(self.work_dir)
         return new_frames
 
-    def scf(self, calcPop):
+    def scf_(self, calcPop):
         for atoms in calcPop:
             atoms.set_calculator(self.scf_calc)
             try:
@@ -250,12 +253,12 @@ class AdjointCalculator(Calculator):
             out += 'Calculator {}: {}'.format(i + 1, calc.__repr__())
         return out
 
-    def relax(self, calcPop):
+    def relax_(self, calcPop):
         for calc in self.calclist:
             calcPop = calc.relax(calcPop)
         return calcPop
 
-    def scf(self, calcPop):
+    def scf_(self, calcPop):
         calc = self.calclist[-1]
         calcPop = calc.scf(calcPop)
         return calcPop
