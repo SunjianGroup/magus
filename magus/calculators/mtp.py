@@ -1,7 +1,6 @@
 import os, subprocess, shutil
 import numpy as np
 from magus.calculators.base import Calculator, ClusterCalculator
-from magus.utils import EmptyClass, checkParameters
 from magus.queuemanage import JobManager
 from magus.formatting.mtp import load_cfg, dump_cfg
 from ase.units import GPa, eV, Ang
@@ -11,6 +10,7 @@ from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
 from magus.calculators.lammps import calc_lammps_once
 from magus.utils import CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN
+from magus.populations.populations import Population
 
 
 log = logging.getLogger(__name__)
@@ -176,10 +176,10 @@ class MTPCalculator(ClusterCalculator):
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
 
-    def select(self, new_frames):
+    def select(self, pop):
         nowpath = os.getcwd()
         os.chdir(self.ml_dir)
-        dump_cfg(new_frames, "new.cfg", self.symbol_to_type)
+        dump_cfg(pop, "new.cfg", self.symbol_to_type)
         content = "mpirun -np {0} mlp select-add "\
                   "pot.mtp train.cfg new.cfg diff.cfg "\
                   "--weighting=structures"\
@@ -190,6 +190,8 @@ class MTPCalculator(ClusterCalculator):
         self.J.clear()
         diff_frames = load_cfg("diff.cfg", self.type_to_symbol)
         os.chdir(nowpath)
+        if isinstance(pop, Population):
+            return pop.__class__(diff_frames)
         return diff_frames
 
     def select_bad_frames(self):

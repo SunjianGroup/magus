@@ -25,13 +25,16 @@ class MLMagus(Magus):
             log.info('\tepoch {}'.format(i + 1))
             # get random populations
             random_frames = self.atoms_generator.generate_pop(self.parameters['poolSize'])
+            random_pop = self.Population(random_frames, 'datapool')
+            random_pop.check()
             log.info("\tRandom generate population with {} strutures\n"
-                     "\tSelecting...".format(len(random_frames)))
+                     "\tSelecting...".format(len(random_pop)))
             # select to add
-            select_frames = self.ml_calculator.select(random_frames)
-            log.info("\tDone! {} are selected\n\tscf...".format(len(select_frames)))
-            scf_frames = self.main_calculator.scf(select_frames)
-            self.ml_calculator.updatedataset(scf_frames)
+            select_pop = self.ml_calculator.select(random_pop)
+            log.info("\tDone! {} are selected\n\tscf...".format(len(select_pop)))
+            scf_pop = self.main_calculator.scf(select_pop)
+            scf_pop.check()
+            self.ml_calculator.updatedataset(scf_pop)
             log.info("\tDone! {} structures in the dataset\n\ttraining...".format(len(self.ml_calculator.trainset)))
             self.ml_calculator.train()
         log.info('Done!')
@@ -68,7 +71,7 @@ class MLMagus(Magus):
         return to_add
 
     def one_step(self):
-        self.set_volume_ratio()
+        self.update_volume_ratio()
         init_pop = self.get_init_pop()
         init_pop.save()
         #######  local relax by ML  #######

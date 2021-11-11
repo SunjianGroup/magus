@@ -95,6 +95,8 @@ class Individual(Atoms):
             'd_ratio': 1.,
             'distance_matrix': None,
             'radius': None,
+            'max_forces': 50.,
+            'max_enthalpy': 100.,
             }
         check_parameters(cls, parameters, Requirement, Default)
         cls.fp_calc = get_fingerprint(parameters)
@@ -112,7 +114,7 @@ class Individual(Atoms):
         if self.info['origin'] == 'seed' and not self.check_seed:
             self.check_list = []
         else:
-            self.check_list = ['check_cell', 'check_distance', 'check_formula']
+            self.check_list = ['check_cell', 'check_distance', 'check_formula', 'check_forces', 'check_enthalpy']
         self.info['fitness'] = {}
         self.info['used'] = 0     # time used in heredity
 
@@ -183,22 +185,30 @@ class Individual(Atoms):
                 return False
         return True
 
-    def check_cell(self, atoms=None):
-        """
-        check if the cell reasonable
-        TODO bond
-        """
+    def check_forces(self, atoms=None):
         atoms = atoms or self
-        # min_lattice, max_lattice = np.array([self.min_lattice, self.max_lattice])
-        # cellpar = atoms.cell.cellpar()
-        # cos_ = np.cos(cellpar[3:] / 180 * np.pi)
-        # sin_ = np.sin(cellpar[3:] / 180 * np.pi)
-        angles = atoms.cell.angles()                                          # angles between edges
-        cos_ = np.cos(angles / 180 * np.pi)
-        sin_ = np.sin(angles / 180 * np.pi)         
+        if 'forces' in atoms.info:
+            return np.max(np.abs(atoms.info['forces'])) < self.max_forces
+        return True
+
+    def check_enthalpy(self, atoms=None):
+        atoms = atoms or self
+        if 'enthalpy' in atoms.info:
+            return atoms.info['enthalpy'] < self.max_enthalpy
+        return True
+
+    def check_cell(self, atoms=None):
+        atoms = atoms or self
+        # angle between edges
+        edge_angles = atoms.cell.angles()    
+        edge_angles_ok = np.all([*(45 <= edge_angles), *(edge_angles <= 135)])
+        # angle between edge and surface
+        cos_ = np.cos(edge_angles / 180 * np.pi)
+        sin_ = np.sin(edge_angles / 180 * np.pi)         
         X = np.sum(cos_ ** 2) - 2 * np.prod(cos_)
-        angles_ = np.arccos(np.sqrt(X - cos_**2) / sin_) / np.pi * 180        # angles between edge and surface
-        return (45 <= angles).all() and (angles <= 135).all() and (angles >= 30).all() and (angles <= 150).all()
+        surface_angles = np.arccos(np.sqrt(X - cos_**2) / sin_) / np.pi * 180
+        surface_angles_ok = np.all([*(45 <= surface_angles), *(surface_angles <= 135)])
+        return edge_angles_ok and surface_angles_ok
 
     def check_distance(self, atoms=None):
         atoms = atoms or self
