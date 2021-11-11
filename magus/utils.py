@@ -6,6 +6,7 @@ import spglib
 from numpy import pi, sin, cos, sqrt
 import networkx as nx
 from ase import Atoms
+from ase.io import read
 from ase.geometry import wrap_positions
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.data import atomic_numbers, covalent_radii
@@ -1188,9 +1189,9 @@ def get_distance_dict(symbols, radius=None, d_ratio=None, distance_matrix=None):
         i, j = symbols.index(si), symbols.index(sj)
         ri, rj = radius[i], radius[j]
         if distance_matrix is None:
-            distance_dict[(sj, si)] = distance_dict[(sj, si)] = d_ratio * (ri + rj)
+            distance_dict[(si, sj)] = distance_dict[(sj, si)] = d_ratio * (ri + rj)
         else:
-            distance_dict[(sj, si)] = distance_dict[(sj, si)] = distance_matrix[i][j]
+            distance_dict[(si, sj)] = distance_dict[(sj, si)] = distance_matrix[i][j]
     return distance_dict
 
 def read_seeds(seed_file):
@@ -1198,12 +1199,12 @@ def read_seeds(seed_file):
     if not os.path.exists(seed_file):
         return []
     if 'traj' in seed_file:
-        readPop = ase.io.read(seed_file, index=':', format='traj')
+        readPop = read(seed_file, index=':', format='traj')
     elif 'POSCARS' in seed_file:
-        readPop = ase.io.read(seed_file, index=':', format='vasp-xdatcar')
+        readPop = read(seed_file, index=':', format='vasp-xdatcar')
     else:
         try:
-            readPop = ase.io.read(seed_file, index=':')
+            readPop = read(seed_file, index=':')
         except:
             raise Exception("unknown file format: {}".format(seed_file))
     seedPop = readPop

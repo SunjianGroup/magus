@@ -1,0 +1,4 @@
+1. read_seeds:
+ ase vasp-xdatcar only work on fractional coordinates
+2. min_lattice in check_cell and in generate should be discriminate
+ now only judge if angles between 45-135

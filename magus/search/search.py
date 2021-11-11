@@ -12,9 +12,12 @@ class Magus:
         self.atoms_generator = parameters.RandomGenerator
         self.pop_generator = parameters.NextPopGenerator
         self.main_calculator = parameters.MainCalculator
-        log.debug('Main Calculator information:')
-        log.debug(self.main_calculator.__repr__())
         self.Population = parameters.Population
+        log.debug('Main Calculator information:\n{}'.format(self.main_calculator))
+        log.debug('Random Generator information:\n{}'.format(self.atoms_generator))
+        log.debug('Offspring Creator information:\n{}'.format(self.pop_generator))
+        log.debug('Population information:\n{}'.format(self.Population([])))
+
         self.seed_dir = '{}/Seeds'.format(self.parameters['workDir'])
         if restart:
             if not os.path.exists("results") or not os.path.exists("log.txt"):

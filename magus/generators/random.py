@@ -150,6 +150,8 @@ class SPGGenerator:
                    'dimension': 3,
                    'full_eles': True, 
                    'ele_size': 1,
+                   'min_lattice': None,
+                   'max_lattice': None,
                    'min_n_formula': None,
                    'max_n_formula': None,
                    'formula_pool': [],
@@ -227,9 +229,9 @@ class SPGGenerator:
         mean_volume = ball_volume * self.volume_ratio
         min_volume = 0.5 * mean_volume
         max_volume = 1.5 * mean_volume
-        if hasattr(self, 'min_lattice'):
+        if self.min_lattice is not None:
             min_volume = np.linalg.det(cellpar_to_cell(self.min_lattice))
-        if hasattr(self, 'max_lattice'):
+        if self.max_lattice is not None:
             max_volume = np.linalg.det(cellpar_to_cell(self.max_lattice))
         assert min_volume <= max_volume
         return min_volume, max_volume
@@ -238,9 +240,9 @@ class SPGGenerator:
         _, max_volume = self.get_volume(numlist)
         min_lattice = [2 * np.max(self.radius)] * 3 + [45.] * 3
         max_lattice = [3 * max_volume ** (1/3)] * 3 + [135] * 3
-        if hasattr(self, 'min_lattice'):
+        if self.min_lattice is not None:
             min_lattice = self.min_lattice
-        if hasattr(self, 'max_lattice'):
+        if self.max_lattice is not None:
             max_lattice = self.max_lattice
         return min_lattice, max_lattice
 
@@ -361,7 +363,7 @@ class MoleculeSPGGenerator(SPGGenerator):
 
     def get_lattice(self, numlist):
         min_lattice, max_lattice = super().get_lattice(numlist)
-        if not hasattr(self, 'min_lattice'):
+        if self.min_lattice is None:
             min_lattice = [2 * np.max(self.mol_radius)] * 3 + [60.] * 3
         return min_lattice, max_lattice
 

@@ -189,13 +189,16 @@ class Individual(Atoms):
         TODO bond
         """
         atoms = atoms or self
-        min_lattice, max_lattice = np.array([self.min_lattice, self.max_lattice])
-        cellpar = atoms.cell.cellpar()
-        cos_ = np.cos(cellpar[3:] / 180 * np.pi)
-        sin_ = np.sin(cellpar[3:] / 180 * np.pi)
+        # min_lattice, max_lattice = np.array([self.min_lattice, self.max_lattice])
+        # cellpar = atoms.cell.cellpar()
+        # cos_ = np.cos(cellpar[3:] / 180 * np.pi)
+        # sin_ = np.sin(cellpar[3:] / 180 * np.pi)
+        angles = atoms.cell.angles()                                          # angles between edges
+        cos_ = np.cos(angles / 180 * np.pi)
+        sin_ = np.sin(angles / 180 * np.pi)         
         X = np.sum(cos_ ** 2) - 2 * np.prod(cos_)
-        angles = np.arccos(np.sqrt(X - cos_**2) / sin_) / np.pi * 180
-        return (min_lattice <= cellpar).all() and (cellpar <= max_lattice).all() and (angles >= 30).all()
+        angles_ = np.arccos(np.sqrt(X - cos_**2) / sin_) / np.pi * 180        # angles between edge and surface
+        return (45 <= angles).all() and (angles <= 135).all() and (angles >= 30).all() and (angles <= 150).all()
 
     def check_distance(self, atoms=None):
         atoms = atoms or self

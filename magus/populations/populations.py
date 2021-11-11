@@ -50,6 +50,7 @@ class Population:
         ret += "\nInd Type           : {}".format(self.Ind.__name__)
         ret += "\nInd Numbers        : {}".format(len(self))
         ret += "\nPopulation Size    : {}".format(self.pop_size)
+        ret += "\nDistance Dict      : {}".format(self.Ind.distance_dict)
         ret += "\n-------------------"
         return ret
 

@@ -24,7 +24,7 @@ class GAGenerator:
     def __init__(self, numlist, oplist, **parameters):
         self.oplist = oplist
         self.numlist = numlist
-        self.n_next = parameters['popSize']
+        self.n_next = int(parameters['popSize'] * (1 - parameters['randFrac']))
         self.n_cluster = parameters['n_cluster']
 
     def __repr__(self):
