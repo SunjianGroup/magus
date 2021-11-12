@@ -303,7 +303,7 @@ class SPGGenerator:
             else:
                 n_split = np.random.choice(self.n_split)
                 numlist = self.get_numlist(*args, **kwargs)
-                label, atoms = self.Generate_ind_(1, numlist, n_split)
+                label, atoms = self.generate_ind(1, numlist, n_split)
                 if label:
                     self.afterprocessing(atoms, *args, **kwargs)
                     build_pop.append(atoms)
