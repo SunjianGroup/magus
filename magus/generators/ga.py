@@ -83,7 +83,7 @@ class GAGenerator:
     def generate(self, pop):
         # calculate dominators before checking formula
         pop.calc_dominators()
-        newpop = pop.__class__([], name='init', gen=pop.gen + 1)
+        newpop = pop.__class__([], name='init')
         for op, num in zip(self.oplist, self.numlist):
             if num == 0:
                 continue

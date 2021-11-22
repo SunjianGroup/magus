@@ -4,7 +4,7 @@ from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
 from magus.formatting.gulp import load_gulp, dump_gulp
-from magus.utils import CALCULATOR_PLUGIN
+from magus.utils import CALCULATOR_PLUGIN, check_parameters
 
 
 log = logging.getLogger(__name__)
@@ -13,16 +13,18 @@ log = logging.getLogger(__name__)
 # units must be real!!
 @CALCULATOR_PLUGIN.register('gulp')
 class GulpCalculator(ClusterCalculator):
-    def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Gulp',
-                 pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
-                 exeCmd='gulp < input > output', mode='parallel', *arg, **kwargs):
-        super().__init__(workDir=workDir, queueName=queueName, numCore=numCore, 
-                         numParallel=numParallel, jobPrefix=jobPrefix, pressure=pressure, 
-                         Preprocessing=Preprocessing, waitTime=waitTime, 
-                         verbose=verbose, killtime=killtime, mode=mode)
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        Requirement = []
+        Default={
+            'exe_cmd': 'gulp < input > output',
+            'job_prefix': 'Gulp',
+            }
+        check_parameters(self, parameters, Requirement, Default)
+   
         self.gulp_setup = {
-            'pressure': pressure,
-            'exe_cmd': exeCmd,
+            'pressure': self.pressure,
+            'exe_cmd': self.exe_cmd,
         }
         self.main_info.append('gulp_setup')
         if not os.path.exists("{}/goption.scf".format(self.input_dir)):

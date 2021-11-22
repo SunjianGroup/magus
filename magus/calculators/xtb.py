@@ -6,7 +6,8 @@ from xtb.ase.calculator import XTB
 
 @CALCULATOR_PLUGIN.register('xtb')
 class XTBCalculator(ASECalculator):
-    def set_calc(self):
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
         with open("{}/xtb.yaml".format(self.input_dir)) as f:
             params = yaml.load(f, Loader=yaml.FullLoader)
             self.relax_calc = XTB(**params)

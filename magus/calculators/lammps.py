@@ -3,27 +3,30 @@ import numpy as np
 from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
+from magus.utils import CALCULATOR_PLUGIN, check_parameters
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
-from magus.utils import CALCULATOR_PLUGIN
 #TODO: return None
 
 # units must be metal!!
 @CALCULATOR_PLUGIN.register('lammps')
 class LammpsCalculator(ClusterCalculator):
-    def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Lammps',
-                 pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
-                 exeCmd='', saveTraj=False, atomStyle='atomic', *arg, **kwargs):
-        super().__init__(workDir=workDir, queueName=queueName, numCore=numCore, 
-                         numParallel=numParallel, jobPrefix=jobPrefix, pressure=pressure, 
-                         Preprocessing=Preprocessing, waitTime=waitTime, 
-                         verbose=verbose, killtime=killtime)
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        Requirement = ['symbols']
+        Default={
+            'exe_cmd': '', 
+            'save_traj': False, 
+            'atomStyle': 'atomic',
+            'job_prefix': 'Lammps',
+            }
+        check_parameters(self, parameters, Requirement, Default)
         self.lammps_setup = {
-            'pressure': pressure,
-            'symbols': symbols,
-            'atom_style': atomStyle,
-            'exe_cmd': exeCmd,
-            'save_traj': saveTraj,
+            'pressure': self.pressure,
+            'symbols': self.symbols,
+            'atom_style': self.atom_style,
+            'exe_cmd': self.exe_cmd,
+            'save_traj': self.save_traj,
         }
         self.main_info.append('lammps_setup')
 

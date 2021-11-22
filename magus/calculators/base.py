@@ -1,4 +1,4 @@
-import os, shutil, yaml
+import os, shutil, yaml, traceback, copy
 import numpy as np
 import abc
 import ase
@@ -7,7 +7,7 @@ from ase.atoms import Atoms
 from magus.populations.populations import Population
 from magus.formatting.traj import write_traj
 from magus.queuemanage import JobManager
-from magus.utils import CALCULATOR_CONNECT_PLUGIN
+from magus.utils import CALCULATOR_CONNECT_PLUGIN, check_parameters
 from ase.constraints import ExpCellFilter
 from ase.units import GPa, eV, Ang
 from ase.optimize import BFGS, LBFGS, FIRE
@@ -22,22 +22,21 @@ def split1(Njobs, Npara):
     Neach = int(np.ceil(Njobs / Npara))
     return [[i + j * Npara for j in range(Neach) if i + j * Npara < Njobs] for i in range(Npara)]
 
+
 def split2(Njobs, Npara):
     Neach = int(np.ceil(Njobs / Npara))
     return [[i * Neach + j for j in range(Neach) if i * Neach + j < Njobs] for i in range(Npara)]
 
+
 class Calculator(abc.ABC):
-    def __init__(self, workDir, jobPrefix, pressure=0., *arg, **kwargs):
-        self.work_dir = workDir
-        self.pressure = pressure
-        self.job_prefix = jobPrefix
+    def __init__(self, **parameters):
+        self.all_parameters = parameters
+        Requirement = ['work_dir', 'job_prefix']
+        Default={'pressure': 0.}
+        check_parameters(self, parameters, Requirement, Default)
         self.input_dir = '{}/inputFold/{}'.format(self.work_dir, self.job_prefix) 
         self.calc_dir = "{}/calcFold/{}".format(self.work_dir, self.job_prefix)
-        if os.path.exists(self.calc_dir):
-            shutil.rmtree(self.calc_dir)
-        #os.makedirs(self.calc_dir)
-        # make sure parameter files are copied, such as VASP's vdw kernel file and XTB's parameters
-        shutil.copytree(self.input_dir, self.calc_dir)
+        os.makedirs(self.calc_dir, exist_ok=True)
         self.main_info = ['job_prefix', 'pressure', 'input_dir', 'calc_dir']  # main information to print
 
     def __repr__(self):
@@ -68,7 +67,7 @@ class Calculator(abc.ABC):
     def relax(self, calcPop):
         self.pre_processing(calcPop)
         pop = self.relax_(calcPop)
-        return self.post_processing(pop)
+        return self.post_processing(calcPop, pop)
 
     def scf(self, calcPop):
         self.pre_processing(calcPop)
@@ -83,23 +82,29 @@ class Calculator(abc.ABC):
     def scf_(self, calcPop):
         pass
 
+
 class ClusterCalculator(Calculator, abc.ABC):
-    def __init__(self, workDir, queueName, numCore, numParallel, jobPrefix,
-                 pressure=0., Preprocessing='', waitTime=200, verbose=False, 
-                 killtime=100000, mode='parallel'):
-        super().__init__(workDir=workDir, pressure=pressure, jobPrefix=jobPrefix)
-        self.num_parallel = numParallel
-        self.wait_time = waitTime
-        assert mode in ['serial', 'parallel'], "only support 'serial' and 'parallel'"
-        self.mode = mode
-        self.main_info.append(mode)
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        check_parameters(self, parameters, [], {'mode': 'parallel'})
+        assert self.mode in ['serial', 'parallel'], "only support 'serial' and 'parallel'"
+        self.main_info.append('mode')
         if self.mode == 'parallel':
+            Requirement = ['queue_name', 'num_core', 'num_parallel']
+            Default={
+                'pre_processing': '', 
+                'wait_time': 200, 
+                'verbose': False, 
+                'kill_time': 100000, 
+                }
+            check_parameters(self, parameters, Requirement, Default)
+
             self.J = JobManager(
-                queue_name=queueName,
-                num_core=numCore,
-                pre_processing=Preprocessing,
-                verbose=verbose,
-                kill_time=killtime,
+                queue_name=self.queue_name,
+                num_core=self.num_core,
+                pre_processing=self.pre_processing,
+                verbose=self.verbose,
+                kill_time=self.kill_time,
                 control_file="{}/job_controller".format(self.calc_dir))
 
     def paralleljob(self, calcPop, runjob):
@@ -110,9 +115,8 @@ class ClusterCalculator(Calculator, abc.ABC):
             if len(job_queue) == 0:
                 continue
             currdir = str(i).zfill(2)
-            if os.path.exists(currdir):
-                shutil.rmtree(currdir)
-            os.mkdir(currdir)
+            if not os.path.exists(currdir):
+                os.mkdir(currdir)
             os.chdir(currdir)
             write_traj('initPop.traj', [calcPop[j] for j in job_queue])
             runjob(index=i)
@@ -171,18 +175,18 @@ class ASECalculator(Calculator):
         'lbfgs': LBFGS,
         'fire': FIRE,
     }
-    def __init__(self, workDir, jobPrefix='ASE', pressure=0., eps=0.05, maxStep=100,
-                 optimizer='bfgs', maxMove=0.1, relaxLattice=True, *arg, **kwargs):
-        super().__init__(workDir=workDir, pressure=pressure, jobPrefix=jobPrefix)
-        self.eps = eps
-        self.max_step = maxStep
-        self.max_move = maxMove
-        self.relax_lattice = relaxLattice
-        self.optimizer = self.optimizer_dict[optimizer]
-        self.set_calc()
-
-    def set_calc(self):
-        raise NotImplementedError
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        Requirement = []
+        Default={
+            'eps': 0.05, 
+            'max_step': 100, 
+            'optimizer': 'bfgs', 
+            'max_move': 0.1, 
+            'relax_lattice': True,
+            }
+        check_parameters(self, parameters, Requirement, Default)
+        self.optimizer = self.optimizer_dict[self.optimizer]
 
     def relax_(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
         os.chdir(self.calc_dir)
@@ -217,6 +221,7 @@ class ASECalculator(Calculator):
                 pass
             enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa)/ len(atoms)
             atoms.info['enthalpy'] = round(enthalpy, 3)
+            atoms.info['trajs'] = traj
             atoms.wrap()
             atoms.set_calculator(None)
             new_frames.append(atoms)

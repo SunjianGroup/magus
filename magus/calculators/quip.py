@@ -7,7 +7,8 @@ from quippy.potential import Potential as QUIP
 
 @CALCULATOR_PLUGIN.register('quip')
 class QUIPCalculator(ASECalculator):
-    def set_calc(self):
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
         with open("{}/quip_relax.yaml".format(self.input_dir)) as f:
             params = yaml.load(f, Loader=yaml.FullLoader)
             self.relax_calc = QUIP(**params)

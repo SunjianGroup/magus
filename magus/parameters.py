@@ -24,7 +24,7 @@ class magusParameters:
             'formulType': 'fix', 
             'searchType': '3d',
             'spacegroup': list(range(1, 231)),
-            'DFTRelax': True,
+            'DFTRelax': False,
             'initSize': p_dict['popSize'],
             'goodSize': p_dict['popSize'],
             'molMode': False,

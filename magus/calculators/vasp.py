@@ -3,6 +3,7 @@ import numpy as np
 from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
+from magus.utils import check_parameters
 from ase.calculators.vasp import Vasp
 from magus.utils import CALCULATOR_PLUGIN
 
@@ -20,17 +21,20 @@ class RelaxVasp(Vasp):
 
 @CALCULATOR_PLUGIN.register('vasp')
 class VaspCalculator(ClusterCalculator):
-    def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Vasp',
-                 pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
-                 xc='PBE', ppLabel=None, mode='parallel', *arg, **kwargs):
-        super().__init__(workDir=workDir, queueName=queueName, numCore=numCore, 
-                         numParallel=numParallel, jobPrefix=jobPrefix, pressure=pressure, 
-                         Preprocessing=Preprocessing, waitTime=waitTime, 
-                         verbose=verbose, killtime=killtime, mode=mode)
-        pp_label = ppLabel or [''] * len(symbols)
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        Requirement = ['symbols']
+        Default={
+            'xc': 'PBE', 
+            'pp_label': None, 
+            'job_prefix': 'Vasp',
+            }
+        check_parameters(self, parameters, Requirement, Default)
+
+        pp_label = self.pp_label or [''] * len(self.symbols)
         self.vasp_setup = {
-            'pp_setup': dict(zip(symbols, pp_label)),
-            'xc': xc,
+            'pp_setup': dict(zip(self.symbols, pp_label)),
+            'xc': self.xc,
             'pressure': self.pressure}
         self.main_info.append('vasp_setup')
 

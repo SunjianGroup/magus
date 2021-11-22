@@ -1,4 +1,5 @@
 import subprocess, sys, os, time, logging, datetime, yaml
+from magus.utils import check_parameters
 
 
 log = logging.getLogger(__name__)
@@ -6,18 +7,19 @@ log = logging.getLogger(__name__)
 
 class BaseJobManager:
     control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time']
-    def __init__(self, queue_name, num_core, control_file=None,
-                 pre_processing='', verbose=False, kill_time=1000000):
-        self.queue_name = queue_name
-        self.num_core = num_core
-        self.pre_processing = pre_processing
-        self.verbose = verbose
+    def __init__(self, **parameters):
+        Requirement = ['queue_name', 'num_core']
+        Default={
+            'control_file': None, 
+            'pre_processing': 200, 
+            'verbose': False, 
+            'kill_time': 100000, 
+            }
+        check_parameters(self, parameters, Requirement, Default)
         self.jobs = []
         self.history = []
-        self.kill_time = kill_time
-        self.control_file = control_file
-        if control_file is not None:
-            with open(control_file, 'w') as f:
+        if self.control_file:
+            with open(self.control_file, 'w') as f:
                 f.write(yaml.dump({key: getattr(self, key) for key in self.control_keys}))
 
     def reload(self):

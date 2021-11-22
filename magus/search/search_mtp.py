@@ -1,4 +1,6 @@
 import logging
+
+from magus.populations.populations import Population
 from .search import Magus
 
 
@@ -53,6 +55,8 @@ class MLMagus(Magus):
                  '\tground enthalpy: {}\tenergy mse: {}\tselect enthaly: {}'
                  ''.format(ground_enthalpy, energy_mse, select_enthalpy))
         to_relax = [atoms for atoms in frames if atoms.info['enthalpy'] <= select_enthalpy]
+        if isinstance(frames, Population):
+            to_relax = frames.__class__(frames)
         return to_relax            
 
     def select_to_add(self, frames):
