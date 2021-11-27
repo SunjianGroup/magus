@@ -56,23 +56,23 @@ class Calculator(abc.ABC):
             shutil.copy(os.path.join(self.input_dir, filename), 
                         os.path.join(path, filename))
 
-    def pre_processing(self, calcPop):
+    def calc_pre_processing(self, calcPop):
         pass
 
-    def post_processing(self, calcPop, pop):
+    def calc_post_processing(self, calcPop, pop):
         if isinstance(calcPop, Population):
             pop = calcPop.__class__(pop)
         return pop
 
     def relax(self, calcPop):
-        self.pre_processing(calcPop)
+        self.calc_pre_processing(calcPop)
         pop = self.relax_(calcPop)
-        return self.post_processing(calcPop, pop)
+        return self.calc_post_processing(calcPop, pop)
 
     def scf(self, calcPop):
-        self.pre_processing(calcPop)
+        self.calc_pre_processing(calcPop)
         pop = self.scf_(calcPop)
-        return self.post_processing(calcPop, pop)
+        return self.calc_post_processing(calcPop, pop)
 
     @abc.abstractmethod
     def relax_(self, calcPop):
@@ -90,12 +90,13 @@ class ClusterCalculator(Calculator, abc.ABC):
         assert self.mode in ['serial', 'parallel'], "only support 'serial' and 'parallel'"
         self.main_info.append('mode')
         if self.mode == 'parallel':
-            Requirement = ['queue_name', 'num_core', 'num_parallel']
+            Requirement = ['queue_name', 'num_core']
             Default={
                 'pre_processing': '', 
                 'wait_time': 200, 
                 'verbose': False, 
-                'kill_time': 100000, 
+                'kill_time': 100000,
+                'num_parallel': 1,
                 }
             check_parameters(self, parameters, Requirement, Default)
 

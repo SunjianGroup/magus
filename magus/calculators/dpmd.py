@@ -17,6 +17,8 @@ log = logging.getLogger(__name__)
 
 class ASEDPData(MultiSystems):
     def from_traj(self, frames):
+        if isinstance(frames, Atoms):
+            frames = [frames]
         for atoms in frames:
             symbols = atoms.get_chemical_symbols()
             atom_names = list(set(symbols))
@@ -86,11 +88,10 @@ class DPEnsemble(Calculator):
 
         f = np.zeros((self.n_ensemble, 1, len(self.atoms), 3))
         for i in range(self.n_ensemble):
-            f[i] = self.dp.eval(coords=coord, cells=cell, atom_types=atype, keep_prob=self.keep_prob)[0]
+            f[i] = self.dp.eval(coords=coord, cells=cell, atom_types=atype, keep_prob=self.keep_prob)[1]
         sf = np.std(f, axis=0)[0]
-        sf = np.sqrt(np.sum((f * sf) ** 2, axis=1) / np.sum(f ** 2, axis=1))
         self.results["max_force_std"] = sf.max()
-        atoms.info['max_force_std'] = sf.max()
+        atoms.info['max_force_std'] = self.results["max_force_std"]
 
 
 @CALCULATOR_PLUGIN.register('dp')
@@ -115,8 +116,8 @@ class OTFDPCalculator(ClusterCalculator):
         super().__init__(**parameters)
         Requirement = ['query_calculator', 'symbols']
         Default={
-            'break_threshold': 2.,
-            'record_threshold': 1.,
+            'break_threshold': 2.0,
+            'record_threshold': 0.5,
             'init_times': 1,
             'job_prefix': 'DP',
             'select_ratio': 0.5,
@@ -139,9 +140,11 @@ class OTFDPCalculator(ClusterCalculator):
             if os.path.exists('{}/data.traj'.format(self.input_dir)):
                 shutil.copy('{}/data.traj'.format(self.input_dir), 
                             '{}/data.traj'.format(self.ml_dir))
-                self.trainset = read('{}/data.traj'.format(self.ml_dir))
+                self.trainset = read('{}/data.traj'.format(self.ml_dir), ':')
             else:
                 self.trainset = []
+        else:
+            self.trainset = read('{}/data.traj'.format(self.ml_dir), ':')
         self.dpdata = ASEDPData(type_map=self.symbols)
         self.dpdata.from_traj(self.trainset)
 
