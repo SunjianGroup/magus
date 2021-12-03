@@ -3,6 +3,7 @@ from ase import Atoms, Atom
 from ase.neighborlist import neighbor_list
 from ase.geometry import get_distances
 from magus.utils import *
+from .molecule import Molfilter
 from ..fingerprints import get_fingerprint
 from ..comparators import get_comparator
 
@@ -124,9 +125,8 @@ class Individual(Atoms):
     def to_save(self):
         atoms = self.copy()
         atoms.set_calculator(None)
-        # atoms.info = self.info
-        # for key, val in self.info.items():
-        #     atoms.info[key] = val
+        if 'traj' in atoms.info:
+            del atoms.info['traj']
         return atoms
 
     # TODO avoid repetitive computation 
@@ -280,21 +280,15 @@ class Bulk(Individual):
 class Molecule(Individual):
     @classmethod
     def set_parameters(cls, **parameters):
-        cls.all_parameters = parameters
-        Requirement = [
-            'formula', 'symbols', 'minAt', 'maxAt', 'symprec', 
-            'molDetector', 'bondRatio', 'dRatio', 'comparator', 'fp_calc']
-        Default={'repairtryNum':3, 'molMode':False, 'chkMol':False,
-                 'minLattice':None, 'maxLattice':None, 'dRatio':0.7,
-                 'addSym':False, 'chkSeed': True}
-        check_parameters(cls, parameters, Requirement, Default)
+        super().set_parameters(**parameters)
+        Default = {'detector': 2, 'bond_ratio': 1.1}
+        check_parameters(cls, parameters, [], Default)
 
-    def check_mol(self, atoms=None):
-        atoms = atoms or self
-        molCryst = Molfilter(a, coef=self.p.bondRatio)
-        for mol in molCryst:
-            molCt = Counter(mol.symbols)
-            if molCt not in self.molCounters:
-            #if mol.symbol not in self.inputFormulas:
-                return False
-        return True
+    def __init__(self, symbols=None, *args, **kwargs):
+        if isinstance(symbols, Molfilter):
+            symbols = symbols.to_atoms()
+        super().__init__(symbols=symbols, *args, **kwargs)
+
+    def for_heredity(self):
+        atoms = self.copy()
+        return Molfilter(atoms, detector=self.detector, coef=self.bond_ratio)

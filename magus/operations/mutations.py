@@ -112,7 +112,6 @@ class LatticeMutation(Mutation):
     Default = {'tryNum': 50, 'sigma': 0.1, 'cell_cut': 1, 'keep_volume': True}
 
     def mutate(self, ind):
-        atoms = ind.for_heredity()
         strain = np.clip(np.random.normal(0, self.sigma, 6), -self.sigma, self.sigma) * self.cell_cut
         strain = np.array([
             [1 + strain[0], strain[1] / 2, strain[2] / 2],

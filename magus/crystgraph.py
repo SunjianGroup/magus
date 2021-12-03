@@ -10,12 +10,11 @@ import sys, itertools
 
 def quotient_graph(atoms, coefficient=1.1):
     """Return crystal quotient graph of the atoms.
-    toms: (ASE.Atoms) the input crystal structure 
+    atoms: (ASE.Atoms) the input crystal structure 
     coef: (float) the criterion for connecting two atoms. If d_{AB} < coef*（r_A + r_B), atoms A and B are regarded as connected. r_A and r_B are covalent radius of A,B.
     Return: networkx.MultiGraph
     """
-    cutoffs = [covalent_radii[number]*coefficient for number in atoms.get_atomic_numbers()]
-    # print("cutoffs: %s" %(cutoffs))
+    cutoffs = [covalent_radii[number] * coefficient for number in atoms.get_atomic_numbers()]
     G = nx.MultiGraph()
     for i in range(len(atoms)):
         G.add_node(i)
