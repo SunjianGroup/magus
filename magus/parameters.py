@@ -1,6 +1,5 @@
-import os, yaml, logging, copy
-import numpy as np
-from magus.utils import *
+import os, yaml, copy
+from collections import defaultdict
 from .populations import get_population
 from .calculators import get_calculator
 from .generators import get_random_generator, get_ga_generator
@@ -8,21 +7,25 @@ from .generators import get_random_generator, get_ga_generator
 
 #@Singleton
 class magusParameters:
-    def __init__(self, filename):
-        with open(filename) as f:
-            p_dict = yaml.load(f, Loader=yaml.FullLoader)
+    def __init__(self, file):
+        p_dict = defaultdict(int)
+        if isinstance(file, dict):
+            p_dict.update(file)
+        elif isinstance(file, str):
+            with open(file) as f:
+                p_dict.update(yaml.load(f, Loader=yaml.FullLoader))
         p_dict['workDir']    = os.getcwd()
         p_dict['resultsDir'] = os.path.join(p_dict['workDir'], 'results')
         p_dict['calcDir']    = os.path.join(p_dict['workDir'], 'calcFold')
         p_dict['mlDir']      = os.path.join(p_dict['workDir'], 'mlFold')
-
-        Requirement = ['MainCalculator', 'popSize', 'numGen', 'saveGood', 'symbols']
-        for key in Requirement:
-            if key not in p_dict:
-                raise Exception('{} is not given'.format(key))
+        # not check here
+        # Requirement = ['MainCalculator', 'popSize', 'numGen', 'saveGood', 'symbols']
+        # for key in Requirement:
+        #     if key not in p_dict:
+        #         raise Exception('{} is not given'.format(key))
         Default = {
-            'formulType': 'fix', 
-            'searchType': '3d',
+            'formulaType': 'fix', 
+            'searchType': 'bulk',
             'spacegroup': list(range(1, 231)),
             'DFTRelax': False,
             'initSize': p_dict['popSize'],
@@ -51,6 +54,8 @@ class magusParameters:
 
         # translate spg such as 5-10 to list
         spg = []
+        if not isinstance(p_dict['spacegroup'], list):
+            p_dict['spacegroup'] = [p_dict['spacegroup']]
         for item in p_dict['spacegroup']:
             if isinstance(item, int):
                 if 1 <= item <= 230:
@@ -65,6 +70,7 @@ class magusParameters:
 
         if p_dict['chkMol']:
             assert p_dict['molDetector'] > 0, "If you want to check molecules, molDetector should be 1."
+
         self.p_dict = p_dict
 
     @property

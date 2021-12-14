@@ -1,4 +1,5 @@
-import copy, logging
+import logging
+import spglib
 from ase import Atoms, Atom
 from ase.neighborlist import neighbor_list
 from ase.geometry import get_distances
@@ -9,12 +10,12 @@ from ..comparators import get_comparator
 
 
 log = logging.getLogger(__name__)
-__all__ = ['Bulk', 'Molecule']
+__all__ = ['Bulk']
 
 
 def get_Ind(p_dict):
-    ind_dict = {'3d': Bulk, 'mol': Molecule}
-    Ind = ind_dict[p_dict['searchType']]
+    if p_dict['searchType'] == 'bulk':
+        Ind = Bulk
     Ind.set_parameters(**p_dict)
     return Ind
 
@@ -84,8 +85,7 @@ class Individual(Atoms):
     def set_parameters(cls, **parameters):
         # symbols is a property of atoms, will raise Error if set symbols here
         cls.all_parameters = parameters
-        Requirement = [
-            'formula', 'symprec', 'formula_pool', 'fp_calc', 'comparator']
+        Requirement = ['symbol_numlist_pool', 'symprec', 'fp_calc', 'comparator']
         Default={
             'n_repair_try': 3, 
             'max_attempts': 50,
@@ -105,9 +105,7 @@ class Individual(Atoms):
         # atoms.symbols has been used by ase
         cls.symbol_list = parameters['symbols']
         cls.distance_dict = get_distance_dict(cls.symbol_list, cls.radius, cls.d_ratio, cls.distance_matrix)
-        if len(np.array(cls.formula).shape) == 1:
-            cls.formula = [cls.formula]
-
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if 'origin' not in self.info:
@@ -217,8 +215,7 @@ class Individual(Atoms):
 
     def check_formula(self, atoms=None):
         atoms = atoms or self
-        symbols = atoms.get_chemical_symbols()
-        symbols_numlist = np.array([symbols.count(s) for s in self.symbol_list])
+        symbols_numlist = np.array(self.numlist)
         for possible_symbols_numlist in self.symbol_numlist_pool:
             if np.all(symbols_numlist == possible_symbols_numlist):
                 return True
@@ -266,29 +263,25 @@ class Bulk(Individual):
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
-        if 'radius' in parameters:
-            cls.radius = parameters['radius']
-        else:
-            cls.radius = [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]
-        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
-        cls.symbol_numlist_pool = cls.formula_pool @ cls.formula
-
-    def for_heredity(self):
-        return self.copy()
-
-
-class Molecule(Individual):
-    @classmethod
-    def set_parameters(cls, **parameters):
-        super().set_parameters(**parameters)
-        Default = {'detector': 2, 'bond_ratio': 1.1}
+        Default = {
+            'mol_detector': 0, 
+            'bond_ratio': 1.1,
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
         check_parameters(cls, parameters, [], Default)
+        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
 
-    def __init__(self, symbols=None, *args, **kwargs):
-        if isinstance(symbols, Molfilter):
-            symbols = symbols.to_atoms()
-        super().__init__(symbols=symbols, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        if 'symbols' in kwargs:
+            if isinstance(kwargs['symbols'], Molfilter):
+                kwargs['symbols'] = kwargs['symbols'].to_atoms()
+        if len(args) > 0:
+            if isinstance(args[0], Molfilter):
+                args = list(args)
+                args[0] = args[0].to_atoms()
+        super().__init__(*args, **kwargs)
 
     def for_heredity(self):
         atoms = self.copy()
-        return Molfilter(atoms, detector=self.detector, coef=self.bond_ratio)
+        if self.mol_detector > 0:
+            atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
+        return atoms

@@ -1,12 +1,9 @@
-import itertools, copy, logging
+import itertools, yaml, logging
 import numpy as np
 from ase import Atoms, build
 from ase.io import read
 from ase.data import atomic_numbers, covalent_radii
-from ase.spacegroup import Spacegroup 
-from ase.geometry import cellpar_to_cell, cell_to_cellpar
-from scipy.spatial.distance import cdist, pdist
-from spglib import get_symmetry_dataset
+from ase.geometry import cellpar_to_cell
 from magus.utils import *
 # from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 from magus.generators import GenerateNew
@@ -136,6 +133,10 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
         return label, None
 
 
+# 
+# units: units of Generator such as:
+#  ['Zn', 'OH'] for ['Zn', 'O', 'H'], [[1, 0, 0], [0, 1, 1]]
+#  [']
 class SPGGenerator:
     def __init__(self, **parameters):
         self.all_parameters = parameters
@@ -154,10 +155,10 @@ class SPGGenerator:
                    'max_lattice': None,
                    'min_n_formula': None,
                    'max_n_formula': None,
-                   'formula_pool': [],
                    'd_ratio': 1.,
                    'distance_matrix': None,
                    'spacegroup': np.arange(2, 231),
+                   'max_ratio': 1000,    # max ratio in var search, for 10, Zn11(OH) is not allowed
                    }
         check_parameters(self, parameters, Requirement, Default)
         if 'radius' in parameters:
@@ -170,8 +171,6 @@ class SPGGenerator:
         assert self.formula_type in ['fix', 'var'], "formulaType must be fix or var"
         if self.formula_type == 'fix':
             self.formula = [self.formula]
-        if len(self.formula_pool) == 0:
-            self.get_pool()
         self.main_info = ['formula_type', 'symbols', 'min_n_atoms', 'max_n_atoms']
 
     def __repr__(self):
@@ -186,10 +185,12 @@ class SPGGenerator:
         ret += "\n-------------------\n"
         return ret
 
-    def get_units(self):
+    @property
+    def units(self):
         return [Atoms(symbols=[s for n, s in zip(f, self.symbols) for _ in range(n)]) for f in self.formula]
 
-    def get_pool(self):
+    def get_default_formula_pool(self):
+        formula_pool = []
         n_atoms = np.array([sum(f) for f in self.formula])
         min_n_formula = np.zeros(len(self.formula))
         max_n_formula = np.floor(self.max_n_atoms / n_atoms).astype('int')
@@ -201,10 +202,32 @@ class SPGGenerator:
             max_n_formula = np.minimum(max_n_formula, self.max_n_formula)
         formula_range = [np.arange(minf, maxf + 1) for minf, maxf in zip(min_n_formula, max_n_formula)]
         for combine in itertools.product(*formula_range):
-            n = sum([na * nf for na, nf in zip(n_atoms, combine)])
-            if self.min_n_atoms <= n <= self.max_n_atoms:
-                self.formula_pool.append(combine)
-        self.formula_pool = np.array(self.formula_pool, dtype='int')
+            combine = np.array(combine)
+            if not self.min_n_atoms <= np.sum(n_atoms * combine) <= self.max_n_atoms:
+                continue
+            if np.max(combine) / np.min(combine[combine > 0]) > self.max_ratio:
+                continue
+            formula_pool.append(combine)
+        formula_pool = np.array(formula_pool, dtype='int')
+        return formula_pool
+    
+    @property
+    def formula_pool(self):
+        if not hasattr(self, 'formula_pool_'):
+            formula_pool_file = os.path.join(self.all_parameters['workDir'], 'formula_pool')
+            if os.path.exists(formula_pool_file) and os.path.getsize(formula_pool_file) > 0:
+                self.formula_pool_ = np.loadtxt(formula_pool_file, dtype=int)
+                while len(self.formula_pool_.shape) < 2:
+                    self.formula_pool_ = self.formula_pool_[None]
+            else:
+                self.formula_pool_ = self.get_default_formula_pool()
+            np.savetxt(formula_pool_file, self.formula_pool_, fmt='%i')
+        return self.formula_pool_
+
+    @property
+    def symbol_numlist_pool(self):
+        numlist_pool = self.formula_pool @ self.formula
+        return numlist_pool
 
     def get_numlist(self, format_filter=None):
         if format_filter is not None:
@@ -212,9 +235,7 @@ class SPGGenerator:
                                     self.formula_pool))
         else:
             formula_pool = self.formula_pool
-        nfm = formula_pool[np.random.randint(len(formula_pool))]
-        numlist = np.array(self.formula).T @ nfm
-        return numlist
+        return np.array(self.formula).T @ formula_pool[np.random.randint(len(formula_pool))]
 
     def get_n_symbols(self, numlist):
         return {s: n for s, n in zip(self.symbols, numlist)}
@@ -313,7 +334,8 @@ class SPGGenerator:
         atoms.info['symbols'] = self.symbols
         atoms.info['parentE'] = 0.
         atoms.info['origin'] = 'random'
-        atoms.info['formula'] = get_units_formula(atoms, self.get_units())
+        atoms.info['units'] = self.units
+        atoms.info['units_formula'] = get_units_formula(atoms, self.units)
         return atoms
 
 
@@ -344,7 +366,8 @@ class MoleculeSPGGenerator(SPGGenerator):
                                 for s in mol.get_chemical_symbols()])
                                 for mol in self.input_mols])
 
-    def get_pool(self):
+    def get_default_formula_pool(self):
+        formula_pool = []
         n_atoms = np.array([sum([m * n for m, n in zip(f, self.mol_n_atoms)]) for f in self.formula])
         min_n_formula = np.zeros(len(self.formula))
         max_n_formula = np.floor(self.max_n_atoms / n_atoms).astype('int')
@@ -358,8 +381,16 @@ class MoleculeSPGGenerator(SPGGenerator):
         for combine in itertools.product(*formula_range):
             n = sum([na * nf for na, nf in zip(n_atoms, combine)])
             if self.min_n_atoms <= n <= self.max_n_atoms:
-                self.formula_pool.append(combine)
-        self.formula_pool = np.array(self.formula_pool, dtype='int')
+                formula_pool.append(combine)
+        formula_pool = np.array(formula_pool, dtype='int')
+        return formula_pool
+
+    @property
+    def symbol_numlist_pool(self):
+        mol_num_matrix = np.array([[mol.get_chemical_symbols().count(s) for s in self.symbols]
+                                                                        for mol in self.input_mols])
+        numlist_pool = self.formula_pool @ self.formula @ mol_num_matrix
+        return numlist_pool
 
     def get_lattice(self, numlist):
         min_lattice, max_lattice = super().get_lattice(numlist)
@@ -380,8 +411,8 @@ class MoleculeSPGGenerator(SPGGenerator):
     def get_n_symbols(self, numlist):
         return {s: sum([n * m.get_chemical_symbols().count(s) for n, m in zip(numlist, self.input_mols)])  
                                                               for s in self.symbols}
-
-    def get_units(self):
+    @property
+    def units(self):
         return self.input_mols
 
 

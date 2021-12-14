@@ -1,12 +1,11 @@
-import os, shutil, yaml, traceback, copy
+import os, shutil, yaml, traceback
 import numpy as np
 import abc
 import ase
 import logging
-from ase.atoms import Atoms
 from magus.populations.populations import Population
 from magus.formatting.traj import write_traj
-from magus.queuemanage import JobManager
+from magus.parallel.queuemanage import JobManager
 from magus.utils import CALCULATOR_CONNECT_PLUGIN, check_parameters
 from ase.constraints import ExpCellFilter
 from ase.units import GPa, eV, Ang

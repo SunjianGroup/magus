@@ -7,9 +7,6 @@ from magus.utils import load_plugins, CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUG
 load_plugins(__file__, 'magus.calculators')
 
 
-log = logging.getLogger(__name__)
-
-
 need_convert = ['jobPrefix', 'eps', 'maxStep', 'optimizer', 'maxMove', 
                 'relaxLattice', 'exeCmd', 'calculator',
                 'queueName', 'numCore', 'Preprocessing', 'waitTime',

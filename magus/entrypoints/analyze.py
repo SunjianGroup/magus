@@ -26,5 +26,3 @@ def analyze(filename, *args, **kwargs):
         else:
             if e < energy[i-1]:
                 print('gen {}, E = {}, origin = {}, symmetry = {}, fullsym = {}'.format(i+1, e, best[i].info['origin'], spglib.get_spacegroup(best[i], 0.2), best[i].get_chemical_formula()))
-            
-

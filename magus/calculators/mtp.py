@@ -1,7 +1,6 @@
 import os, subprocess, shutil
 import numpy as np
 from magus.calculators.base import Calculator, ClusterCalculator
-from magus.queuemanage import JobManager
 from magus.formatting.mtp import load_cfg, dump_cfg
 from ase.units import GPa, eV, Ang
 from ase.atoms import Atoms
@@ -11,6 +10,8 @@ from ase.io.lammpsrun import read_lammps_dump_text
 from magus.calculators.lammps import calc_lammps_once
 from magus.utils import CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN, check_parameters
 from magus.populations.populations import Population
+if len(os.popen('which mlp').readlines()) == 0:
+    raise ImportError("No 'mlp' detected")
 
 
 log = logging.getLogger(__name__)

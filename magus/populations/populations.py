@@ -32,7 +32,7 @@ class Population:
             cls.atoms_generator = get_random_generator(parameters)
         else:
             cls.atoms_generator = parameters['atoms_generator']
-        parameters['formula_pool'] = cls.atoms_generator.formula_pool
+        parameters['symbol_numlist_pool'] = cls.atoms_generator.symbol_numlist_pool
         cls.Ind = get_Ind(parameters)
         cls.fit_calcs = get_fitness_calculator(parameters)
 

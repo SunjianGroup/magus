@@ -87,7 +87,7 @@ class PermMutation(Mutation):
     """
     Default = {'tryNum': 50, 'frac_swaps': 0.5}
 
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
         num_swaps = np.random.randint(1, min(int(self.frac_swaps * len(atoms)), 2))
         unique_symbols = np.unique([atom.symbol for atom in atoms]) # or use get_chemical_symbol?
@@ -111,7 +111,8 @@ class LatticeMutation(Mutation):
     """
     Default = {'tryNum': 50, 'sigma': 0.1, 'cell_cut': 1, 'keep_volume': True}
 
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
+        atoms = ind.for_heredity()
         strain = np.clip(np.random.normal(0, self.sigma, 6), -self.sigma, self.sigma) * self.cell_cut
         strain = np.array([
             [1 + strain[0], strain[1] / 2, strain[2] / 2],
@@ -144,10 +145,6 @@ class SlipMutation(Mutation):
         scl_pos[z,axis[1]] += np.random.uniform(*self.randRange)
         scl_pos[z,axis[2]] += np.random.uniform(*self.randRange)
         atoms.set_scaled_positions(scl_pos)
-        return atoms
-
-    def mutate_mol(self, ind):
-        atoms = self.mutate_bulk(ind.mol_crystal)
         return ind.__class__(atoms)
 
 
@@ -159,7 +156,7 @@ class RippleMutation(Mutation):
 
     Default = {'tryNum': 50, 'rho': 0.3, 'mu': 2, 'eta': 1}
 
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
         scl_pos = atoms.get_scaled_positions()
         axis = list(range(3))
@@ -176,8 +173,8 @@ class RippleMutation(Mutation):
 class RotateMutation(Mutation):
     Default = {'tryNum': 50, 'p': 1}
 
-    def mutate(self, ind):
-        # TODO if not mol raise NotImpent
+    def mutate_bulk(self, ind):
+        assert ind.mol_detector > 0
         atoms = ind.for_heredity()
         for mol in atoms:
             if len(mol) > 1 and np.random.rand() < self.p:
@@ -195,6 +192,8 @@ class FormulaMutation(Mutation):
         Randomly change symbols, only used for variable formula search
         and unavailable for molecular crystals (chkMol should be False).
         """
+        if ind.mol_detector > 0:
+            return None
         atoms = ind.atoms.copy()
         Nat = len(atoms)
         symbols = self.symbols
@@ -241,7 +240,7 @@ class RattleMutation(Mutation):
                 atoms[i].position = self.rattle(atoms[i].position)
         return ind.__class__(atoms)
 
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
         ind = self.mutate_normal(ind) if not self.keep_sym else self.mutate_sym(ind)
         return ind
 

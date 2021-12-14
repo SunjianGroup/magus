@@ -1,8 +1,7 @@
-import logging
-import numpy as np
+import logging, yaml
 from ase import Atoms 
 from magus.utils import *
-from magus.populations.individuals import Molecule
+from magus.populations.individuals import Bulk
 
 
 log = logging.getLogger(__name__)
@@ -49,13 +48,10 @@ class AdjointOP(OffspringCreator):
 class Mutation(OffspringCreator):
     n_input = 1
     def mutate(self, ind):
-        if isinstance(ind, Molecule):
-            self.mutate_mol(ind)
+        if isinstance(ind, Bulk):
+            return self.mutate_bulk(ind)
         else:
-            self.mutate_bulk(ind)
-
-    def mutate_mol(self, ind):
-        raise NotImplementedError("{} cannot apply in molmode".format(self.descriptor))
+            pass
 
     def mutate_bulk(self, ind):
         raise NotImplementedError("{} cannot apply in bulk".format(self.descriptor))
@@ -89,13 +85,10 @@ class Mutation(OffspringCreator):
 class Crossover(OffspringCreator):
     n_input = 2
     def cross(self, ind1, ind2):
-        if isinstance(ind1, Molecule):
-            self.cross_mol(ind1, ind2)
+        if isinstance(ind1, Bulk):
+            return self.cross_bulk(ind1, ind2)
         else:
-            self.cross_bulk(ind1, ind2)
-
-    def cross_mol(self, ind1, ind2):
-        raise NotImplementedError("{} cannot apply in molmode".format(self.descriptor))
+            pass
 
     def cross_bulk(self, ind1, ind2):
         raise NotImplementedError("{} cannot apply in bulk".format(self.descriptor))

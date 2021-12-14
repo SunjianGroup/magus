@@ -1,13 +1,12 @@
 import logging
 from itertools import chain
 from functools import wraps
-
 try:
     from mpi4py import MPI
     MPI_INSTALLED = True
 except ImportError:
     MPI_INSTALLED = False
-
+from magus.utils import Singleton
 
 
 @Singleton

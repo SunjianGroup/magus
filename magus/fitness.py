@@ -1,6 +1,4 @@
 import numpy as np
-from magus.utils import find_spg, symbols_and_formula
-import copy
 from ase.phasediagram import PhaseDiagram
 import abc
 # from .reconstruct import RCSPhaseDiagram

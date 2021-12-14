@@ -13,7 +13,7 @@ class BaseJobManager:
             'control_file': None, 
             'pre_processing': 200, 
             'verbose': False, 
-            'kill_time': 100000, 
+            'kill_time': 7200, 
             }
         check_parameters(self, parameters, Requirement, Default)
         self.jobs = []
@@ -65,7 +65,6 @@ class BSUBSystemManager(BaseJobManager):
                 "#BSUB -o {2}\n"
                 "#BSUB -e {3}\n"
                 "#BSUB -J {4}\n"
-                #"#BSUB -R affinity[core:cpubind=core:membind=localprefer:distribute=pack]"
                 "{5}\n"
                 "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content)
                 )
