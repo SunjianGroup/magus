@@ -61,7 +61,10 @@ setup(
         "pandas",
         "pyyaml"
     ],
-    extras_require={"torchml": ["torch>=1.0"]},
+    extras_require={
+        "torchml": ["torch>=1.0"],
+        "test": ["BeautifulReport"]
+        },
     #license="MIT",
     description="Magus: Machine learning And Graph theory assisted Universal structure Searcher",
     long_description=long_description,
