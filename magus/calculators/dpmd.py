@@ -118,7 +118,6 @@ class OTFDPCalculator(ClusterCalculator):
         Default={
             'break_threshold': 2.0,
             'record_threshold': 0.5,
-            'init_times': 1,
             'job_prefix': 'DP',
             'select_ratio': 0.5,
             'n_epoch': 200, 

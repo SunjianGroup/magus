@@ -287,71 +287,75 @@ $ source your_path_to_magus/auto_complete.sh
 
 \subsubsection{基本参数}
 \begin{itemize}
-    \item calcType: 计算类型，可用值:  fix（定组分）,var（变组分）
-    \item pressure: 压强(GPa)
-    \item DFTRelax: 用于ML搜索中，是否将结果用DFT优化
-    \item molMode: 是否打开分子晶体模式
-    \item symprec: 默认值：0.1, 判断空间群时容忍误差
+    \item formulaType       : 计算类型，可用值:  fix（定组分）,var（变组分）
+    \item pressure          : 压强(GPa)
+    \item molMode           : 是否使用分子晶体模式产生结构
+    \item symprec           : 默认值：0.1, 判断空间群时容忍误差
 \end{itemize}
 
 \subsubsection{种群相关}
 \begin{itemize}
-    \item initSize: 初代种群大小
-    \item popSize: 种群大小
-    \item numGen: 迭代次数
-    \item saveGood: 聚类后保留结构数
+    \item initSize          : 初代种群大小
+    \item popSize           : 种群大小
+    \item numGen            : 迭代次数
+    \item saveGood          : 保留到下一代的优秀结构数
 \end{itemize}
 
 \subsubsection{结构产生}
 \begin{itemize}
-    \item spacegroup: 随机结构的空间群，
+    \item spacegroup        : 随机结构的空间群, 
     例：[1,2,20-30]
-    \item minAt: 最小原子数
-    \item maxAt: 最大原子数
-    \item symbols: 元素类型
-    例：['Ti', 'O'], 外层是方括号，每个元素用引号括起来
-    \item formula: 元素比例
-    例： [1, 2] (定组分),[[1,0],[0,1]] (变组分)
-    \item fullEles: 若值为True,则产生的结构含有'symbols'中所有元素
-    \item eleSize: 变组分搜索时，初代每种单质随机产生的结构数
-    \item volRatio: 随机产生结构时的体积参数
-    \item dRatio: 判断原子距离是否过近的标准
-    \item addSym: 产生结构之前是否为父代加入对称性
+    \item minNAtoms         : 最小原子数
+    \item maxNAtoms         : 最大原子数
+    \item symbols           : 元素类型
+    例：['Ti', 'O'], 外层是方括号，每个元素用引号括起来, 
+    \item formula           : 元素比例, 
+    例：[1, 2] (定组分),[[1,0],[0,1]] (变组分)
+    \item eleSize           : 变组分搜索时，产生的不包含所有元素的结构数, 
+    如：eleSize=2, 则每代产生(He, Al, O, HexAly, AlxOy, HexOy)各两个
+    \item volRatio          : 随机产生结构时的体积参数, 为结构体积除以原子球体积之和
+    \item dRatio            : 若存在两原子距离除以共价半径之和小于此值, 则认为过近, 排除此结构
+    \item distanceMatrix    : 原子间的最小距离矩阵, 与dRatio同时出现时使用此数值, 
+    例：[[1, 1.5, 2.0], [1.5, 1.8, 1.9], [2.0, 1.9, 2.5]]
 \end{itemize}
 
 \subsubsection{结构演化}
 \begin{itemize}
-    \item randFrac: 随机结构比例
-    \item molDetector: 结构演化时判断分子片段的方法
+    \item randFrac          : 随机结构比例
+    \item molDetector       : 结构演化时判断分子片段的方法
     可用值：0(不判断分子局域结构，默认值)  1(自动判断分子局域结构)  2(使用Girvan-Newman算法划分局域结构)
-    \item cutNum: cutNum
-    \item permNum: permNum
-    \item rotNum: rotNum\dots
+    \item addSym            : 产生结构之前是否为父代加入对称性
 \end{itemize} 
 
 \subsubsection{煮计算器}
 主计算器定义了Magus搜索时使用的MainCalculator，以下所有参数都定义于MainCalculator条目下，需要缩进：
 \begin{itemize}
-    \item jobPrefix: 计算器所需附属文件在\file{inputFold}文件夹中的名称,如\file{EMT}, \file{OvO}等
+    \item jobPrefix         : 计算器所需附属文件在\file{inputFold}文件夹中的名称,如\file{EMT}, \file{OvO}等
     如需使用多个计算器串接则给出对应列表，如：['Gulp', 'Vasp1', 'Vasp2']\label{jobprefix}
-    \item calculator: 程序种类，如未给出则按照jobPrefix文件名判断，可用值：
+    \item calculator        : 程序种类，如未给出则按照jobPrefix文件名判断，可用值：
     {vasp, gulp, lammps, emt, xtb, lj, quip}
-    \item mode: 运行方式，可用值: serial (串行), parallel (并行)
-    \item xc: （VASP）交换关联类型，可用值: PBE, LDA, PW-91
-    \item ppLabel: （VASP）VASP赝势的后缀，与symbols顺序一致，若无后缀则填入''，如：['\_sv', '']。
-    \item exeCmd: (gulp, lammps) 运行结构优化程序的命令，如gulp < input > output，mpirun -np 4 lmp\_mpi -in in.lammps
+    \item mode              : 运行方式，可用值: serial (串行), parallel (并行)
+    \item xc                : (VASP) 交换关联类型，可用值: PBE, LDA, PW-91
+    \item ppLabel           : (VASP) VASP赝势的后缀，与symbols顺序一致，若无后缀则填入''，如：['\_sv', '']。
+    \item exeCmd            : (gulp, lammps) 运行结构优化程序的命令，如gulp < input > output，mpirun -np 4 lmp\_mpi -in in.lammps
 \end{itemize}
 以下选项为并行模式下的队列控制选项，同样适用于代理计算器
 \begin{itemize}
-    \item numParallel: 并行优化结构的数目
-    \item numCore: 结构优化使用的核数
-    \item queueName: 结构优化任务的队列
-    \item verbose: log中是否显示详细队列信息
-    \item waitTime: 检查任务的时间间隔(s)
-    \item killTime: 杀死任务的时间间隔(s)
-    \item Preprocessing: 提交脚本时的预处理
+    \item numParallel       : 并行优化结构的数目
+    \item numCore           : 结构优化使用的核数
+    \item queueName         : 结构优化任务的队列
+    \item verbose           : log中是否显示详细队列信息
+    \item waitTime          : 检查任务的时间间隔(s)
+    \item killTime          : 杀死任务的时间间隔(s)
+    \item preProcessing     : 提交脚本时的预处理
 \end{itemize}
 
+\subsubsection{机器学习}
+\begin{itemize}
+    \item poolSize          : 用于初始化势场时随机产生的结构数
+    \item initTimes         : 初始化势场时的迭代次数, 如果已有训练过的力场可设为0.默认值：2 
+    \item DFTRelax          : 是否使用DFT演算
+\end{itemize} 
 \subsubsection{代理计算器}
 代理计算器定义了MLMagus搜索时使用的MLCalculator，以下所有参数都定义于MLCalculator条目下，需要缩进：
 \begin{itemize}
@@ -365,7 +369,6 @@ $ source your_path_to_magus/auto_complete.sh
     \item scaled\_by\_force：训练时给予较小力的额外权重，默认值：0.
     \item min\_dist: 优化时最小距离, 默认值：0.5
     \item n\_epoch：训练代数，默认值：200
-    \item init\_times：初始化力场次数，如果已有训练过的力场可设为0.默认值：2 
 \end{itemize}
 
 \subsection{inputFold} \label{inputfold}
