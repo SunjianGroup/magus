@@ -69,21 +69,38 @@ class Magus:
         return seedPop
 
     def get_initPop(self):
+
+        def getseed():
+            seedPop = self.read_seeds()
+            seedPop.removebulk_relaxable_vacuum()
+            for i, ind in enumerate(seedPop):
+                ind.repair_atoms()
+            seedPop.addbulk_relaxable_vacuum()
+            return seedPop
+
         # mutate and crossover, empty for first generation
         if self.curgen == 1:
             initPop = self.Population([], 'initpop', self.curgen)
             n_random = self.parameters.initSize
             ## read seeds
             seedPop = self.read_seeds()
+            #seedPop = getseed()
             initPop.extend(seedPop)
         else:
             initPop = self.pop_generator.next_Pop(self.curPop + self.keepPop)
             n_random = self.parameters.popSize - len(initPop)
         # random
+        
         if n_random > 0:
             addpop = self.atoms_generator.Generate_pop(n_random, initpop=self.curgen==1)
             log.info("random generate population with {} strutures".format(len(addpop)))
             initPop.extend(addpop)
+        """
+        if n_random > 0:
+            for _ in range(int(n_random/len(read_seeds('{}/seed.traj'.format(self.seed_dir))))):
+                addpop = getseed()
+                initPop.extend(addpop)
+        """
         
         # check and log
         initPop.check()
@@ -142,8 +159,8 @@ class Magus:
         initPop.save('init', self.curgen)
         #######  relax  #######
         relaxpop = self.main_calculator.relax(initPop.frames)
-        relax_step = sum([sum(atoms.info['relax_step']) for atoms in relaxpop])
-        log.info('DFT relax {} structures with {} scf'.format(len(relaxpop), relax_step))
+        #relax_step = sum([sum(atoms.info['relax_step']) for atoms in relaxpop])
+        #log.info('DFT relax {} structures with {} scf'.format(len(relaxpop), relax_step))
         relaxPop = self.Population(relaxpop, 'relaxpop', self.curgen)
         # save raw date before checking
         relaxPop.save('raw')

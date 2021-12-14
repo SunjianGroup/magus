@@ -166,11 +166,12 @@ class Population:
         for ind1 in self.pop:
             dominators = -1 #number of individuals that dominate the current ind
             for ind2 in self.pop:
-                for key in ind1.info['fitness']:
-                    if ind1.info['fitness'][key] > ind2.info['fitness'][key]:
-                        break
-                else:
-                    dominators += 1
+                if len(ind1.atoms) == len(ind2.atoms):
+                    for key in ind1.info['fitness']:
+                        if ind1.info['fitness'][key] > ind2.info['fitness'][key]:
+                            break
+                    else:
+                        dominators += 1
 
             ind1.info['dominators'] = dominators
             ind1.info['MOGArank'] = dominators + 1
@@ -796,7 +797,7 @@ class RcsInd(Individual):
 
         super().__init__(parameters)
 
-        default= {'vacuum':7 , 'SymbolsToAdd': None, 'AtomsToAdd': None, 'DefectToAdd':None, 'refE':None, 'fixbulk':True}
+        default= {'vacuum':7 , 'SymbolsToAdd': None, 'MoleculesToAdd': None, 'AtomsToAdd': None, 'DefectToAdd':None, 'refE':None, 'fixbulk':True}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
         self.layerslices = ase.io.read("Ref/layerslices.traj", index=':', format='traj')
         
@@ -935,25 +936,32 @@ class RcsInd(Individual):
             benchmark = self.layerslices[2] * (rcs_x, rcs_y, 1)
             symbol, formula = symbols_and_formula(benchmark)
 
-            targetFrml = {s:i for s,i in zip(symbol,formula)}
+            refFrml = {s:i for s,i in zip(symbol,formula)}
         elif len(self.layerslices)==2:
-            targetFrml = {}
-        
+            refFrml = {}
+
         add, rm = self.modified_atoms.copy()
+        targetFrml = {}
+
         if add:
             Add = {s:i for s,i in zip(self.p.symbols, add)}
             for s in Add:
-                targetFrml[s] = [num + targetFrml[s] for num in Add[s]] if s in targetFrml else Add[s] 
-        else:
-            targetFrml = {s:[targetFrml[s]] for s in targetFrml}
-            #if self.p.SymbolsToAdd:
-                #for i in range(len(self.p.SymbolsToAdd)):
-                    #setattr(targetFrml,self.p.SymbolsToAdd[i],self.p.AtomsToAdd[i+len(self.p.symbols)])
+                targetFrml[s] = [num + refFrml[s] for num in Add[s]] if s in refFrml else Add[s] 
+        
         if rm:
             Defect = {s:i for s,i in zip(self.p.symbols, rm)}
-            for s in targetFrml:
-                targetFrml[s] = list(set( [i-j for i in targetFrml[s] for j in Defect[s]])) if s in Defect else targetFrml[s]
-        
+            for s in Defect:
+                if s not in targetFrml:
+                    targetFrml[s] = [refFrml[s] - num for num in Defect[s]]
+                else: 
+                    targetFrml[s].extend([refFrml[s] - num for num in Defect[s]])
+
+        if not targetFrml:
+            targetFrml = {s:[refFrml[s]] for s in refFrml}
+        else:
+            for s in targetFrml.keys():
+                targetFrml[s] = list(set(targetFrml[s]))
+
         return targetFrml
 
     def get_targetFrml(self, rcs_x=1, rcs_y=1):
@@ -1120,10 +1128,12 @@ class RcsInd(Individual):
         return self.volRatio
 
     def check_sym(self, atoms =None, p = 0.7):
+        """
         a = self.atoms if atoms is None else atoms
         if spglib.get_spacegroup(a, self.p.symprec) == 'P1 (1)':
             if np.random.rand() < p:
                 return False
+        """
         return True
     
     def check(self, atoms=None, delP1 = False):
@@ -1131,7 +1141,7 @@ class RcsInd(Individual):
             a = self.atoms.copy()
         else:
             a = atoms.copy()
-        check_sym = self.check_sym(a, p = (1 if delP1 == True else 0.7))
+        check_sym = self.check_sym(a, p = (1 if delP1 == True else 0))
         if not check_sym:
             log.debug("P1 structrue deleted. origin '{}'".format(self.atoms.info['origin'] if 'origin' in self.atoms.info else 'Unknown'))
     

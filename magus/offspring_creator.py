@@ -504,6 +504,7 @@ class RotateMutation(Mutation):
         return ind(atoms)
 
 from .reconstruct import weightenCluster
+from ase.symbols import symbols2numbers
 class ShellMutation(Mutation):
     """
     Original proposed by Lepeshkin et al. in J. Phys. Chem. Lett. 2019, 10, 102−106
@@ -511,25 +512,32 @@ class ShellMutation(Mutation):
     def Exp_j = exp(-(r_ij-R_i-R_j)/d); Oi = sum_j (Exp_j) / max_j(Exp_j)
     d is the empirically determined parameter set to be 0.23.
     """
-    parm = {'tryNum':50, 'd':0.23}
-    
+    parm = {'tryNum':50, 'd':0.23, 'step': 1}
+
     def _mutate_(self,ind, addatom = True, addfrml = None):
-        
+
         atoms = ind.atoms.copy()
+
+        def _choose_atom_(atoms0, species):
+            if np.sum(atoms0.pbc) == 0:
+                return weightenCluster(self.d).choseAtom(atoms0, species)
+            else:
+                return np.random.choice([i for i, a in enumerate(atoms0) if a.number == species or species == -1])
+
         if addfrml is None:
             addfrml = {atoms[0].number: 1}
 
         if not addatom:
             for key in addfrml.keys():
                 for _ in range(addfrml[key]):
-                    i = weightenCluster(self.d).choseAtom(atoms, key)
+                    i = _choose_atom_(atoms, key)
                     del atoms[i]
         else:
             for _ in range(self.tryNum):
                 if addfrml:
                     #borrowed from Individual.repair_atoms
                     atomnum = list(addfrml.keys())[0]
-                    i = weightenCluster(self.d).choseAtom(atoms, atomnum)
+                    i = int(_choose_atom_(atoms, -1))
                     basicR = covalent_radii[atoms[i].number] + covalent_radii[atomnum]
                     # random position in spherical coordination
                     radius = basicR * (ind.p.dRatio + np.random.uniform(0,0.3))
@@ -553,12 +561,23 @@ class ShellMutation(Mutation):
         return ind(atoms)
     
     def mutate(self,ind):
-        ind = self._mutate_(ind, addatom = False, addfrml = {14: 1})
-        ind = self._mutate_(ind, addatom = True, addfrml = {14: 1})
-        if spglib.get_spacegroup(ind.atoms, 0.1) == 'P1 (1)' and np.random.rand() < 0.5:
-            return LyrSymMutation(tryNum = 50).mutate(ind)
-        else:
-            return ind
+        reffrml = ind.get_refFrml(*ind.info['size'])
+        nowfrml = {s:f for s,f in zip(*symbols_and_formula(ind.atoms))}
+        for key in reffrml:
+            if np.min(reffrml[key]) == np.max(reffrml[key]):
+                continue
+            if nowfrml[key] < np.mean(reffrml[key]):
+                addatom = True
+            elif nowfrml[key] > np.mean(reffrml[key]):
+                addatom = False
+            else:
+                addatom = np.random.choice([True, False])
+            ind = self._mutate_(ind, addatom =addatom, addfrml = {symbols2numbers(key)[0]: self.step})
+
+        #if spglib.get_spacegroup(ind.atoms, 0.1) == 'P1 (1)' and np.random.rand() < 0.5:
+            #return LyrSymMutation(tryNum = 50).mutate(ind)
+        #else:
+        return ind
 
 class CluSymMutation(LyrSymMutation):
     """

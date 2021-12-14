@@ -133,8 +133,7 @@ class Generator:
                 else:
                     generator.AppendAtoms(int(numlist[i]), str(i), self.p.radius[i], False)
                     numbers.extend([atomic_numbers[self.p.symbols[i]]]*numlist[i])
-
-        label = generator.PreGenerate(np.random.randint(1000))
+        label = generator.Generate(np.random.randint(1000))
 
         if label:
             cell = generator.GetLattice(0)
@@ -396,7 +395,7 @@ class ReconstructGenerator():
         para_t = EmptyClass()
         Requirement=['layerfile']
         Default={'cutslices': None, 'bulk_layernum':3, 'range':0.5, 'relaxable_layernum':3, 'rcs_layernum':2, 'randratio':0.5,
-        'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'matrix': None, 'extra_c':1.0, 'pcell': True,
+        'rcs_x':[1], 'rcs_y':[1], 'direction': None, 'rotate': 0, 'matrix': None, 'extra_c':1.0, 'addH': False, 'pcell': True,
         'dimension':2, 'choice':0, 'molMode':False }
 
         checkParameters(para_t, parameters, Requirement,Default)
@@ -416,7 +415,7 @@ class ReconstructGenerator():
                 xy= [para_t.rcs_x[0], para_t.rcs_y[0]]
 
             layernums = [para_t.bulk_layernum, para_t.relaxable_layernum, para_t.rcs_layernum]
-            cutcell(originatoms, layernums, totslices = para_t.cutslices, vacuum = para_t.extra_c, direction= para_t.direction,
+            cutcell(originatoms, layernums, totslices = para_t.cutslices, vacuum = para_t.extra_c, addH = para_t.addH ,direction= para_t.direction,
                     xy = xy, rotate = para_t.rotate, pcell = para_t.pcell ,matrix = para_t.matrix)
             #layer split ends here
             from .entrypoints.getslab import getslab
@@ -437,10 +436,10 @@ class ReconstructGenerator():
         if len(self.layerslices)==3:
             #mode = 'reconstruct'
             self.ref = self.layerslices[2]
+            setlattice = self.ref.get_cell_lengths_and_angles().copy()
             vertical_dis = self.ref.get_scaled_positions()[:,2].copy()
-            mincell = self.ref.get_cell().copy()
-            mincell[2] *= (np.max(vertical_dis) - np.min(vertical_dis))*1.2
-            setlattice = list(cell_to_cellpar(mincell))
+            setlattice[2] *=(np.max(vertical_dis) - np.min(vertical_dis) )#+ 1.0 / setlattice[2])
+
         else:
             #mode = 'add atoms'
             para_t.randratio = 0
@@ -533,7 +532,7 @@ class ReconstructGenerator():
         else:
             return label, None
 
-    def rand_displacement(self, extraind, bottomind): 
+    def match_symmetry_plane(self, extraind, bottomind): 
         rots = []
         trs = []
         for ind in list([bottomind, extraind]):
@@ -575,7 +574,7 @@ class ReconstructGenerator():
             else:
                 return list(range(1, 13))
 
-    def reset_rind_lattice(self, atoms, _x, _y, botp = 'refbot', type = 'bot'):
+    def reset_rind_lattice(self, atoms, _x, _y, layersub = None):
 
         refcell = (self.ref * (_x, _y, 1)).get_cell_lengths_and_angles()
         cell = atoms.get_cell_lengths_and_angles()
@@ -589,16 +588,35 @@ class ReconstructGenerator():
 
             else:
                 return False, None
-        atoms.set_cell(np.dot(np.diag([1,1, refcell[2]/cell[2]]) ,atoms.get_cell()))
-        refcell = (self.ref * (_x, _y, 1)).get_cell()
-        atoms.set_cell(refcell, scale_atoms = True)
-        pos = atoms.get_scaled_positions(wrap = False)
-        refpos = self.ref.get_scaled_positions(wrap = True)
-        bot = np.min(pos[:,2]) if type == 'bot' else np.mean(pos[:, 2])
-        tobot = np.min(refpos[:,2])*atoms.get_cell()[2] if isinstance(botp, str) else botp
-        atoms.translate([ tobot - bot*atoms.get_cell()[2]]* len(atoms))
-        return True, atoms
+        atoms.set_cell(np.dot(atoms.get_cell(), np.diag([1,1, refcell[2]/cell[2]])))
+
+        refcell_ = (self.ref * (_x, _y, 1)).get_cell()
+        atoms.set_cell(refcell_, scale_atoms = True)
+
+        #axis z:
+        if layersub is None:
+            layersub = self.layerslices[1] *(_x, _y, 1)  
+        else:
+            layersub.set_cell(np.dot(np.diag([1,1,np.max(layersub.get_scaled_positions()[:, 2])]), layersub.get_cell()))
+        spa = atoms.get_scaled_positions(wrap = False)
+        sps = layersub.get_scaled_positions(wrap = False)
+        latticesub = layersub.get_cell_lengths_and_angles()
         
+        scaledp_matrix = np.zeros([len(atoms), len(layersub)])
+        for i, a in enumerate(atoms):
+            for j, l in enumerate(layersub):
+                mindis = (covalent_radii[a.number]+covalent_radii[l.number])*self.p.threshold 
+                dx, dy, _ = spa[i] - sps[j]
+                x2y2 = np.sum([x**2 for x in [dx + dy*math.cos(latticesub[-1]), dy*math.sin(latticesub[-1])]])
+                minz = mindis**2 - x2y2
+                scaledp_matrix[i][j] = sps[j][2]*latticesub[2] if minz < 0 else sps[j][2]*latticesub[2] + math.sqrt(minz)
+                scaledp_matrix[i][j] -= spa[i][2] * refcell[2] + latticesub[2] 
+        scaledp_matrix /= refcell[2]
+        dz = max(np.min(scaledp_matrix), -np.min(spa[:, 2]))
+
+        atoms.translate([ -dz/refcell[2]* atoms.get_cell()[2]]* len(atoms))
+        return True, atoms
+
         
     def reset_generator_lattice(self, _x, _y, spg):
         symtype = 'default'
@@ -608,7 +626,7 @@ class ReconstructGenerator():
                 if self.reflattice[0] == self.reflattice[1] and _x == _y:    
                     symtype = 'hex'
 
-        if symtype == 'hex':
+        if symtype == 'hex' or self.symtype == 'c-cell':
             #self.rcs_generator.p.GetConventional = False
             self.rcs_generator.p.p_pri = 1
         elif symtype == 'default': 
@@ -654,12 +672,16 @@ class ReconstructGenerator():
                 label,extraind = self.rcs_generator.Generate_ind(spg,numlist)
                 if label:
                     botp = np.max(ind.get_scaled_positions()[:,2]) + np.random.choice(range(5,20))/100
-                    label, extraind = self.reset_rind_lattice(extraind, _x, _y, botp = botp *ind.get_cell()[2], type = 'bot')
+                    label, extraind = self.reset_rind_lattice(extraind, _x, _y, layersub = ind.copy())
                 if label:
                     ind.info['size'] = [_x, _y]
                     bottom = self.ind(ind)
-                    label, extraind = self.rand_displacement(extraind, bottom.addbulk_relaxable_vacuum()) 
+                    label, extraind = self.match_symmetry_plane(extraind, bottom.addbulk_relaxable_vacuum()) 
+                    hight = np.random.uniform(np.mean(ind.get_scaled_positions()[:, 2]), np.max(ind.get_scaled_positions()[:, 2]) + 1/(extraind.get_cell()[2]))
+                    extraind.translate([hight * extraind.get_cell()[2]]*len(extraind))
+                    #extraind.translate([np.mean(ind.get_scaled_positions()[:, 2]) + np.max(ind.get_scaled_positions()[:, 2])/2 * extraind.get_cell()[2]]*len(extraind))
                     ind += extraind
+                    
                 if not label:
                     tryNum+=1
                     continue
@@ -695,13 +717,13 @@ class ReconstructGenerator():
             label,ind = self.rcs_generator.Generate_ind(spg,numlist)
 
             if label:
-                #label, ind = self.reset_rind_lattice(ind, _x, _y, botp = 'refbot', type = 'bot')
-                label, ind = self.reset_rind_lattice(ind, _x, _y, botp = 'refbot')
+                label, ind = self.reset_rind_lattice(ind, _x, _y)
+
             if label:
                 _bot_ = (self.layerslices[1] * (_x, _y, 1)).copy()
                 _bot_.info['size'] = [_x, _y]
                 
-                label, ind = self.rand_displacement(ind, self.ind.addvacuum(add = 1, atoms = self.ind.addextralayer('bulk', atoms=_bot_, add = 1)))
+                label, ind = self.match_symmetry_plane(ind, self.ind.addvacuum(add = 1, atoms = self.ind.addextralayer('bulk', atoms=_bot_, add = 1)))
             if label:
                 self.afterprocessing(ind,nfm,'rand.symmgen', [_x, _y])
                 ind = self.ind.addbulk_relaxable_vacuum(atoms = ind)

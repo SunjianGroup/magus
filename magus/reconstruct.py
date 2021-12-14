@@ -174,7 +174,7 @@ class resetLattice:
 from ase.geometry import cell_to_cellpar
 from math import gcd
 class cutcell:
-    def __init__(self,originstruct, layernums, totslices= None, vacuum = 1.0, direction=[0,0,1], 
+    def __init__(self,originstruct, layernums, totslices= None, vacuum = 1.0, addH = False, direction=[0,0,1], 
         xy = [1,1], rotate = 0, pcell = True, 
         matrix = None):
         """
@@ -183,6 +183,7 @@ class cutcell:
         layernums: layer number of [bulk, relaxable, rcs_region]
         [*aborted] startpos:  start position of bulk layer, default =0.9 to keep atoms which are very close to z=1(0?)s.
         vacuum: [in Ang] vacuum to add to rcs_layer  
+        addH: change the most bottom layer of atoms to hydrogen
         direction: miller indices[orth cells] / bravais-miller indices[hex cells]
         + wood's notation:
            xy: (1, 1)
@@ -213,7 +214,7 @@ class cutcell:
         self.supercell.expand((1, 1, 0))
 
         #5. cutcell!
-        self.cut(layernums, totslices, surface_vector, vacuum)
+        self.cut(layernums, totslices, surface_vector, vacuum, addH)
     
     def tomillerindex(self, direction):
         """
@@ -287,7 +288,7 @@ class cutcell:
             allayers = LayerIdentifier(newlattice, prec = 0.5/totslices, n_clusters = totslices +1, lprec = 0.4/totslices)
 
         onelayer = newlattice[allayers[0]]
-        startpos = np.max(newlattice.get_scaled_positions()[:,2]) + 0.1 
+        startpos = np.max(newlattice.get_scaled_positions()[:,2]) + 0.01 
         startpos = startpos - int(startpos)
 
         if len(allayers) == totslices + 1:
@@ -333,7 +334,7 @@ class cutcell:
         log.debug("changed by wood's notation\n{}".format(np.dot(surface_vector, np.linalg.inv(self.atoms.get_cell()))))
         return surface_vector
 
-    def cut(self, layernums, totslices, surface_vector, vacuum):
+    def cut(self, layernums, totslices, surface_vector, vacuum, addH):
         #5. expand unit surface cell on z direction
         bot, mid, top = layernums[0], layernums[1], layernums[2]
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
@@ -374,6 +375,14 @@ class cutcell:
                 cell = ind.get_cell()
                 cell[[0,1]] = cell[[1,0]]
                 pop[i].set_cell(cell, scale_atoms = True)
+
+        #7. add hydrogen
+        if addH:
+            sps = pop[0].get_scaled_positions(wrap = False)[:, 2]
+            minsps = np.min(sps)
+            bot = [i for i,p in enumerate(sps) if abs(p - minsps)< 1e-4]
+            for i in bot:
+                pop[0][i].symbol = 'H'
         
         log.info("save cutslices into file layerslices.traj")
         ase.io.write("Ref/layerslices.traj",pop,format='traj')
@@ -457,7 +466,11 @@ def LayerIdentifier(ind, prec = 0.2, n_clusters = 4, lprec = 0.05):
     #print("pos = {}".format(pos))
     for n in range(n_clusters, 1, -1):
         #print("n = {}".format(n))
-        kmeans = cluster.KMeans(n_clusters=n).fit(pos)
+        try:
+            #I put a try-exception here because of situations of thin layers (4-)
+            kmeans = cluster.KMeans(n_clusters=n).fit(pos)
+        except:
+            continue
         centers = kmeans.cluster_centers_.copy()[:,0]
         centers = [(centers[i], i) for i in range(len(centers))]
         centers.sort(key = lambda c:c[0])
@@ -718,8 +731,9 @@ class weightenCluster:
             O[i] = np.sum(Exp) / np.max(Exp)
         
         probability = np.max(O) - O
+        if not atomnum == -1:
+            probability = np.array([p if self.atoms[i].number == atomnum else 0 for i, p in enumerate(probability)])
         probability = probability / np.sum(probability)
-        probability = np.array([p if self.atoms[i].number == atomnum else 0 for i, p in enumerate(probability)])
         a = np.random.random()
         #print('probability = {}, a = {}'.format(probability, a))
         

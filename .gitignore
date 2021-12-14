@@ -5,6 +5,11 @@ test/
 .vscode
 .vs
 .history
+
+ofp_comparator.py
+standard_comparators.py
+cutandsplice.py
+
 .VSCodeCounter
 paths.yaml
 examples/*/*

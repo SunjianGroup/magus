@@ -4,8 +4,10 @@ import numpy as np
 import os
 import spglib
 import pandas as pd
+import matplotlib.pyplot as plt
 
-def analyze(filename, to_excel = None, *args, **kwargs):
+
+def analyze(filename, to_excel = None, to_plt = None, *args, **kwargs):
     print('Energy by generation (raw):\n')
     df_gen = {'mean':[], 'min':[], 'max':[]}
     i = 0
@@ -13,9 +15,12 @@ def analyze(filename, to_excel = None, *args, **kwargs):
         if os.path.exists('{}/raw{}.traj'.format(filename,i)):
             pop = ase.io.read('{}/raw{}.traj'.format(filename,i), index = ':')
             energy = np.array([ind.info['energy'] for ind in pop])
+            fullsym =  [ind.get_chemical_formula() for ind in pop] 
+            if 'Eo' in pop[0].info:
+                Eo =  [ind.info['Eo'] for ind in pop]
             creater = [ind.info['origin'] for ind in pop]
-            deltae = [(ind.info['enthalpy'] - ind.info['parentE']) if not 'rand' in ind.info['origin'] else np.nan for ind in pop]
-            subdf = pd.DataFrame({'energy': energy, 'creater': creater, 'deltae':deltae})
+            deltae = [(ind.info['enthalpy'] - ind.info['parentE']) if not ('rand' in ind.info['origin'] or 'seed' in ind.info['origin']) else np.nan for ind in pop]
+            subdf = pd.DataFrame({'energy': energy, 'creater': creater, 'fullsym': fullsym, 'Eo': Eo, 'deltae':deltae})
             e = subdf.groupby('creater').mean()
 
             for origin in set(creater):
@@ -26,8 +31,15 @@ def analyze(filename, to_excel = None, *args, **kwargs):
                 else:
                     df_gen[origin] = [np.nan for _ in range(i)]
                     df_gen[origin][-1] = round(shownum, 3)
-
-            e = {'mean':np.mean(energy), 'min':np.min(energy), 'max':np.max(energy)}
+            
+            #e = {'mean':np.mean(Eo), 'min':np.min(Eo), 'max':np.max(Eo)}
+            e = {}
+            elekeys = list(set(fullsym)) 
+            for ele in elekeys:
+                e[ele] = subdf.groupby('fullsym').get_group(ele).min()['Eo']
+                if ele not in df_gen.keys():
+                    df_gen[ele] = []
+            
             for key in e:
                 df_gen[key].append(round(e[key], 3))
             for key in df_gen:
@@ -43,6 +55,32 @@ def analyze(filename, to_excel = None, *args, **kwargs):
         if '.xlsx' not in to_excel:
             to_excel += '.xlsx'
         df.to_excel(to_excel, sheet_name="Sheet1")
+
+    if not to_plt is None:
+        if '.svg' not in to_plt:
+            to_plt += '.svg'
+        from matplotlib.font_manager import FontProperties
+
+        font = FontProperties()
+        font.set_name('Times New Roman')
+        
+        #figure 2
+        
+        labels = [str(s) for s in df.columns if s not in ['mean', 'min', 'max']]
+        x = np.linspace(1, np.max(df.index), np.max(df.index))
+
+        for label in labels:
+            plt.plot(x, df[label].values,label=label)  # Plot some data on the (implicit) axes.
+        
+
+        plt.xlabel('operation',fontsize = 14)
+        plt.ylabel('delta E',fontsize = 14)
+        plt.title("deltae caused by mutaion operations")
+        
+        plt.legend(fontsize = 14)
+
+        plt.savefig(to_plt)
+
 
     best = ase.io.read('{}/good.traj'.format(filename),index = ':')
     energy = np.array([ind.info['energy'] for ind in best])

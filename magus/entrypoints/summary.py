@@ -49,6 +49,13 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
         volume = atoms.get_volume()
         atoms.info['volume'] = round(volume, 3)
         atoms.info['fullSym'] = atoms.get_chemical_formula()
+        #Si, C = float(atoms.info['fullSym'][-2:]) - 64, float(atoms.info['fullSym'][1:3]) - 64
+        #si= -43.301929/8 
+        #c = -60.267208/4 - si
+        c = -72.773010 / 8
+        si = -60.267208/4 - c
+        #atoms.info['Eo'] = atoms.info['energy'] + 969.675849 - Si * si - C * c
+        #print("{}\t{}\t{}".format(atoms.info['energy'], Si, C))
         atoms.info['row'] = [atoms.info[feature] if feature in atoms.info.keys() else None \
                              for feature in show_features]
     

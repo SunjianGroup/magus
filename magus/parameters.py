@@ -178,6 +178,7 @@ class magusParameters:
                 op_nums['formula'] = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
                 op_nums['lyrslip'] = num
                 op_nums['lyrsym'] = num
+                op_nums['shell'] = num*2
                 
             if self.parameters.calcType=='clus':
                 op_nums['slip'] = 0
