@@ -29,7 +29,7 @@ module_GenerateNew = Extension('magus.generators.GenerateNew',
                     )
 
 #lrpot
-module_lrpot = Extension('magus.lrpot',
+module_lrpot = Extension('magus.fingerprints.lrpot',
                     include_dirs = include_dirs,
                     libraries = libraries,
                     library_dirs = library_dirs,
@@ -63,7 +63,8 @@ setup(
     ],
     extras_require={
         "torchml": ["torch>=1.0"],
-        "test": ["BeautifulReport"]
+        "test": ["BeautifulReport"],
+        "soap": ["dscribe"],
         },
     #license="MIT",
     description="Magus: Machine learning And Graph theory assisted Universal structure Searcher",

@@ -123,8 +123,8 @@ class Individual(Atoms):
     def to_save(self):
         atoms = self.copy()
         atoms.set_calculator(None)
-        if 'traj' in atoms.info:
-            del atoms.info['traj']
+        if 'trajs' in atoms.info:
+            del atoms.info['trajs']
         return atoms
 
     # TODO avoid repetitive computation 
