@@ -6,7 +6,8 @@
 *.c text eol=lf
 *.cpp text eol=lf
 *.h text eol=lf
-*.py test eol=lf
+*.py text eol=lf
+*.xyz text eol=lf
 
 # Declare files that will always have CRLF line endings on checkout.
 *.sln text eol=crlf
