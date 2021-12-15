@@ -14,7 +14,7 @@ class MLMagus(Magus):
 
     def init_parms(self, parameters):
         super().init_parms(parameters)
-        check_parameters(self, parameters, [], {'init_times': 2})
+        check_parameters(self, self.parameters, [], {'init_times': 2})
         self.ml_calculator = parameters.MLCalculator
         log.debug('ML Calculator information:\n{}'.format(self.ml_calculator))
 
