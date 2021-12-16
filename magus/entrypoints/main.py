@@ -1,11 +1,9 @@
-import argparse, logging
-from magus.entrypoints import *
-from magus.calculators import calc_dict
+import argparse, importlib
+# from magus.calculators import CALCULATOR_PLUGIN
 from magus.logger import set_logger
-from magus import __version__
+from magus import __version__, __picture__
 
 def parse_args():
-
     parser = argparse.ArgumentParser(
         description="Magus: Machine learning And Graph theory assisted "
                     "Universal structure Searcher",
@@ -17,7 +15,7 @@ def parse_args():
         help="print version",
         action='version', 
         version=__version__
-    ) 
+    )
     parser_log = argparse.ArgumentParser(
         add_help=False, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -93,6 +91,11 @@ def parse_args():
         help="whether to save POSCARS",
     )
     parser_sum.add_argument(
+        "--need-sort",
+        action="store_true",
+        help="whether to sort",
+    )
+    parser_sum.add_argument(
         "-o",
         "--outdir",
         type=str,
@@ -110,7 +113,7 @@ def parse_args():
         "-sb",
         "--sorted-by",
         type=str,
-        default="enthalpy",
+        default="Default",
         help="sorted by which arg",
     )
     parser_sum.add_argument(
@@ -135,7 +138,19 @@ def parse_args():
         action="store_true",
         help="whether to summary clusters",
     )
-
+    parser_sum.add_argument(
+        "-v",
+        "--var",
+        action="store_true",
+        help="bian zu fen",
+    )
+    parser_sum.add_argument(
+        "-t",
+        "--atoms-type",
+        choices=["bulk", "cluster"],
+        default="bulk",
+        help="",
+    )
     # clean
     parser_clean = subparsers.add_parser(
         "clean",
@@ -154,13 +169,13 @@ def parse_args():
         help="generate InputFold etc to prepare for the search",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser_pre.add_argument(
-        "-c",
-        "--calc-type",
-        choices=calc_dict.keys(),
-        default="vasp",
-        help="",
-    )
+    # parser_pre.add_argument(
+    #     "-c",
+    #     "--calc-type",
+    #     choices=CALCULATOR_PLUGIN.keys(),
+    #     default="vasp",
+    #     help="",
+    # )
     parser_pre.add_argument(
         "-v",
         "--var",
@@ -234,6 +249,32 @@ def parse_args():
         default=10,
         help="generate number"
     )
+    # check full
+    parser_checkpack = subparsers.add_parser(
+        "checkpack",
+        parents=[parser_log],
+        help="check full",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_checkpack.add_argument(
+        "tocheck",
+        nargs='?',
+        choices=["all", "calculators", "comparators", "fingerprints"],
+        default="all",
+        help="the package to check"
+    )
+    # do unit test
+    parser_test = subparsers.add_parser(
+        "test",
+        help="do unit test of magus",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_test.add_argument(
+        "totest",
+        nargs='?',
+        default="*",
+        help="the package to test"
+    )
     #For reconstructions, get a slab
     parser_slab = subparsers.add_parser(
         "getslab",
@@ -293,12 +334,13 @@ def parse_args():
     for i,key in enumerate(arg_mus):
         parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i])
 
-    from .mutate import _applied_operations_
-    for key in _applied_operations_:
-        parser_mutate.add_argument("--"+key, type=int, default=0)
-    
+    # from .mutate import _applied_operations_
+    # for key in _applied_operations_:
+    #     parser_mutate.add_argument("--"+key, type=int, default=0)
+
     parsed_args = parser.parse_args()
     if parsed_args.command is None:
+        print(__picture__)
         parser.print_help()
     return parsed_args
 
@@ -308,28 +350,12 @@ def main():
     dict_args = vars(args)
     if args.command in ['search', 'calc', 'gen']:
         set_logger(level=dict_args['log_level'], log_path=dict_args['log_path'])
-    if args.command == "search":
-        search(**dict_args)
-    elif args.command == "clean":
-        clean(**dict_args)
-    elif args.command == "prepare":
-        prepare(**dict_args)
-    elif args.command == "summary":
-        summary(**dict_args)
-    elif args.command == "calc":
-        calculate(**dict_args)
-    elif args.command == "gen":
-        generate(**dict_args)
-    elif args.command == "getslab":
-        getslab(**dict_args)
-    elif args.command == "analyze":
-        analyze(**dict_args)
-    elif args.command == 'mutate':
-        mutate(**dict_args)
-    elif args.command is None:
-        pass
-    else:
-        raise RuntimeError(f"unknown command {args.command}")
+    if args.command:
+        try:
+            f = getattr(importlib.import_module('magus.entrypoints.{}'.format(args.command)), args.command)
+        except:
+            raise RuntimeError(f"unknown command {args.command}")
+        f(**dict_args)
 
 if __name__ == "__main__":
     main()

@@ -6,7 +6,7 @@ from ase.data import atomic_numbers
 from ase import Atoms, Atom
 import ase.io
 from .initstruct import read_seeds, read_ref
-from .utils import *
+from magus.utils import *
 from .machinelearning import LRmodel
 from .parameters import magusParameters
 from .writeresults import write_results
@@ -252,7 +252,7 @@ class Magus:
     def update_parameters(self):
         if self.MainCalculator.p.mode == 'parallel':
             with open('results/allparameters.yaml') as f:
-                d = yaml.load(f)
+                d = yaml.load(f, Loader=yaml.FullLoader)
             if 'queueName' in d['MainCalculator']:
                 if d['MainCalculator']['queueName'] != self.MainCalculator.p.queueName:
                     logging.warning('*****************\nBe careful, {} is replaced by {}\n*****************'.format(self.MainCalculator.p.queueName, d['MainCalculator']['queueName']))

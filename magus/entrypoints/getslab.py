@@ -1,21 +1,23 @@
-#!/usr/bin/env python
-import sys
-import re
-import os
-import pprint
-import yaml
-import ase.io
-from ase import Atoms
-import numpy as np
-import logging
+try:
+    import sys
+    import re
+    import os
+    import pprint
+    import yaml
+    import ase.io
+    from ase import Atoms
+    import numpy as np
+    import logging
 
-from magus.population import RcsInd
-import ase.io
-from magus.parameters import magusParameters
-from magus.initstruct import ReconstructGenerator, Generator
-import spglib
-import ase.io
-from magus.utils import sort_elements
+    from magus.population import RcsInd
+    import ase.io
+    from magus.parameters import magusParameters
+    from magus.initstruct import ReconstructGenerator, Generator
+    import spglib
+    import ase.io
+    from magus.utils import sort_elements
+except:
+    pass
 
 def getslab(filename = 'Ref/layerslices.traj', slabfile = 'slab.vasp', *args, **kwargs):
     logging.basicConfig(level=logging.DEBUG, format="%(asctime)s   %(message)s",datefmt='%H:%M:%S')

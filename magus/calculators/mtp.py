@@ -1,8 +1,6 @@
 import os, subprocess, shutil
 import numpy as np
 from magus.calculators.base import Calculator, ClusterCalculator
-from magus.utils import EmptyClass, checkParameters
-from magus.queuemanage import JobManager
 from magus.formatting.mtp import load_cfg, dump_cfg
 from ase.units import GPa, eV, Ang
 from ase.atoms import Atoms
@@ -10,34 +8,35 @@ import logging
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
 from magus.calculators.lammps import calc_lammps_once
+from magus.utils import CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN, check_parameters
+from magus.populations.populations import Population
+if len(os.popen('which mlp').readlines()) == 0:
+    raise ImportError("No 'mlp' detected")
 
 
 log = logging.getLogger(__name__)
 
 
-# TODO mpiexec.hydra?
+@CALCULATOR_PLUGIN.register('mtp')
 class MTPCalculator(ClusterCalculator):
-    def __init__(self, query_calculator, symbols, workDir, queueName, numCore, jobPrefix='MTP',
-                 pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
-                 weights=[1., 0.01, 0.001], scaled_by_force=0., force_tolerance=0.05, stress_tolerance=1.,
-                 min_dist=0.5, init_times=2, n_epoch=200, ignore_weights=True, *arg, **kwargs):
-        super().__init__(workDir=workDir, queueName=queueName, numCore=numCore, 
-                         numParallel=1, jobPrefix=jobPrefix, pressure=pressure, 
-                         Preprocessing=Preprocessing, waitTime=waitTime, 
-                         verbose=verbose, killtime=killtime)
-        self.num_core = numCore
-        self.weights = weights
-        self.scaled_by_force = scaled_by_force
-        self.min_dist = min_dist
-        self.force_tolerance = force_tolerance
-        self.stress_tolerance = stress_tolerance
-        self.init_times = init_times
-        self.n_epoch = n_epoch
-        self.ignore_weights = ignore_weights
-        self.symbol_to_type = {j: i for i, j in enumerate(symbols)}
-        self.type_to_symbol = {i: j for i, j in enumerate(symbols)}
-        self.query_calculator = query_calculator
-        self.calc_dir = "{}/calcFold/{}".format(self.work_dir, self.job_prefix)
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        Requirement = ['query_calculator', 'symbols']
+        Default={
+            'xc': 'PBE', 
+            'weights': [1., 0.01, 0.001],
+            'scaled_by_force': 0.,
+            'force_tolerance': 0.05,
+            'stress_tolerance': 1.,
+            'min_dist': 0.5, 
+            'init_times': 2, 
+            'n_epoch': 200, 
+            'ignore_weights': True,
+            'job_prefix': 'MTP',
+            }
+        check_parameters(self, parameters, Requirement, Default)
+        self.symbol_to_type = {j: i for i, j in enumerate(self.symbols)}
+        self.type_to_symbol = {i: j for i, j in enumerate(self.symbols)}
         self.ml_dir = "{}/mlFold/{}".format(self.work_dir, self.job_prefix)
         if not os.path.exists('{}/train.cfg'.format(self.input_dir)):
             with open('{}/train.cfg'.format(self.input_dir), 'w') as f:
@@ -175,10 +174,10 @@ class MTPCalculator(ClusterCalculator):
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
 
-    def select(self, new_frames):
+    def select(self, pop):
         nowpath = os.getcwd()
         os.chdir(self.ml_dir)
-        dump_cfg(new_frames, "new.cfg", self.symbol_to_type)
+        dump_cfg(pop, "new.cfg", self.symbol_to_type)
         content = "mpirun -np {0} mlp select-add "\
                   "pot.mtp train.cfg new.cfg diff.cfg "\
                   "--weighting=structures"\
@@ -189,6 +188,8 @@ class MTPCalculator(ClusterCalculator):
         self.J.clear()
         diff_frames = load_cfg("diff.cfg", self.type_to_symbol)
         os.chdir(nowpath)
+        if isinstance(pop, Population):
+            return pop.__class__(diff_frames)
         return diff_frames
 
     def select_bad_frames(self):
@@ -215,7 +216,7 @@ class MTPCalculator(ClusterCalculator):
         self.train(epoch=self.n_epoch)
         shutil.copy("{}/train-out".format(self.ml_dir), "train-out")
 
-    def relax(self, calcPop, max_epoch=20):
+    def relax_(self, calcPop, max_epoch=20):
         self.scf_num = 0
         # remain info
         for i, atoms in enumerate(calcPop):
@@ -223,9 +224,7 @@ class MTPCalculator(ClusterCalculator):
         nowpath = os.getcwd()
         calc_dir = self.calc_dir
         basedir = '{}/epoch{:02d}'.format(calc_dir, 0)
-        if os.path.exists(basedir):
-            shutil.rmtree(basedir)
-        os.makedirs(basedir)
+        os.makedirs(basedir, exist_ok=True)
         shutil.copy("{}/mlip.ini".format(self.input_dir), "{}/mlip.ini".format(basedir))
         shutil.copy("{}/pot.mtp".format(self.ml_dir), "{}/pot.mtp".format(basedir))
         shutil.copy("{}/train.cfg".format(self.ml_dir), "{}/train.cfg".format(basedir))
@@ -234,9 +233,7 @@ class MTPCalculator(ClusterCalculator):
             log.info('{} active relax epoch {}'.format(self.job_prefix, epoch))
             prevdir = '{}/epoch{:02d}'.format(calc_dir, epoch - 1)
             currdir = '{}/epoch{:02d}'.format(calc_dir, epoch)
-            if os.path.exists(currdir):
-                shutil.rmtree(currdir)
-            os.mkdir(currdir)
+            os.makedirs(currdir, exist_ok=True)
             os.chdir(currdir)
             shutil.copy("{}/mlip.ini".format(prevdir), "mlip.ini")
             shutil.copy("{}/pot.mtp".format(self.ml_dir), "pot.mtp")
@@ -274,7 +271,7 @@ class MTPCalculator(ClusterCalculator):
         os.chdir(nowpath)
         return relaxpop
 
-    def scf(self, calcPop):
+    def scf_(self, calcPop):
         calc_dir = self.calc_dir
         basedir = '{}/epoch{:02d}'.format(calc_dir, 0)
         if not os.path.exists(basedir):
@@ -295,6 +292,7 @@ class MTPCalculator(ClusterCalculator):
         return scfpop
 
 
+@CALCULATOR_CONNECT_PLUGIN.register('share-trainset')
 class TwoShareMTPCalculator(Calculator):
     def __init__(self, mtps):
         assert isinstance(mtps, list), "TwoShareMTP input should be list"
@@ -311,16 +309,16 @@ class TwoShareMTPCalculator(Calculator):
 
         self.init_times = max(self.mtp1.init_times, self.mtp2.init_times)
 
-    def __str__(self):
+    def __repr__(self):
         out  = self.__class__.__name__ + ':\n'
-        out += 'Robust MTP:' + self.mtp1.__str__()
-        out += 'Accurate MTP:' + self.mtp2.__str__()
+        out += 'Robust MTP:' + self.mtp1.__repr__()
+        out += 'Accurate MTP:' + self.mtp2.__repr__()
         return out
 
     def update_threshold(self, enthalpy):
         self.max_enthalpy = enthalpy
 
-    def relax(self, calcPop):
+    def relax_(self, calcPop):
         relaxpop = self.mtp1.relax(calcPop)
         shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir), 
                     '{}/train.cfg'.format(self.mtp2.ml_dir))
@@ -335,7 +333,7 @@ class TwoShareMTPCalculator(Calculator):
                     '{}/train.cfg'.format(self.mtp1.ml_dir))
         return relaxpop
 
-    def scf(self, calcPop, level='accurate'):
+    def scf_(self, calcPop, level='accurate'):
         if level == 'robust':
             scfpop = self.mtp1.scf(calcPop)
         elif level == 'accurate':
@@ -378,22 +376,14 @@ class TwoShareMTPCalculator(Calculator):
             return self.mtp2.calc_efs(frames)
 
 
+@CALCULATOR_PLUGIN.register('mtp-lammps')
 class MTPLammpsCalculator(MTPCalculator):
-    def __init__(self, query_calculator, symbols, workDir, queueName, numCore, jobPrefix='MTP', 
-                 pressure=0.0, Preprocessing='', waitTime=200, verbose=False, killtime=100000, 
-                 weights=[1.0,0.01,0.001], scaled_by_force=0.0, force_tolerance=0.05, 
-                 stress_tolerance=1.0, min_dist=0.5, init_times=2, n_epoch=200, 
-                 ignore_weights=True, exeCmd='', *arg, **kwargs):
-        super().__init__(query_calculator, symbols, workDir, queueName, numCore, 
-                         jobPrefix=jobPrefix, pressure=pressure, Preprocessing=Preprocessing, 
-                         waitTime=waitTime, verbose=verbose, killtime=killtime, weights=weights, 
-                         scaled_by_force=scaled_by_force, force_tolerance=force_tolerance, 
-                         stress_tolerance=stress_tolerance, min_dist=min_dist, init_times=init_times, 
-                         n_epoch=n_epoch, ignore_weights=ignore_weights, *arg, **kwargs)
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
         self.lammps_setup = {
-            'symbols': symbols,
+            'symbols': self.symbols,
             'atom_style': 'atomic',
-            'pressure': pressure,
+            'pressure': self.pressure,
             'save_traj': True,
             'exe_cmd': 'lmp_mtp -in in.lammps',
         }
@@ -404,15 +394,13 @@ class MTPLammpsCalculator(MTPCalculator):
             return None
         return new_atoms.info['traj']
 
-    def relax(self, calcPop, max_epoch=20):
+    def relax_(self, calcPop, max_epoch=20):
         assert len(calcPop) == 1 , 'MTP active lammps only support one atoms now'
         self.scf_num = 0
         nowpath = os.getcwd()
         calc_dir = self.calc_dir
         basedir = '{}/epoch{:02d}'.format(calc_dir, 0)
-        if os.path.exists(basedir):
-            shutil.rmtree(basedir)
-        os.makedirs(basedir)
+        os.makedirs(basedir, exist_ok=True)
         shutil.copy("{}/mlip.ini".format(self.input_dir), "{}/mlip.ini".format(basedir))
         shutil.copy("{}/in.lammps".format(self.input_dir), "{}/in.lammps".format(basedir))
         shutil.copy("{}/pot.mtp".format(self.ml_dir), "{}/pot.mtp".format(basedir))
@@ -421,9 +409,7 @@ class MTPLammpsCalculator(MTPCalculator):
             log.info('{} active relax epoch {}'.format(self.job_prefix, epoch))
             prevdir = '{}/epoch{:02d}'.format(calc_dir, epoch - 1)
             currdir = '{}/epoch{:02d}'.format(calc_dir, epoch)
-            if os.path.exists(currdir):
-                shutil.rmtree(currdir)
-            os.mkdir(currdir)
+            os.makedirs(currdir, exist_ok=True)
             os.chdir(currdir)
             shutil.copy("{}/mlip.ini".format(prevdir), "mlip.ini")
             shutil.copy("{}/in.lammps".format(prevdir), "in.lammps")

@@ -1,0 +1,12 @@
+1. read_seeds:
+ ase vasp-xdatcar only work on fractional coordinates
+2. min_lattice in check_cell and in generate should be discriminate
+ now only judge if angles between 45-135
+3. GAP
+4. CI\CD
+5. DP select 
+6. Lattice match
+7. XRD
+8. topology ramdom
+9. HanYu de dai ma
+10. auto guess volume(calculate stress with harmonic potential?)

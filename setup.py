@@ -18,7 +18,7 @@ except:
     library_dirs = [sysconfig.get_config_var('LIBDIR')]
 
 #generatenew
-module_GenerateNew = Extension('magus.GenerateNew',
+module_GenerateNew = Extension('magus.generators.GenerateNew',
                     include_dirs = include_dirs,
                     libraries = libraries,
                     library_dirs = library_dirs,
@@ -42,14 +42,11 @@ with open('README.md') as f:
 
 setup(
     name="magus-test",
-    version="1.0.2",
+    version="1.0.4",
     author="Gao Hao, Wang Junjie, Han Yu, DC, Sun Jian",
     author_email="141120108@smail.nju.edu",
     url="https://git.nju.edu.cn/gaaooh/magus",
     packages=find_packages(),
-    #scripts=[
-    #    "tools/magus-clean","tools/magus-search","tools/magus-prepare","tools/magus-summary",
-    #],
     python_requires=">=3.6",
     install_requires=[
         "numpy",
@@ -60,6 +57,7 @@ setup(
         "scikit-learn",
         "spglib",
         "pandas",
+        "pyyaml"
     ],
     extras_require={"torchml": ["torch>=1.0"]},
     #license="MIT",

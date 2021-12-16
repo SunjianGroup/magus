@@ -1,4 +1,5 @@
 import subprocess, sys, os, time, logging, datetime, yaml
+from magus.utils import check_parameters
 
 
 log = logging.getLogger(__name__)
@@ -6,25 +7,26 @@ log = logging.getLogger(__name__)
 
 class BaseJobManager:
     control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time']
-    def __init__(self, queue_name, num_core, control_file=None,
-                 pre_processing='', verbose=False, kill_time=1000000):
-        self.queue_name = queue_name
-        self.num_core = num_core
-        self.pre_processing = pre_processing
-        self.verbose = verbose
+    def __init__(self, **parameters):
+        Requirement = ['queue_name', 'num_core']
+        Default={
+            'control_file': None, 
+            'pre_processing': 200, 
+            'verbose': False, 
+            'kill_time': 7200, 
+            }
+        check_parameters(self, parameters, Requirement, Default)
         self.jobs = []
         self.history = []
-        self.kill_time = kill_time
-        self.control_file = control_file
-        if control_file is not None:
-            with open(control_file, 'w') as f:
+        if self.control_file:
+            with open(self.control_file, 'w') as f:
                 f.write(yaml.dump({key: getattr(self, key) for key in self.control_keys}))
 
     def reload(self):
         if self.control_file is not None:
             changed_info = []
             with open(self.control_file) as f:
-                control_dict = yaml.load(f)
+                control_dict = yaml.load(f, Loader=yaml.FullLoader)
             for key in self.control_keys:
                 if key in control_dict:
                     if getattr(self, key) != control_dict[key]:
@@ -63,7 +65,6 @@ class BSUBSystemManager(BaseJobManager):
                 "#BSUB -o {2}\n"
                 "#BSUB -e {3}\n"
                 "#BSUB -J {4}\n"
-                #"#BSUB -R affinity[core:cpubind=core:membind=localprefer:distribute=pack]"
                 "{5}\n"
                 "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content)
                 )
@@ -83,7 +84,23 @@ class BSUBSystemManager(BaseJobManager):
         nowtime = datetime.datetime.now()
         log.debug(nowtime.strftime('%m-%d %H:%M:%S'))
         allDone = True
+        # joblist = subprocess.check_output("bjobs -a", shell=True).decode().split('\n')[1: -1]
+        # time.sleep(10)
+        # jobdict = {job.split()[0]: job.split()[2] for job in joblist}
         for job in self.jobs:
+            """
+            if job['id'] in jobdict:
+                stat = jobdict[job['id']]
+            else:
+                try:
+                    stat = subprocess.check_output("bjobs %s | grep %s | awk '{print $3}'"% (job['id'], job['id']), shell=True)
+                    stat = stat.decode()[:-1]
+                    time.sleep(10)
+                except:
+                    s = sys.exc_info()
+                    log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                    stat = ''
+            """
             try:
                 stat = subprocess.check_output("bjobs -noheader -o stat {}".format(job['id']), shell=True)
                 stat = stat.decode().split('\n')[0]

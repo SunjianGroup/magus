@@ -97,7 +97,7 @@ def calc_orca(orca_setup, frames):
 
 if  __name__ == "__main__":
     orca_setup_file, input_traj, output_traj = sys.argv[1:]
-    orca_setup = yaml.load(open(orca_setup_file))
+    orca_setup = yaml.load(open(orca_setup_file), Loader=yaml.FullLoader)
 
     init_pop = read(input_traj, format='traj', index=':',)
     opt_pop = calc_orca(orca_setup, init_pop)

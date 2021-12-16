@@ -4,23 +4,27 @@ from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
 from magus.formatting.gulp import load_gulp, dump_gulp
+from magus.utils import CALCULATOR_PLUGIN, check_parameters
 
 
 log = logging.getLogger(__name__)
 
 
 # units must be real!!
+@CALCULATOR_PLUGIN.register('gulp')
 class GulpCalculator(ClusterCalculator):
-    def __init__(self, symbols, workDir, queueName, numCore, numParallel, jobPrefix='Gulp',
-                 pressure=0., Preprocessing='', waitTime=200, verbose=False, killtime=100000,
-                 exeCmd='gulp < input > output', *arg, **kwargs):
-        super().__init__(workDir=workDir, queueName=queueName, numCore=numCore, 
-                         numParallel=numParallel, jobPrefix=jobPrefix, pressure=pressure, 
-                         Preprocessing=Preprocessing, waitTime=waitTime, 
-                         verbose=verbose, killtime=killtime)
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        Requirement = []
+        Default={
+            'exe_cmd': 'gulp < input > output',
+            'job_prefix': 'Gulp',
+            }
+        check_parameters(self, parameters, Requirement, Default)
+   
         self.gulp_setup = {
-            'pressure': pressure,
-            'exe_cmd': exeCmd,
+            'pressure': self.pressure,
+            'exe_cmd': self.exe_cmd,
         }
         self.main_info.append('gulp_setup')
         if not os.path.exists("{}/goption.scf".format(self.input_dir)):
@@ -77,6 +81,7 @@ def calc_gulp(gulp_setup, frames):
             if exitcode != 0:
                 raise RuntimeError('Gulp exited with exit code: %d.  ' % exitcode)
             new_atoms = load_gulp('output')
+            atoms.info.update(new_atoms.info)
             new_atoms.info = atoms.info
             enthalpy = (new_atoms.info['energy'] + pressure * GPa * new_atoms.get_volume()) / len(new_atoms)
             new_atoms.info['enthalpy'] = round(enthalpy, 3)
@@ -89,7 +94,7 @@ def calc_gulp(gulp_setup, frames):
 
 if  __name__ == "__main__":
     gulp_setup_file, input_traj, output_traj = sys.argv[1:]
-    gulp_setup = yaml.load(open(gulp_setup_file))
+    gulp_setup = yaml.load(open(gulp_setup_file), Loader=yaml.FullLoader)
 
     init_pop = read(input_traj, format='traj', index=':',)
     opt_pop = calc_gulp(gulp_setup, init_pop)
