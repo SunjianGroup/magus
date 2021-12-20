@@ -168,8 +168,11 @@ class resetLattice:
         pos =supercell.get_scaled_positions(wrap=False).copy()
         pos = self.refinepos(pos)
         index = [i for i in range(len(pos)) if self.InCell(pos[i])==True]
-        assert len(index)>0, "err in resetLattice: no atoms in newcell"
-        return supercell[index].copy()
+        if len(index)>0:
+            return supercell[index].copy()
+        else:
+            log.warning("err in resetLattice: no atoms in newcell")
+            return Atoms(cell=supercell.get_cell())
 
 from ase.geometry import cell_to_cellpar
 from math import gcd
@@ -352,14 +355,14 @@ class cutcell:
             cell = surface_vector.copy()
             cell[2] = surface_vector[2] * (slicepos[i]-slicepos[i-1])
             origin = (slicepos[i-1] if i==1 else slicepos[i-1]-slicepos[i-2]) * surface_vector[2]
-            try:
-                layerslice = self.supercell.get(cell, neworigin = origin)
-            except:
+            
+            layerslice = self.supercell.get(cell, neworigin = origin)
+            if len(layerslice):
+                layerslice=sort_elements(layerslice)
+            else:
                 slicename = ['bulk', 'relaxable', 'reconstruct']
-                raise Exception("No atom in {} layer, function cutcell exit.".format(slicename[i-1]))
-                return
+                log.warning("No atom in {} layer!! Please check the layers before next step.".format(slicename[i-1]))
 
-            layerslice=sort_elements(layerslice)
             pop.append(layerslice)
 
         #add extravacuum to rcs_layer  

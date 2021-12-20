@@ -38,7 +38,7 @@ def getslab(filename = 'Ref/layerslices.traj', slabfile = 'slab.vasp', *args, **
     elif len(pop) == 2:
         rcs = ind(pop[1])
         rcs.layerslices = pop
-        rcs.addextralayer('bulk', add = 1)
+        rcs = rcs.addextralayer('bulk', add = 1)
 
     if not slabfile is None:
         ase.io.write(slabfile, rcs, format = 'vasp',vasp5=True,direct = True)
