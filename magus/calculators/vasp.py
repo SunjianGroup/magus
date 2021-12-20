@@ -70,6 +70,7 @@ def calc_vasp(calc, frames):
     for i, atoms in enumerate(frames):
         atoms.set_calculator(copy.deepcopy(calc))
         try:
+            atoms.pbc=True
             energy = atoms.get_potential_energy()
             forces = atoms.get_forces()
             stress = atoms.get_stress()

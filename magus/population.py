@@ -1036,7 +1036,8 @@ class RcsInd(Individual):
         sz = self.info['size'] if atoms is None else (atoms.info['size'] if 'size' in atoms.info else [1,1])
 
         if type=='relaxable':
-            FixExtraAtoms=False
+            #FixExtraAtoms=False
+            FixExtraAtoms = True
             extratoms=self.layerslices[1] * (*sz, 1)
         elif type=='bulk':
             FixExtraAtoms=True 
@@ -1064,6 +1065,9 @@ class RcsInd(Individual):
             if FixExtraAtoms:
                 if self.p.fixbulk:
                     c = FixAtoms(indices=range( atn , len(atoms_top) ))
+                    for x in atoms_top.constraints:
+                        if isinstance(x, FixAtoms):
+                            c.index = np.append(c.index, x.index)
                     atoms_top.set_constraint(c)
                 else:
                     c = fixatoms(indices=range( atn , len(atoms_top) ))

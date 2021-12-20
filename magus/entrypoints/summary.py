@@ -72,6 +72,7 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
             write(posname, all_frames[index], direct = True, vasp5 = True)
 
     df.index = range(1, len(df)+1)
+    pd.set_option('display.max_rows', show_number+1)
     if reverse:
         print(df[:-show_number:-1])
     else:
