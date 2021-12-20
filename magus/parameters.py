@@ -110,5 +110,6 @@ class magusParameters:
         if not hasattr(self,'Population_'):
             p_dict = copy.deepcopy(self.p_dict)
             p_dict['atoms_generator'] = self.RandomGenerator
+            p_dict['units'] = self.RandomGenerator.units
             self.Population_ = get_population(p_dict)
         return self.Population_

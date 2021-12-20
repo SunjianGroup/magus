@@ -6,7 +6,9 @@ from ase import Atom
 from ase.geometry import cell_to_cellpar, cellpar_to_cell
 from ase.data import covalent_radii,chemical_symbols
 from magus.utils import *
+from magus.populations.individuals import to_target_formula
 from .base import Mutation
+
 
 __all__ = [
     'SoftMutation', 'PermMutation', 'LatticeMutation', 'RippleMutation', 'SlipMutation',
@@ -185,32 +187,15 @@ class RotateMutation(Mutation):
 
 # TODO: how to apply in mol
 class FormulaMutation(Mutation):
-    Default = {'tryNum': 10, 'symbols': None, 'p1': 0.5, 'p2': 0.2}
+    Default = {'tryNum': 10, 'n_candidate': 5}
 
     def mutate(self, ind):
-        """
-        Randomly change symbols, only used for variable formula search
-        and unavailable for molecular crystals (chkMol should be False).
-        """
-        if ind.mol_detector > 0:
-            return None
-        atoms = ind.atoms.copy()
-        Nat = len(atoms)
-        symbols = self.symbols
-        #symList = list(set(symbols))
-        rmInds = []
-        for i, atom in enumerate(atoms):
-            if np.random.rand() < self.p1:
-                otherSym = [s for s in symbols if s != atom.symbol]
-                atom.symbol = str(np.random.choice(otherSym))
-                # Delete atoms randomly
-                if np.random.rand() < self.p2:
-                    rmInds.append(i)
-        saveInds = [j for j in range(Nat) if j not in rmInds]
-        if len(saveInds) > 0:
-            return ind(atoms[saveInds])
-        else:
-            return None
+        candidate = ind.get_target_formula(n=self.n_candidate)
+        if len(candidate) > 1:
+            target_formula = candidate[np.random.randint(1, self.n_candidate)]
+            atoms = to_target_formula(ind, target_formula, ind.distance_dict)
+            if len(atoms) > 0:
+                return ind.__class__(atoms)
 
 
 # TODO: keep symmetry

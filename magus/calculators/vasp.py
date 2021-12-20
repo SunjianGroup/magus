@@ -120,6 +120,7 @@ def get_calc(vasp_setup):
     calc.set(xc=vasp_setup['xc'])
     calc.set(setups=vasp_setup['pp_setup'])
     calc.set(pstress=vasp_setup['pressure'] * 10)
+    calc.set(lwave=False)
     if 'scf' in vasp_setup.keys():
         calc.set(nsw=0)
     return calc

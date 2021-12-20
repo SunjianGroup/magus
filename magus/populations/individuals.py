@@ -123,6 +123,7 @@ class Individual(Atoms):
     def to_save(self):
         atoms = self.copy()
         atoms.set_calculator(None)
+        atoms.info['type'] = self.__class__.__name__
         if 'trajs' in atoms.info:
             del atoms.info['trajs']
         return atoms
