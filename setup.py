@@ -53,13 +53,12 @@ setup(
     install_requires=[
         "numpy",
         "ase>=3.18",
-        "pyyaml",
+        "pyyaml>=6.0",
         "networkx",
         "scipy",
         "scikit-learn",
         "spglib",
         "pandas",
-        "pyyaml"
     ],
     extras_require={
         "torchml": ["torch>=1.0"],

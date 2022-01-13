@@ -91,7 +91,7 @@ class PermMutation(Mutation):
 
     def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
-        num_swaps = np.random.randint(1, min(int(self.frac_swaps * len(atoms)), 2))
+        num_swaps = np.random.randint(1, max(int(self.frac_swaps * len(atoms)), 2))
         unique_symbols = np.unique([atom.symbol for atom in atoms]) # or use get_chemical_symbol?
         if len(unique_symbols) < 2:
             return None

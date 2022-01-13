@@ -1,4 +1,8 @@
+# TODO
+# add phasediagram.py for both this and fitness calculator
+# change magusphasediagram so that we don't need to convert for pseudo search
 import os, re
+from pathlib import Path
 from ase.atoms import default
 from math import gcd
 from functools import reduce
@@ -20,12 +24,83 @@ from magus.utils import get_units_numlist, get_units_formula
 pd.options.display.max_rows = 100
 
 
+def convert_glob(filenames):
+    p = Path('.')
+    consider_glob = []
+    for f in filenames:
+        consider_glob.extend(map(str, p.glob(f)))
+    return consider_glob
+
+
 def get_frames(filenames):
     for filename in filenames:
         frames = iread(filename, format='traj', index=':')
         for atoms in frames:
             atoms.info['source'] = filename.split('.')[0]
             yield atoms
+
+
+# ugly version for temp use
+def get_units(frames):
+    """
+    get units of given frames
+    """
+    # get all symbols and numlist of the symbols of all the structures
+    symbols = set([s for atoms in frames
+                   for s in atoms.get_chemical_symbols()])
+    formula = np.array([
+        [atoms.get_chemical_symbols().count(s) for s in symbols]
+        for atoms in frames], dtype=float)
+    # reduce the formula matrix to row echelon form
+    lead = 0
+    n_row, n_column = formula.shape
+    for r in range(n_row):
+        i = r
+        # find the first non-zero column
+        while lead < n_column and formula[i][lead] == 0.:
+            i += 1
+            if i == n_row:
+                i = r
+                lead += 1
+        if lead >= n_column:
+            break
+        # swap two rows like [0, 0, 1] and [0, 1, 1]
+        formula[[i, r], :] = formula[[r, i], :]
+        formula[r] = formula[r] / formula[r][lead]
+        for i in range(n_row):
+            if i != r:
+                formula[i] = formula[i] - formula[r] * formula[i][lead]
+        # avoid numerical fault
+        formula[np.where(np.abs(formula) < 1e-7)] = 0.
+        lead += 1
+    # avoid negative number
+    for r in range(n_row):
+        for lead in range(n_column):
+            if formula[r][lead] < 0.:
+                for i in range(n_row - 1, -1, -1):
+                    if formula[i][lead] != 0 and i != r:
+                        break
+                formula[r] = formula[r] - formula[i] * formula[r][lead] / formula[i][lead]       
+    units = []
+    for f in formula:
+        if np.any(f):
+            n = 1 
+            while np.any(n * f % 1):
+                n += 1
+            f = (f * n).astype('int')
+            units.append(Atoms(symbols=[s for n, s in zip(f, symbols) for _ in range(n)]))
+    return units
+
+
+def get_decompose_name(atoms, units):
+    """
+    convert atoms to units format for pseudo binary search
+    ZnOH -> {'Zn': 1, '(OH)': 1}
+    """
+    units_numlist = get_units_numlist(atoms, units)
+    # int(n) is necessary, or else will raise ValueError in ase
+    f = lambda u: u.get_chemical_formula() if len(u) == 1 else '({})'.format(u.get_chemical_formula())
+    return {f(u): int(n) for u, n in zip(units, units_numlist)}
 
 
 class Summary:
@@ -50,10 +125,21 @@ class Summary:
         atoms.info['angles'] = atoms.info['cellpar'][3:]
         atoms.info['volume'] = round(atoms.get_volume(), 3)
         atoms.info['fullSym'] = atoms.get_chemical_formula()
+        if self.formula_type == 'var':
+            atoms.info['units'] = self.units
+            name = get_decompose_name(atoms, self.units)
+            ref_e = self.phase_diagram.decompose(**name)[0]
+            # convert enthalpy for pseudo binary search, must be careful!
+            ehull = atoms.info['enthalpy'] - ref_e / sum(name.values())
+            atoms.info['ehull'] = 0 if ehull < 1e-3 else ehull
+        if 'units' not in atoms.info:
+            atoms.info['units'] = [Atoms(s) for s in list(set(atoms.get_chemical_symbols()))]
         atoms.info['formula'] = get_units_formula(atoms, atoms.info['units'])
-
+        
     def summary(self, filenames, show_number=20, need_sorted=True, sorted_by='Default', reverse=True, save=False, outdir=None):
+        filenames = convert_glob(filenames)
         self.prepare_data(filenames)
+        show_number = min(len(self.all_frames), show_number)
         self.show_features_table(show_number, reverse, need_sorted, sorted_by)
         if save:
             self.save_atoms(show_number, outdir)
@@ -65,8 +151,13 @@ class Summary:
         if len(filenames) > 1 and 'source' not in self.show_features:
             self.show_features.append('source')
         for atoms in get_frames(filenames):
-            self.set_features(atoms)
             self.all_frames.append(atoms)
+        if self.formula_type == 'var':
+            # for var, we may need recalculate units and ehulls
+            self.units = get_units(self.all_frames)
+            self.phase_diagram = self.get_phase_diagram()
+        for atoms in get_frames(filenames):
+            self.set_features(atoms)
             self.rows.append([atoms.info[feature] if feature in atoms.info.keys() else None
                                                   for feature in self.show_features])
 
@@ -90,37 +181,20 @@ class Summary:
             posname = os.path.join(outdir, "POSCAR_{}.vasp".format(i + 1))
             write(posname, self.all_frames[i], direct = True, vasp5 = True)
 
-    def plot_phase_diagram(self):
-        def get_reduce_formula(atoms):
-            numlist = np.array(get_units_numlist(atoms, units))
-            numlist = numlist / reduce(gcd, numlist)
-            return tuple(numlist.astype(int))
+    def get_phase_diagram(self):
+        units = self.units
         # Make sure there are values at the vertices, may raise wrong results
-        units = self.all_frames[0].info['units']
-        for u in units:
-            u.info['enthalpy'] = 100 / len(u)
-        refs_dict = {get_reduce_formula(u): u for u in units}
-        # remove the same formula, only remain the lower enthalpy ones for 2d3
+        refs = [(get_decompose_name(atoms, units), 1000 * len(atoms)) for atoms in units]
         for atoms in self.all_frames:
-            name = get_reduce_formula(atoms)
-            if name not in refs_dict:
-                refs_dict[name] = atoms
-            if atoms.info['enthalpy'] < refs_dict[name].info['enthalpy']:
-                refs_dict[name] = atoms
-        refs = []
-        # plot all for 2 units
-        to_plot = refs_dict.values() if len(units) > 2 else self.all_frames
-        for atoms in to_plot:
             units_numlist = get_units_numlist(atoms, units)
-            # int(n) is necessary, or else will raise ValueError in ase
-            f = lambda u: u.get_chemical_formula() if len(u) == 1 else '({})'.format(u.get_chemical_formula())
-            name = {f(u): int(n) for u, n in zip(units, units_numlist)}
-            base_enthalpy = sum([refs_dict[get_reduce_formula(u)].info['enthalpy'] * len(u) * n 
-                                 for u, n in zip(units, units_numlist)])
-            enthalpy = atoms.info['enthalpy'] * len(atoms) - base_enthalpy
-            enthalpy = enthalpy / len(atoms) * sum(units_numlist)
+            name = get_decompose_name(atoms, units)
+            # convert enthalpy for pseudo binary search, must be careful!
+            enthalpy = atoms.info['enthalpy'] * sum(units_numlist)
             refs.append((name, enthalpy))
-        ax = MagusPhaseDiagram(refs, verbose=False).plot()
+        return MagusPhaseDiagram(refs, verbose=False)
+
+    def plot_phase_diagram(self):
+        ax = self.phase_diagram.plot()
         plt.savefig('PhaseDiagram.png')
 
 

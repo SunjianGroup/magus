@@ -9,11 +9,12 @@ def calculate(*args, filename=None, input_file='input.yaml',
         parameters.p_dict['pressure'] = pressure
     to_calc = read(filename, index=':')
     try:
-        calc = parameters.get_MLCalculator()
+        calc = parameters.MLCalculator
     except:
-        calc = parameters.get_MainCalculator()
+        calc = parameters.MainCalculator
     if mode == 'relax':
         calced = calc.relax(to_calc)
     else:
         calced = calc.scf(to_calc)
     write('out.traj', calced)
+

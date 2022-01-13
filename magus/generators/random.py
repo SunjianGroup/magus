@@ -149,8 +149,7 @@ class SPGGenerator:
                    'n_split': [1],
                    'max_n_try': 100, 
                    'dimension': 3,
-                   'full_eles': True, 
-                   'ele_size': 1,
+                   'ele_size': 0,
                    'min_lattice': None,
                    'max_lattice': None,
                    'min_n_formula': None,
@@ -159,8 +158,11 @@ class SPGGenerator:
                    'distance_matrix': None,
                    'spacegroup': np.arange(2, 231),
                    'max_ratio': 1000,    # max ratio in var search, for 10, Zn11(OH) is not allowed
+                   'full_ele': True,     # only generate structures with full elements
                    }
         check_parameters(self, parameters, Requirement, Default)
+        if self.ele_size > 0:
+            assert not self.full_ele, 'fullEle setting is conflict with eleSize'
         if 'radius' in parameters:
             self.radius = parameters['radius']
         else:
@@ -197,6 +199,8 @@ class SPGGenerator:
         if self.min_n_formula is not None:
             assert len(self.min_n_formula) == len(self.formula)
             min_n_formula = np.maximum(min_n_formula, self.min_n_formula)
+        if self.full_ele:
+            min_n_formula = np.maximum(min_n_formula, 1)
         if self.max_n_formula is not None:
             assert len(self.max_n_formula) == len(self.formula)
             max_n_formula = np.minimum(max_n_formula, self.max_n_formula)
@@ -374,6 +378,8 @@ class MoleculeSPGGenerator(SPGGenerator):
         if self.min_n_formula is not None:
             assert len(self.min_n_formula) == len(self.formula)
             min_n_formula = np.maximum(min_n_formula, self.min_n_formula)
+        if self.full_ele:
+            min_n_formula = np.maximum(min_n_formula, 1) 
         if self.max_n_formula is not None:
             assert len(self.max_n_formula) == len(self.formula)
             max_n_formula = np.minimum(max_n_formula, self.max_n_formula)

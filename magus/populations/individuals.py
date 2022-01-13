@@ -90,7 +90,7 @@ class Individual(Atoms):
             'n_repair_try': 3, 
             'max_attempts': 50,
             'add_symmetry': False, 
-            'check_seed': True,
+            'check_seed': False,
             'min_lattice': [0., 0., 0., 45., 45., 45.],
             'max_lattice': [99, 99, 99, 135, 135, 135],
             'd_ratio': 1.,
@@ -98,6 +98,7 @@ class Individual(Atoms):
             'radius': None,
             'max_forces': 50.,
             'max_enthalpy': 100.,
+            'full_ele': True,
             }
         check_parameters(cls, parameters, Requirement, Default)
         cls.fp_calc = get_fingerprint(parameters)
@@ -114,6 +115,8 @@ class Individual(Atoms):
             self.check_list = []
         else:
             self.check_list = ['check_cell', 'check_distance', 'check_formula', 'check_forces', 'check_enthalpy']
+            if self.full_ele:
+                self.check_list.append('check_full')
         self.info['fitness'] = {}
         self.info['used'] = 0     # time used in heredity
 
@@ -222,6 +225,10 @@ class Individual(Atoms):
                 return True
         else:
             return False
+
+    def check_full(self, atoms=None):
+        atoms = atoms or self
+        return 0 not in self.numlist
 
     def sort(self):
         atoms = self[self.numbers.argsort()]

@@ -191,7 +191,7 @@ def parse_args():
     )
     # calculate
     parser_calc = subparsers.add_parser(
-        "calc",
+        "calculate",
         parents=[parser_log],
         help="calculate many structures",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
