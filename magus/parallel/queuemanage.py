@@ -78,6 +78,7 @@ class BSUBSystemManager(BaseJobManager):
         job['subtime'] = datetime.datetime.now()
         job['name'] = name
         self.jobs.append(job)
+        return job
 
     def check_jobs(self):
         log.debug("Checking jobs...")
@@ -166,6 +167,7 @@ class SLURMSystemManager(BaseJobManager):
         self.jobs.append(job)
         # wait a moment so that we can find the job which is just submitted
         time.sleep(3)
+        return job
 
     def check_jobs(self):
         log.debug("Checking jobs...")

@@ -251,10 +251,17 @@ def get_units_numlist(atoms, units):
     > get_units_numlist(atoms, units)
     [1, 1]
     """
-    symbols = set(reduce(lambda x, y: x + y, [unit.get_chemical_symbols() for unit in units]))
+    # get all unique symbols
+    symbols = set([s for a in [*units, atoms]
+                     for s in a.get_chemical_symbols()])
     A = [[unit.get_chemical_symbols().count(s) for unit in units] for s in symbols]
-    b = [atoms.get_chemical_symbols().count(s) for s in symbols]
-    return np.rint(np.linalg.pinv(A) @ np.array(b)).astype('int')
+    b = np.array([atoms.get_chemical_symbols().count(s) for s in symbols])
+    numlist = np.rint(np.linalg.pinv(A) @ b).astype('int')
+    # numlist is all zero or any number of symbol not match means the decompose fail
+    if (numlist == 0).all() or (A @ numlist != b).any():
+        return None
+    else:
+        return numlist
 
 
 def get_units_formula(atoms, units):
@@ -267,6 +274,8 @@ def get_units_formula(atoms, units):
     (CH4)2(NH3)
     """
     numlist = get_units_numlist(atoms, units)
+    if numlist is None:
+        return None
     formula = ''
     for n, unit in zip(numlist, units):
         f = unit.get_chemical_formula()
