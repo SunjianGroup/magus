@@ -5,7 +5,7 @@ import numpy as np
 from sklearn import cluster
 import ase.io
 from magus.utils import check_parameters, get_units_numlist
-from .individuals import Individual, get_Ind
+from ..individuals.base import Individual, get_Ind
 from ..fitness import get_fitness_calculator
 from ..generators import get_random_generator
 
