@@ -46,6 +46,7 @@ def get_units(frames):
     symbols = set([s for atoms in frames
                    for s in atoms.get_chemical_symbols()])
     numlists = []
+    # reduce numlists by gcd
     for atoms in frames:
         numlist = [atoms.get_chemical_symbols().count(s) for s in symbols]
         n_formula = reduce(gcd, numlist)

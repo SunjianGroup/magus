@@ -53,6 +53,7 @@ class Magus:
     def read_seeds(self):
         log.info("Reading Seeds ...")
         seed_frames = read_seeds('{}/POSCARS_{}'.format(self.seed_dir, self.curgen))
+        seed_frames.extend(read_seeds('{}/seeds_{}.traj'.format(self.seed_dir, self.curgen)))
         seed_pop = self.Population(seed_frames, 'seed', self.curgen)
         return seed_pop
 

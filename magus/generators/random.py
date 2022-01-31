@@ -420,11 +420,11 @@ class MoleculeSPGGenerator(SPGGenerator):
     @property
     def units(self):
         units = []
-        for f in formula:
+        for f in self.formula:
             u = Atoms()
             for i, n in enumerate(f):
                 for _ in range(n):
-                    u.extend(input_mols[i])
+                    u.extend(self.input_mols[i])
             u = Atoms(u.get_chemical_formula())
             units.append(u) 
         return units

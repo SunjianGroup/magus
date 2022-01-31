@@ -1,14 +1,16 @@
 from __future__ import print_function, division
+from enum import unique
 import os, re, logging, itertools, traceback
 import numpy as np
-from ase.io import read
-from ase.phasediagram import PhaseDiagram, parse_formula
+from ase import Atoms
+from ase.io import read, write
 from ase.geometry import wrap_positions
 from ase.data import atomic_numbers, covalent_radii
 from scipy.spatial.distance import cdist
 from ase.build import make_supercell
 from ase.geometry import cell_to_cellpar,cellpar_to_cell
 from functools import reduce
+from math import gcd
 from importlib import import_module
 from pathlib import Path
 import logging
@@ -25,104 +27,6 @@ class Singleton:
         if not hasattr(self, '_instance'):
             self._instance = self._cls()
         return self._instance
-
-
-# change some parameters in plot
-class MagusPhaseDiagram(PhaseDiagram):
-    def decompose(self, formula=None, **kwargs):
-        """
-        adjust the method to calculate coef to avoid numerical fault
-        an example is:
-            Zn5O7 cannot be composed by Zn8O4 and Zn9
-        """
-        if formula:
-            assert not kwargs
-            kwargs = parse_formula(formula)[0]
-
-        point = np.zeros(len(self.species))
-        N = 0
-        for symbol, n in kwargs.items():
-            point[self.species[symbol]] = n
-            N += n
-
-        # Find coordinates within each simplex:
-        X = self.points[self.simplices, 1:-1] - point[1:] / N
-
-        # Find the simplex with positive coordinates that sum to
-        # less than one:
-        eps = 1e-10
-        for i, Y in enumerate(X):
-            try:
-                x = np.linalg.solve((Y[1:] - Y[:1]).T, -Y[0])
-            except np.linalg.linalg.LinAlgError:
-                continue
-            if (x > -eps).all() and x.sum() < 1 + eps:
-                break
-        else:
-            assert False, X
-
-        indices = self.simplices[i]
-        points = self.points[indices]
-
-        scaledcoefs = [1 - x.sum()]
-        scaledcoefs.extend(x)
-
-        energy = N * np.dot(scaledcoefs, points[:, -1])
-
-        coefs = []
-        results = []
-        for coef, s in zip(scaledcoefs, indices):
-            count, e, name, natoms = self.references[s]
-            coef *= N / natoms
-            coefs.append(coef)
-            results.append((name, coef, e))
-        return energy, indices, np.array(coefs)
-
-    def plot2d2(self, ax=None):
-        x, e = self.points[:, 1:].T
-        # make two end points to zero
-        e1 = min(e[np.where(x==0)])
-        e2 = min(e[np.where(x==1)])
-        e = e - e1 * (1 - x) - e2 * x
-        names = [re.sub(r'(\d+)', r'$_{\1}$', ref[2])
-                 for ref in self.references]
-        hull = self.hull
-        simplices = self.simplices
-        xlabel = self.symbols[1]
-        ylabel = 'energy [eV/atom]'
-        if ax:
-            for i, j in simplices:
-                ax.plot(x[[i, j]], e[[i, j]], '#5b5da5', linewidth=2.5)
-            ax.scatter(x[~hull], e[~hull], c='#902424', s=80, marker="x", zorder=90)
-            ax.scatter(x[hull], e[hull], c='#699872', s=80, marker="o", zorder=100)
-            x = x[self.hull]
-            e = e[self.hull]
-            names = [name for name, h in zip(names, self.hull) if h]
-            for a, b, name in zip(x, e, names):
-                ax.text(a, b, name, ha='center', va='top', zorder=110)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
-        return (x, e, names, hull, simplices, xlabel, ylabel)
-
-    def plot2d3(self, ax=None):
-        x, y = self.points[:, 1:-1].T.copy()
-        x += y / 2
-        y *= 3 ** 0.5 / 2
-        names = [re.sub(r'(\d+)', r'$_{\1}$', ref[2])
-                 for ref in self.references]
-        hull = self.hull
-        simplices = self.simplices
-
-        if ax:
-            for i, j, k in simplices:
-                ax.plot(x[[i, j, k, i]], y[[i, j, k, i]], '-b')
-            ax.scatter(x[~hull], y[~hull], c='#902424', s=80, marker="x", zorder=90, alpha=0.5)
-            ax.scatter(x[hull], y[hull], c='#699872', s=80, marker="o", zorder=100)
-            # only label the structures on the hull
-            for i in range(len(hull)):
-                if hull[i]:
-                    ax.text(x[i], y[i], names[i], ha='center', va='top', zorder=110)
-        return (x, y, names, hull, simplices)
 
 
 def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
@@ -327,6 +231,31 @@ def get_distance_dict(symbols, radius=None, d_ratio=None, distance_matrix=None):
     return distance_dict
 
 
+def get_unique_symbols(frames):
+    """
+    get unique symbols of given frames
+    """
+    if isinstance(frames, Atoms):
+        frames = [frames]
+    return set([s for atoms in frames for s in atoms.symbols])
+
+
+def get_symbol_dict(atoms, unique_symbols=None):
+    """
+    return a dict of number of each symbols of an atom, such as 
+    {'H': 2, 'O': 1, 'Zn': 0} for atoms=Atoms('H2O'), unique_symbols=['H', 'O', 'Zn']
+    """
+    symbols = atoms.get_chemical_symbols()
+    unique_symbols = unique_symbols or set(symbols)
+    return {s: symbols.count(s) for s in unique_symbols}
+
+
+def get_gcd_formula(atoms):
+    symbol_dict = get_symbol_dict(atoms)
+    n_formula = reduce(gcd, symbol_dict.values())
+    return Atoms([s for s in symbol_dict for _ in range(symbol_dict[s] // n_formula)]).get_chemical_formula()
+
+
 def read_seeds(seed_file):
     if not os.path.exists(seed_file):
         return []
@@ -339,7 +268,7 @@ def read_seeds(seed_file):
             seedPop = read(seed_file, index=':')
         except:
             raise Exception("unknown file format: {}".format(seed_file))
-    for i, ind in enumerate(seedPop):
+    for ind in seedPop:
         ind.info['origin'] = 'seed'
     return seedPop
 
