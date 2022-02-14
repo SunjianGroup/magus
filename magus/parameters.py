@@ -38,7 +38,7 @@ class magusParameters:
             'volRatio': 2,
             'dRatio': 0.7,
             'molDetector': 0,
-            'addSym': False,
+            'addSymmetry': True,
             'randFrac': 0.2,
             'chkMol': False,
             'chkSeed': True,

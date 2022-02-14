@@ -63,10 +63,10 @@ class Magus:
             init_pop = self.Population([], 'initpop', self.curgen)
         else:
             init_pop = self.pop_generator.get_next_pop(self.cur_pop + self.keep_pop)
+        init_pop.fill_up_with_random()
         ## read seeds
         seed_pop = self.read_seeds()
         init_pop.extend(seed_pop)
-        init_pop.fill_up_with_random()
         # check and log
         init_pop.check()
         log.info("Generate new initial population with {} individuals:".format(len(init_pop)))

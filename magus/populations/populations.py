@@ -200,7 +200,9 @@ class Population:
 
         fp = np.array([ind.fingerprint for ind in pop])
         labels = cluster.KMeans(n_clusters=n_clusters).fit_predict(fp)
-        goodpop = [None] * n_clusters
+        # TODO fix bug: clustering may fail if there are dulplicate structures
+        # goodpop = [None] * n_clusters
+        goodpop = [None] * len(set(labels))
         for label, ind in zip(labels, pop):
             if goodpop[label] is None:
                 goodpop[label] = ind

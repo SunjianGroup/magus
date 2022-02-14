@@ -57,7 +57,7 @@ class GAGenerator:
             pop[i].info['used'] += 1; pop[j].info['used'] += 1
             edom[i] *= 0.9; edom[j] *= 0.9
             choosed.append((pop[i].copy(), pop[j].copy()))
-        indices = np.arange(len(p))
+        indices = np.arange(len(pop))
         while len(choosed) < n:
             p = edom / np.sum(edom)
             i, j = np.random.choice(indices, 2 , False, p=p)

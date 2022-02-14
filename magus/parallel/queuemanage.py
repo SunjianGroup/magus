@@ -107,8 +107,7 @@ class BSUBSystemManager(BaseJobManager):
                 stat = stat.decode().split('\n')[0]
                 time.sleep(1)
             except:
-                s = sys.exc_info()
-                log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                log.warning("Check Job {} Error".format(job['id']))
                 stat = ''
             # log.debug(job['id'], stat)
             if stat == 'DONE' or stat == '':
