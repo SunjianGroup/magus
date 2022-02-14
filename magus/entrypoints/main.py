@@ -224,7 +224,7 @@ def parse_args():
     )
     # generate
     parser_gen = subparsers.add_parser(
-        "gen",
+        "generate",
         parents=[parser_log],
         help="generate many structures",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
