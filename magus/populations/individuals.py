@@ -89,7 +89,6 @@ class Individual(Atoms):
         Default={
             'n_repair_try': 3, 
             'max_attempts': 50,
-            'add_symmetry': False, 
             'check_seed': False,
             'min_lattice': [0., 0., 0., 45., 45., 45.],
             'max_lattice': [99, 99, 99, 135, 135, 135],

@@ -26,6 +26,7 @@ class GAGenerator:
         self.numlist = numlist
         self.n_next = int(parameters['popSize'] * (1 - parameters['randFrac']))
         self.n_cluster = parameters['n_cluster']
+        self.add_sym = parameters['addSym']
 
     def __repr__(self):
         ret = self.__class__.__name__
@@ -36,7 +37,10 @@ class GAGenerator:
                 m += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), num)
             elif op.n_input == 2:
                 c += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), num)
-        ret += m + c + "\n-------------------\n"
+        ret += m + c
+        ret += "Number of cluster      : {}".format(self.add_sym) 
+        ret += "Add symmertry before GA: {}".format(self.add_sym) 
+        ret += "\n-------------------\n"
         return ret
 
     def get_pairs(self, pop, n, n_try=50, k=2):
@@ -81,8 +85,11 @@ class GAGenerator:
         return choosed
 
     def generate(self, pop):
+        log.debug(self)
         # calculate dominators before checking formula
         pop.calc_dominators()
+        if self.add_sym:
+            pop.add_symmetry()
         newpop = pop.__class__([], name='init')
         for op, num in zip(self.oplist, self.numlist):
             if num == 0:
