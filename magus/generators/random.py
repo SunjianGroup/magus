@@ -12,17 +12,6 @@ from magus.generators import GenerateNew
 log = logging.getLogger(__name__)
 
 
-def find_factor(num):
-    i = 2
-    while i < np.sqrt(num):
-        if num % i == 0:
-            break
-        i += 1
-    if num % i > 0:
-        i = num
-    return i
-
-
 def get_swap_matrix():
     M = np.array([
         [[1,0,0],[0,1,0],[0,0,1]],
@@ -295,13 +284,7 @@ class SPGGenerator:
         residual = {s: n_symbols[s] - n_symbols_[s] for s in self.symbols}
         label, atoms = spg_generate(**self.get_generate_parm(spg, numlist_))
         if label:
-            while n_split > 1:
-                i = find_factor(n_split)
-                to_expand = np.argmin(atoms.cell.cellpar()[:3])
-                expand_matrix = [1, 1, 1]
-                expand_matrix[to_expand] = i
-                atoms = atoms * expand_matrix
-                n_split /= i
+            atoms = multiply_cell(atoms, n_split)
             for i, symbol in enumerate(residual):
                 while residual[symbol] > 0:
                     candidate = [i for i, atom in enumerate(atoms) if atom.symbol == symbol]

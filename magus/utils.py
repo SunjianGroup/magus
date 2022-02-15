@@ -273,6 +273,34 @@ def read_seeds(seed_file):
     return seedPop
 
 
+def find_factor(num):
+    i = 2
+    while i < np.sqrt(num):
+        if num % i == 0:
+            break
+        i += 1
+    if num % i > 0:
+        i = num
+    return i
+
+
+def multiply_cell(atoms, n):
+    """
+    return a structure with atoms n times of the input
+    """
+    atoms = atoms.copy()
+    assert n >= 1 and n % 1 == 0, "n must be an integer >= 1"
+    while n > 1:
+        i = find_factor(n)
+        to_expand = np.argmin(atoms.cell.cellpar()[:3])
+        expand_matrix = [1, 1, 1]
+        expand_matrix[to_expand] = i
+        atoms = atoms * expand_matrix
+        n = n // i
+    atoms = atoms[atoms.numbers.argsort()]
+    return atoms
+
+
 class Plugin:
     def __init__(self, name):
         self.name = name

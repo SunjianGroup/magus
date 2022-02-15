@@ -156,13 +156,15 @@ class Individual(Atoms):
             self.info['priVol'] = self.get_volume()
 
     def add_symmetry(self):
-        std_atoms = spglib.standardize_cell(self, symprec=self.symprec)
-        if std_atoms:
-            cell, positions, numbers = std_atoms
-            self.set_cell(cell)
-            self.set_scaled_positions(positions)
-            self.set_atomic_numbers(numbers)
-            return True
+        std_para = spglib.standardize_cell(self, symprec=self.symprec)
+        if std_para:
+            std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2])
+            if len(self) % len(std_atoms) == 0:
+                std_atoms = multiply_cell(std_atoms, len(self) // len(std_atoms))
+                self.set_cell(std_atoms.cell)
+                self.set_scaled_positions(std_atoms.get_scaled_positions())
+                self.set_atomic_numbers(std_atoms.numbers)
+                return True
         return False
 
     @property

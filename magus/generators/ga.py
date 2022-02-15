@@ -38,8 +38,8 @@ class GAGenerator:
             elif op.n_input == 2:
                 c += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), num)
         ret += m + c
-        ret += "Number of cluster      : {}".format(self.add_sym) 
-        ret += "Add symmertry before GA: {}".format(self.add_sym) 
+        ret += "\nNumber of cluster      : {}".format(self.add_sym) 
+        ret += "\nAdd symmertry before GA: {}".format(self.add_sym) 
         ret += "\n-------------------\n"
         return ret
 
