@@ -97,8 +97,8 @@ def find_communities(G):
 def get_nodes_and_offsets(G):
     assert nx.number_connected_components(G) == 1, "The graph should be connected!"
     offsets = []
-    nodes = list(G.nodes())
-    paths = nx.single_source_shortest_path(G, nodes[0])
+    nodes = []
+    paths = nx.single_source_shortest_path(G, list(G)[0])
     for node, path in paths.items():
         offset = np.zeros(3)
         for i, j in zip(path[:-1], path[1:]):
@@ -107,6 +107,7 @@ def get_nodes_and_offsets(G):
             else:
                 offset -= G[i][j][0]['vector']
         offsets.append(offset)
+        nodes.append(node)
     return nodes, offsets
 
 
