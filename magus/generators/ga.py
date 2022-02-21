@@ -1,3 +1,5 @@
+# TODO
+# how to set k in edom
 import itertools, copy, logging
 import numpy as np
 from magus.utils import *
@@ -44,7 +46,8 @@ class GAGenerator:
         return ret
 
     def get_pairs(self, pop, n, n_try=50, k=2):
-        k = k / len(pop)
+        # k = k / len(pop)
+        k = 0.3
         dom = np.array([ind.info['dominators'] for ind in pop])
         edom = np.exp(-k * dom)
         labels, _ = pop.clustering(self.n_cluster)
@@ -71,7 +74,8 @@ class GAGenerator:
         return choosed
 
     def get_inds(self, pop, n, k=2):
-        k = k / len(pop)
+        # k = k / len(pop)
+        k = 0.3
         dom = np.array([ind.info['dominators'] for ind in pop])
         edom = np.exp(-k * dom)
         p = edom / np.sum(edom)
