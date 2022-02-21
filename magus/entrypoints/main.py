@@ -325,7 +325,7 @@ def parse_args():
 def main():
     args = parse_args()
     dict_args = vars(args)
-    if args.command in ['search', 'calc', 'gen']:
+    if args.command in ['search', 'calculate', 'generate']:
         set_logger(level=dict_args['log_level'], log_path=dict_args['log_path'])
         log = logging.getLogger(__name__)
         log.info(__picture__)

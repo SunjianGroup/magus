@@ -1,6 +1,3 @@
-# TODO
-# add phasediagram.py for both this and fitness calculator
-# change magusphasediagram so that we don't need to convert for pseudo search
 import os, re
 from pathlib import Path
 from ase.atoms import default
