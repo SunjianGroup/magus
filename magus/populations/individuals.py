@@ -28,7 +28,7 @@ def check_new_atom(atoms, np, symbol, distance_dict):
         return True
 
 # TODO weighten
-def to_target_formula(atoms, target_formula, distance_dict, max_n_try=100): 
+def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10): 
     symbols = atoms.get_chemical_symbols()
     toadd, toremove = {}, {}
     for s in target_formula:
@@ -56,7 +56,7 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=100):
         toremove[del_symbol] -= 1
         if toremove[del_symbol] == 0:
             toremove.pop(del_symbol)
-
+    
     while toadd:
         add_symbol = np.random.choice(list(toadd.keys()))
         for _ in range(max_n_try):
@@ -87,7 +87,7 @@ class Individual(Atoms):
         cls.all_parameters = parameters
         Requirement = ['symbol_numlist_pool', 'symprec', 'fp_calc', 'comparator']
         Default={
-            'n_repair_try': 3, 
+            'n_repair_try': 5, 
             'max_attempts': 50,
             'check_seed': False,
             'min_lattice': [0., 0., 0., 45., 45., 45.],
@@ -259,7 +259,7 @@ class Individual(Atoms):
             log.debug("Empty crystal after merging!")
             return False
         for target_formula in self.get_target_formula():
-            rep_atoms = to_target_formula(self, target_formula, self.distance_dict)
+            rep_atoms = to_target_formula(self, target_formula, self.distance_dict, self.n_repair_try)
             if len(rep_atoms) > 0:
                 self.__init__(rep_atoms)
                 self.sort()

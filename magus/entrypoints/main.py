@@ -216,6 +216,13 @@ def parse_args():
         help="the input parameter file in yaml format"
     )
     parser_calc.add_argument(
+        "-o",
+        "--output-file",
+        type=str,
+        default="out.traj",
+        help="output traj file"
+    )
+    parser_calc.add_argument(
         "-p",
         "--pressure",
         type=int, 
