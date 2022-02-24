@@ -41,7 +41,7 @@ class Population:
         self.name = name
         self.gen = gen
         log.debug('construct Population {} with {} individual'.format(name, len(pop)))
-        for i, ind in enumerate(pop):
+        for i, ind in enumerate(self.pop):
             ind.info['identity'] = (name, i)
 
     def __repr__(self):
