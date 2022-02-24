@@ -129,8 +129,8 @@ class LatticeMutation(Mutation):
             new_cell = cellpar_to_cell(cellpar)
 
         atoms.set_cell(new_cell, scale_atoms=True)
-        positions = atoms.get_positions() + np.random.normal(0, 1, [len(atoms), 3])
-        atoms.set_positions(positions)
+        # positions = atoms.get_positions() + np.random.normal(0, 1, [len(atoms), 3])
+        # atoms.set_positions(positions)
         return ind.__class__(atoms)
 
 

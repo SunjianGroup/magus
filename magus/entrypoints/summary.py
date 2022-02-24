@@ -18,9 +18,11 @@ except:
 from magus.utils import get_units_numlist, get_units_formula
 
 
-pd.options.display.max_rows = 100
-
-
+pd.set_option('max_rows', 100)
+pd.set_option('expand_frame_repr', False)
+# pd.set_option('max_colwidth', 30)
+# pd.set_option('width', 120)
+        
 def convert_glob(filenames):
     """
     to support path including asterisk wildcard such as */results/good.traj or **/good.traj

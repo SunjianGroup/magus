@@ -3,8 +3,8 @@ from ase.io import read, write
 
 
 def calculate(*args, filename=None, input_file='input.yaml', 
-              mode='relax', pressure=None, **kwargs):
-    parameters = magusParameters('input.yaml')
+              output_file='out.traj', mode='relax', pressure=None, **kwargs):
+    parameters = magusParameters(input_file)
     if pressure is not None:
         parameters.p_dict['pressure'] = pressure
     to_calc = read(filename, index=':')
@@ -16,5 +16,5 @@ def calculate(*args, filename=None, input_file='input.yaml',
         calced = calc.relax(to_calc)
     else:
         calced = calc.scf(to_calc)
-    write('out.traj', calced)
+    write(output_file, calced)
 
