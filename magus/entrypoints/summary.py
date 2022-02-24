@@ -23,6 +23,13 @@ pd.set_option('expand_frame_repr', False)
 # pd.set_option('max_colwidth', 30)
 # pd.set_option('width', 120)
         
+
+def expand_path(path_pattern):
+    p = Path(path_pattern).expanduser()
+    parts = p.parts[p.is_absolute():]
+    return Path(p.root).glob(str(Path(*parts)))
+
+
 def convert_glob(filenames):
     """
     to support path including asterisk wildcard such as */results/good.traj or **/good.traj
@@ -30,7 +37,7 @@ def convert_glob(filenames):
     p = Path('.')
     consider_glob = []
     for f in filenames:
-        consider_glob.extend(map(str, p.glob(f)))
+        consider_glob.extend(map(str, expand_path(f)))
     return consider_glob
 
 
