@@ -59,6 +59,7 @@ setup(
         "scikit-learn",
         "spglib",
         "pandas",
+        "prettytable",
     ],
     extras_require={
         "torchml": ["torch>=1.0"],
