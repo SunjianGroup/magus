@@ -3,6 +3,7 @@
 import itertools, copy, logging
 import numpy as np
 from magus.utils import *
+import prettytable as pt
 # from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 
 
@@ -23,9 +24,11 @@ log = logging.getLogger(__name__)
 ##################################
 
 class GAGenerator:
-    def __init__(self, numlist, oplist, **parameters):
-        self.oplist = oplist
-        self.numlist = numlist
+    def __init__(self, op_list, op_prob, **parameters):
+        assert len(op_list) == len(op_prob), "number of operations and probabilities not match"
+        assert np.sum(op_prob) > 0 and np.all(op_prob >= 0), "unreasonable probability are given"
+        self.op_list = op_list
+        self.op_prob = op_prob / np.sum(op_prob)
         self.n_next = int(parameters['popSize'] * (1 - parameters['randFrac']))
         self.n_cluster = parameters['n_cluster']
         self.add_sym = parameters['addSym']
@@ -34,80 +37,92 @@ class GAGenerator:
         ret = self.__class__.__name__
         ret += "\n-------------------"
         c, m = "\nCrossovers:", "\nMutations:"
-        for op, num in zip(self.oplist, self.numlist):
+        for op, prob in zip(self.op_list, self.op_prob):
             if op.n_input == 1:
-                m += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), num)
+                m += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), prob)
             elif op.n_input == 2:
-                c += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), num)
+                c += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), prob)
         ret += m + c
         ret += "\nNumber of cluster      : {}".format(self.add_sym) 
         ret += "\nAdd symmertry before GA: {}".format(self.add_sym) 
         ret += "\n-------------------\n"
         return ret
 
-    def get_pairs(self, pop, n, n_try=50, k=2):
+    def get_pair(self, pop, k=2, n_try=50, history_punish=1.):
+        assert 0 < history_punish <= 1, "history_punish should between 0 and 1"
         # k = k / len(pop)
         k = 0.3
         dom = np.array([ind.info['dominators'] for ind in pop])
         edom = np.exp(-k * dom)
+        used = np.array([ind.info['used'] for ind in pop])
         labels, _ = pop.clustering(self.n_cluster)
-        fail = 0; choosed = []
-        # first try to only choose pairs in a cluster, if fail, random choose 
-        while len(choosed) < n and fail < n_try:
+        fail = 0
+
+        while fail < n_try:
             label = np.random.choice(np.unique(labels))
             indices = np.where(labels == label)[0]
             if len(indices) < 2:
                 fail += 1
                 continue
-            p = edom[indices] / sum(edom[indices])
-            i, j = np.random.choice(indices, 2 , False, p=p)
-            pop[i].info['used'] += 1; pop[j].info['used'] += 1
-            edom[i] *= 0.9; edom[j] *= 0.9
-            choosed.append((pop[i].copy(), pop[j].copy()))
-        indices = np.arange(len(pop))
-        while len(choosed) < n:
-            p = edom / np.sum(edom)
-            i, j = np.random.choice(indices, 2 , False, p=p)
-            pop[i].info['used'] += 1; pop[j].info['used'] += 1
-            edom[i] *= 0.9; edom[j] *= 0.9
-            choosed.append((pop[i].copy(), pop[j].copy()))
-        return choosed
+            prob = edom[indices] * history_punish ** used[indices]
+            prob = prob / sum(prob)
+            i, j = np.random.choice(indices, 2 , False, p=prob)
+            pop[i].info['used'] += 1
+            pop[j].info['used'] += 1
+            return pop[i].copy(), pop[j].copy()
 
-    def get_inds(self, pop, n, k=2):
+        indices = np.arange(len(pop))
+        prob = edom[indices] * history_punish ** used[indices]
+        prob = prob / sum(prob)
+        i, j = np.random.choice(indices, 2 , False, p=prob)
+        pop[i].info['used'] += 1
+        pop[j].info['used'] += 1
+        return pop[i].copy(), pop[j].copy()
+
+    def get_ind(self, pop, k=2, history_punish=1.):
         # k = k / len(pop)
         k = 0.3
         dom = np.array([ind.info['dominators'] for ind in pop])
         edom = np.exp(-k * dom)
-        p = edom / np.sum(edom)
+        used = np.array([ind.info['used'] for ind in pop])
+        prob = edom * history_punish ** used
+        prob = prob / sum(prob)
         choosed = []
-        while len(choosed) < n:
-            i = np.random.choice(len(pop), p=p)
-            pop[i].info['used'] += 1
-            p[i] *= 0.8
-            p /= sum(p)
-            choosed.append(pop[i].copy())
-        return choosed
+        i = np.random.choice(len(pop), p=prob)
+        pop[i].info['used'] += 1
+        return pop[i].copy()
 
-    def generate(self, pop):
+    def generate(self, pop, n=None):
+        n = n or self.n_next
         log.debug(self)
         # calculate dominators before checking formula
         pop.calc_dominators()
+        # add symmetry before crossover and mutation
         if self.add_sym:
             pop.add_symmetry()
         newpop = pop.__class__([], name='init')
-        for op, num in zip(self.oplist, self.numlist):
-            if num == 0:
-                continue
-            log.debug('name:{} num:{}'.format(op.descriptor, num))
+        op_choosed_num = [0] * len(self.op_list)
+        op_success_num = [0] * len(self.op_list)
+        while len(newpop) < n:
+            i = np.random.choice(len(self.op_list), p=self.op_prob)
+            op_choosed_num[i] += 1
+            op = self.op_list[i]
             if op.n_input == 1:
-                cands = self.get_inds(pop, num)
+                cand = self.get_ind(pop)
             elif op.n_input == 2:
-                cands = self.get_pairs(pop, num)
-            for cand in cands:
-                newind = op.get_new_individual(cand)
-                if newind is not None:
-                    newpop.append(newind)
-            log.debug("popsize after {}: {}".format(op.descriptor, len(newpop)))
+                cand = self.get_pair(pop)
+            newind = op.get_new_individual(cand)
+            if newind is not None:
+                op_success_num[i] += 1
+                newpop.append(newind)
+        table = pt.PrettyTable()
+        table.field_names = ['Operator', 'Probability ', 'SelectedTimes', 'SuccessNum']
+        for i in range(len(self.op_list)):
+            table.add_row([self.op_list[i].descriptor, 
+                           self.op_prob[i],
+                           op_choosed_num[i],
+                           op_success_num[i]])
+        log.info(table)
         newpop.check()
         return newpop
 
