@@ -50,7 +50,7 @@ def get_frames(filenames):
 
 
 class Summary:
-    show_features = ['symmetry', 'enthalpy', 'formula', 'priSym']
+    show_features = ['symmetry', 'enthalpy', 'formula', 'priFormula']
 
     def __init__(self, prec=0.1, remove_features=[], add_features=[], formula_type='fix'):
         self.formula_type = formula_type
@@ -76,7 +76,10 @@ class Summary:
             atoms.info['ehull'] = 0 if ehull < 1e-3 else ehull
         if 'units' not in atoms.info:
             atoms.info['units'] = [Atoms(s) for s in list(set(atoms.get_chemical_symbols()))]
-        atoms.info['formula'] = get_units_formula(atoms, atoms.info['units'])
+        if hasattr(self, 'units'):
+            atoms.info['formula'] = get_units_formula(atoms, self.units)
+        else:
+            atoms.info['formula'] = get_units_formula(atoms, atoms.info['units'])
         
     def summary(self, filenames, show_number=20, need_sorted=True, sorted_by='Default', reverse=True, save=False, outdir=None):
         filenames = convert_glob(filenames)
@@ -142,14 +145,23 @@ class BulkSummary(Summary):
         atoms.info['symmetry'] = spg.get_spacegroup(atoms, self.prec)
         # sometimes spglib cannot find primitive cell.
         try:
-            lattice, scaled_positions, numbers = spg.find_primitive(atoms, self.prec)
+            lattice, scaled_positions, numbers = spg.find_primitive(atoms, symprec=self.prec)
             pri_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
+            lattice, scaled_positions, numbers = spg.standardize_cell(atoms, symprec=self.prec)
+            std_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
         except:
             # if fail to find prim, set prim to raw
             print("Fail to find primitive for structure")
             pri_atoms = atoms
+            std_atoms = atoms
         finally:
-            atoms.info['priSym'] = pri_atoms.get_chemical_formula()
+            atoms.info['priFormula'] = pri_atoms.get_chemical_formula()
+            if hasattr(self, 'units'):
+                atoms.info['priFormula'] = get_units_formula(pri_atoms, self.units)
+                atoms.info['stdFormula'] = get_units_formula(std_atoms, self.units)
+            else:
+                atoms.info['priFormula'] = get_units_formula(pri_atoms, atoms.info['units'])
+                atoms.info['stdFormula'] = get_units_formula(std_atoms, atoms.info['units'])
 
 
 class ClusterSummary(Summary):
