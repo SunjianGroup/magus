@@ -154,7 +154,7 @@ class PhaseDiagram:
             from mpl_toolkits.mplot3d import Axes3D
             Axes3D  # silence pyflakes
             fig = plt.figure()
-            ax = fig.gca(projection='3d ')
+            ax = fig.gca(projection='3d')
             self.plot3d4(ax)
         else:
             raise ValueError('Cannot make plots for {} component systems!'.format(N))
