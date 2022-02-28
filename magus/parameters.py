@@ -39,7 +39,7 @@ class magusParameters:
             'dRatio': 0.7,
             'molDetector': 0,
             'addSym': True,
-            'randFrac': 0.2,
+            'randRatio': 0.2,
             'chkMol': False,
             'chkSeed': True,
             'diffE': 0.01,
@@ -47,6 +47,8 @@ class magusParameters:
             'comparator': 'soap',
             'fp_calc': 'zernike',
             'n_cluster': p_dict['saveGood'],
+            'autoOpRatio': False,
+            'autoRandomRatio': False,
         }
         for key in Default:
             if key not in p_dict:

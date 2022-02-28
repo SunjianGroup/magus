@@ -22,11 +22,13 @@ dRatio: 0.8             # dRatio * (covalent_radii[i] + covalent_radii[j])
 #  - [1.5, 1.4, 1.2]    
 #  - [1.4, 1.5, 0.85]
 #  - [1.2, 0.85, 0.5]
-volRatio: 1.2           # the volume / the sum of the atoms ball volume
-randFrac: 1             # fraction of random
+volumeRatio: 1.2        # the volume / the sum of the atoms ball volume
+randRatio: 1            # fraction of random
 pressure: 1000          # pressure (unit: GPa)
 addSym: True            # whether to add symmetry before crossover and mutation
 
+autoOpRatio: False      # auto adjust the ratio of operators
+autoRandomRatio: False  # auto adjust the ratio of random structures
 # main calculator settings
 MainCalculator:
  mode: parallel
