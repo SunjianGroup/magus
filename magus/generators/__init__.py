@@ -1,5 +1,5 @@
 from .random import SPGGenerator, MoleculeSPGGenerator
-from .ga import GAGenerator
+from .ga import GAGenerator, AutoOPRatio
 from ..operations import op_dict, get_default_op
 import logging
 import numpy as np
@@ -31,4 +31,7 @@ def get_ga_generator(p_dict):
     assert sum_prob <= 1, "Please cheak probability settings"
     if len(op_prob[op_prob < 0]) > 0:
         op_prob[op_prob < 0] = (1 - sum_prob) / len(op_prob[op_prob < 0])
-    return GAGenerator(op_list, op_prob, **p_dict)
+    if p_dict['autoOpRatio']:
+        return AutoOPRatio(op_list, op_prob, **p_dict)
+    else:
+        return GAGenerator(op_list, op_prob, **p_dict)

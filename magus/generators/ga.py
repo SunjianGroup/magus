@@ -2,8 +2,10 @@
 # how to set k in edom
 import itertools, copy, logging
 import numpy as np
+from sympy import frac, fraction
 from magus.utils import *
 import prettytable as pt
+from collections import defaultdict
 # from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 
 
@@ -25,13 +27,16 @@ log = logging.getLogger(__name__)
 
 class GAGenerator:
     def __init__(self, op_list, op_prob, **parameters):
+        Requirement = ['pop_size', 'n_cluster']
+        Default={'rand_ratio': 0.3, 'add_sym': True}
+        check_parameters(self, parameters, Requirement, Default)
+
         assert len(op_list) == len(op_prob), "number of operations and probabilities not match"
         assert np.sum(op_prob) > 0 and np.all(op_prob >= 0), "unreasonable probability are given"
         self.op_list = op_list
         self.op_prob = op_prob / np.sum(op_prob)
-        self.n_next = int(parameters['popSize'] * (1 - parameters['randFrac']))
-        self.n_cluster = parameters['n_cluster']
-        self.add_sym = parameters['addSym']
+
+        self.gen = 1
 
     def __repr__(self):
         ret = self.__class__.__name__
@@ -39,14 +44,25 @@ class GAGenerator:
         c, m = "\nCrossovers:", "\nMutations:"
         for op, prob in zip(self.op_list, self.op_prob):
             if op.n_input == 1:
-                m += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), prob)
+                m += "\n {}: {:>5.2f}%".format(op.__class__.__name__.ljust(20, ' '), prob * 100)
             elif op.n_input == 2:
-                c += "\n {}: {}".format(op.__class__.__name__.ljust(20, ' '), prob)
+                c += "\n {}: {:>5.2f}%".format(op.__class__.__name__.ljust(20, ' '), prob * 100)
         ret += m + c
-        ret += "\nNumber of cluster      : {}".format(self.add_sym) 
-        ret += "\nAdd symmertry before GA: {}".format(self.add_sym) 
+        ret += "\nRandom Ratio         : {:.2%}".format(self.rand_ratio) 
+        ret += "\nNumber of cluster    : {}".format(self.n_cluster) 
+        ret += "\nAdd symmertry        : {}".format(self.add_sym) 
         ret += "\n-------------------\n"
         return ret
+
+    @property
+    def n_next(self):
+        return int(self.pop_size * (1 - self.rand_ratio))
+
+    def get_parents(self, pop, n_input):
+        if n_input == 1:
+            return self.get_ind(pop)
+        elif n_input == 2:
+            return self.get_pair(pop)
 
     def get_pair(self, pop, k=2, n_try=50, history_punish=1.):
         assert 0 < history_punish <= 1, "history_punish should between 0 and 1"
@@ -92,25 +108,27 @@ class GAGenerator:
         pop[i].info['used'] += 1
         return pop[i].copy()
 
-    def generate(self, pop, n=None):
-        n = n or self.n_next
+    def generate(self, pop, n):
         log.debug(self)
-        # calculate dominators before checking formula
-        pop.calc_dominators()
-        # add symmetry before crossover and mutation
+        # Add symmetry before crossover and mutation
         if self.add_sym:
             pop.add_symmetry()
         newpop = pop.__class__([], name='init')
         op_choosed_num = [0] * len(self.op_list)
         op_success_num = [0] * len(self.op_list)
+        # Ensure that the operator is selected at least once 
+        for i, op in enumerate(self.op_list):
+            op_choosed_num[i] += 1
+            cand = self.get_parents(pop, op.n_input)
+            newind = op.get_new_individual(cand)
+            if newind is not None:
+                op_success_num[i] += 1
+                newpop.append(newind)
         while len(newpop) < n:
             i = np.random.choice(len(self.op_list), p=self.op_prob)
             op_choosed_num[i] += 1
             op = self.op_list[i]
-            if op.n_input == 1:
-                cand = self.get_ind(pop)
-            elif op.n_input == 2:
-                cand = self.get_pair(pop)
+            cand = self.get_parents(pop, op.n_input)
             newind = op.get_new_individual(cand)
             if newind is not None:
                 op_success_num[i] += 1
@@ -119,10 +137,10 @@ class GAGenerator:
         table.field_names = ['Operator', 'Probability ', 'SelectedTimes', 'SuccessNum']
         for i in range(len(self.op_list)):
             table.add_row([self.op_list[i].descriptor, 
-                           self.op_prob[i],
+                           '{:.2%}'.format(self.op_prob[i]),
                            op_choosed_num[i],
                            op_success_num[i]])
-        log.info(table)
+        log.info("OP infomation: \n" + table.__str__())
         newpop.check()
         return newpop
 
@@ -132,6 +150,61 @@ class GAGenerator:
         return pop
 
     def get_next_pop(self, pop, n_next=None):
+        # calculate dominators before choose structures
+        pop.calc_dominators()
         n_next = n_next or self.n_next
-        newpop = self.generate(pop)
+        newpop = self.generate(pop, n_next)
+        self.gen += 1
+        return self.select(newpop, n_next)
+
+
+class AutoOPRatio(GAGenerator):
+    def __init__(self, op_list, op_prob, **parameters):
+        Default = {'good_ratio': 0.6, 'auto_random_ratio': True}
+        check_parameters(self, parameters, [], Default)
+        super().__init__(op_list, op_prob, **parameters)
+
+    def change_op_ratio(self, pop):
+        total_nums = defaultdict(int)
+        good_nums = defaultdict(int)
+        for ind in pop:
+            origin = ind.info['origin']
+            if origin == 'seed':
+                continue
+            if not self.auto_random_ratio and origin == 'random':
+                continue
+            total_nums[origin] += 1
+            if ind.info['dominators'] < len(pop) * self.good_ratio:
+                good_nums[origin] += 1
+        op_grade = {op: good_nums[op] ** 2 / total_nums[op] for op in total_nums if total_nums[op] > 0}
+        table = pt.PrettyTable()
+        table.field_names = ['Operator', 'Total ', 'Good', 'Grade']
+        for op in self.op_list:
+            grade = op_grade[op.descriptor] if op.descriptor in op_grade else 0
+            table.add_row([op.descriptor,
+                           total_nums[op.descriptor],
+                           good_nums[op.descriptor],
+                           np.round(grade, 3)])
+        if self.auto_random_ratio:
+            grade = op_grade['random'] if 'random' in op_grade else 0
+            table.add_row(['random', total_nums['random'], good_nums['random'], np.round(grade, 3)])
+        log.debug("OP grade: \n" + table.__str__())
+        if self.auto_random_ratio:
+            if 'random' not in op_grade:
+                op_grade['random'] = 0
+            self.rand_ratio = 0.5 * (op_grade['random'] / sum(op_grade.values()) + self.rand_ratio)
+            del op_grade['random']
+        for i, op in enumerate(self.op_list):
+            if op.descriptor in op_grade:
+                self.op_prob[i] = 0.5 * (op_grade[op.descriptor] / sum(op_grade.values()) + self.op_prob[i])
+            else:
+                self.op_prob[i] = 0.5 * self.op_prob[i]
+
+    def get_next_pop(self, pop, n_next=None):
+        pop.calc_dominators()
+        if self.gen > 1:
+            self.change_op_ratio(pop)
+        n_next = n_next or self.n_next
+        newpop = self.generate(pop, n_next)
+        self.gen += 1
         return self.select(newpop, n_next)
