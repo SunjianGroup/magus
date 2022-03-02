@@ -52,13 +52,14 @@ def get_frames(filenames):
 class Summary:
     show_features = ['symmetry', 'enthalpy', 'formula', 'priFormula']
 
-    def __init__(self, prec=0.1, remove_features=[], add_features=[], formula_type='fix'):
+    def __init__(self, prec=0.1, remove_features=[], add_features=[], formula_type='fix', boundary=[]):
         self.formula_type = formula_type
         if self.formula_type == 'fix':
             self.default_sort = 'enthalpy'
         elif self.formula_type == 'var':
             self.default_sort = 'ehull'
             self.show_features.append('ehull')
+            self.boundary = [Atoms(formula) for formula in boundary]
 
         show_features = [feature for feature in self.show_features if feature not in remove_features]
         show_features.extend(add_features)
@@ -99,7 +100,11 @@ class Summary:
             self.all_frames.append(atoms)
         if self.formula_type == 'var':
             # for var, we may need recalculate units and ehulls
-            self.units = get_units(self.all_frames)
+            if len(self.boundary) == 0:
+                self.units = get_units(self.all_frames)
+                assert self.units is not None, "Fail to find units, please assign units by '-u'"
+            else:
+                self.units = self.boundary
             self.phase_diagram = self.get_phase_diagram()
         for atoms in get_frames(filenames):
             self.set_features(atoms)
@@ -172,7 +177,7 @@ class ClusterSummary(Summary):
         atoms.info['symmetry'] = PointGroupAnalyzer(molecule, self.prec).sch_symbol
 
 def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
-            need_sorted=True, sorted_by='Defalut', reverse=False,
+            need_sorted=True, sorted_by='Defalut', reverse=False, boundary=[],
             show_number=20, save=False, outdir='.', var=False, atoms_type='bulk',
             **kwargs):
     formula_type = 'var' if var else 'fix'
@@ -182,5 +187,5 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[],
         }
     s = summary_dict[atoms_type](prec=prec, 
                                  remove_features=remove_features, add_features=add_features, 
-                                 formula_type=formula_type)
+                                 formula_type=formula_type, boundary=boundary)
     s.summary(filenames, show_number, need_sorted, sorted_by, reverse, save, outdir)

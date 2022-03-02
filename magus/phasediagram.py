@@ -12,6 +12,14 @@ from magus.utils import get_units_formula, get_units_numlist
 log = logging.getLogger(__name__)
 
 
+def check_units(frames, units):
+    for atoms in frames:
+        count = get_units_numlist(atoms, units)
+        if count is None:
+            return False
+    return True
+
+
 def get_basis(matrix):
     """
     get the simplest integer basis of a linear independent matrix using enumeration method
@@ -45,12 +53,7 @@ def get_units(frames):
     # get all symbols and numlist of the symbols of all the structures
     symbols = set([s for atoms in frames
                    for s in atoms.get_chemical_symbols()])
-    numlists = []
-    # reduce numlists by gcd
-    for atoms in frames:
-        numlist = [atoms.get_chemical_symbols().count(s) for s in symbols]
-        n_formula = reduce(gcd, numlist)
-        numlists.append([n // n_formula for n in numlist])
+    numlists = [[atoms.get_chemical_symbols().count(s) for s in symbols] for atoms in frames]
     numlists = np.unique(numlists, axis=0)
     dim = matrix_rank(numlists)
     if len(symbols) == dim:
@@ -67,7 +70,10 @@ def get_units(frames):
     units = []
     for f in units_numlists:
         units.append(Atoms(symbols=[s for n, s in zip(f, symbols) for _ in range(n)]))
-    return units
+    if check_units(frames, units):
+        return units
+    else:
+        return None
 
 
 class PhaseDiagram:
@@ -76,16 +82,27 @@ class PhaseDiagram:
     """
     def __init__(self, frames, boundary=None):
         self.frames = deepcopy(frames)
-        if boundary and self.check_bound(boundary):
-            self.boundary = boundary
+        if boundary is None:
+            boundary = get_units(frames)
+            assert boundary is not None, "Fail to find boundary, please give the boundary by '-b'"
         else:
-            self.boundary = get_units(frames)
+            assert check_units(frames, boundary), "Given wrong boundary"
+        self.boundary = boundary
+        self.boundary_n_atoms = np.array([len(atoms) for atoms in self.boundary])
         self.points = []
         for atoms in frames:
-            count = get_units_numlist(atoms, self.boundary)
+            count = get_units_numlist(atoms, self.boundary) * self.boundary_n_atoms
             ratio = count / count.sum()
             self.points.append([*ratio, atoms.info['enthalpy']])
         self.points = np.array(self.points)
+        if matrix_rank(self.points[:, :-1]) < len(self.boundary):
+            log.warning("dim of frames smaller than number of boundary, will add artificial points. "
+                        "It is unreasonable and may raise wrong convex hull!")
+            for i, atoms in enumerate(self.boundary):
+                points = np.zeros((1, len(self.boundary) + 1))
+                points[0, i] = 1.
+                points[0, -1] = 100.
+                self.points = np.concatenate((self.points, points), axis=0)
         if len(self.points) <= len(self.boundary):
             # Simple case that qhull would choke on:
             self.simplices = np.arange(len(self.points)).reshape((1, len(self.points)))
@@ -99,15 +116,6 @@ class PhaseDiagram:
             self.hull = np.zeros(len(self.points), bool)
             for simplex in self.simplices:
                 self.hull[simplex] = True
-
-    def check_bound(self, boundary):
-        for atoms in self.frames:
-            count = get_units_numlist(atoms, boundary)
-            if count is None:
-                log.warning('{} is not in the boundary, will use the default vaule'
-                            .format(atoms.get_chemical_formula()))
-                return False
-        return True
 
     def append(self, atoms):
         self.extend([atoms])
@@ -125,6 +133,7 @@ class PhaseDiagram:
         count = get_units_numlist(atoms, self.boundary)
         if count is None:
             raise Exception('{} is not in the boundary'.format(name))
+        count *= self.boundary_n_atoms
         point = count / count.sum()
 
         # Find coordinates within each simplex:
@@ -166,6 +175,8 @@ class PhaseDiagram:
         e1 = min(e[np.where(x==0)])
         e2 = min(e[np.where(x==1)])
         e = e - e1 * (1 - x) - e2 * x
+        a = self.boundary_n_atoms[1] / self.boundary_n_atoms[0]
+        x = x / (x + a - a * x)
         names = [get_units_formula(atoms, self.boundary) for atoms in self.frames]
         hull = self.hull
         simplices = self.simplices

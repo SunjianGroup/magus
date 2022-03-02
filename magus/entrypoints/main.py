@@ -146,6 +146,13 @@ def parse_args():
         help="bian zu fen",
     )
     parser_sum.add_argument(
+        "-b",
+        "--boundary",
+        nargs="+",
+        default=[],
+        help="bian zu fen boundary",
+    )
+    parser_sum.add_argument(
         "-t",
         "--atoms-type",
         choices=["bulk", "cluster"],
