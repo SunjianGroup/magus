@@ -12,7 +12,7 @@ class TestPhaseDiagram:
         self.assertIsNotNone(get_units(self.frames))
 
     def test_decompose(self):
-        pd = PhaseDiagram(self.frames, boundary=self.boundary)
+        pd = PhaseDiagram(self.frames)
         refs = [(a.get_chemical_formula(), a.info['enthalpy'] * len(a)) for a in self.frames]
         for s in set([s for a in self.frames for s in a.symbols]):
             refs.append((s, 1000))
@@ -26,21 +26,18 @@ class TestPhaseDiagram:
 class TestBinary(TestPhaseDiagram, unittest.TestCase):
     def setUp(self):
         path = os.path.dirname(__file__)
-        self.frames = read(os.path.join(path, 'POSCARS/AlxOy.traj'), ':')
-        self.boundary = [Atoms('Al'), Atoms('O')]
+        self.frames = read(os.path.join(path, 'POSCARS/Al-O.traj'), ':')
 
 
 class TestPseudoBinary(TestPhaseDiagram, unittest.TestCase):
     def setUp(self):
         path = os.path.dirname(__file__)
-        self.frames = read(os.path.join(path, 'POSCARS/AlOHxH2Oy.traj'), ':')
-        self.boundary = [Atoms('AlOH'), Atoms('H2O')]
+        self.frames = read(os.path.join(path, 'POSCARS/Al2O3-AlH3.traj'), ':')
 
 class TestTrinary(TestPhaseDiagram, unittest.TestCase):
     def setUp(self):
         path = os.path.dirname(__file__)
-        self.frames = read(os.path.join(path, 'POSCARS/AlxOyHz.traj'), ':')
-        self.boundary = [Atoms('Al'), Atoms('O'), Atoms('H')]
+        self.frames = read(os.path.join(path, 'POSCARS/Al-O-H.traj'), ':')
 
 
 if __name__ == '__main__':
