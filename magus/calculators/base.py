@@ -150,7 +150,7 @@ class ClusterCalculator(Calculator, abc.ABC):
                 pop.extend(a)
             except:
                 log.warning("ERROR in read results {}".format(job['workDir']))
-        write("{}/optPop.traj".format(self.calc_dir), a)
+        write("{}/optPop.traj".format(self.calc_dir), pop)
         return pop
 
     def scf_job(self, index):
