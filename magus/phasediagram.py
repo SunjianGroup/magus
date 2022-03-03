@@ -55,7 +55,7 @@ def get_all_basises(matrix, results):
     ranges = [np.arange(max(matrix[i]) + 1) for i in range(dim) for _ in range(dim)]
     for i in itertools.product(*ranges):
         M = np.array(i).reshape(dim, dim)
-        if matrix_rank(M) == dim and np.linalg.det(M) >= 1 and (M != np.eye(dim)).any():
+        if matrix_rank(M) == dim and abs(np.linalg.det(M)) >= 1 and np.sum(M) > dim:
             new = np.linalg.inv(M) @ matrix
             if (new >=0).all() and (np.abs(new - np.round(new)) < eps).all():
                 get_all_basises(np.round(new).astype(int), results)
