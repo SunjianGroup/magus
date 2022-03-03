@@ -146,11 +146,11 @@ class ClusterCalculator(Calculator, abc.ABC):
         pop = []
         for job in self.J.jobs:
             try:
-                a = ase.io.read("{}/optPop.traj".format(job['workDir']), 
-                                format='traj', index=':')
+                a = read("{}/optPop.traj".format(job['workDir']), format='traj', index=':')
                 pop.extend(a)
             except:
                 log.warning("ERROR in read results {}".format(job['workDir']))
+        write("{}/optPop.traj".format(self.calc_dir), a)
         return pop
 
     def scf_job(self, index):
