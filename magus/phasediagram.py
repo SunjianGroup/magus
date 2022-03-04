@@ -20,50 +20,64 @@ def check_units(frames, units):
     return True
 
 
-def get_basis(matrix):
-    """
-    get the simplest integer basis of a linear independent matrix using enumeration method
-    for example, the matrix [[5, 1, 3], [4, 2, 3]], 
-        basis [[1, 1, 1], [2, 0, 1]] is ok since:
-        [5, 1, 3] = [1, 1, 1] * 1 + [2, 0, 1] * 2
-        [4, 2, 3] = [1, 1, 1] * 2 + [2, 0, 1] * 1
-        but [[0, 2, 1], [2, 0, 1]] is wrong since:
-        [5, 1, 3] = [0, 2, 1] * 0.5 + [2, 0, 1] * 2.5 and the float in the decomposition matrix
-    """
-    dim = len(matrix)
-    eps = 1e-5
-    # max value of row i in the decomposition matrix is the max value of row i in the origin matrix
-    ranges = [np.arange(max(matrix[i]) + 1) for i in range(dim) for _ in range(dim)]
-    for i in itertools.product(*ranges):
-        M = np.array(i).reshape(dim, dim)
-        if matrix_rank(M) == dim and np.linalg.det(M) >= 1 and (M != np.eye(dim)).any():
-            new = np.linalg.inv(M) @ matrix
-            if (new >=0).all() and (np.abs(new - np.round(new)) < eps).all():
-                break
-    else:
-        return matrix
-    return get_basis(np.round(new).astype(int))
+# def get_basis(matrix):
+#     """
+#     get the simplest integer basis of a linear independent matrix using enumeration method
+#     for example, the matrix [[5, 1, 3], [4, 2, 3]], 
+#         basis [[1, 1, 1], [2, 0, 1]] is ok since:
+#         [5, 1, 3] = [1, 1, 1] * 1 + [2, 0, 1] * 2
+#         [4, 2, 3] = [1, 1, 1] * 2 + [2, 0, 1] * 1
+#         but [[0, 2, 1], [2, 0, 1]] is wrong since:
+#         [5, 1, 3] = [0, 2, 1] * 0.5 + [2, 0, 1] * 2.5 and the float in the decomposition matrix
+#     """
+#     dim = len(matrix)
+#     eps = 1e-5
+#     # max value of row i in the decomposition matrix is the max value of row i in the origin matrix
+#     ranges = [np.arange(max(matrix[i]) + 1) for i in range(dim) for _ in range(dim)]
+#     for i in itertools.product(*ranges):
+#         M = np.array(i).reshape(dim, dim)
+#         if matrix_rank(M) == dim and np.linalg.det(M) >= 1 and (M != np.eye(dim)).any():
+#             new = np.linalg.inv(M) @ matrix
+#             if (new >=0).all() and (np.abs(new - np.round(new)) < eps).all():
+#                 break
+#     else:
+#         return matrix
+#     return get_basis(np.round(new).astype(int))
 
 
-def get_all_basises(matrix, results):
-    simplest = True
-    if tuple(matrix.tolist()) in results:
-        return results
-    dim = len(matrix)
+# def get_all_basises(matrix, results, visited):
+#     if {tuple(v) for v in matrix} in visited:
+#         return results
+#     visited.append({tuple(v) for v in matrix})
+#     dim = len(matrix)
+#     eps = 1e-5
+#     simplest = True
+#     # max value of row i in the decomposition matrix is the max value of row i in the origin matrix
+#     ranges = [np.arange(max(matrix[i]) + 1) for i in range(dim) for _ in range(dim)]
+#     for i in itertools.product(*ranges):
+#         M = np.array(i).reshape(dim, dim)
+#         if matrix_rank(M) == dim:
+#             new = np.linalg.inv(M) @ matrix
+#             if np.sum(new) < np.sum(matrix) and (new >=0).all() and (np.abs(new - np.round(new)) < eps).all():
+#                 get_all_basises(np.round(new).astype(int), results, visited)
+#                 simplest = False
+#     if simplest:
+#         results.append(tuple(matrix.tolist()))
+#     return results
+
+
+def get_all_basises(matrix):
     eps = 1e-5
-    # max value of row i in the decomposition matrix is the max value of row i in the origin matrix
-    ranges = [np.arange(max(matrix[i]) + 1) for i in range(dim) for _ in range(dim)]
+    results = []
+    ranges = [np.arange(i + 1) for i in matrix.reshape(-1)]
     for i in itertools.product(*ranges):
-        M = np.array(i).reshape(dim, dim)
-        if matrix_rank(M) == dim and abs(np.linalg.det(M)) >= 1 and np.sum(M) > dim:
-            new = np.linalg.inv(M) @ matrix
-            if (new >=0).all() and (np.abs(new - np.round(new)) < eps).all():
-                get_all_basises(np.round(new).astype(int), results)
-                simplest = False
-    if simplest:
-        results.append(tuple(matrix.tolist()))
+        M = np.array(i).reshape(*matrix.shape)
+        if matrix_rank(M) < len(matrix):
+            continue
+        x = matrix @ np.linalg.pinv(M)
+        if (x >= -eps).all() and (np.abs(x - np.round(x)) < eps).all() and (np.abs(x @ M - matrix) < eps).all():
+            results.append(M)
     return results
-
 
 # TODO reduce the numlists first to decrease the number of enumeration
 def get_units(frames):
@@ -84,15 +98,14 @@ def get_units(frames):
         return units
     else:
         units_numlists = []
-        numlists = sorted(numlists, key=lambda x: max(x))
+        numlists = sorted(numlists, key=lambda x: np.prod(x + 1))
         for numlist in numlists:
             if matrix_rank([*units_numlists, numlist]) > matrix_rank(units_numlists):
                 units_numlists.append(numlist)
             if matrix_rank(units_numlists) == dim:
                 break
-        # units_numlists = get_basis(units_numlists)
         units_numlists = np.array(units_numlists)
-        candidate_basises = get_all_basises(units_numlists, [])
+        candidate_basises = get_all_basises(units_numlists)
         for basis in candidate_basises:
             units = []
             for f in basis:

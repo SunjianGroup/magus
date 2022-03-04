@@ -5,6 +5,9 @@ import abc
 
 
 class FitnessCalculator(abc.ABC):
+    def __init__(self, parameters) -> None:
+        pass
+
     @abc.abstractmethod
     def calc(self, Pop):
         pass
@@ -17,8 +20,12 @@ class EnthalpyFitness(FitnessCalculator):
 
 
 class EhullFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None:
+        super().__init__(parameters)
+        self.boundary = parameters['units']
+
     def calc(self, pop):
-        pd = PhaseDiagram(pop)
+        pd = PhaseDiagram(pop, self.boundary)
         for ind in pop:
             ehull = ind.info['enthalpy'] - pd.decompose(ind)
             if ehull < 1e-4:
@@ -90,18 +97,18 @@ class EoFitness(FitnessCalculator):
 
 
 fit_dict = {
-    'Enthalpy': EnthalpyFitness(),
-    'Ehull': EhullFitness(),
-    'Eo': EoFitness(),
+    'Enthalpy': EnthalpyFitness,
+    'Ehull': EhullFitness,
+    'Eo': EoFitness,
     }
 
 def get_fitness_calculator(p_dict):
     fitness_calculator = []
     if 'Fitness' in p_dict:
         for fitness in p_dict['Fitness']:
-            fitness_calculator.append(fit_dict[fitness])
+            fitness_calculator.append(fit_dict[fitness](p_dict))
     elif p_dict['formulaType'] == 'fix':
-        fitness_calculator.append(fit_dict['Enthalpy'])
+        fitness_calculator.append(fit_dict['Enthalpy'](p_dict))
     elif p_dict['formulaType'] == 'var':
-        fitness_calculator.append(fit_dict['Ehull'])
+        fitness_calculator.append(fit_dict['Ehull'](p_dict))
     return fitness_calculator
