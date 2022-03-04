@@ -43,7 +43,10 @@ def convert_glob(filenames):
 
 def get_frames(filenames):
     for filename in filenames:
-        frames = iread(filename, format='traj', index=':')
+        try:
+            frames = iread(filename, index=':')
+        except:
+            print('Fail to read {}'.format(filename))
         for atoms in frames:
             atoms.info['source'] = filename.split('.')[0]
             yield atoms
