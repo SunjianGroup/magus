@@ -32,6 +32,7 @@ class MTPCalculator(ClusterCalculator):
             'n_epoch': 200, 
             'ignore_weights': True,
             'job_prefix': 'MTP',
+            'n_fail': 0,
             }
         check_parameters(self, parameters, Requirement, Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.symbols)}
@@ -130,7 +131,7 @@ class MTPCalculator(ClusterCalculator):
         os.remove('out.cfg')
         os.chdir(nowpath)
         return result
-        
+
     def updatedataset(self, frames):
         dump_cfg(frames, '{}/train.cfg'.format(self.ml_dir), self.symbol_to_type, mode='a')
         self.static_need_update = True
@@ -156,7 +157,7 @@ class MTPCalculator(ClusterCalculator):
         exitcode = subprocess.call(exeCmd, shell=True)
         if exitcode != 0:
             raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
-            
+
     def relax_with_mtp(self):
         # must have: mlip.ini, to_relax.cfg, pot.mtp, A-state.als
         log.info('\tstep 02: do relax with mtp')
@@ -197,7 +198,8 @@ class MTPCalculator(ClusterCalculator):
         to_select = load_cfg("B-preselected.cfg", self.type_to_symbol)
         selected = self.select(to_select)
         dump_cfg(selected, "C-selected.cfg", self.symbol_to_type)
-        
+        return selected
+
     def get_train_set(self):
         currdir = os.getcwd()
         to_scf = load_cfg("C-selected.cfg", self.type_to_symbol)
@@ -246,9 +248,9 @@ class MTPCalculator(ClusterCalculator):
                 log.info('\thao ye, no bad frames')
                 break
             # 03: select bad cfg
-            self.select_bad_frames()
-            if os.path.getsize("C-selected.cfg") == 0:
-                log.info('\thao ye, no bad frames')
+            selected = self.select_bad_frames()
+            if len(selected) < self.n_fail:
+                log.info('\tselected frames less than threshold {}'.format(self.n_fail))
                 break
             # 04: DFT
             self.get_train_set()
