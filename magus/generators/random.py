@@ -252,7 +252,8 @@ class SPGGenerator:
 
     def get_lattice(self, numlist):
         _, max_volume = self.get_volume(numlist)
-        min_lattice = [2 * np.max(self.radius)] * 3 + [45.] * 3
+        radius = [r for i, r in enumerate(self.radius) if numlist[i] > 0]
+        min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
         max_lattice = [3 * max_volume ** (1/3)] * 3 + [135] * 3
         if self.min_lattice is not None:
             min_lattice = self.min_lattice
@@ -384,7 +385,8 @@ class MoleculeSPGGenerator(SPGGenerator):
     def get_lattice(self, numlist):
         min_lattice, max_lattice = super().get_lattice(numlist)
         if self.min_lattice is None:
-            min_lattice = [2 * np.max(self.mol_radius)] * 3 + [60.] * 3
+            mol_radius = [r for i, r in enumerate(self.mol_radius) if numlist[i] > 0]
+            min_lattice = [2 * np.max(mol_radius)] * 3 + [60.] * 3
         return min_lattice, max_lattice
 
     def get_generate_parm(self, spg, numlist):
