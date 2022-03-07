@@ -15,10 +15,10 @@ try:
     from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 except:
     pass
-from magus.utils import get_units_numlist, get_units_formula
+from magus.utils import get_units_formula
 
 
-pd.set_option('max_rows', 100)
+pd.set_option('max_rows', None)
 pd.set_option('expand_frame_repr', False)
 # pd.set_option('max_colwidth', 30)
 # pd.set_option('width', 120)
