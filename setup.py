@@ -62,11 +62,13 @@ setup(
         "prettytable",
     ],
     extras_require={
-        "torchml": ["torch>=1.0"],
-        "test": ["BeautifulReport"],
-        "soap": ["dscribe"],
+        "recommend": [
+            "BeautifulReport", 
+            "dscribe", 
+            "plotly==5.6.0"],
+        # "torchml": ["torch>=1.0"],
         },
-    #license="MIT",
+    license="MIT",
     description="Magus: Machine learning And Graph theory assisted Universal structure Searcher",
     long_description=long_description,
     long_description_content_type="text/markdown",

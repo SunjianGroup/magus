@@ -7,7 +7,11 @@ from scipy.spatial import ConvexHull
 from math import gcd
 from ase import Atoms
 from magus.utils import get_units_formula, get_units_numlist
-
+try:
+    import plotly.graph_objects as go
+    HAS_PLOTLY = True
+except:
+    HAS_PLOTLY = False
 
 log = logging.getLogger(__name__)
 
@@ -226,21 +230,39 @@ class PhaseDiagram:
             ax.plot(x[[i, j]], e[[i, j]], '#5b5da5', linewidth=2.5)
         ax.scatter(x[~hull], e[~hull], c='#902424', s=80, marker="x", zorder=90)
         ax.scatter(x[hull], e[hull], c='#699872', s=80, marker="o", zorder=100)
-        x = x[self.hull]
-        e = e[self.hull]
-        names = [name for name, h in zip(names, self.hull) if h]
-        for a, b, name in zip(x, e, names):
-            ax.text(a, b, name, ha='center', va='top', zorder=110)
+        for i in range(len(hull)):
+            if hull[i]:
+                ax.text(x[i], e[i], names[i], ha='center', va='top', zorder=110)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         # sometimes sick data like e=1000 may add to the pd, set ylim to avoid them
         bottom = min(min(e) * 1.2, -0.1)
         top = max(abs(bottom) * 0.3, 0.1)
         ax.set_ylim(bottom, top)
+        if HAS_PLOTLY:
+            fig = go.Figure()
+            # point not on the convex hull
+            fig.add_trace(
+                go.Scatter(x=x[~self.hull], y=e[~self.hull],
+                           mode='markers', marker_symbol='x', opacity=0.5, legendrank=800))
+            # point on the convex hull
+            fig.add_trace(
+                go.Scatter(x=x[self.hull], y=e[self.hull], text=names,
+                           mode='markers+text', marker_symbol='circle', legendrank=900))
+
+            for i, j in simplices:
+                fig.add_trace(
+                    go.Scatter(
+                        x=x[[i, j]],
+                        y=e[[i, j]],
+                        mode="lines",
+                        line=dict(color='darkblue', width=2))
+                )
+            fig.write_html('PhaseDiagram.html', auto_open=False)
         return (x, e, names, hull, simplices, xlabel, ylabel)
 
     def plot2d3(self, ax):
-        x, y = self.points[:, 1:-1].T.copy()
+        x, y = self.points[:, 1: -1].T.copy()
         x += y / 2
         y *= 3 ** 0.5 / 2
         names = [get_units_formula(atoms, self.boundary) for atoms in self.frames]
@@ -255,4 +277,79 @@ class PhaseDiagram:
         for i in range(len(hull)):
             if hull[i]:
                 ax.text(x[i], y[i], names[i], ha='center', va='top', zorder=110)
+        
+        if HAS_PLOTLY:
+            fig = go.Figure()
+            # point not on the convex hull
+            fig.add_trace(
+                go.Scatter(x=x[~self.hull], y=y[~self.hull],
+                           mode='markers', marker_symbol='x', opacity=0.5, legendrank=800))
+            # point on the convex hull
+            fig.add_trace(
+                go.Scatter(x=x[self.hull], y=y[self.hull], 
+                           text=[name for i, name in enumerate(names) if self.hull[i]],
+                           mode='markers+text', marker_symbol='circle', legendrank=900))
+
+            for i, j, k in simplices:
+                fig.add_trace(
+                    go.Scatter(
+                        x=x[[i, j, k, i]],
+                        y=y[[i, j, k, i]],
+                        mode="lines",
+                        line=dict(color='darkblue', width=2))
+                )
+            fig.update_layout(width=1000, height=866)
+            fig.write_html('PhaseDiagram.html', auto_open=False)
         return (x, y, names, hull, simplices)
+
+    def plot3d4(self, ax):
+        x, y, z = self.points[:, 1: -1].T
+        a = x / 2 + y + z / 2
+        b = 3**0.5 * (x / 2 + y / 6)
+        c = (2 / 3)**0.5 * z
+        names = [get_units_formula(atoms, self.boundary) for atoms in self.frames]
+
+        ax.scatter(a[self.hull], b[self.hull], c[self.hull],
+                   c='#699872', s=80, marker="o", zorder=100)
+        ax.scatter(a[~self.hull], b[~self.hull], c[~self.hull],
+                   c='#902424', s=80, marker="x", zorder=90, alpha=0.5)
+        for i in range(len(self.hull)):
+            if self.hull[i]:
+                ax.text(x[i], y[i], z[i], names[i], ha='center', va='top', zorder=110)
+
+        for i, j, k, w in self.simplices:
+            ax.plot(a[[i, j, k, i, w, k, j, w]],
+                    b[[i, j, k, i, w, k, j, w]],
+                    zs=c[[i, j, k, i, w, k, j, w]], c='b')
+
+        ax.set_xlim3d(0, 1)
+        ax.set_ylim3d(0, 1)
+        ax.set_zlim3d(0, 1)
+        ax.view_init(azim=115, elev=30)
+
+        if HAS_PLOTLY:
+            a = x + y / 2 + z / 2
+            b = 3**0.5 * (y / 2 + z / 6)
+            c = (2 / 3) ** 0.5 * z
+            fig = go.Figure()
+            # point not on the convex hull
+            fig.add_trace(
+                go.Scatter3d(x=a[~self.hull], y=b[~self.hull], z=c[~self.hull], 
+                             mode='markers', marker_symbol='x', opacity=0.5, legendrank=800))
+            # point on the convex hull
+            fig.add_trace(
+                go.Scatter3d(x=a[self.hull], y=b[self.hull], z=c[self.hull], 
+                             text=[name for i, name in enumerate(names) if self.hull[i]],
+                             mode='markers+text', marker_symbol='circle', legendrank=900))
+
+            for i, j, k, w in self.simplices:
+                fig.add_trace(
+                    go.Scatter3d(
+                        x=a[[i, j, k, i, w, k, j, w]],
+                        y=b[[i, j, k, i, w, k, j, w]],
+                        z=c[[i, j, k, i, w, k, j, w]],
+                        mode="lines",
+                        line=dict(color='darkblue', width=2))
+                )
+
+            fig.write_html('PhaseDiagram.html', auto_open=False)
