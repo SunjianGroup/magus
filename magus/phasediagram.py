@@ -119,7 +119,6 @@ def get_units(frames):
                     continue
                 x = units_numlists @ np.linalg.pinv(M)
                 if (x >= -eps).all() and (np.abs(x - np.round(x)) < eps).all() and (np.abs(x @ M - units_numlists) < eps).all():
-                    print(M)
                     units = [Atoms(symbols=[s for n, s in zip(f, symbols) for _ in range(n)]) 
                                 for f in M]
                     if check_units(frames, units):

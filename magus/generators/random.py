@@ -139,8 +139,10 @@ class SPGGenerator:
                    'max_n_try': 100, 
                    'dimension': 3,
                    'ele_size': 0,
-                   'min_lattice': None,
-                   'max_lattice': None,
+                   'min_lattice': [-1, -1, -1, -1, -1, -1],
+                   'max_lattice': [-1, -1, -1, -1, -1, -1],
+                   'min_volume': -1,
+                   'max_volume': -1,
                    'min_n_formula': None,
                    'max_n_formula': None,
                    'd_ratio': 1.,
@@ -243,27 +245,29 @@ class SPGGenerator:
         mean_volume = ball_volume * self.volume_ratio
         min_volume = 0.5 * mean_volume
         max_volume = 1.5 * mean_volume
-        if self.min_lattice is not None:
-            min_volume = np.linalg.det(cellpar_to_cell(self.min_lattice))
-        if self.max_lattice is not None:
-            max_volume = np.linalg.det(cellpar_to_cell(self.max_lattice))
+        if self.min_volume > 0:
+            min_volume = self.min_volume
+        if self.max_volume > 0:
+            max_volume = self.max_volume
         assert min_volume <= max_volume
         return min_volume, max_volume
 
-    def get_lattice(self, numlist):
-        _, max_volume = self.get_volume(numlist)
+    def get_min_lattice(self, numlist):
         radius = [r for i, r in enumerate(self.radius) if numlist[i] > 0]
         min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
+        min_lattice = [a if a > 0 else b for a, b in zip(min_lattice, self.min_lattice)]
+        return min_lattice
+
+    def get_max_lattice(self, numlist):
+        max_volume = self.get_volume(numlist)[1]
         max_lattice = [3 * max_volume ** (1/3)] * 3 + [135] * 3
-        if self.min_lattice is not None:
-            min_lattice = self.min_lattice
-        if self.max_lattice is not None:
-            max_lattice = self.max_lattice
-        return min_lattice, max_lattice
+        max_lattice = [a if a > 0 else b for a, b in zip(max_lattice, self.max_lattice)]
+        return max_lattice
 
     def get_generate_parm(self, spg, numlist):
         min_volume, max_volume = self.get_volume(numlist)
-        min_lattice, max_lattice = self.get_lattice(numlist)
+        min_lattice = self.get_min_lattice(numlist)
+        max_lattice = self.get_max_lattice(numlist)
         d = {
             'spg': spg,
             'threshold': self.d_ratio,
@@ -382,12 +386,11 @@ class MoleculeSPGGenerator(SPGGenerator):
         numlist_pool = self.formula_pool @ self.formula @ mol_num_matrix
         return numlist_pool
 
-    def get_lattice(self, numlist):
-        min_lattice, max_lattice = super().get_lattice(numlist)
-        if self.min_lattice is None:
-            mol_radius = [r for i, r in enumerate(self.mol_radius) if numlist[i] > 0]
-            min_lattice = [2 * np.max(mol_radius)] * 3 + [60.] * 3
-        return min_lattice, max_lattice
+    def get_min_lattice(self, numlist):
+        radius = [r for i, r in enumerate(self.mol_radius) if numlist[i] > 0]
+        min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
+        min_lattice = [a if a > 0 else b for a, b in zip(min_lattice, self.min_lattice)]
+        return min_lattice
 
     def get_generate_parm(self, spg, numlist):
         d = super().get_generate_parm(spg, numlist)
