@@ -117,13 +117,13 @@ class GAGenerator:
         op_choosed_num = [0] * len(self.op_list)
         op_success_num = [0] * len(self.op_list)
         # Ensure that the operator is selected at least once 
-        for i, op in enumerate(self.op_list):
-            op_choosed_num[i] += 1
-            cand = self.get_parents(pop, op.n_input)
-            newind = op.get_new_individual(cand)
-            if newind is not None:
-                op_success_num[i] += 1
-                newpop.append(newind)
+        # for i, op in enumerate(self.op_list):
+        #     op_choosed_num[i] += 1
+        #     cand = self.get_parents(pop, op.n_input)
+        #     newind = op.get_new_individual(cand)
+        #     if newind is not None:
+        #         op_success_num[i] += 1
+        #         newpop.append(newind)
         while len(newpop) < n:
             i = np.random.choice(len(self.op_list), p=self.op_prob)
             op_choosed_num[i] += 1
