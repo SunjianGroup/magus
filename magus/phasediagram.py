@@ -70,18 +70,18 @@ def check_units(frames, units):
 #     return results
 
 
-def get_all_basises(matrix):
-    eps = 1e-5
-    results = []
-    ranges = [np.arange(i + 1) for i in matrix.reshape(-1)]
-    for i in itertools.product(*ranges):
-        M = np.array(i).reshape(*matrix.shape)
-        if matrix_rank(M) < len(matrix):
-            continue
-        x = matrix @ np.linalg.pinv(M)
-        if (x >= -eps).all() and (np.abs(x - np.round(x)) < eps).all() and (np.abs(x @ M - matrix) < eps).all():
-            results.append(M)
-    return results
+def basis_iter(n, maxrange):
+    """
+    generate a list with the given summation
+    """
+    if len(maxrange) == 1:
+        if n <= maxrange[0]:
+            yield [n]
+    else:
+        for i in range(min(n, maxrange[0]) + 1):
+            for now in basis_iter(n - i, maxrange[1:]):
+                yield [i, ] + now
+
 
 # TODO reduce the numlists first to decrease the number of enumeration
 def get_units(frames):
@@ -109,13 +109,20 @@ def get_units(frames):
             if matrix_rank(units_numlists) == dim:
                 break
         units_numlists = np.array(units_numlists)
-        candidate_basises = get_all_basises(units_numlists)
-        for basis in candidate_basises:
-            units = []
-            for f in basis:
-                units.append(Atoms(symbols=[s for n, s in zip(f, symbols) for _ in range(n)]))
-            if check_units(frames, units):
-                return units
+        # check all possible basis
+        eps = 1e-5
+        ranges = [i for i in units_numlists.reshape(-1)]
+        for n in range(sum(ranges)):
+            for i in basis_iter(n, ranges):
+                M = np.array(i).reshape(*units_numlists.shape)
+                if matrix_rank(M) < len(units_numlists):
+                    continue
+                x = units_numlists @ np.linalg.pinv(M)
+                if (x >= -eps).all() and (np.abs(x - np.round(x)) < eps).all() and (np.abs(x @ M - units_numlists) < eps).all():
+                    units = [Atoms(symbols=[s for n, s in zip(f, symbols) for _ in range(n)]) 
+                                for f in M]
+                    if check_units(frames, units):
+                        return units
         else:
             return None
 
@@ -259,6 +266,7 @@ class PhaseDiagram:
                         line=dict(color='darkblue', width=2))
                 )
             fig.write_html('PhaseDiagram.html', auto_open=False)
+        np.savez('PhaseDiagram.npz', x=x, e=e, hull=self.hull, names=names, sim=self.simplices)
         return (x, e, names, hull, simplices, xlabel, ylabel)
 
     def plot2d3(self, ax):
@@ -300,6 +308,7 @@ class PhaseDiagram:
                 )
             fig.update_layout(width=1000, height=866)
             fig.write_html('PhaseDiagram.html', auto_open=False)
+        np.savez('PhaseDiagram.npz', x=x, y=y, hull=self.hull, names=names, sim=self.simplices)
         return (x, y, names, hull, simplices)
 
     def plot3d4(self, ax):
@@ -353,3 +362,4 @@ class PhaseDiagram:
                 )
 
             fig.write_html('PhaseDiagram.html', auto_open=False)
+        np.savez('PhaseDiagram.npz', x=a, y=b, z=c, hull=self.hull, names=names, sim=self.simplices)
