@@ -266,6 +266,7 @@ class PhaseDiagram:
                         line=dict(color='darkblue', width=2))
                 )
             fig.write_html('PhaseDiagram.html', auto_open=False)
+        np.savez('PhaseDiagram.npz', x=x, e=e, hull=self.hull, names=names, sim=self.simplices)
         return (x, e, names, hull, simplices, xlabel, ylabel)
 
     def plot2d3(self, ax):
@@ -307,6 +308,7 @@ class PhaseDiagram:
                 )
             fig.update_layout(width=1000, height=866)
             fig.write_html('PhaseDiagram.html', auto_open=False)
+        np.savez('PhaseDiagram.npz', x=x, y=y, hull=self.hull, names=names, sim=self.simplices)
         return (x, y, names, hull, simplices)
 
     def plot3d4(self, ax):
@@ -360,3 +362,4 @@ class PhaseDiagram:
                 )
 
             fig.write_html('PhaseDiagram.html', auto_open=False)
+        np.savez('PhaseDiagram.npz', x=a, y=b, z=c, hull=self.hull, names=names, sim=self.simplices)
