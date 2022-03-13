@@ -224,12 +224,7 @@ class SPGGenerator:
         numlist_pool = self.formula_pool @ self.formula
         return numlist_pool
 
-    def get_numlist(self, format_filter=None):
-        if format_filter is not None:
-            formula_pool = list(filter(lambda f: np.all(np.clip(f, 0, 1) == format_filter), 
-                                    self.formula_pool))
-        else:
-            formula_pool = self.formula_pool
+    def get_numlist(self, formula_pool):
         return np.array(self.formula).T @ formula_pool[np.random.randint(len(formula_pool))]
 
     def get_n_symbols(self, numlist):
@@ -301,13 +296,18 @@ class SPGGenerator:
         else:
             return label, None
 
-    def generate_pop(self, n_pop, *args, **kwargs):
+    def generate_pop(self, n_pop, format_filter=None, *args, **kwargs):
+        if format_filter is not None:
+            formula_pool = list(filter(lambda f: np.all(np.clip(f, 0, 1) == format_filter), 
+                                    self.formula_pool))
+        else:
+            formula_pool = self.formula_pool
         build_pop = []
         while n_pop > len(build_pop):
             for _ in range(self.max_n_try):
                 spg = np.random.choice(self.spacegroup)
                 n_split = np.random.choice(self.n_split)
-                numlist = self.get_numlist(*args, **kwargs)
+                numlist = self.get_numlist(formula_pool)
                 label, atoms = self.generate_ind(spg, numlist, n_split)
                 if label:
                     self.afterprocessing(atoms)
@@ -315,7 +315,7 @@ class SPGGenerator:
                     break
             else:
                 n_split = np.random.choice(self.n_split)
-                numlist = self.get_numlist(*args, **kwargs)
+                numlist = self.get_numlist(formula_pool)
                 label, atoms = self.generate_ind(1, numlist, n_split)
                 if label:
                     self.afterprocessing(atoms, *args, **kwargs)
