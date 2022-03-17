@@ -146,6 +146,13 @@ def parse_args():
         help="bian zu fen",
     )
     parser_sum.add_argument(
+        "-b",
+        "--boundary",
+        nargs="+",
+        default=[],
+        help="bian zu fen boundary",
+    )
+    parser_sum.add_argument(
         "-t",
         "--atoms-type",
         choices=["bulk", "cluster"],
@@ -191,7 +198,7 @@ def parse_args():
     )
     # calculate
     parser_calc = subparsers.add_parser(
-        "calc",
+        "calculate",
         parents=[parser_log],
         help="calculate many structures",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -216,6 +223,13 @@ def parse_args():
         help="the input parameter file in yaml format"
     )
     parser_calc.add_argument(
+        "-o",
+        "--output-file",
+        type=str,
+        default="out.traj",
+        help="output traj file"
+    )
+    parser_calc.add_argument(
         "-p",
         "--pressure",
         type=int, 
@@ -224,7 +238,7 @@ def parse_args():
     )
     # generate
     parser_gen = subparsers.add_parser(
-        "gen",
+        "generate",
         parents=[parser_log],
         help="generate many structures",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -349,7 +363,7 @@ def parse_args():
 def main():
     args = parse_args()
     dict_args = vars(args)
-    if args.command in ['search', 'calc', 'gen']:
+    if args.command in ['search', 'calculate', 'generate']:
         set_logger(level=dict_args['log_level'], log_path=dict_args['log_path'])
         log = logging.getLogger(__name__)
         log.info(__picture__)

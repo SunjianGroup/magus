@@ -78,6 +78,7 @@ class BSUBSystemManager(BaseJobManager):
         job['subtime'] = datetime.datetime.now()
         job['name'] = name
         self.jobs.append(job)
+        return job
 
     def check_jobs(self):
         log.debug("Checking jobs...")
@@ -106,8 +107,7 @@ class BSUBSystemManager(BaseJobManager):
                 stat = stat.decode().split('\n')[0]
                 time.sleep(1)
             except:
-                s = sys.exc_info()
-                log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                log.warning("Check Job {} Error".format(job['id']))
                 stat = ''
             # log.debug(job['id'], stat)
             if stat == 'DONE' or stat == '':
@@ -166,6 +166,7 @@ class SLURMSystemManager(BaseJobManager):
         self.jobs.append(job)
         # wait a moment so that we can find the job which is just submitted
         time.sleep(3)
+        return job
 
     def check_jobs(self):
         log.debug("Checking jobs...")

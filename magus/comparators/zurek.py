@@ -345,9 +345,18 @@ class ZurekComparator:
 
 @COMPARATOR_PLUGIN.register('ase-zurek')
 class ASEComparator:
-    def __init__(self, angle_tol=3.0, ltol=0.05, stol=0.05, vol_tol=0.05, to_primitive=True, **kwargs):
+    def __init__(self, angle_tol=3.0, ltol=0.05, stol=0.05, vol_tol=0.05, symprec=0.1, to_primitive=True, **kwargs):
         self.comparator = SymmetryEquivalenceCheck(
-            angle_tol=angle_tol, ltol=ltol, stol=stol, vol_tol=vol_tol, to_primitive=to_primitive)
+            angle_tol=angle_tol, ltol=ltol, stol=stol, vol_tol=vol_tol, to_primitive=False)
+        self.symprec = symprec
+        self.to_primitive = to_primitive
 
     def looks_like(self, ind1, ind2):
-        return self.comparator.compare(ind1, ind2)
+        ind1_, ind2_ = ind1.copy(), ind2.copy()
+        # we cannot control symprec in ase, so we convert atoms here
+        if self.to_primitive:
+            lattice, scaled_positions, numbers = spglib.find_primitive(ind1_, symprec=self.symprec)
+            ind1_ = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=ind1.pbc)
+            lattice, scaled_positions, numbers = spglib.find_primitive(ind2_, symprec=self.symprec)
+            ind2_ = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=ind2.pbc)
+        return self.comparator.compare(ind1_, ind2_)

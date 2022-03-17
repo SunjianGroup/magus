@@ -29,7 +29,7 @@ def check_new_atom(atoms, np, symbol, distance_dict):
         return True
 
 # TODO weighten
-def to_target_formula(atoms, target_formula, distance_dict, max_n_try=100): 
+def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10): 
     symbols = atoms.get_chemical_symbols()
     toadd, toremove = {}, {}
     for s in target_formula:
@@ -57,7 +57,7 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=100):
         toremove[del_symbol] -= 1
         if toremove[del_symbol] == 0:
             toremove.pop(del_symbol)
-
+    
     while toadd:
         add_symbol = np.random.choice(list(toadd.keys()))
         for _ in range(max_n_try):
@@ -88,10 +88,9 @@ class Individual(Atoms):
         cls.all_parameters = parameters
         Requirement = ['symbol_numlist_pool', 'symprec', 'fp_calc', 'comparator']
         Default={
-            'n_repair_try': 3, 
+            'n_repair_try': 5, 
             'max_attempts': 50,
-            'add_symmetry': False, 
-            'check_seed': True,
+            'check_seed': False,
             'min_lattice': [0., 0., 0., 45., 45., 45.],
             'max_lattice': [99, 99, 99, 135, 135, 135],
             'd_ratio': 1.,
@@ -99,6 +98,7 @@ class Individual(Atoms):
             'radius': None,
             'max_forces': 50.,
             'max_enthalpy': 100.,
+            'full_ele': True,
             }
         check_parameters(cls, parameters, Requirement, Default)
         cls.fp_calc = get_fingerprint(parameters)
@@ -115,6 +115,8 @@ class Individual(Atoms):
             self.check_list = []
         else:
             self.check_list = ['check_cell', 'check_distance', 'check_formula', 'check_forces', 'check_enthalpy']
+            if self.full_ele:
+                self.check_list.append('check_full')
         self.info['fitness'] = {}
         self.info['used'] = 0     # time used in heredity
 
@@ -155,13 +157,15 @@ class Individual(Atoms):
             self.info['priVol'] = self.get_volume()
 
     def add_symmetry(self):
-        std_atoms = spglib.standardize_cell(self, symprec=self.symprec)
-        if std_atoms:
-            cell, positions, numbers = std_atoms
-            self.set_cell(cell)
-            self.set_scaled_positions(positions)
-            self.set_atomic_numbers(numbers)
-            return True
+        std_para = spglib.standardize_cell(self, symprec=self.symprec)
+        if std_para:
+            std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2])
+            if len(self) % len(std_atoms) == 0:
+                std_atoms = multiply_cell(std_atoms, len(self) // len(std_atoms))
+                self.set_cell(std_atoms.cell)
+                self.set_scaled_positions(std_atoms.get_scaled_positions())
+                self.set_atomic_numbers(std_atoms.numbers)
+                return True
         return False
 
     @property
@@ -224,6 +228,10 @@ class Individual(Atoms):
         else:
             return False
 
+    def check_full(self, atoms=None):
+        atoms = atoms or self
+        return 0 not in self.numlist
+
     def sort(self):
         atoms = self[self.numbers.argsort()]
         self.__init__(atoms)
@@ -252,7 +260,7 @@ class Individual(Atoms):
             log.debug("Empty crystal after merging!")
             return False
         for target_formula in self.get_target_formula():
-            rep_atoms = to_target_formula(self, target_formula, self.distance_dict)
+            rep_atoms = to_target_formula(self, target_formula, self.distance_dict, self.n_repair_try)
             if len(rep_atoms) > 0:
                 self.__init__(rep_atoms)
                 self.sort()

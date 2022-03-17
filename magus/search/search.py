@@ -53,6 +53,7 @@ class Magus:
     def read_seeds(self):
         log.info("Reading Seeds ...")
         seed_frames = read_seeds('{}/POSCARS_{}'.format(self.seed_dir, self.curgen))
+        seed_frames.extend(read_seeds('{}/seeds_{}.traj'.format(self.seed_dir, self.curgen)))
         seed_pop = self.Population(seed_frames, 'seed', self.curgen)
         return seed_pop
 
@@ -62,10 +63,10 @@ class Magus:
             init_pop = self.Population([], 'initpop', self.curgen)
         else:
             init_pop = self.pop_generator.get_next_pop(self.cur_pop + self.keep_pop)
+        init_pop.fill_up_with_random()
         ## read seeds
         seed_pop = self.read_seeds()
         init_pop.extend(seed_pop)
-        init_pop.fill_up_with_random()
         # check and log
         init_pop.check()
         log.info("Generate new initial population with {} individuals:".format(len(init_pop)))

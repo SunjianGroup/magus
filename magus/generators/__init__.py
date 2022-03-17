@@ -1,7 +1,8 @@
 from .random import SPGGenerator, MoleculeSPGGenerator
-from .ga import GAGenerator
+from .ga import GAGenerator, AutoOPRatio
 from ..operations import op_dict, get_default_op
 import logging
+import numpy as np
 
 
 log = logging.getLogger(__name__)
@@ -18,12 +19,19 @@ def get_ga_generator(p_dict):
     operators = get_default_op(p_dict)
     if 'OffspringCreator' in p_dict:
         operators.update(p_dict['OffspringCreator'])
-    num = 3 * int((1 - p_dict['randFrac']) * p_dict['popSize'] / len(operators)) + 1
-    op_nums, op_list = [], []
+    op_list, op_prob = [], []
     for op_name, para in operators.items():
         assert op_name in op_dict, '{} not in op_dict'.format(op_name)
         op_list.append(op_dict[op_name](**para))
-        if 'num' not in para:
-            para['num'] = num
-        op_nums.append(para['num'])
-    return GAGenerator(op_nums, op_list, **p_dict)
+        if 'prob' not in para:
+            para['prob'] = -1.
+        op_prob.append(para['prob'])
+    op_prob = np.array(op_prob)
+    sum_prob = np.sum(op_prob[op_prob > 0])
+    assert sum_prob <= 1, "Please cheak probability settings"
+    if len(op_prob[op_prob < 0]) > 0:
+        op_prob[op_prob < 0] = (1 - sum_prob) / len(op_prob[op_prob < 0])
+    if p_dict['autoOpRatio']:
+        return AutoOPRatio(op_list, op_prob, **p_dict)
+    else:
+        return GAGenerator(op_list, op_prob, **p_dict)

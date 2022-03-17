@@ -1,4 +1,5 @@
 import os, re
+from pathlib import Path
 from ase.atoms import default
 from math import gcd
 from functools import reduce
@@ -8,36 +9,60 @@ from ase.io import iread, write
 from ase import Atoms
 import numpy as np
 import spglib as spg
-from magus.utils import MagusPhaseDiagram
+from magus.phasediagram import PhaseDiagram, get_units
 try:
     from pymatgen import Molecule
     from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 except:
     pass
-from magus.utils import get_units_numlist, get_units_formula
+from magus.utils import get_units_formula
 
 
-pd.options.display.max_rows = 100
+pd.set_option('max_rows', None)
+pd.set_option('expand_frame_repr', False)
+# pd.set_option('max_colwidth', 30)
+# pd.set_option('width', 120)
+        
+
+def expand_path(path_pattern):
+    p = Path(path_pattern).expanduser()
+    parts = p.parts[p.is_absolute():]
+    return Path(p.root).glob(str(Path(*parts)))
+
+
+def convert_glob(filenames):
+    """
+    to support path including asterisk wildcard such as */results/good.traj or **/good.traj
+    """
+    p = Path('.')
+    consider_glob = []
+    for f in filenames:
+        consider_glob.extend(map(str, expand_path(f)))
+    return consider_glob
 
 
 def get_frames(filenames):
     for filename in filenames:
-        frames = iread(filename, format='traj', index=':')
+        try:
+            frames = iread(filename, index=':')
+        except:
+            print('Fail to read {}'.format(filename))
         for atoms in frames:
             atoms.info['source'] = filename.split('.')[0]
             yield atoms
 
 
 class Summary:
-    show_features = ['symmetry', 'enthalpy', 'formula', 'priSym']
+    show_features = ['symmetry', 'enthalpy', 'formula', 'priFormula']
 
-    def __init__(self, prec=0.1, remove_features=[], add_features=[], formula_type='fix'):
+    def __init__(self, prec=0.1, remove_features=[], add_features=[], formula_type='fix', boundary=[]):
         self.formula_type = formula_type
         if self.formula_type == 'fix':
             self.default_sort = 'enthalpy'
         elif self.formula_type == 'var':
             self.default_sort = 'ehull'
             self.show_features.append('ehull')
+            self.boundary = [Atoms(formula) for formula in boundary]
 
         show_features = [feature for feature in self.show_features if feature not in remove_features]
         show_features.extend(add_features)
@@ -50,10 +75,20 @@ class Summary:
         atoms.info['angles'] = atoms.info['cellpar'][3:]
         atoms.info['volume'] = round(atoms.get_volume(), 3)
         atoms.info['fullSym'] = atoms.get_chemical_formula()
-        atoms.info['formula'] = get_units_formula(atoms, atoms.info['units'])
-
+        if self.formula_type == 'var':
+            ehull = atoms.info['enthalpy'] - self.phase_diagram.decompose(atoms)
+            atoms.info['ehull'] = 0 if ehull < 1e-3 else ehull
+        if 'units' not in atoms.info:
+            atoms.info['units'] = [Atoms(s) for s in list(set(atoms.get_chemical_symbols()))]
+        if hasattr(self, 'units'):
+            atoms.info['formula'] = get_units_formula(atoms, self.units)
+        else:
+            atoms.info['formula'] = get_units_formula(atoms, atoms.info['units'])
+        
     def summary(self, filenames, show_number=20, need_sorted=True, sorted_by='Default', reverse=True, save=False, outdir=None):
+        filenames = convert_glob(filenames)
         self.prepare_data(filenames)
+        show_number = min(len(self.all_frames), show_number)
         self.show_features_table(show_number, reverse, need_sorted, sorted_by)
         if save:
             self.save_atoms(show_number, outdir)
@@ -65,8 +100,17 @@ class Summary:
         if len(filenames) > 1 and 'source' not in self.show_features:
             self.show_features.append('source')
         for atoms in get_frames(filenames):
-            self.set_features(atoms)
             self.all_frames.append(atoms)
+        if self.formula_type == 'var':
+            # for var, we may need recalculate units and ehulls
+            if len(self.boundary) == 0:
+                self.units = get_units(self.all_frames)
+                assert self.units is not None, "Fail to find units, please assign units by '-u'"
+            else:
+                self.units = self.boundary
+            self.phase_diagram = self.get_phase_diagram()
+        for atoms in get_frames(filenames):
+            self.set_features(atoms)
             self.rows.append([atoms.info[feature] if feature in atoms.info.keys() else None
                                                   for feature in self.show_features])
 
@@ -90,37 +134,16 @@ class Summary:
             posname = os.path.join(outdir, "POSCAR_{}.vasp".format(i + 1))
             write(posname, self.all_frames[i], direct = True, vasp5 = True)
 
+    def get_phase_diagram(self):
+        pd = PhaseDiagram(self.all_frames, boundary=self.units)
+        for unit in self.units:
+            a = unit.copy()
+            a.info['enthalpy'] = 1000
+            pd.append(a)
+        return pd
+
     def plot_phase_diagram(self):
-        def get_reduce_formula(atoms):
-            numlist = np.array(get_units_numlist(atoms, units))
-            numlist = numlist / reduce(gcd, numlist)
-            return tuple(numlist.astype(int))
-        # Make sure there are values at the vertices, may raise wrong results
-        units = self.all_frames[0].info['units']
-        for u in units:
-            u.info['enthalpy'] = 100 / len(u)
-        refs_dict = {get_reduce_formula(u): u for u in units}
-        # remove the same formula, only remain the lower enthalpy ones for 2d3
-        for atoms in self.all_frames:
-            name = get_reduce_formula(atoms)
-            if name not in refs_dict:
-                refs_dict[name] = atoms
-            if atoms.info['enthalpy'] < refs_dict[name].info['enthalpy']:
-                refs_dict[name] = atoms
-        refs = []
-        # plot all for 2 units
-        to_plot = refs_dict.values() if len(units) > 2 else self.all_frames
-        for atoms in to_plot:
-            units_numlist = get_units_numlist(atoms, units)
-            # int(n) is necessary, or else will raise ValueError in ase
-            f = lambda u: u.get_chemical_formula() if len(u) == 1 else '({})'.format(u.get_chemical_formula())
-            name = {f(u): int(n) for u, n in zip(units, units_numlist)}
-            base_enthalpy = sum([refs_dict[get_reduce_formula(u)].info['enthalpy'] * len(u) * n 
-                                 for u, n in zip(units, units_numlist)])
-            enthalpy = atoms.info['enthalpy'] * len(atoms) - base_enthalpy
-            enthalpy = enthalpy / len(atoms) * sum(units_numlist)
-            refs.append((name, enthalpy))
-        ax = MagusPhaseDiagram(refs, verbose=False).plot()
+        ax = self.phase_diagram.plot()
         plt.savefig('PhaseDiagram.png')
 
 
@@ -130,14 +153,23 @@ class BulkSummary(Summary):
         atoms.info['symmetry'] = spg.get_spacegroup(atoms, self.prec)
         # sometimes spglib cannot find primitive cell.
         try:
-            lattice, scaled_positions, numbers = spg.find_primitive(atoms, self.prec)
+            lattice, scaled_positions, numbers = spg.find_primitive(atoms, symprec=self.prec)
             pri_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
+            lattice, scaled_positions, numbers = spg.standardize_cell(atoms, symprec=self.prec)
+            std_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
         except:
             # if fail to find prim, set prim to raw
             print("Fail to find primitive for structure")
             pri_atoms = atoms
+            std_atoms = atoms
         finally:
-            atoms.info['priSym'] = pri_atoms.get_chemical_formula()
+            atoms.info['priFormula'] = pri_atoms.get_chemical_formula()
+            if hasattr(self, 'units'):
+                atoms.info['priFormula'] = get_units_formula(pri_atoms, self.units)
+                atoms.info['stdFormula'] = get_units_formula(std_atoms, self.units)
+            else:
+                atoms.info['priFormula'] = get_units_formula(pri_atoms, atoms.info['units'])
+                atoms.info['stdFormula'] = get_units_formula(std_atoms, atoms.info['units'])
 
 
 class ClusterSummary(Summary):
@@ -148,7 +180,7 @@ class ClusterSummary(Summary):
         atoms.info['symmetry'] = PointGroupAnalyzer(molecule, self.prec).sch_symbol
 
 def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[], 
-            need_sorted=True, sorted_by='Defalut', reverse=False,
+            need_sorted=True, sorted_by='Defalut', reverse=False, boundary=[],
             show_number=20, save=False, outdir='.', var=False, atoms_type='bulk',
             **kwargs):
     formula_type = 'var' if var else 'fix'
@@ -158,5 +190,5 @@ def summary(*args, filenames=[], prec=0.1, remove_features=[], add_features=[],
         }
     s = summary_dict[atoms_type](prec=prec, 
                                  remove_features=remove_features, add_features=add_features, 
-                                 formula_type=formula_type)
+                                 formula_type=formula_type, boundary=boundary)
     s.summary(filenames, show_number, need_sorted, sorted_by, reverse, save, outdir)

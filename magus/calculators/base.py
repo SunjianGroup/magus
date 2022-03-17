@@ -146,11 +146,11 @@ class ClusterCalculator(Calculator, abc.ABC):
         pop = []
         for job in self.J.jobs:
             try:
-                a = ase.io.read("{}/optPop.traj".format(job['workDir']), 
-                                format='traj', index=':')
+                a = read("{}/optPop.traj".format(job['workDir']), format='traj', index=':')
                 pop.extend(a)
             except:
                 log.warning("ERROR in read results {}".format(job['workDir']))
+        write("{}/optPop.traj".format(self.calc_dir), pop)
         return pop
 
     def scf_job(self, index):
@@ -187,8 +187,10 @@ class ASECalculator(Calculator):
             }
         check_parameters(self, parameters, Requirement, Default)
         self.optimizer = self.optimizer_dict[self.optimizer]
+        self.main_info.extend(['eps', 'max_step', 'optimizer', 'max_move', 'relax_lattice'])
 
     def relax_(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
+        log.debug('Using Calculator:\n{}log_path:{}\ntraj_path:{}\n'.format(self, logfile, trajname))
         os.chdir(self.calc_dir)
         new_frames = []
         error_frames = []
@@ -202,6 +204,7 @@ class ASECalculator(Calculator):
             try:
                 label = gopt.run(fmax=self.eps, steps=self.max_step)
                 traj = read(trajname, ':')
+                log.debug('{} relax steps: {}'.format(self.__class__.__name__, len(traj)))
             except Converged:
                 pass
             except TimeoutError:

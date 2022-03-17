@@ -21,7 +21,7 @@ examples/*/*
 !examples/*/summary.py
 mypps/
 run_vasp.py
-tools/csp*
+tools
 # tex info
 /doc/*
 !/doc/pic

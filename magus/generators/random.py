@@ -12,17 +12,6 @@ from magus.generators import GenerateNew
 log = logging.getLogger(__name__)
 
 
-def find_factor(num):
-    i = 2
-    while i < np.sqrt(num):
-        if num % i == 0:
-            break
-        i += 1
-    if num % i > 0:
-        i = num
-    return i
-
-
 def get_swap_matrix():
     M = np.array([
         [[1,0,0],[0,1,0],[0,0,1]],
@@ -148,18 +137,22 @@ class SPGGenerator:
                    'n_split': [1],
                    'max_n_try': 100, 
                    'dimension': 3,
-                   'full_eles': True, 
-                   'ele_size': 1,
-                   'min_lattice': None,
-                   'max_lattice': None,
+                   'ele_size': 0,
+                   'min_lattice': [-1, -1, -1, -1, -1, -1],
+                   'max_lattice': [-1, -1, -1, -1, -1, -1],
+                   'min_volume': -1,
+                   'max_volume': -1,
                    'min_n_formula': None,
                    'max_n_formula': None,
                    'd_ratio': 1.,
                    'distance_matrix': None,
                    'spacegroup': np.arange(2, 231),
                    'max_ratio': 1000,    # max ratio in var search, for 10, Zn11(OH) is not allowed
+                   'full_ele': True,     # only generate structures with full elements
                    }
         check_parameters(self, parameters, Requirement, Default)
+        if self.ele_size > 0:
+            assert not self.full_ele, 'fullEle setting is conflict with eleSize'
         if 'radius' in parameters:
             self.radius = parameters['radius']
         else:
@@ -196,6 +189,8 @@ class SPGGenerator:
         if self.min_n_formula is not None:
             assert len(self.min_n_formula) == len(self.formula)
             min_n_formula = np.maximum(min_n_formula, self.min_n_formula)
+        if self.full_ele:
+            min_n_formula = np.maximum(min_n_formula, 1)
         if self.max_n_formula is not None:
             assert len(self.max_n_formula) == len(self.formula)
             max_n_formula = np.minimum(max_n_formula, self.max_n_formula)
@@ -228,12 +223,7 @@ class SPGGenerator:
         numlist_pool = self.formula_pool @ self.formula
         return numlist_pool
 
-    def get_numlist(self, format_filter=None):
-        if format_filter is not None:
-            formula_pool = list(filter(lambda f: np.all(np.clip(f, 0, 1) == format_filter), 
-                                    self.formula_pool))
-        else:
-            formula_pool = self.formula_pool
+    def get_numlist(self, formula_pool):
         return np.array(self.formula).T @ formula_pool[np.random.randint(len(formula_pool))]
 
     def get_n_symbols(self, numlist):
@@ -249,26 +239,29 @@ class SPGGenerator:
         mean_volume = ball_volume * self.volume_ratio
         min_volume = 0.5 * mean_volume
         max_volume = 1.5 * mean_volume
-        if self.min_lattice is not None:
-            min_volume = np.linalg.det(cellpar_to_cell(self.min_lattice))
-        if self.max_lattice is not None:
-            max_volume = np.linalg.det(cellpar_to_cell(self.max_lattice))
+        if self.min_volume > 0:
+            min_volume = self.min_volume
+        if self.max_volume > 0:
+            max_volume = self.max_volume
         assert min_volume <= max_volume
         return min_volume, max_volume
 
-    def get_lattice(self, numlist):
-        _, max_volume = self.get_volume(numlist)
-        min_lattice = [2 * np.max(self.radius)] * 3 + [45.] * 3
+    def get_min_lattice(self, numlist):
+        radius = [r for i, r in enumerate(self.radius) if numlist[i] > 0]
+        min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
+        min_lattice = [a if a > 0 else b for a, b in zip(min_lattice, self.min_lattice)]
+        return min_lattice
+
+    def get_max_lattice(self, numlist):
+        max_volume = self.get_volume(numlist)[1]
         max_lattice = [3 * max_volume ** (1/3)] * 3 + [135] * 3
-        if self.min_lattice is not None:
-            min_lattice = self.min_lattice
-        if self.max_lattice is not None:
-            max_lattice = self.max_lattice
-        return min_lattice, max_lattice
+        max_lattice = [a if a > 0 else b for a, b in zip(max_lattice, self.max_lattice)]
+        return max_lattice
 
     def get_generate_parm(self, spg, numlist):
         min_volume, max_volume = self.get_volume(numlist)
-        min_lattice, max_lattice = self.get_lattice(numlist)
+        min_lattice = self.get_min_lattice(numlist)
+        max_lattice = self.get_max_lattice(numlist)
         d = {
             'spg': spg,
             'threshold': self.d_ratio,
@@ -290,13 +283,7 @@ class SPGGenerator:
         residual = {s: n_symbols[s] - n_symbols_[s] for s in self.symbols}
         label, atoms = spg_generate(**self.get_generate_parm(spg, numlist_))
         if label:
-            while n_split > 1:
-                i = find_factor(n_split)
-                to_expand = np.argmin(atoms.cell.cellpar()[:3])
-                expand_matrix = [1, 1, 1]
-                expand_matrix[to_expand] = i
-                atoms = atoms * expand_matrix
-                n_split /= i
+            atoms = multiply_cell(atoms, n_split)
             for i, symbol in enumerate(residual):
                 while residual[symbol] > 0:
                     candidate = [i for i, atom in enumerate(atoms) if atom.symbol == symbol]
@@ -308,13 +295,18 @@ class SPGGenerator:
         else:
             return label, None
 
-    def generate_pop(self, n_pop, *args, **kwargs):
+    def generate_pop(self, n_pop, format_filter=None, *args, **kwargs):
+        if format_filter is not None:
+            formula_pool = list(filter(lambda f: np.all(np.clip(f, 0, 1) == format_filter), 
+                                    self.formula_pool))
+        else:
+            formula_pool = self.formula_pool
         build_pop = []
         while n_pop > len(build_pop):
             for _ in range(self.max_n_try):
                 spg = np.random.choice(self.spacegroup)
                 n_split = np.random.choice(self.n_split)
-                numlist = self.get_numlist(*args, **kwargs)
+                numlist = self.get_numlist(formula_pool)
                 label, atoms = self.generate_ind(spg, numlist, n_split)
                 if label:
                     self.afterprocessing(atoms)
@@ -322,7 +314,7 @@ class SPGGenerator:
                     break
             else:
                 n_split = np.random.choice(self.n_split)
-                numlist = self.get_numlist(*args, **kwargs)
+                numlist = self.get_numlist(formula_pool)
                 label, atoms = self.generate_ind(1, numlist, n_split)
                 if label:
                     self.afterprocessing(atoms, *args, **kwargs)
@@ -373,6 +365,8 @@ class MoleculeSPGGenerator(SPGGenerator):
         if self.min_n_formula is not None:
             assert len(self.min_n_formula) == len(self.formula)
             min_n_formula = np.maximum(min_n_formula, self.min_n_formula)
+        if self.full_ele:
+            min_n_formula = np.maximum(min_n_formula, 1) 
         if self.max_n_formula is not None:
             assert len(self.max_n_formula) == len(self.formula)
             max_n_formula = np.minimum(max_n_formula, self.max_n_formula)
@@ -391,11 +385,11 @@ class MoleculeSPGGenerator(SPGGenerator):
         numlist_pool = self.formula_pool @ self.formula @ mol_num_matrix
         return numlist_pool
 
-    def get_lattice(self, numlist):
-        min_lattice, max_lattice = super().get_lattice(numlist)
-        if self.min_lattice is None:
-            min_lattice = [2 * np.max(self.mol_radius)] * 3 + [60.] * 3
-        return min_lattice, max_lattice
+    def get_min_lattice(self, numlist):
+        radius = [r for i, r in enumerate(self.mol_radius) if numlist[i] > 0]
+        min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
+        min_lattice = [a if a > 0 else b for a, b in zip(min_lattice, self.min_lattice)]
+        return min_lattice
 
     def get_generate_parm(self, spg, numlist):
         d = super().get_generate_parm(spg, numlist)

@@ -1,10 +1,13 @@
 import numpy as np
-from magus.utils import MagusPhaseDiagram
+from magus.phasediagram import PhaseDiagram
 import abc
 from .reconstruct import RCSPhaseDiagram
 
 
 class FitnessCalculator(abc.ABC):
+    def __init__(self, parameters) -> None:
+        pass
+
     @abc.abstractmethod
     def calc(self, Pop):
         pass
@@ -17,18 +20,14 @@ class EnthalpyFitness(FitnessCalculator):
 
 
 class EhullFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None:
+        super().__init__(parameters)
+        self.boundary = parameters['units']
+
     def calc(self, pop):
-        name = [ind.get_chemical_formula() for ind in pop]
-        enth = [ind.info['enthalpy'] * len(ind) for ind in pop]
-        refs = list(zip(name, enth))
-        symbols = pop.symbols
-        # To make sure that the phase diagram can be constructed, we add elements with high energies.
-        for sym in symbols:
-            refs.append((sym, 100))
-        pd = MagusPhaseDiagram(refs, verbose=False)
+        pd = PhaseDiagram(pop, self.boundary)
         for ind in pop:
-            refE = pd.decompose(ind.get_chemical_formula())[0]
-            ehull = ind.info['enthalpy'] - refE/len(ind)
+            ehull = ind.info['enthalpy'] - pd.decompose(ind)
             if ehull < 1e-4:
                 ehull = 0
             ind.info['ehull'] = ehull
@@ -119,18 +118,18 @@ class ErcsFitness(FitnessCalculator):
             ind.info['fitness']['Eform'] = -Eform
 
 fit_dict = {
-    'Enthalpy': EnthalpyFitness(),
-    'Ehull': EhullFitness(),
-    'Ercs': ErcsFitness(),
+    'Enthalpy': EnthalpyFitness,
+    'Ehull': EhullFitness,
+    'Eo': EoFitness,
     }
 
 def get_fitness_calculator(p_dict):
     fitness_calculator = []
     if 'Fitness' in p_dict:
         for fitness in p_dict['Fitness']:
-            fitness_calculator.append(fit_dict[fitness])
+            fitness_calculator.append(fit_dict[fitness](p_dict))
     elif p_dict['formulaType'] == 'fix':
-        fitness_calculator.append(fit_dict['Enthalpy'])
+        fitness_calculator.append(fit_dict['Enthalpy'](p_dict))
     elif p_dict['formulaType'] == 'var':
-        fitness_calculator.append(fit_dict['Ehull'])
+        fitness_calculator.append(fit_dict['Ehull'](p_dict))
     return fitness_calculator

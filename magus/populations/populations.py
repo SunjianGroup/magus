@@ -41,7 +41,7 @@ class Population:
         self.name = name
         self.gen = gen
         log.debug('construct Population {} with {} individual'.format(name, len(pop)))
-        for i, ind in enumerate(pop):
+        for i, ind in enumerate(self.pop):
             ind.info['identity'] = (name, i)
 
     def __repr__(self):
@@ -200,7 +200,9 @@ class Population:
 
         fp = np.array([ind.fingerprint for ind in pop])
         labels = cluster.KMeans(n_clusters=n_clusters).fit_predict(fp)
-        goodpop = [None] * n_clusters
+        # TODO fix bug: clustering may fail if there are dulplicate structures
+        # goodpop = [None] * n_clusters
+        goodpop = [None] * len(set(labels))
         for label, ind in zip(labels, pop):
             if goodpop[label] is None:
                 goodpop[label] = ind

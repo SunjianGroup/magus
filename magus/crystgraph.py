@@ -6,6 +6,8 @@ from math import gcd
 from ase.neighborlist import neighbor_list
 from ase.data import covalent_radii
 
+from packaging.version import parse as parse_version
+OLD_NETWORKX = parse_version(nx.__version__) < parse_version("2.0")
 
 def get_cycle_sums(G):
     """
@@ -69,7 +71,10 @@ def get_multiplicity(G):
 
 def remove_selfloops(G):
     newG = G.copy()
-    loops = list(newG.selfloop_edges())
+    if OLD_NETWORKX:
+        loops = list(newG.selfloop_edges())
+    else:
+        loops = list(nx.selfloop_edges(newG))
     newG.remove_edges_from(loops)
     return newG
 
@@ -92,8 +97,8 @@ def find_communities(G):
 def get_nodes_and_offsets(G):
     assert nx.number_connected_components(G) == 1, "The graph should be connected!"
     offsets = []
-    nodes = list(G.nodes())
-    paths = nx.single_source_shortest_path(G, nodes[0])
+    nodes = []
+    paths = nx.single_source_shortest_path(G, list(G)[0])
     for node, path in paths.items():
         offset = np.zeros(3)
         for i, j in zip(path[:-1], path[1:]):
@@ -102,6 +107,7 @@ def get_nodes_and_offsets(G):
             else:
                 offset -= G[i][j][0]['vector']
         offsets.append(offset)
+        nodes.append(node)
     return nodes, offsets
 
 

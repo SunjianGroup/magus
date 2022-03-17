@@ -38,8 +38,8 @@ class magusParameters:
             'volRatio': 2,
             'dRatio': 0.7,
             'molDetector': 0,
-            'addSym': False,
-            'randFrac': 0.2,
+            'addSym': True,
+            'randRatio': 0.2,
             'chkMol': False,
             'chkSeed': True,
             'diffE': 0.01,
@@ -47,6 +47,8 @@ class magusParameters:
             'comparator': 'soap',
             'fp_calc': 'zernike',
             'n_cluster': p_dict['saveGood'],
+            'autoOpRatio': False,
+            'autoRandomRatio': False,
         }
         if p.calcType=='rcs':
             log = logging.getLogger(__name__)

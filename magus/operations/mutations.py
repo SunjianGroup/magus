@@ -91,7 +91,7 @@ class PermMutation(Mutation):
 
     def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
-        num_swaps = np.random.randint(1, min(int(self.frac_swaps * len(atoms)), 2))
+        num_swaps = np.random.randint(1, max(int(self.frac_swaps * len(atoms)), 2))
         unique_symbols = np.unique([atom.symbol for atom in atoms]) # or use get_chemical_symbol?
         if len(unique_symbols) < 2:
             return None
@@ -129,8 +129,8 @@ class LatticeMutation(Mutation):
             new_cell = cellpar_to_cell(cellpar)
 
         atoms.set_cell(new_cell, scale_atoms=True)
-        positions = atoms.get_positions() + np.random.normal(0, 1, [len(atoms), 3])
-        atoms.set_positions(positions)
+        # positions = atoms.get_positions() + np.random.normal(0, 1, [len(atoms), 3])
+        # atoms.set_positions(positions)
         return ind.__class__(atoms)
 
 

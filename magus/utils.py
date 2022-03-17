@@ -1,14 +1,16 @@
 from __future__ import print_function, division
+from enum import unique
 import os, re, logging, itertools, traceback
 import numpy as np
-from ase.io import read
-from ase.phasediagram import PhaseDiagram, parse_formula
+from ase import Atoms
+from ase.io import read, write
 from ase.geometry import wrap_positions
 from ase.data import atomic_numbers, covalent_radii
 from scipy.spatial.distance import cdist
 from ase.build import make_supercell
 from ase.geometry import cell_to_cellpar,cellpar_to_cell
 from functools import reduce
+from math import gcd
 from importlib import import_module
 from pathlib import Path
 import logging
@@ -25,129 +27,6 @@ class Singleton:
         if not hasattr(self, '_instance'):
             self._instance = self._cls()
         return self._instance
-
-
-# change some parameters in plot
-class MagusPhaseDiagram(PhaseDiagram):
-    def decompose(self, formula=None, **kwargs):
-        """
-        adjust the method to calculate coef to avoid numerical fault
-        an example is:
-            Zn5O7 cannot be composed by Zn8O4 and Zn9
-        """
-        if formula:
-            assert not kwargs
-            kwargs = parse_formula(formula)[0]
-        """
-        # Find coordinates within each simplex:
-        X = self.points[self.simplices, :-1]
-        point = np.zeros(len(self.species))
-        for symbol, n in kwargs.items():
-            point[self.species[symbol]] = n
-        eps = 1e-10 
-        for i, Y in enumerate(X):
-            try:
-                coefs = np.linalg.solve(X.T, point.T)
-            except np.linalg.linalg.LinAlgError:
-                continue
-            if (coefs > -eps).all():
-                break
-        else:
-            assert False, X
-    
-        indices = self.simplices[i]
-        points = self.points[indices]
-        points[:, -1] *= np.sum(points[:, :-1], axis=1)
-    
-        energy = np.dot(coefs, points[:, -1])
-        """
-
-        point = np.zeros(len(self.species))
-        N = 0
-        for symbol, n in kwargs.items():
-            point[self.species[symbol]] = n
-            N += n
-
-        # Find coordinates within each simplex:
-        X = self.points[self.simplices, 1:-1] - point[1:] / N
-
-        # Find the simplex with positive coordinates that sum to
-        # less than one:
-        eps = 1e-10
-        for i, Y in enumerate(X):
-            try:
-                x = np.linalg.solve((Y[1:] - Y[:1]).T, -Y[0])
-            except np.linalg.linalg.LinAlgError:
-                continue
-            if (x > -eps).all() and x.sum() < 1 + eps:
-                break
-        else:
-            assert False, X
-
-        indices = self.simplices[i]
-        points = self.points[indices]
-
-        scaledcoefs = [1 - x.sum()]
-        scaledcoefs.extend(x)
-
-        energy = N * np.dot(scaledcoefs, points[:, -1])
-
-        coefs = []
-        results = []
-        for coef, s in zip(scaledcoefs, indices):
-            count, e, name, natoms = self.references[s]
-            coef *= N / natoms
-            coefs.append(coef)
-            results.append((name, coef, e))
-
-        if self.verbose:
-            print_results(results)
-
-        return energy, indices, np.array(coefs)
-    
-        return energy, indices, coefs
-
-    def plot2d2(self, ax=None):
-        x, e = self.points[:, 1:].T
-        names = [re.sub(r'(\d+)', r'$_{\1}$', ref[2])
-                 for ref in self.references]
-        hull = self.hull
-        simplices = self.simplices
-        xlabel = self.symbols[1]
-        ylabel = 'energy [eV/atom]'
-        if ax:
-            for i, j in simplices:
-                ax.plot(x[[i, j]], e[[i, j]], '#5b5da5', linewidth=2.5)
-            ax.scatter(x[~hull], e[~hull], c='#902424', s=80, marker="x", zorder=90)
-            ax.scatter(x[hull], e[hull], c='#699872', s=80, marker="o", zorder=100)
-            x = x[self.hull]
-            e = e[self.hull]
-            names = [name for name, h in zip(names, self.hull) if h]
-            for a, b, name in zip(x, e, names):
-                ax.text(a, b, name, ha='center', va='top', zorder=110)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
-        return (x, e, names, hull, simplices, xlabel, ylabel)
-
-    def plot2d3(self, ax=None):
-        x, y = self.points[:, 1:-1].T.copy()
-        x += y / 2
-        y *= 3**0.5 / 2
-        names = [re.sub(r'(\d+)', r'$_{\1}$', ref[2])
-                 for ref in self.references]
-        hull = self.hull
-        simplices = self.simplices
-
-        if ax:
-            for i, j, k in simplices:
-                ax.plot(x[[i, j, k, i]], y[[i, j, k, i]], '-b')
-            ax.scatter(x[~hull], y[~hull], c='#902424', s=80, marker="x", zorder=90, alpha=0.5)
-            ax.scatter(x[hull], y[hull], c='#699872', s=80, marker="o", zorder=100)
-            x = x[self.hull]
-            y = y[self.hull]
-            for a, b, name in zip(x, y, names):
-                ax.text(a, b, name, ha='center', va='top', zorder=110)
-        return (x, y, names, hull, simplices)
 
 
 def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
@@ -205,58 +84,58 @@ def match_lattice(atoms1,atoms2):
     """
     return atoms1, atoms2, 0.5, 0.5
     #TODO temporary remove
-    def match_fitness(a1,b1,a2,b2):
-        #za lao shi you shu zhi cuo wu
-        a1,b1,a2,b2 = np.round([a1,b1,a2,b2],3)
-        a1x = np.linalg.norm(a1)
-        a2x = np.linalg.norm(a2)
-        if a1x*a2x ==0:
-            return 1000
-        b1x = a1@b1/a1x
-        b2x = a2@b2/a2x
-        b1y = np.sqrt(b1@b1 - b1x**2)
-        b2y = np.sqrt(b2@b2 - b2x**2)
-        if b1y*b2y == 0:
-            return 1000
-        exx = (a2x-a1x)/a1x
-        eyy = (b2y-b1y)/b1y
-        exy = b2x/b1y-a2x/a1x*b1x/b1y
-        return np.abs(exx)+np.abs(eyy)+np.abs(exy)
-    
-    def to_matrix(hkl1,hkl2):
-        hklrange = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
-        hklrange = [np.array(_) for _ in hklrange]
-        for hkl3 in hklrange:
-            M = np.array([hkl1,hkl2,hkl3])
-            if np.linalg.det(M)>0:
-                break
-        return M
+    #def match_fitness(a1,b1,a2,b2):
+    #    #za lao shi you shu zhi cuo wu
+    #    a1,b1,a2,b2 = np.round([a1,b1,a2,b2],3)
+    #    a1x = np.linalg.norm(a1)
+    #    a2x = np.linalg.norm(a2)
+    #    if a1x*a2x ==0:
+    #        return 1000
+    #    b1x = a1@b1/a1x
+    #    b2x = a2@b2/a2x
+    #    b1y = np.sqrt(b1@b1 - b1x**2)
+    #    b2y = np.sqrt(b2@b2 - b2x**2)
+    #    if b1y*b2y == 0:
+    #        return 1000
+    #    exx = (a2x-a1x)/a1x
+    #    eyy = (b2y-b1y)/b1y
+    #    exy = b2x/b1y-a2x/a1x*b1x/b1y
+    #    return np.abs(exx)+np.abs(eyy)+np.abs(exy)
+    #
+    #def to_matrix(hkl1,hkl2):
+    #    hklrange = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
+    #    hklrange = [np.array(_) for _ in hklrange]
+    #    for hkl3 in hklrange:
+    #        M = np.array([hkl1,hkl2,hkl3])
+    #        if np.linalg.det(M)>0:
+    #            break
+    #    return M
 
-    def standard_cell(atoms):
-        newcell = cellpar_to_cell(cell_to_cellpar(atoms.cell))
-        T = np.linalg.inv(atoms.cell)@newcell
-        atoms.positions = atoms.positions@T
-        atoms.cell = newcell
-        return atoms
-        
-    cell1,cell2 = atoms1.cell[:],atoms2.cell[:]
-    hklrange = [(1,0,0),(0,1,0),(0,0,1),(1,-1,0),(1,1,0),(1,0,-1),(1,0,1),(0,1,-1),(0,1,1),(2,0,0),(0,2,0),(0,0,2)]
-    #TODO ba cut cell jian qie ti ji bu fen gei gai le 
-    hklrange = [(1,0,0),(0,1,0),(0,0,1)]
-    hklrange = [np.array(_) for _ in hklrange]
-    minfitness = 1000
-    for hkl1,hkl2 in itertools.permutations(hklrange,2):
-        for hkl3,hkl4 in itertools.permutations(hklrange,2):
-            a1,b1,a2,b2 = hkl1@cell1,hkl2@cell1,hkl3@cell2,hkl4@cell2
-            fitness = match_fitness(a1,b1,a2,b2)
-            if fitness<minfitness:
-                minfitness = fitness
-                bestfit = hkl1,hkl2,hkl3,hkl4
-    newatoms1 = standard_cell(make_supercell(atoms1,to_matrix(bestfit[0],bestfit[1])))
-    newatoms2 = standard_cell(make_supercell(atoms2,to_matrix(bestfit[2],bestfit[3])))
-    ratio1 = newatoms1.get_volume()/atoms1.get_volume()
-    ratio2 = newatoms2.get_volume()/atoms2.get_volume()
-    return newatoms1,newatoms2,ratio1,ratio2
+    #def standard_cell(atoms):
+    #    newcell = cellpar_to_cell(cell_to_cellpar(atoms.cell))
+    #    T = np.linalg.inv(atoms.cell)@newcell
+    #    atoms.positions = atoms.positions@T
+    #    atoms.cell = newcell
+    #    return atoms
+    #    
+    #cell1,cell2 = atoms1.cell[:],atoms2.cell[:]
+    #hklrange = [(1,0,0),(0,1,0),(0,0,1),(1,-1,0),(1,1,0),(1,0,-1),(1,0,1),(0,1,-1),(0,1,1),(2,0,0),(0,2,0),(0,0,2)]
+    ##TODO ba cut cell jian qie ti ji bu fen gei gai le 
+    #hklrange = [(1,0,0),(0,1,0),(0,0,1)]
+    #hklrange = [np.array(_) for _ in hklrange]
+    #minfitness = 1000
+    #for hkl1,hkl2 in itertools.permutations(hklrange,2):
+    #    for hkl3,hkl4 in itertools.permutations(hklrange,2):
+    #        a1,b1,a2,b2 = hkl1@cell1,hkl2@cell1,hkl3@cell2,hkl4@cell2
+    #        fitness = match_fitness(a1,b1,a2,b2)
+    #        if fitness<minfitness:
+    #            minfitness = fitness
+    #            bestfit = hkl1,hkl2,hkl3,hkl4
+    #newatoms1 = standard_cell(make_supercell(atoms1,to_matrix(bestfit[0],bestfit[1])))
+    #newatoms2 = standard_cell(make_supercell(atoms2,to_matrix(bestfit[2],bestfit[3])))
+    #ratio1 = newatoms1.get_volume()/atoms1.get_volume()
+    #ratio2 = newatoms2.get_volume()/atoms2.get_volume()
+    #return newatoms1,newatoms2,ratio1,ratio2
 
 
 def stay_in(func):
@@ -276,10 +155,17 @@ def get_units_numlist(atoms, units):
     > get_units_numlist(atoms, units)
     [1, 1]
     """
-    symbols = set(reduce(lambda x, y: x + y, [unit.get_chemical_symbols() for unit in units]))
+    # get all unique symbols
+    symbols = set([s for a in [*units, atoms]
+                     for s in a.get_chemical_symbols()])
     A = [[unit.get_chemical_symbols().count(s) for unit in units] for s in symbols]
-    b = [atoms.get_chemical_symbols().count(s) for s in symbols]
-    return np.rint(np.linalg.pinv(A) @ np.array(b)).astype('int')
+    b = np.array([atoms.get_chemical_symbols().count(s) for s in symbols])
+    numlist = np.rint(np.linalg.pinv(A) @ b).astype('int')
+    # numlist is all zero or any number of symbol not match means the decompose fail
+    if (numlist == 0).all() or (A @ numlist != b).any():
+        return None
+    else:
+        return numlist
 
 
 def get_units_formula(atoms, units):
@@ -292,6 +178,8 @@ def get_units_formula(atoms, units):
     (CH4)2(NH3)
     """
     numlist = get_units_numlist(atoms, units)
+    if numlist is None:
+        return None
     formula = ''
     for n, unit in zip(numlist, units):
         f = unit.get_chemical_formula()
@@ -343,6 +231,31 @@ def get_distance_dict(symbols, radius=None, d_ratio=None, distance_matrix=None):
     return distance_dict
 
 
+def get_unique_symbols(frames):
+    """
+    get unique symbols of given frames
+    """
+    if isinstance(frames, Atoms):
+        frames = [frames]
+    return set([s for atoms in frames for s in atoms.symbols])
+
+
+def get_symbol_dict(atoms, unique_symbols=None):
+    """
+    return a dict of number of each symbols of an atom, such as 
+    {'H': 2, 'O': 1, 'Zn': 0} for atoms=Atoms('H2O'), unique_symbols=['H', 'O', 'Zn']
+    """
+    symbols = atoms.get_chemical_symbols()
+    unique_symbols = unique_symbols or set(symbols)
+    return {s: symbols.count(s) for s in unique_symbols}
+
+
+def get_gcd_formula(atoms):
+    symbol_dict = get_symbol_dict(atoms)
+    n_formula = reduce(gcd, symbol_dict.values())
+    return Atoms([s for s in symbol_dict for _ in range(symbol_dict[s] // n_formula)]).get_chemical_formula()
+
+
 def read_seeds(seed_file):
     if not os.path.exists(seed_file):
         return []
@@ -355,9 +268,37 @@ def read_seeds(seed_file):
             seedPop = read(seed_file, index=':')
         except:
             raise Exception("unknown file format: {}".format(seed_file))
-    for i, ind in enumerate(seedPop):
+    for ind in seedPop:
         ind.info['origin'] = 'seed'
     return seedPop
+
+
+def find_factor(num):
+    i = 2
+    while i < np.sqrt(num):
+        if num % i == 0:
+            break
+        i += 1
+    if num % i > 0:
+        i = num
+    return i
+
+
+def multiply_cell(atoms, n):
+    """
+    return a structure with atoms n times of the input
+    """
+    atoms = atoms.copy()
+    assert n >= 1 and n % 1 == 0, "n must be an integer >= 1"
+    while n > 1:
+        i = find_factor(n)
+        to_expand = np.argmin(atoms.cell.cellpar()[:3])
+        expand_matrix = [1, 1, 1]
+        expand_matrix[to_expand] = i
+        atoms = atoms * expand_matrix
+        n = n // i
+    atoms = atoms[atoms.numbers.argsort()]
+    return atoms
 
 
 class Plugin:
