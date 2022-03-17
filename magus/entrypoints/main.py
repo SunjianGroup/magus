@@ -1,7 +1,8 @@
-import argparse, importlib
+import argparse, importlib, logging
 # from magus.calculators import CALCULATOR_PLUGIN
 from magus.logger import set_logger
 from magus import __version__, __picture__
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -350,6 +351,8 @@ def main():
     dict_args = vars(args)
     if args.command in ['search', 'calc', 'gen']:
         set_logger(level=dict_args['log_level'], log_path=dict_args['log_path'])
+        log = logging.getLogger(__name__)
+        log.info(__picture__)
     if args.command:
         try:
             f = getattr(importlib.import_module('magus.entrypoints.{}'.format(args.command)), args.command)

@@ -18,9 +18,3 @@ Magus is freely available via GitHub:  https://git.nju.edu.cn/gaaooh/magus/
 ```
 git clone https://git.nju.edu.cn/gaaooh/magus.git
 ```
-Magus can also be installed via pip:
-
-```
-pip install -i https://repo.nju.edu.cn/repository/pypi-nju/simple magus-test --upgrade
-```
-

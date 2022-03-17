@@ -3,6 +3,7 @@ import spglib
 from ase import Atoms, Atom
 from ase.neighborlist import neighbor_list
 from ase.geometry import get_distances
+from ase.constraints import FixAtoms
 from magus.utils import *
 from .molecule import Molfilter
 from ..fingerprints import get_fingerprint
@@ -123,8 +124,9 @@ class Individual(Atoms):
     def to_save(self):
         atoms = self.copy()
         atoms.set_calculator(None)
-        if 'traj' in atoms.info:
-            del atoms.info['traj']
+        atoms.info['type'] = self.__class__.__name__
+        if 'trajs' in atoms.info:
+            del atoms.info['trajs']
         return atoms
 
     # TODO avoid repetitive computation 
@@ -257,31 +259,3 @@ class Individual(Atoms):
                 return True
         else:
             return False
-
-
-class Bulk(Individual):
-    @classmethod
-    def set_parameters(cls, **parameters):
-        super().set_parameters(**parameters)
-        Default = {
-            'mol_detector': 0, 
-            'bond_ratio': 1.1,
-            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
-        check_parameters(cls, parameters, [], Default)
-        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
-
-    def __init__(self, *args, **kwargs):
-        if 'symbols' in kwargs:
-            if isinstance(kwargs['symbols'], Molfilter):
-                kwargs['symbols'] = kwargs['symbols'].to_atoms()
-        if len(args) > 0:
-            if isinstance(args[0], Molfilter):
-                args = list(args)
-                args[0] = args[0].to_atoms()
-        super().__init__(*args, **kwargs)
-
-    def for_heredity(self):
-        atoms = self.copy()
-        if self.mol_detector > 0:
-            atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
-        return atoms

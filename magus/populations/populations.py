@@ -4,8 +4,8 @@ from numpy.core.numeric import indices
 import numpy as np
 from sklearn import cluster
 import ase.io
-from magus.utils import check_parameters
-from .individuals import Individual, get_Ind
+from magus.utils import check_parameters, get_units_numlist
+from ..individuals.base import Individual, get_Ind
 from ..fitness import get_fitness_calculator
 from ..generators import get_random_generator
 
@@ -25,7 +25,7 @@ class Population:
     @classmethod
     def set_parameters(cls, **parameters):
         cls.all_parameters = parameters
-        Requirement = ['results_dir', 'pop_size']
+        Requirement = ['results_dir', 'pop_size', 'symbols', 'formula', 'units']
         Default = {'check_seed': False}
         check_parameters(cls, parameters, Requirement, Default)
         if 'atoms_generator' not in parameters:
@@ -136,6 +136,7 @@ class Population:
         pop = []
         for ind in self.pop:
             atoms = ind.to_save()
+            atoms.info['units'] = self.units
             pop.append(atoms)
         ase.io.write("{}/{}{}.traj".format(savedir, filename, gen), pop, format='traj')
         log.debug("save {}{}.traj".format(filename,gen))
@@ -253,12 +254,13 @@ class VarPopulation(Population):
         check_parameters(cls, parameters, [], {'ele_size': 0})
 
     def fill_up_with_random(self):
-        n_units = len(self.atoms_generator.formula)
+        units = self.atoms_generator.units
+        n_units = len(units)
         d_n_random = {format_filter: self.ele_size for format_filter in itertools.product([0, 1], repeat=n_units)}
         d_n_random[tuple([0] * n_units)] = 0
         d_n_random[tuple([1] * n_units)] = self.pop_size
         for ind in self.pop:
-            d_n_random[tuple(np.clip(ind.numlist, 0, 1))] -= 1
+            d_n_random[tuple(np.clip(get_units_numlist(ind, units), 0, 1))] -= 1
         for format_filter, n_random in d_n_random.items():
             if n_random > 0:
                 add_frames = self.atoms_generator.generate_pop(n_random, format_filter=format_filter)

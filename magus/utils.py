@@ -2,6 +2,7 @@ from __future__ import print_function, division
 import os, re, logging, itertools, traceback
 import numpy as np
 from ase.io import read
+from ase.phasediagram import PhaseDiagram, parse_formula
 from ase.geometry import wrap_positions
 from ase.data import atomic_numbers, covalent_radii
 from scipy.spatial.distance import cdist
@@ -24,6 +25,129 @@ class Singleton:
         if not hasattr(self, '_instance'):
             self._instance = self._cls()
         return self._instance
+
+
+# change some parameters in plot
+class MagusPhaseDiagram(PhaseDiagram):
+    def decompose(self, formula=None, **kwargs):
+        """
+        adjust the method to calculate coef to avoid numerical fault
+        an example is:
+            Zn5O7 cannot be composed by Zn8O4 and Zn9
+        """
+        if formula:
+            assert not kwargs
+            kwargs = parse_formula(formula)[0]
+        """
+        # Find coordinates within each simplex:
+        X = self.points[self.simplices, :-1]
+        point = np.zeros(len(self.species))
+        for symbol, n in kwargs.items():
+            point[self.species[symbol]] = n
+        eps = 1e-10 
+        for i, Y in enumerate(X):
+            try:
+                coefs = np.linalg.solve(X.T, point.T)
+            except np.linalg.linalg.LinAlgError:
+                continue
+            if (coefs > -eps).all():
+                break
+        else:
+            assert False, X
+    
+        indices = self.simplices[i]
+        points = self.points[indices]
+        points[:, -1] *= np.sum(points[:, :-1], axis=1)
+    
+        energy = np.dot(coefs, points[:, -1])
+        """
+
+        point = np.zeros(len(self.species))
+        N = 0
+        for symbol, n in kwargs.items():
+            point[self.species[symbol]] = n
+            N += n
+
+        # Find coordinates within each simplex:
+        X = self.points[self.simplices, 1:-1] - point[1:] / N
+
+        # Find the simplex with positive coordinates that sum to
+        # less than one:
+        eps = 1e-10
+        for i, Y in enumerate(X):
+            try:
+                x = np.linalg.solve((Y[1:] - Y[:1]).T, -Y[0])
+            except np.linalg.linalg.LinAlgError:
+                continue
+            if (x > -eps).all() and x.sum() < 1 + eps:
+                break
+        else:
+            assert False, X
+
+        indices = self.simplices[i]
+        points = self.points[indices]
+
+        scaledcoefs = [1 - x.sum()]
+        scaledcoefs.extend(x)
+
+        energy = N * np.dot(scaledcoefs, points[:, -1])
+
+        coefs = []
+        results = []
+        for coef, s in zip(scaledcoefs, indices):
+            count, e, name, natoms = self.references[s]
+            coef *= N / natoms
+            coefs.append(coef)
+            results.append((name, coef, e))
+
+        if self.verbose:
+            print_results(results)
+
+        return energy, indices, np.array(coefs)
+    
+        return energy, indices, coefs
+
+    def plot2d2(self, ax=None):
+        x, e = self.points[:, 1:].T
+        names = [re.sub(r'(\d+)', r'$_{\1}$', ref[2])
+                 for ref in self.references]
+        hull = self.hull
+        simplices = self.simplices
+        xlabel = self.symbols[1]
+        ylabel = 'energy [eV/atom]'
+        if ax:
+            for i, j in simplices:
+                ax.plot(x[[i, j]], e[[i, j]], '#5b5da5', linewidth=2.5)
+            ax.scatter(x[~hull], e[~hull], c='#902424', s=80, marker="x", zorder=90)
+            ax.scatter(x[hull], e[hull], c='#699872', s=80, marker="o", zorder=100)
+            x = x[self.hull]
+            e = e[self.hull]
+            names = [name for name, h in zip(names, self.hull) if h]
+            for a, b, name in zip(x, e, names):
+                ax.text(a, b, name, ha='center', va='top', zorder=110)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+        return (x, e, names, hull, simplices, xlabel, ylabel)
+
+    def plot2d3(self, ax=None):
+        x, y = self.points[:, 1:-1].T.copy()
+        x += y / 2
+        y *= 3**0.5 / 2
+        names = [re.sub(r'(\d+)', r'$_{\1}$', ref[2])
+                 for ref in self.references]
+        hull = self.hull
+        simplices = self.simplices
+
+        if ax:
+            for i, j, k in simplices:
+                ax.plot(x[[i, j, k, i]], y[[i, j, k, i]], '-b')
+            ax.scatter(x[~hull], y[~hull], c='#902424', s=80, marker="x", zorder=90, alpha=0.5)
+            ax.scatter(x[hull], y[hull], c='#699872', s=80, marker="o", zorder=100)
+            x = x[self.hull]
+            y = y[self.hull]
+            for a, b, name in zip(x, y, names):
+                ax.text(a, b, name, ha='center', va='top', zorder=110)
+        return (x, y, names, hull, simplices)
 
 
 def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
@@ -171,10 +295,12 @@ def get_units_formula(atoms, units):
     formula = ''
     for n, unit in zip(numlist, units):
         f = unit.get_chemical_formula()
+        if len(unit) > 1:
+            f = '(' + f + ')'
         if n == 0:
             f = ''
-        elif n > 1 and len(f) > 1:
-            f = '({}){}'.format(f, n) 
+        elif n > 1:
+            f = f + str(n)
         formula += f
     return formula
 

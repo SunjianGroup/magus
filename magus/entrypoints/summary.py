@@ -8,7 +8,7 @@ from ase.io import iread, write
 from ase import Atoms
 import numpy as np
 import spglib as spg
-from ase.phasediagram import PhaseDiagram
+from magus.utils import MagusPhaseDiagram
 try:
     from pymatgen import Molecule
     from pymatgen.symmetry.analyzer import PointGroupAnalyzer
@@ -18,51 +18,6 @@ from magus.utils import get_units_numlist, get_units_formula
 
 
 pd.options.display.max_rows = 100
-
-
-# change some parameters in plot
-class MagusPhaseDiagram(PhaseDiagram):
-    def plot2d2(self, ax=None):
-        x, e = self.points[:, 1:].T
-        names = [re.sub(r'(\d+)', r'$_{\1}$', ref[2])
-                 for ref in self.references]
-        hull = self.hull
-        simplices = self.simplices
-        xlabel = self.symbols[1]
-        ylabel = 'energy [eV/atom]'
-        if ax:
-            for i, j in simplices:
-                ax.plot(x[[i, j]], e[[i, j]], '#5b5da5', linewidth=2.5)
-            ax.scatter(x[~hull], e[~hull], c='#902424', s=80, marker="x", zorder=90)
-            ax.scatter(x[hull], e[hull], c='#699872', s=80, marker="o", zorder=100)
-            x = x[self.hull]
-            e = e[self.hull]
-            names = [name for name, h in zip(names, self.hull) if h]
-            for a, b, name in zip(x, e, names):
-                ax.text(a, b, name, ha='center', va='top', zorder=110)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
-        return (x, e, names, hull, simplices, xlabel, ylabel)
-
-    def plot2d3(self, ax=None):
-        x, y = self.points[:, 1:-1].T.copy()
-        x += y / 2
-        y *= 3**0.5 / 2
-        names = [re.sub(r'(\d+)', r'$_{\1}$', ref[2])
-                 for ref in self.references]
-        hull = self.hull
-        simplices = self.simplices
-
-        if ax:
-            for i, j, k in simplices:
-                ax.plot(x[[i, j, k, i]], y[[i, j, k, i]], '-b')
-            ax.scatter(x[~hull], y[~hull], c='#902424', s=80, marker="x", zorder=90, alpha=0.5)
-            ax.scatter(x[hull], y[hull], c='#699872', s=80, marker="o", zorder=100)
-            x = x[self.hull]
-            y = y[self.hull]
-            for a, b, name in zip(x, y, names):
-                ax.text(a, b, name, ha='center', va='top', zorder=110)
-        return (x, y, names, hull, simplices)
 
 
 def get_frames(filenames):

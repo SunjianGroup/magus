@@ -29,7 +29,6 @@ class MTPCalculator(ClusterCalculator):
             'force_tolerance': 0.05,
             'stress_tolerance': 1.,
             'min_dist': 0.5, 
-            'init_times': 2, 
             'n_epoch': 200, 
             'ignore_weights': True,
             'job_prefix': 'MTP',
@@ -56,7 +55,7 @@ class MTPCalculator(ClusterCalculator):
         self.static_need_update = True
         self.main_info.extend(
             ['weights', 'scaled_by_force', 'min_dist', 'force_tolerance', 
-             'stress_tolerance', 'init_times', 'n_epoch', 'ignore_weights',
+             'stress_tolerance', 'n_epoch', 'ignore_weights',
              'ml_dir',])
 
     @property
@@ -306,8 +305,6 @@ class TwoShareMTPCalculator(Calculator):
 
         self.max_enthalpy = 0.
         self.mtp2_train_len = len(self.mtp2.trainset)
-
-        self.init_times = max(self.mtp1.init_times, self.mtp2.init_times)
 
     def __repr__(self):
         out  = self.__class__.__name__ + ':\n'

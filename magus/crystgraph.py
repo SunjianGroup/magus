@@ -67,11 +67,15 @@ def get_multiplicity(G):
     return min_multi
 
 
-def find_communities(G):
-    G = G.copy()
-    loops = nx.selfloop_edges(G)
-    G.remove_edges_from(loops)
+def remove_selfloops(G):
+    newG = G.copy()
+    loops = list(newG.selfloop_edges())
+    newG.remove_edges_from(loops)
+    return newG
 
+
+def find_communities(G):
+    G = remove_selfloops(G)
     partition = []
     comp_queue = [G.subgraph(nodes) for nodes in nx.connected_components(G)]
     while len(comp_queue) > 0:

@@ -1,5 +1,5 @@
 import numpy as np
-from ase.phasediagram import PhaseDiagram
+from magus.utils import MagusPhaseDiagram
 import abc
 from .reconstruct import RCSPhaseDiagram
 
@@ -19,13 +19,13 @@ class EnthalpyFitness(FitnessCalculator):
 class EhullFitness(FitnessCalculator):
     def calc(self, pop):
         name = [ind.get_chemical_formula() for ind in pop]
-        enth = [ind.info['enthalpy']*len(ind) for ind in pop]
+        enth = [ind.info['enthalpy'] * len(ind) for ind in pop]
         refs = list(zip(name, enth))
         symbols = pop.symbols
         # To make sure that the phase diagram can be constructed, we add elements with high energies.
         for sym in symbols:
             refs.append((sym, 100))
-        pd = PhaseDiagram(refs, verbose=False)
+        pd = MagusPhaseDiagram(refs, verbose=False)
         for ind in pop:
             refE = pd.decompose(ind.get_chemical_formula())[0]
             ehull = ind.info['enthalpy'] - refE/len(ind)

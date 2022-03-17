@@ -1,5 +1,4 @@
 # calculators in localopt should be moved here
-from .individuals import *
 from .populations import *
 import logging
 

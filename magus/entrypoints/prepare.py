@@ -69,6 +69,7 @@ ISTART = 0
 #Crude optimisation
 EDIFFG = -2e-1
 KSPACING = 1.256
+LWAVE = F
 """
 
 INCAR_2 = """
@@ -82,6 +83,7 @@ POTIM = 0.20
 #Crude optimisation
 EDIFFG = 1e-2
 KSPACING = 0.942
+LWAVE = F
 """
 
 INCAR_3 = """
@@ -96,6 +98,7 @@ POTIM = 0.020
 #Crude optimisation
 EDIFFG = 1e-2
 KSPACING = 0.628
+LWAVE = F
 """
 
 INCAR_4 = """
@@ -110,6 +113,7 @@ POTIM = 0.250
 #Crude optimisation
 EDIFFG = 1e-3
 KSPACING = 0.314
+LWAVE = F
 """
 
 INCARS = [INCAR_1, INCAR_2, INCAR_3, INCAR_4]
