@@ -13,4 +13,4 @@ def get_fingerprint(p_dict):
         name = p_dict['Fingerprint']['name']
         return FINGERPRINT_PLUGIN[name](**{**p_dict, **p_dict['Fingerprint']})
     else:
-        return FINGERPRINT_PLUGIN['zernike'](p_dict['symbols'])
+        return FINGERPRINT_PLUGIN['soap'](p_dict['symbols'])

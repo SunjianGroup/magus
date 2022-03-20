@@ -39,13 +39,13 @@ def add_moles(generator, numlist, radius, symbols, input_mols, symprec):
         if num > 0:
             mole = input_mols[i]
             if len(mole) > 1:
-                positions = mole.positions.reshape(-1)
+                positions = mole.positions.reshape(-1).tolist()
                 symbols = mole.get_chemical_symbols()
                 uni_symbols = list({}.fromkeys(symbols).keys())
                 assert len(uni_symbols) < 5 
                 namearray = [str(s) for s in uni_symbols]
-                radius = np.array([radius_dict[symbol] for symbol in uni_symbols])
-                numinfo = np.array([symbols.count(s) for s in uni_symbols], dtype=float)
+                radius = [radius_dict[symbol] for symbol in uni_symbols]
+                numinfo = [symbols.count(s) for s in uni_symbols]
 
                 generator.AppendMoles(int(numlist[i]), mole.get_chemical_formula(),
                                       radius, positions, numinfo, namearray, symprec)

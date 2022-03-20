@@ -1,46 +1,34 @@
-import os, io, sysconfig
+import os, sys
 from setuptools import setup, find_packages
-from distutils.core import Extension
+from setuptools.command.build_ext import build_ext
 from magus import __version__
 
+DIR = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(os.path.join(DIR, "pybind11"))
+from pybind11.setup_helpers import Pybind11Extension
+del sys.path[-1]
 
-try:
-    include_dirs = os.getenv('MAGUS_INCLUDE_PATH').split(':') 
-except:
-    include_dirs = [
-        sysconfig.get_config_var('INCLUDEDIR'),
-        sysconfig.get_config_var('INCLUDEPY'),
-        ]
-# python_ld_lib = os.getenv('MAGUS_PY_LIB') or sysconfig.get_config_var('INCLUDEPY').split('/')[-1]
-libraries = ['boost_python', 'boost_numpy']
-# libraries.append(python_ld_lib)
-try:
-    library_dirs = os.getenv('MAGUS_LD_LIBRARY_PATH').split(':')
-except:
-    library_dirs = [sysconfig.get_config_var('LIBDIR')]
+# Avoid a gcc warning below:
+# cc1plus: warning: command line option ‘-Wstrict-prototypes’ is valid
+# for C/ObjC but not for C++
+class BuildExt(build_ext):
+    def build_extensions(self):
+        if '-Wstrict-prototypes' in self.compiler.compiler_so:
+            self.compiler.compiler_so.remove('-Wstrict-prototypes')
+        if '-Wsign-compare' in self.compiler.compiler_so:
+            self.compiler.compiler_so.remove('-Wsign-compare')
+            self.compiler.compiler_so.append('-Wnosign-compare')
+        super().build_extensions()
+
 
 #generatenew
-module_GenerateNew = Extension('magus.generators.GenerateNew',
-                    include_dirs = include_dirs,
-                    libraries = libraries,
-                    library_dirs = library_dirs,
-                    sources = ['generatenew/main.cpp'],
+module_GenerateNew = Pybind11Extension('magus.generators.GenerateNew',
+                    sources = ['generatenew/src/main.cpp'],
                     extra_compile_args=['-std=c++11'],
                     )
-
-#lrpot
-module_lrpot = Extension('magus.fingerprints.lrpot',
-                    include_dirs = include_dirs,
-                    libraries = libraries,
-                    library_dirs = library_dirs,
-                    sources = ['lrpot/lrpot.cpp'],
-                    extra_compile_args=['-std=c++11'],
-                    )
-
 
 with open('README.md') as f:
     long_description = f.read()
-
 
 setup(
     name="magus-test",
@@ -51,7 +39,8 @@ setup(
     packages=find_packages(),
     python_requires=">=3.6",
     install_requires=[
-        "numpy",
+        "dscribe",
+        "numpy<1.22.0",     # numba not support numpy >= 1.22.0
         "ase>=3.18",
         "pyyaml>=6.0",
         "networkx",
@@ -64,7 +53,6 @@ setup(
     extras_require={
         "recommend": [
             "BeautifulReport", 
-            "dscribe", 
             "plotly==5.6.0"],
         # "torchml": ["torch>=1.0"],
         },
@@ -72,6 +60,7 @@ setup(
     description="Magus: Machine learning And Graph theory assisted Universal structure Searcher",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    ext_modules=[module_GenerateNew, module_lrpot], 
+    ext_modules=[module_GenerateNew], 
+    cmdclass={'build_ext': BuildExt},
     entry_points={"console_scripts": ["magus = magus.entrypoints.main:main"]},
 )

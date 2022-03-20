@@ -1,8 +1,7 @@
 # TODO
 # how to set k in edom
-import itertools, copy, logging
+import logging
 import numpy as np
-from sympy import frac, fraction
 from magus.utils import *
 import prettytable as pt
 from collections import defaultdict
