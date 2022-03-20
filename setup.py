@@ -17,7 +17,7 @@ class BuildExt(build_ext):
             self.compiler.compiler_so.remove('-Wstrict-prototypes')
         if '-Wsign-compare' in self.compiler.compiler_so:
             self.compiler.compiler_so.remove('-Wsign-compare')
-            self.compiler.compiler_so.append('-Wnosign-compare')
+            self.compiler.compiler_so.append('-Wno-sign-compare')
         super().build_extensions()
 
 
