@@ -49,6 +49,7 @@ setup(
         "spglib",
         "pandas",
         "prettytable",
+        "packaging",
     ],
     extras_require={
         "recommend": [
