@@ -290,6 +290,11 @@ def parse_args():
         default="*",
         help="the package to test"
     )
+    parser_update = subparsers.add_parser(
+        "update",
+        help="update magus",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     #For reconstructions, get a slab
     parser_slab = subparsers.add_parser(
         "getslab",
