@@ -298,15 +298,15 @@ def parse_args():
     parser_update.add_argument(
         "-u",
         "--user",
-        type=bool, 
-        default=True,
+        action='store_true',
+        default=False,
         help="add --user to pip install"
     )
     parser_update.add_argument(
         "-f",
         "--force",
-        type=bool, 
-        default=True,
+        action='store_true',
+        default=False,
         help="add --force-reinstall to pip install"
     )
     #For reconstructions, get a slab
