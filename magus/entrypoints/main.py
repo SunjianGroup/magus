@@ -295,6 +295,20 @@ def parse_args():
         help="update magus",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser_update.add_argument(
+        "-u",
+        "--user",
+        type=bool, 
+        default=True,
+        help="add --user to pip install"
+    )
+    parser_update.add_argument(
+        "-f",
+        "--force",
+        type=bool, 
+        default=True,
+        help="add --force-reinstall to pip install"
+    )
     #For reconstructions, get a slab
     parser_slab = subparsers.add_parser(
         "getslab",
