@@ -302,6 +302,9 @@ class SPGGenerator:
                                     self.formula_pool))
         else:
             formula_pool = self.formula_pool
+        if len(formula_pool) == 0:
+            log.debug("No formula in the pool with the format_filter: {}".format(format_filter))
+            return []
         build_pop = []
         while n_pop > len(build_pop):
             for _ in range(self.max_n_try):

@@ -5,7 +5,7 @@ from math import gcd
 from functools import reduce
 from matplotlib import pyplot as plt
 import pandas as pd
-from ase.io import iread, write
+from ase.io import read, write
 from ase import Atoms
 import numpy as np
 import spglib as spg
@@ -18,7 +18,7 @@ except:
 from magus.utils import get_units_formula
 
 
-pd.set_option('max_rows', None)
+pd.set_option('display.max_rows', None)
 pd.set_option('expand_frame_repr', False)
 # pd.set_option('max_colwidth', 30)
 # pd.set_option('width', 120)
@@ -44,9 +44,10 @@ def convert_glob(filenames):
 def get_frames(filenames):
     for filename in filenames:
         try:
-            frames = iread(filename, index=':')
+            frames = read(filename, index=':')
         except:
             print('Fail to read {}'.format(filename))
+            continue
         for atoms in frames:
             atoms.info['source'] = filename.split('.')[0]
             yield atoms
