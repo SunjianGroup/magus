@@ -1,12 +1,9 @@
-[submodule "lrpot"]
-	path = lrpot
-	url = git@git.nju.edu.cn:bigd4/lrpot.git
 [submodule "generatenew"]
 	path = generatenew
 	url = git@git.nju.edu.cn:HanYu/generatenew.git
 [submodule "mtp-api"]
 	path = mtp-api
 	url = git@git.nju.edu.cn:bigd4/mtp-api.git
-[submodule "moveatom"]
-	path = moveatom
-	url = git@git.nju.edu.cn:HanYu/moveatom.git
+[submodule "pybind11"]
+	path = pybind11
+	url = git@git.nju.edu.cn:bigd4/pybind11.git

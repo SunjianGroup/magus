@@ -12,4 +12,4 @@ class SoapFp(FingerprintCalculator):
 
     def get_all_fingerprints(self, atoms):
         eFps = normalize(self.soap.create(atoms))
-        return eFps, eFps , eFps
+        return eFps, eFps, eFps
