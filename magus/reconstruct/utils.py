@@ -13,7 +13,7 @@ import math
 
 log = logging.getLogger(__name__)
 
-class move:
+class randwalk:
     def __init__(self, originpositions, shift, atomnumber, atomname, lattice, spacegroup = 1, eq_atoms=None):
         self.info=moveatom.Info(np.random.randint(1000))
         for i in range(len(atomnumber)):
@@ -27,18 +27,20 @@ class move:
         self.info.spacegroup = spacegroup
         self.info.resultsize=1
         
-    def Rotate(self, centeratomtype, centeratompos, clustersize, targetatomtype, threshold, maxattempts):
+    def Rotate(self, centeratomtype, centeratompos, clustersize, targetatomtype, threshold, maxattempts, show = False):
         self.info.Rotate(centeratomtype, centeratompos, clustersize, targetatomtype, threshold, maxattempts)
-        self.info.WritePoscar()
+        if show:
+            self.info.WritePoscar()
         '''
         for i in range(self.info.resultsize):
             #print(self.info.GetPosition(i))
         '''
         return
 
-    def Shift(self, threshold, maxattempts):
+    def Shift(self, threshold, maxattempts, show = False):
         label = self.info.Shift(threshold, maxattempts)
-        self.info.WritePoscar()
+        if show:
+            self.info.WritePoscar()
         '''
         for i in range(self.info.resultsize):
             #print(self.info.GetPosition(i))
@@ -52,7 +54,7 @@ class move:
     def GetPos(self):
         return self.info.GetPosition(0)
 
-#m=move()
+#m=randwalk()
 #m.Shift(0.5, 100)
 #m.Rotate(1, 1, 6, 0, 0.5, 100)
 
@@ -110,7 +112,7 @@ class reconstruct:
             self.pos.append(atompos)
             #self.eq_atoms.append(eqatom)
 
-        m=move(self.pos, self.shifts, self.atomnum, self.atomname, self.lattice)  #, self.spacegroup, self.eq_atoms)
+        m=randwalk(self.pos, self.shifts, self.atomnum, self.atomname, self.lattice)  #, self.spacegroup, self.eq_atoms)
             
         label = m.Shift(self.threshold, self.maxattempts)
         if label:
@@ -179,7 +181,7 @@ from math import gcd
 class cutcell:
     def __init__(self,originstruct, layernums, totslices= None, vacuum = 1.0, addH = False, direction=[0,0,1], 
         xy = [1,1], rotate = 0, pcell = True, 
-        matrix = None):
+        matrix = None, **args):
         """
         @parameters:
         [auto, but be given is strongly suggested] totslices: layer number of originstruct
