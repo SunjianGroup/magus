@@ -133,13 +133,17 @@ class Magus:
         relax_pop.save('raw')
         relax_pop.check()
         # find spg before delete duplicate
+        log.debug("find spg...")
         relax_pop.find_spg()
+        log.debug("delete duplicate structures...")
         relax_pop.del_duplicate()
         relax_pop.save('gen', self.curgen)
         self.cur_pop = relax_pop
+        log.debug("set good population..")
         self.set_good_pop()
         self.good_pop.save('good', '')
         self.good_pop.save('good', self.curgen)
+        log.debug("set keep population..")
         self.set_keep_pop()
         self.keep_pop.save('keep', self.curgen)
         self.update_best_pop()
