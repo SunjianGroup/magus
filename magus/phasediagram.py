@@ -17,6 +17,8 @@ log = logging.getLogger(__name__)
 
 
 def check_units(frames, units):
+    if units is None:
+        return False
     for atoms in frames:
         count = get_units_numlist(atoms, units)
         if count is None:
@@ -133,11 +135,9 @@ class PhaseDiagram:
     """
     def __init__(self, frames, boundary=None):
         self.frames = deepcopy(frames)
-        if boundary is None:
+        if not check_units(frames, boundary):
             boundary = get_units(frames)
-            assert boundary is not None, "Fail to find boundary, please give the boundary by '-b'"
-        else:
-            assert check_units(frames, boundary), "Given wrong boundary"
+            assert boundary is not None, "Fail to find boundary"
         self.boundary = boundary
         self.boundary_n_atoms = np.array([len(atoms) for atoms in self.boundary])
         self.points = []
