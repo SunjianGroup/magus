@@ -146,7 +146,7 @@ class Individual(Atoms):
         except:
             spg = 1
         self.info['spg'] = spg
-        pri_atoms = spglib.find_primitive(self, symprec=self.symprec)
+        pri_atoms = spglib.standardize_cell(self, symprec=self.symprec, to_primitive=True)
         if pri_atoms:
             cell, positions, numbers = pri_atoms
             self.info['priNum'] = numbers

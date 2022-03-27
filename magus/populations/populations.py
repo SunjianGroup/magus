@@ -146,6 +146,7 @@ class Population:
         return np.mean([ind.volume_ratio for ind in self.pop])
 
     def calc_dominators(self):
+        log.debug("calculating dominators...")
         self.calc_fitness()
         domLen = len(self.pop)
         for ind1 in self.pop:
@@ -162,6 +163,7 @@ class Population:
             ind1.info['sclDom'] = (dominators) / domLen
 
     def calc_fitness(self):
+        log.debug("calculating fitness...")
         for fit_calc in self.fit_calcs:
             fit_calc.calc(self)
 

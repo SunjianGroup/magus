@@ -213,10 +213,10 @@ class SPGGenerator:
             if os.path.exists(formula_pool_file) and os.path.getsize(formula_pool_file) > 0:
                 self.formula_pool_ = np.loadtxt(formula_pool_file, dtype=int)
                 while len(self.formula_pool_.shape) < 2:
-                    self.formula_pool_ = self.formula_pool_[None]
+                    self.formula_pool_ = self.formula_pool_[:, None]
             else:
                 self.formula_pool_ = self.get_default_formula_pool()
-            np.savetxt(formula_pool_file, self.formula_pool_, fmt='%i')
+                np.savetxt(formula_pool_file, self.formula_pool_, fmt='%i')
         return self.formula_pool_
 
     @property
