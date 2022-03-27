@@ -173,12 +173,9 @@ class Population:
         newpop = []
         # sort the pop so the better individual will be remained
         self.pop = sorted(self.pop, key=lambda x: x.info['dominators'])
-        for ind1 in self.pop:
-            for ind2 in newpop:
-                if ind1 == ind2:
-                    break
-            else:
-                newpop.append(ind1)
+        for ind in self.pop:
+            if not ind == newpop:
+                newpop.append(ind)
         log.debug('del_duplicate survival: {}'.format(len(newpop)))
         self.pop = newpop
 

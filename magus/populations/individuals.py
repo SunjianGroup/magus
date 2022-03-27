@@ -128,6 +128,8 @@ class Individual(Atoms):
         atoms.info['type'] = self.__class__.__name__
         if 'trajs' in atoms.info:
             del atoms.info['trajs']
+        if 'compare_info' in atoms.info:
+            del atoms.info['compare_info']
         return atoms
 
     # TODO avoid repetitive computation 

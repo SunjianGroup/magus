@@ -69,12 +69,7 @@ class Mutation(OffspringCreator):
             log.debug('fail {} in {}'.format(self.descriptor, ind.info['identity']))
             return None
         log.debug('success {} in {}'.format(self.descriptor, ind.info['identity']))
-        # remove some parent infomation
-        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull', 'energy','forces']
-        for k in rmkeys:
-            if k in newind.info.keys():
-                del newind.info[k]
-
+        newind.info = {}
         newind.info['parents'] = [ind.info['identity']]
         newind.info['parentE'] = ind.info['enthalpy']
         newind.info['pardom'] = ind.info['dominators']
@@ -107,12 +102,7 @@ class Crossover(OffspringCreator):
             log.debug('fail {} between {} and {}'.format(self.descriptor, ind1.info['identity'], ind2.info['identity']))
             return None
         log.debug('success {} between {} and {}'.format(self.descriptor, ind1.info['identity'], ind2.info['identity']))
-        # remove some parent infomation
-        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull', 'energy', 'forces']
-        for k in rmkeys:
-            if k in newind.info:
-                del newind.info[k]
-
+        newind.info = {}
         newind.info['parents'] = [ind1.info['identity'], ind2.info['identity']]
         newind.info['parentE'] = 0.5 * (ind1.info['enthalpy'] + ind2.info['enthalpy'])
         newind.info['pardom'] = 0.5 * (ind1.info['dominators'] + ind2.info['dominators'])

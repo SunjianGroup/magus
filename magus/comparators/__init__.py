@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 def get_comparator(p_dict):
     comparators = {
         'connect': 'or', 
-        'comparator_list': ['naive', 'ase-zurek'],
+        'comparator_list': ['naive', 'zurek'],
         }
     if 'Comparator' in p_dict:
         comparators.update(p_dict['Comparator'])
