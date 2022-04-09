@@ -51,6 +51,8 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10):
                 toadd[add_symbol] -= 1
                 if toadd[add_symbol] == 0:
                     toadd.pop(add_symbol)
+            else:
+                del rep_atoms[del_index]
         else:
             del rep_atoms[del_index]
         toremove[del_symbol] -= 1

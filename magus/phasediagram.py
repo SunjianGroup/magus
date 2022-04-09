@@ -114,7 +114,7 @@ def get_units(frames):
         # check all possible basis
         eps = 1e-5
         ranges = [i for i in units_numlists.reshape(-1)]
-        for n in range(sum(ranges)):
+        for n in range(1, sum(ranges) + 1):
             for i in basis_iter(n, ranges):
                 M = np.array(i).reshape(*units_numlists.shape)
                 if matrix_rank(M) < len(units_numlists):

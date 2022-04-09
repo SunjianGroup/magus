@@ -7,7 +7,7 @@ def update(*args, user=False, force=False, **kwargs):
     if user:
         pip_cmd += " --user"
     if force:
-        pip_cmd += " --force-reinstall"
+        pip_cmd += " --force-reinstall --no-dependencies"
     print("Updating...")
     print("Try to install by ssh...")
     cmd = pip_cmd + " git+ssh://git@" + url
