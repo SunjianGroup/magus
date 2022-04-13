@@ -58,6 +58,10 @@ class BSUBSystemManager(BaseJobManager):
 
     def sub(self, content, name='job', file='job', out='out', err='err'):
         self.reload()
+        if os.path.exists('DONE'):
+            os.remove('DONE')
+        if os.path.exists('ERROR'):
+            os.remove('ERROR')
         with open(file, 'w') as f:
             f.write(
                 "#BSUB -q {0}\n"
@@ -66,7 +70,8 @@ class BSUBSystemManager(BaseJobManager):
                 "#BSUB -e {3}\n"
                 "#BSUB -J {4}\n"
                 "{5}\n"
-                "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content)
+                "{6}\n"
+                "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content)
                 )
         command = 'bsub < ' + file
         job = dict()
@@ -77,6 +82,8 @@ class BSUBSystemManager(BaseJobManager):
         job['workDir'] = os.getcwd()
         job['subtime'] = datetime.datetime.now()
         job['name'] = name
+        job['err'] = err
+        job['out'] = out
         self.jobs.append(job)
         return job
 
@@ -103,13 +110,21 @@ class BSUBSystemManager(BaseJobManager):
                     stat = ''
             """
             try:
-                stat = subprocess.check_output("bjobs -noheader -o stat {}".format(job['id']), shell=True)
-                stat = stat.decode().split('\n')[0]
+                ret = subprocess.check_output("bjobs -noheader -o stat {}".format(job['id']), shell=True).decode().split('\n')[0]
+                if 'is not found' in ret:
+                    stat = 'NotFound'
+                else:
+                    stat = ret
                 time.sleep(1)
             except:
                 log.warning("Check Job {} Error".format(job['id']))
                 stat = ''
             # log.debug(job['id'], stat)
+            if stat == 'NotFound':
+                if os.path.exists(os.path.join(job['workDir'], 'DONE')):
+                    job['state'] = 'DONE'
+                elif os.path.exists(os.path.join(job['workDir'], 'ERROR')):
+                    job['state'] = 'ERROR'
             if stat == 'DONE' or stat == '':
                 job['state'] = 'DONE'
             elif stat == 'PEND':
