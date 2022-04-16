@@ -57,7 +57,7 @@ class MTPCalculator(ClusterCalculator):
         self.main_info.extend(
             ['weights', 'scaled_by_force', 'min_dist', 'force_tolerance', 
              'stress_tolerance', 'n_epoch', 'ignore_weights',
-             'ml_dir',])
+             'ml_dir', 'n_fail'])
 
     @property
     def E_min(self):
@@ -211,7 +211,7 @@ class MTPCalculator(ClusterCalculator):
 
     def retrain(self):
         log.info('\tstep 05: retrain mtp')
-        exeCmd = "cat train.cfg D-computed.cfg >> E-train.cfg\n"\
+        exeCmd = "cat train.cfg D-computed.cfg > E-train.cfg\n"\
                  "cp E-train.cfg {0}/train.cfg".format(self.ml_dir)
         subprocess.call(exeCmd, shell=True)
         self.train(epoch=self.n_epoch)
@@ -249,7 +249,7 @@ class MTPCalculator(ClusterCalculator):
                 break
             # 03: select bad cfg
             selected = self.select_bad_frames()
-            if len(selected) < self.n_fail:
+            if len(selected) <= self.n_fail:
                 log.info('\tselected frames less than threshold {}'.format(self.n_fail))
                 break
             # 04: DFT
