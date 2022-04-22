@@ -89,7 +89,17 @@ class MLMagus(Magus):
         relax_pop.del_duplicate()
         relax_pop.calc_dominators()
         relax_pop.save("mlgen", self.curgen)
-        if self.parameters['DFTRelax']:
+        if self.parameters['DFTScf']:
+            to_scf = self.select_to_relax(relax_pop, self.parameters['initNum'], self.parameters['minNum'])
+            dft_scf_pop = self.main_calculator.scf(to_scf)
+            log.info('{} structures need DFT scf'.format(len(dft_scf_pop)))
+            dft_scf_pop.find_spg()
+            dft_scf_pop.del_duplicate()
+            self.cur_pop = dft_scf_pop
+            to_add = self.select_to_add(dft_scf_pop)
+            self.ml_calculator.updatedataset(to_add)
+            self.ml_calculator.train()
+        elif self.parameters['DFTRelax']:
             #######  select cfgs to do dft relax  #######
             to_relax = self.select_to_relax(relax_pop)
             #######  compare target and predict energy  #######   
