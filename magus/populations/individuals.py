@@ -211,13 +211,13 @@ class Individual(Atoms):
         atoms = atoms or self
         # angle between edges
         edge_angles = atoms.cell.angles()    
-        edge_angles_ok = np.all([*(45 <= edge_angles), *(edge_angles <= 135)])
+        edge_angles_ok = np.all([*(30 <= edge_angles), *(edge_angles <= 150)])
         # angle between edge and surface
         cos_ = np.cos(edge_angles / 180 * np.pi)
         sin_ = np.sin(edge_angles / 180 * np.pi)         
         X = np.sum(cos_ ** 2) - 2 * np.prod(cos_)
         surface_angles = np.arccos(np.sqrt(X - cos_**2) / sin_) / np.pi * 180
-        surface_angles_ok = np.all([*(45 <= surface_angles), *(surface_angles <= 135)])
+        surface_angles_ok = np.all([*(30 <= surface_angles), *(surface_angles <= 150)])
         return edge_angles_ok and surface_angles_ok
 
     def check_distance(self, atoms=None):

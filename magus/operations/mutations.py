@@ -192,7 +192,7 @@ class FormulaMutation(Mutation):
     def mutate(self, ind):
         candidate = ind.get_target_formula(n=self.n_candidate)
         if len(candidate) > 1:
-            target_formula = candidate[np.random.randint(1, self.n_candidate)]
+            target_formula = candidate[np.random.randint(1, len(candidate))]
             atoms = to_target_formula(ind, target_formula, ind.distance_dict)
             if len(atoms) > 0:
                 return ind.__class__(atoms)

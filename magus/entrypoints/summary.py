@@ -59,9 +59,9 @@ class Summary:
     def __init__(self, prec=0.1, remove_features=[], add_features=[], formula_type='fix', boundary=[]):
         self.formula_type = formula_type
         if self.formula_type == 'fix':
-            self.default_sort = 'enthalpy'
+            self.default_sort = ['enthalpy']
         elif self.formula_type == 'var':
-            self.default_sort = 'ehull'
+            self.default_sort = ['ehull', 'enthalpy']
             self.show_features.append('ehull')
             self.boundary = [Atoms(formula) for formula in boundary]
 
@@ -120,7 +120,7 @@ class Summary:
         if need_sorted:
             if sorted_by == 'Default' or sorted_by not in self.show_features:
                 sorted_by = self.default_sort
-            df = df.sort_values(by=[sorted_by,])
+            df = df.sort_values(by=sorted_by)
             self.all_frames = [self.all_frames[i] for i in df.index]
         df.index = range(1, len(df) + 1)
         if reverse:
