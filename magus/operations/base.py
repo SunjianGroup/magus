@@ -74,6 +74,8 @@ class Mutation(OffspringCreator):
         newind.info['parentE'] = ind.info['enthalpy']
         newind.info['pardom'] = ind.info['dominators']
         newind.info['origin'] = self.descriptor
+        newind.info['fitness'] = {}
+        newind.info['used'] = 0
         return newind
 
 
@@ -107,4 +109,6 @@ class Crossover(OffspringCreator):
         newind.info['parentE'] = 0.5 * (ind1.info['enthalpy'] + ind2.info['enthalpy'])
         newind.info['pardom'] = 0.5 * (ind1.info['dominators'] + ind2.info['dominators'])
         newind.info['origin'] = self.descriptor
+        newind.info['fitness'] = {}
+        newind.info['used'] = 0
         return newind
