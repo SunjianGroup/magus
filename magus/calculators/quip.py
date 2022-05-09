@@ -1,7 +1,6 @@
 import logging, yaml
 from magus.calculators.base import ASECalculator
 from magus.utils import CALCULATOR_PLUGIN
-from ase.calculators.lj import LennardJones
 from quippy.potential import Potential
 
 
