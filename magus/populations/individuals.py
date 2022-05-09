@@ -100,6 +100,7 @@ class Individual(Atoms):
             'max_forces': 50.,
             'max_enthalpy': 100.,
             'full_ele': True,
+            'max_length_ratio': 8,
             }
         check_parameters(cls, parameters, Requirement, Default)
         cls.fp_calc = get_fingerprint(parameters)
@@ -209,6 +210,9 @@ class Individual(Atoms):
 
     def check_cell(self, atoms=None):
         atoms = atoms or self
+        # atoms cell length
+        cell_lengths = atoms.cell.lengths()
+        cell_lengths_ok = max(cell_lengths) / min(cell_lengths) < self.max_length_ratio
         # angle between edges
         edge_angles = atoms.cell.angles()    
         edge_angles_ok = np.all([*(30 <= edge_angles), *(edge_angles <= 150)])
@@ -218,7 +222,7 @@ class Individual(Atoms):
         X = np.sum(cos_ ** 2) - 2 * np.prod(cos_)
         surface_angles = np.arccos(np.sqrt(X - cos_**2) / sin_) / np.pi * 180
         surface_angles_ok = np.all([*(30 <= surface_angles), *(surface_angles <= 150)])
-        return edge_angles_ok and surface_angles_ok
+        return cell_lengths_ok and edge_angles_ok and surface_angles_ok
 
     def check_distance(self, atoms=None):
         atoms = atoms or self
