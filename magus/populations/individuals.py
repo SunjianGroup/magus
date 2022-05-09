@@ -107,7 +107,7 @@ class Individual(Atoms):
         # atoms.symbols has been used by ase
         cls.symbol_list = parameters['symbols']
         cls.distance_dict = get_distance_dict(cls.symbol_list, cls.radius, cls.d_ratio, cls.distance_matrix)
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if 'origin' not in self.info:

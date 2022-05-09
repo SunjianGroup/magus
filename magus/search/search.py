@@ -70,6 +70,8 @@ class Magus:
         # check and log
         init_pop.check()
         log.info("Generate new initial population with {} individuals:".format(len(init_pop)))
+        for atoms in init_pop:
+            atoms.info['gen'] = self.curgen
         origins = [atoms.info['origin'] for atoms in init_pop]
         for origin in set(origins):
             log.info("  {}: {}".format(origin, origins.count(origin)))
