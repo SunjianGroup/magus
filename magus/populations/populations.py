@@ -172,7 +172,7 @@ class Population:
         log.debug('del_duplicate {} begin, popsize:{}'.format(self.name, len(self.pop)))
         newpop = []
         # sort the pop so the better individual will be remained
-        self.pop = sorted(self.pop, key=lambda x: x.info['dominators'])
+        self.pop = sorted(self.pop, key=lambda x: (x.info['dominators'], x.info['gen']))
         for ind in self.pop:
             if not ind == newpop:
                 newpop.append(ind)
@@ -227,9 +227,6 @@ class Population:
         dominators = np.array([ind.info['dominators'] for ind in self.pop])
         best_i = np.where(dominators == np.min(dominators))[0]
         bestInds = [self.pop[i] for i in best_i]
-        # Write generation of bestind
-        for ind in bestInds:
-            ind.info['gen'] = self.gen
         return  bestInds
         #return [self.pop[i] for i in best_i]
 
