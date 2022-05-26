@@ -1,13 +1,9 @@
 import numpy as np
 from magus.phasediagram import PhaseDiagram
 import abc
-# from .reconstruct import RCSPhaseDiagram
 
 
 class FitnessCalculator(abc.ABC):
-    def __init__(self, parameters) -> None:
-        pass
-
     @abc.abstractmethod
     def calc(self, Pop):
         pass
@@ -17,6 +13,16 @@ class EnthalpyFitness(FitnessCalculator):
     def calc(self, pop):
         for ind in pop:
             ind.info['fitness']['enthalpy'] = -ind.info['enthalpy']
+
+
+class GapFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None:
+        self.target_gap = parameters['targetGap']
+
+    def calc(self, pop):
+        for ind in pop:
+            ind.info['fitness']['gap'] = -abs(ind.info['direct_gap'] - self.target_gap) \
+                                         -abs(ind.info['indirect_gap'] - ind.info['direct_gap']) 
 
 
 class EhullFitness(FitnessCalculator):
@@ -99,6 +105,7 @@ class EoFitness(FitnessCalculator):
 fit_dict = {
     'Enthalpy': EnthalpyFitness,
     'Ehull': EhullFitness,
+    'Gap': GapFitness,
     'Eo': EoFitness,
     }
 

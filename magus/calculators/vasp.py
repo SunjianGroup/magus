@@ -1,4 +1,5 @@
-import os, subprocess, shutil, logging, copy, sys, yaml
+from fileinput import filename
+import shutil, logging, copy, sys, yaml, linecache
 import numpy as np
 from ase.io import read, write
 from ase.units import GPa, eV, Ang
@@ -9,6 +10,24 @@ from magus.utils import CALCULATOR_PLUGIN
 
 
 log = logging.getLogger(__name__)
+
+
+def read_eigen(filename = 'EIGENVAL'):
+    linecache.clearcache()
+    l6 = linecache.getline(filename, 6).split()
+    eN = int(l6[0])
+    filled_band = int(eN/2)
+    n_kpoint = int(l6[1])
+    n_band = int(l6[2])
+    start, end = np.zeros((n_kpoint, 2))
+    for i in range(n_kpoint):
+        if i == 0:
+            line = i * (n_band + 2) + filled_band + 8
+            start[i] = float(linecache.getline(filename, line).split()[1])
+            end[i] = float(linecache.getline(filename, line + 1).split()[1])
+    direct_gap = np.min(end) - np.max(start)
+    indirect_gap = np.min(end - start)
+    return direct_gap, indirect_gap
 
 
 class RelaxVasp(Vasp):
@@ -82,6 +101,7 @@ def calc_vasp(calc, frames):
             # get the energy without PV becaruse new ase version gives enthalpy, should be removed if ase fix the bug
             atoms_tmp = read('OUTCAR', format='vasp-out')
             energy = atoms_tmp.get_potential_energy()
+            direct_gap, indirect_gap = read_eigen()
         except:
             s = sys.exc_info()
             log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
@@ -91,9 +111,9 @@ def calc_vasp(calc, frames):
         volume = atoms.get_volume()
         # the unit of pstress is kBar = GPa / 10
         enthalpy = (energy + pstress * GPa * volume / 10) / len(atoms)
-        # struct.info['gap'] = round(gap, 3)
+        atoms.info['direct_gap'] = direct_gap
+        atoms.info['indirect_gap'] = indirect_gap
         atoms.info['enthalpy'] = enthalpy
-        # atoms.info['enthalpy'] = round(enthalpy, 3)
         # save energy, forces, stress for trainning potential
         atoms.info['energy'] = energy
         atoms.info['forces'] = forces
