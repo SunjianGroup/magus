@@ -84,7 +84,7 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
     generator.GetConventional = GetConventional
     generator.minVolume = min_volume
     generator.maxVolume = max_volume
-
+    print(min_volume, max_volume)
     # swap axis
     swap_matrix = get_swap_matrix()
     min_lattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ min_lattice
@@ -250,13 +250,13 @@ class SPGGenerator:
     def get_min_lattice(self, numlist):
         radius = [r for i, r in enumerate(self.radius) if numlist[i] > 0]
         min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
-        min_lattice = [a if a > 0 else b for a, b in zip(min_lattice, self.min_lattice)]
+        min_lattice = [b if b > 0 else a for a, b in zip(min_lattice, self.min_lattice)]
         return min_lattice
 
     def get_max_lattice(self, numlist):
         max_volume = self.get_volume(numlist)[1]
         max_lattice = [3 * max_volume ** (1/3)] * 3 + [135] * 3
-        max_lattice = [a if a > 0 else b for a, b in zip(max_lattice, self.max_lattice)]
+        max_lattice = [b if b > 0 else a for a, b in zip(max_lattice, self.max_lattice)]
         return max_lattice
 
     def get_generate_parm(self, spg, numlist):
@@ -392,7 +392,7 @@ class MoleculeSPGGenerator(SPGGenerator):
     def get_min_lattice(self, numlist):
         radius = [r for i, r in enumerate(self.mol_radius) if numlist[i] > 0]
         min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
-        min_lattice = [a if a > 0 else b for a, b in zip(min_lattice, self.min_lattice)]
+        min_lattice = [b if b > 0 else a for a, b in zip(min_lattice, self.min_lattice)]
         return min_lattice
 
     def get_generate_parm(self, spg, numlist):

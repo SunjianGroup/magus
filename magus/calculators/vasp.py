@@ -92,7 +92,8 @@ def calc_vasp(calc, frames):
         # the unit of pstress is kBar = GPa / 10
         enthalpy = (energy + pstress * GPa * volume / 10) / len(atoms)
         # struct.info['gap'] = round(gap, 3)
-        atoms.info['enthalpy'] = round(enthalpy, 3)
+        atoms.info['enthalpy'] = enthalpy
+        # atoms.info['enthalpy'] = round(enthalpy, 3)
         # save energy, forces, stress for trainning potential
         atoms.info['energy'] = energy
         atoms.info['forces'] = forces

@@ -223,7 +223,8 @@ class ASECalculator(Calculator):
             except:
                 pass
             enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa)/ len(atoms)
-            atoms.info['enthalpy'] = round(enthalpy, 3)
+            # atoms.info['enthalpy'] = round(enthalpy, 6)
+            atoms.info['enthalpy'] = enthalpy
             atoms.info['trajs'] = traj
             atoms.wrap()
             atoms.set_calculator(None)
@@ -243,7 +244,8 @@ class ASECalculator(Calculator):
                 except:
                     pass
                 enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
-                atoms.info['enthalpy'] = round(enthalpy, 3)
+                # atoms.info['enthalpy'] = round(enthalpy, 6)
+                atoms.info['enthalpy'] = enthalpy
                 atoms.set_calculator(None)
             except:
                 log.debug('{} scf Error'.format(self.__class__.__name__))
