@@ -12,21 +12,20 @@ from magus.utils import CALCULATOR_PLUGIN
 log = logging.getLogger(__name__)
 
 
-def read_eigen(filename = 'EIGENVAL'):
+def read_eigen(filename='EIGENVAL'):
     linecache.clearcache()
     l6 = linecache.getline(filename, 6).split()
     eN = int(l6[0])
     filled_band = int(eN/2)
     n_kpoint = int(l6[1])
     n_band = int(l6[2])
-    start, end = np.zeros((n_kpoint, 2))
+    start, end = np.zeros((2, n_kpoint))
     for i in range(n_kpoint):
-        if i == 0:
-            line = i * (n_band + 2) + filled_band + 8
-            start[i] = float(linecache.getline(filename, line).split()[1])
-            end[i] = float(linecache.getline(filename, line + 1).split()[1])
-    direct_gap = np.min(end) - np.max(start)
-    indirect_gap = np.min(end - start)
+        line = i * (n_band + 2) + filled_band + 8
+        start[i] = float(linecache.getline(filename, line).split()[1])
+        end[i] = float(linecache.getline(filename, line + 1).split()[1])
+    indirect_gap = max(np.min(end) - np.max(start), 0)
+    direct_gap = max(np.min(end - start), 0)
     return direct_gap, indirect_gap
 
 
@@ -106,7 +105,7 @@ def calc_vasp(calc, frames):
             s = sys.exc_info()
             log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
             log.warning("VASP fail")
-            break
+            continue
         pstress = calc.float_params['pstress']
         volume = atoms.get_volume()
         # the unit of pstress is kBar = GPa / 10

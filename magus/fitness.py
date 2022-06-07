@@ -4,6 +4,9 @@ import abc
 
 
 class FitnessCalculator(abc.ABC):
+    def __init__(self, parameters) -> None:    
+        pass
+
     @abc.abstractmethod
     def calc(self, Pop):
         pass
