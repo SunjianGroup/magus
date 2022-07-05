@@ -1,6 +1,7 @@
 import numpy as np
 from magus.phasediagram import PhaseDiagram
 import abc
+import magus.xrdutils as xrdutils
 
 
 class FitnessCalculator(abc.ABC):
@@ -104,12 +105,25 @@ class EoFitness(FitnessCalculator):
                 pop[i].info['fitness']['ehull'] = -ehull
                 pop[i].info['Eo'] = Eo[i]
 
+class XrdFitness(FitnessCalculator):
+    def __init__(self, parameters):
+        self.wave_length = parameters['waveLength'] # in Angstrom
+        self.target_peaks = np.array(parameters['targetXrd'],dtype='float')
+        self.two_theta_range = [ max(min(self.target_peaks[0])-2,0),
+                                 min(max(self.target_peaks[0])+2,180)]
+        
+    def calc(self,pop):
+        for ind in pop:
+            xrd = xrdutils.XrdStructure(ind,self.wave_length,self.two_theta_range)
+            ind.info['fitness']['XRD'] = -xrdutils.loss(xrd.getpeakdata().T,self.target_peaks)
+
 
 fit_dict = {
     'Enthalpy': EnthalpyFitness,
     'Ehull': EhullFitness,
     'Gap': GapFitness,
     'Eo': EoFitness,
+    'XRD': XrdFitness,
     }
 
 def get_fitness_calculator(p_dict):
