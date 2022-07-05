@@ -114,6 +114,7 @@ def parse_args():
         "-sb",
         "--sorted-by",
         type=str,
+        nargs="+",
         default="Default",
         help="sorted by which arg",
     )

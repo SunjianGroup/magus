@@ -119,7 +119,7 @@ class Summary:
     def show_features_table(self, show_number=20, reverse=True, need_sorted=True, sorted_by='Default'):
         df = pd.DataFrame(self.rows, columns=self.show_features)
         if need_sorted:
-            if sorted_by == 'Default' or sorted_by not in self.show_features:
+            if sorted_by == 'Default':
                 sorted_by = self.default_sort
             df = df.sort_values(by=sorted_by)
             self.all_frames = [self.all_frames[i] for i in df.index]
