@@ -272,3 +272,6 @@ class AdjointCalculator(Calculator):
         calc = self.calclist[-1]
         calcPop = calc.scf(calcPop)
         return calcPop
+
+# TODO
+# AdjointCalculator(ClusterCalculator)?
