@@ -5,7 +5,7 @@ from math import gcd
 from functools import reduce
 from matplotlib import pyplot as plt
 import pandas as pd
-from ase.io import read, write
+from ase.io import iread, write
 from ase import Atoms
 import numpy as np
 import spglib as spg

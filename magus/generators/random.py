@@ -211,9 +211,7 @@ class SPGGenerator:
         if not hasattr(self, 'formula_pool_'):
             formula_pool_file = os.path.join(self.all_parameters['workDir'], 'formula_pool')
             if os.path.exists(formula_pool_file) and os.path.getsize(formula_pool_file) > 0:
-                self.formula_pool_ = np.loadtxt(formula_pool_file, dtype=int)
-                while len(self.formula_pool_.shape) < 2:
-                    self.formula_pool_ = self.formula_pool_[:, None]
+                self.formula_pool_ = np.loadtxt(formula_pool_file, dtype=int,ndmin=2)
             else:
                 self.formula_pool_ = self.get_default_formula_pool()
                 np.savetxt(formula_pool_file, self.formula_pool_, fmt='%i')
