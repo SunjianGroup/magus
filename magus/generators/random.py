@@ -1,5 +1,6 @@
 import itertools, yaml, logging
 import numpy as np
+from sklearn.decomposition import PCA
 from ase import Atoms, build
 from ase.io import read
 from ase.data import atomic_numbers, covalent_radii
@@ -84,7 +85,6 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
     generator.GetConventional = GetConventional
     generator.minVolume = min_volume
     generator.maxVolume = max_volume
-    print(min_volume, max_volume)
     # swap axis
     swap_matrix = get_swap_matrix()
     min_lattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ min_lattice
@@ -339,7 +339,7 @@ class MoleculeSPGGenerator(SPGGenerator):
         Default = {'symprec':0.1, 'threshold_mol': 1.0}
         check_parameters(self, parameters, Requirement, Default)
         radius_dict = dict(zip(self.symbols, self.radius))
-        self.mol_n_atoms, self.mol_radius = [], []
+        self.mol_n_atoms, self.mol_radius, self.thickness = [], [], []
         for i, mol in enumerate(self.input_mols):
             if isinstance(mol, str):
                 mol = build.sort(read(mol))
@@ -353,6 +353,11 @@ class MoleculeSPGGenerator(SPGGenerator):
             radius = np.array([radius_dict[s] for s in mol.get_chemical_symbols()])
             distance = np.linalg.norm(mol.positions - center, axis=1)
             self.mol_radius.append(np.max(distance + radius))
+            # use thickness?
+            pca = PCA(n_components=3).fit(mol.positions)
+            new = mol.positions @ pca.components_
+            self.thickness.append(np.max(new[:, -1] + radius) - np.min(new[:, -1] - radius))
+
             self.input_mols[i] = mol
 
         self.volume = np.array([sum([4 * np.pi * (radius_dict[s]) ** 3 / 3
@@ -388,7 +393,7 @@ class MoleculeSPGGenerator(SPGGenerator):
         return numlist_pool
 
     def get_min_lattice(self, numlist):
-        radius = [r for i, r in enumerate(self.mol_radius) if numlist[i] > 0]
+        radius = [r for i, r in enumerate(self.thickness) if numlist[i] > 0]
         min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
         min_lattice = [b if b > 0 else a for a, b in zip(min_lattice, self.min_lattice)]
         return min_lattice

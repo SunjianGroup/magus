@@ -5,7 +5,7 @@ from math import gcd
 from functools import reduce
 from matplotlib import pyplot as plt
 import pandas as pd
-from ase.io import iread, write
+from ase.io import iread, write, read
 from ase import Atoms
 import numpy as np
 import spglib as spg
@@ -76,7 +76,6 @@ class Summary:
         atoms.info['angles'] = atoms.info['cellpar'][3:]
         atoms.info['volume'] = round(atoms.get_volume(), 3)
         atoms.info['fullSym'] = atoms.get_chemical_formula(empirical=True)
-        atoms.info['totalEnthalpy'] = atoms.info['enthalpy'] * len(atoms)
         if self.formula_type == 'var':
             ehull = atoms.info['enthalpy'] - self.phase_diagram.decompose(atoms)
             atoms.info['ehull'] = 0 if ehull < 1e-3 else ehull
