@@ -192,8 +192,8 @@ class BSUBSystemManager(BaseJobManager):
         return job
     
     def wait_jobs_done(self, wait_time):
-        wait_condition = " && ".join(["'ended({})'".format(job['id']) for job in  self.jobs])
-        os.system("bwait -w " + wait_condition)
+        wait_condition = " && ".join(["ended({})".format(job['id']) for job in self.jobs])
+        os.system("bwait -w '{}'".format(wait_condition))
 
 
 class SLURMSystemManager(BaseJobManager):
