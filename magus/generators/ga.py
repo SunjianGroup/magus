@@ -112,7 +112,7 @@ class GAGenerator:
         # Add symmetry before crossover and mutation
         if self.add_sym:
             pop.add_symmetry()
-        newpop = pop.__class__([], name='init')
+        newpop = pop.__class__([], name='init', gen=self.gen)
         op_choosed_num = [0] * len(self.op_list)
         op_success_num = [0] * len(self.op_list)
         # Ensure that the operator is selected at least once 
@@ -152,8 +152,8 @@ class GAGenerator:
         # calculate dominators before choose structures
         pop.calc_dominators()
         n_next = n_next or self.n_next
-        newpop = self.generate(pop, n_next)
         self.gen += 1
+        newpop = self.generate(pop, n_next)
         return self.select(newpop, n_next)
 
 

@@ -1,6 +1,7 @@
 import logging, os, shutil, subprocess
 from magus.utils import read_seeds
 from ase.io import read
+# from ase.db import connect
 
 
 log = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ class Magus:
             self.best_pop = self.Population([], 'best')
             self.good_pop = self.Population([], 'good')
             self.keep_pop = self.Population([], 'keep')
+            # self.db = connect("results/all_structures.db")
 
     def init_parms(self, parameters):
         self.parameters = parameters.p_dict
@@ -60,9 +62,10 @@ class Magus:
     def get_init_pop(self):
         # mutate and crossover, empty for first generation
         if self.curgen == 1:
-            init_pop = self.Population([], 'initpop', self.curgen)
+            init_pop = self.Population([], 'init', self.curgen)
         else:
             init_pop = self.pop_generator.get_next_pop(self.cur_pop + self.keep_pop)
+            init_pop.gen = self.curgen
         init_pop.fill_up_with_random()
         ## read seeds
         seed_pop = self.read_seeds()

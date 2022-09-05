@@ -1,3 +1,4 @@
+from matplotlib.pyplot import axis
 import numpy as np
 from ase import Atoms
 from ase.geometry import cell_to_cellpar, cellpar_to_cell
@@ -20,15 +21,15 @@ class CutAndSplicePairing(Crossover):
 
     Default = {'tryNum': 50, 'cut_disp': 0, 'best_match': False}
 
-    def cross_bulk(self, ind1, ind2):
-        if self.best_match:
-            M1, M2 = match_lattice(ind1, ind2)
-            axis = 2
-        else:
-            axis = np.random.choice([0, 1, 2])
-            atoms1 = ind1.for_heredity()
-            atoms2 = ind2.for_heredity()
+    @staticmethod
+    def match_lattice(ind1, ind2):
+        """
+        transform ind1 and ind2 for best match lattice
+        """
+        raise Exception("Best lattice match temporary removed")
 
+    @staticmethod
+    def cut_and_splice(atoms1, atoms2, axis, cut_disp):
         atoms1.set_scaled_positions(atoms1.get_scaled_positions() + np.random.rand(3))
         atoms2.set_scaled_positions(atoms2.get_scaled_positions() + np.random.rand(3))
  
@@ -41,7 +42,7 @@ class CutAndSplicePairing(Crossover):
         cut_atoms = atoms1.__class__(Atoms(cell=cut_cellpar, pbc=True,))
 
         scaled_positions = []
-        cut_position = [0, 0.5 + self.cut_disp * np.random.uniform(-0.5, 0.5), 1]
+        cut_position = [0, 0.5 + cut_disp * np.random.uniform(-0.5, 0.5), 1]
 
         for n, atoms in enumerate([atoms1, atoms2]):
             spositions = atoms.get_scaled_positions()
@@ -51,10 +52,33 @@ class CutAndSplicePairing(Crossover):
                     scaled_positions.append(spositions[i])
         if len(scaled_positions) == 0:
             return None
-
         cut_atoms.set_scaled_positions(scaled_positions)
+        return cut_atoms
 
-        return ind1.__class__(cut_atoms)
+    def cross_bulk(self, ind1, ind2):
+        if self.best_match:
+            M1, M2 = self.match_lattice(ind1, ind2)
+            axis = 2
+        else:
+            axis = np.random.choice([0, 1, 2])
+            atoms1 = ind1.for_heredity()
+            atoms2 = ind2.for_heredity()
+        cut_atoms = self.cut_and_splice(atoms1, atoms2, axis, self.cut_disp)
+        if cut_atoms is None:
+            return None
+        else:
+            return ind1.__class__(cut_atoms)
+
+    def cross_layer(self, ind1, ind2):
+        axis = np.random.choice([0, 1])
+        atoms1 = ind1.for_heredity()
+        atoms2 = ind2.for_heredity()
+        cut_atoms = self.cut_and_splice(atoms1, atoms2, axis, self.cut_disp)
+        if cut_atoms is None:
+            return None
+        else:
+            cut_atoms =  ind1.add_vacuum(cut_atoms, ind1.vacuum_thickness)
+            return ind1.__class__(cut_atoms)
 
 
 class ReplaceBallPairing(Crossover):
@@ -65,7 +89,7 @@ class ReplaceBallPairing(Crossover):
 
     def cross_bulk(self, ind1, ind2):
         """
-        replace some atoms in a ball
+        replace some atoms in a bal\][]
         """
         cut_radius = np.random.uniform(*self.cut_range)
         atoms1, atoms2 = ind1.for_heredity(), ind2.for_heredity()

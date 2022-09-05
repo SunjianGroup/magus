@@ -52,6 +52,104 @@ class BaseJobManager:
         self.jobs=[]
 
 
+# class BSUBSystemManager(BaseJobManager):
+#     def kill(self, jobid):
+#         subprocess.call('bkill {}'.format(jobid), shell=True)
+
+#     def sub(self, content, name='job', file='job', out='out', err='err'):
+#         self.reload()
+#         if os.path.exists('DONE'):
+#             os.remove('DONE')
+#         if os.path.exists('ERROR'):
+#             os.remove('ERROR')
+#         with open(file, 'w') as f:
+#             f.write(
+#                 "#BSUB -q {0}\n"
+#                 "#BSUB -n {1}\n"
+#                 "#BSUB -o {2}\n"
+#                 "#BSUB -e {3}\n"
+#                 "#BSUB -J {4}\n"
+#                 #"#BSUB -R affinity[core:cpubind=core:membind=localprefer:distribute=pack]"
+#                 "{5}\n"
+#                 "{6}\n"
+#                 "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content)
+#                 )
+#         command = 'bsub < ' + file
+#         job = dict()
+#         jobid = subprocess.check_output(command, shell=True).split()[1][1: -1]
+#         if type(jobid) is bytes:
+#             jobid = jobid.decode()
+#         job['id'] = jobid
+#         job['workDir'] = os.getcwd()
+#         job['subtime'] = datetime.datetime.now()
+#         job['name'] = name
+#         job['err'] = err
+#         job['out'] = out
+#         self.jobs.append(job)
+#         return job
+
+#     def check_jobs(self):
+#         log.debug("Checking jobs...")
+#         nowtime = datetime.datetime.now()
+#         log.debug(nowtime.strftime('%m-%d %H:%M:%S'))
+#         allDone = True
+#         # joblist = subprocess.check_output("bjobs -a", shell=True).decode().split('\n')[1: -1]
+#         # time.sleep(10)
+#         # jobdict = {job.split()[0]: job.split()[2] for job in joblist}
+#         for job in self.jobs:
+#             """
+#             if job['id'] in jobdict:
+#                 stat = jobdict[job['id']]
+#             else:
+#                 try:
+#                     stat = subprocess.check_output("bjobs %s | grep %s | awk '{print $3}'"% (job['id'], job['id']), shell=True)
+#                     stat = stat.decode()[:-1]
+#                     time.sleep(10)
+#                 except:
+#                     s = sys.exc_info()
+#                     log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+#                     stat = ''
+#             """
+#             try:
+#                 ret = subprocess.check_output("bjobs -noheader -o stat {}".format(job['id']), shell=True).decode().split('\n')[0]
+#                 if 'is not found' in ret:
+#                     stat = 'NotFound'
+#                 else:
+#                     stat = ret
+#                 time.sleep(1)
+#             except:
+#                 log.warning("Check Job {} Error".format(job['id']))
+#                 stat = ''
+#             # log.debug(job['id'], stat)
+#             if stat == 'NotFound':
+#                 if os.path.exists(os.path.join(job['workDir'], 'DONE')):
+#                     job['state'] = 'DONE'
+#                 elif os.path.exists(os.path.join(job['workDir'], 'ERROR')):
+#                     job['state'] = 'ERROR'
+#             if stat == 'DONE' or stat == '':
+#                 job['state'] = 'DONE'
+#             elif stat == 'PEND':
+#                 job['state'] = 'PEND'
+#                 allDone = False
+#             elif stat == 'SSUSP':
+#                 job['state'] = 'SSUSP'
+#                 allDone = False
+#             elif stat == 'RUN':
+#                 if 'begintime' not in job.keys():
+#                     job['begintime'] = datetime.datetime.now()
+#                 job['state'] = 'RUN'
+#                 allDone = False
+#                 runtime = (nowtime - job['begintime']).total_seconds()
+#                 if runtime > self.kill_time:
+#                     self.kill(job['id'])
+#                     log.warning('job {} id {} has run {}s, ni pao ni ma ne?'.format(job['name'],job['id'],runtime))
+#             else:
+#                 job['state'] = 'ERROR'
+#             if self.verbose:
+#                 log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
+#         return allDone
+    
+
 class BSUBSystemManager(BaseJobManager):
     def kill(self, jobid):
         subprocess.call('bkill {}'.format(jobid), shell=True)
@@ -69,10 +167,15 @@ class BSUBSystemManager(BaseJobManager):
                 "#BSUB -o {2}\n"
                 "#BSUB -e {3}\n"
                 "#BSUB -J {4}\n"
-                #"#BSUB -R affinity[core:cpubind=core:membind=localprefer:distribute=pack]"
-                "{5}\n"
+                "#BSUB -W {5}\n"
                 "{6}\n"
-                "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content)
+                "{7}\n"
+                "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name, 
+                                                                     self.num_core, 
+                                                                     out, err, name,
+                                                                     self.kill_time,
+                                                                     self.pre_processing, 
+                                                                     content)
                 )
         command = 'bsub < ' + file
         job = dict()
@@ -87,67 +190,10 @@ class BSUBSystemManager(BaseJobManager):
         job['out'] = out
         self.jobs.append(job)
         return job
-
-    def check_jobs(self):
-        log.debug("Checking jobs...")
-        nowtime = datetime.datetime.now()
-        log.debug(nowtime.strftime('%m-%d %H:%M:%S'))
-        allDone = True
-        # joblist = subprocess.check_output("bjobs -a", shell=True).decode().split('\n')[1: -1]
-        # time.sleep(10)
-        # jobdict = {job.split()[0]: job.split()[2] for job in joblist}
-        for job in self.jobs:
-            """
-            if job['id'] in jobdict:
-                stat = jobdict[job['id']]
-            else:
-                try:
-                    stat = subprocess.check_output("bjobs %s | grep %s | awk '{print $3}'"% (job['id'], job['id']), shell=True)
-                    stat = stat.decode()[:-1]
-                    time.sleep(10)
-                except:
-                    s = sys.exc_info()
-                    log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-                    stat = ''
-            """
-            try:
-                ret = subprocess.check_output("bjobs -noheader -o stat {}".format(job['id']), shell=True).decode().split('\n')[0]
-                if 'is not found' in ret:
-                    stat = 'NotFound'
-                else:
-                    stat = ret
-                time.sleep(1)
-            except:
-                log.warning("Check Job {} Error".format(job['id']))
-                stat = ''
-            # log.debug(job['id'], stat)
-            if stat == 'NotFound':
-                if os.path.exists(os.path.join(job['workDir'], 'DONE')):
-                    job['state'] = 'DONE'
-                elif os.path.exists(os.path.join(job['workDir'], 'ERROR')):
-                    job['state'] = 'ERROR'
-            if stat == 'DONE' or stat == '':
-                job['state'] = 'DONE'
-            elif stat == 'PEND':
-                job['state'] = 'PEND'
-                allDone = False
-            elif stat == 'SSUSP':
-                job['state'] = 'SSUSP'
-                allDone = False
-            elif stat == 'RUN':
-                if 'begintime' not in job.keys():
-                    job['begintime'] = datetime.datetime.now()
-                job['state'] = 'RUN'
-                allDone = False
-                runtime = (nowtime - job['begintime']).total_seconds()
-                if runtime > self.kill_time:
-                    self.kill(job['id'])
-                    log.warning('job {} id {} has run {}s, ni pao ni ma ne?'.format(job['name'],job['id'],runtime))
-            else:
-                job['state'] = 'ERROR'
-            if self.verbose:
-                log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
-        return allDone
+    
+    def wait_jobs_done(self, wait_time):
+        wait_condition = " && ".join(["ended({})".format(job['id']) for job in self.jobs])
+        os.system("bwait -w '{}'".format(wait_condition))
 
 
 class SLURMSystemManager(BaseJobManager):

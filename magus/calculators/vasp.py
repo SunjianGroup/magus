@@ -92,6 +92,8 @@ class VaspCalculator(ClusterCalculator):
 def calc_vasp(calc, frames):
     new_frames = []
     for i, atoms in enumerate(frames):
+        pbc = atoms.get_pbc()
+        atoms.pbc = True
         atoms.set_calculator(copy.deepcopy(calc))
         try:
             energy = atoms.get_potential_energy()
@@ -110,6 +112,7 @@ def calc_vasp(calc, frames):
         volume = atoms.get_volume()
         # the unit of pstress is kBar = GPa / 10
         enthalpy = (energy + pstress * GPa * volume / 10) / len(atoms)
+        atoms.set_pbc(pbc)
         atoms.info['direct_gap'] = direct_gap
         atoms.info['indirect_gap'] = indirect_gap
         atoms.info['enthalpy'] = enthalpy

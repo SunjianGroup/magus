@@ -10,12 +10,14 @@ from ..comparators import get_comparator
 
 
 log = logging.getLogger(__name__)
-__all__ = ['Bulk']
+__all__ = ['Bulk', 'Layer']
 
 
 def get_Ind(p_dict):
-    if p_dict['searchType'] == 'bulk':
+    if p_dict['structureType'] == 'bulk':
         Ind = Bulk
+    elif p_dict['structureType'] == 'layer':
+        Ind = Layer
     Ind.set_parameters(**p_dict)
     return Ind
 
@@ -305,3 +307,53 @@ class Bulk(Individual):
         if self.mol_detector > 0:
             atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
         return atoms
+
+
+class Layer(Individual):
+    @staticmethod
+    def translate_to_bottom(atoms):
+        new_atoms = atoms.copy()
+        p = atoms.get_scaled_positions()
+        z = sorted(p[:, 2])
+        z.append(z[0] + 1)
+        p[:, 2] -= z[np.argmax(np.diff(z))] + np.max(np.diff(z)) - 1
+        new_atoms.set_scaled_positions(p)
+        return new_atoms
+    
+    @staticmethod
+    def remove_vacuum(atoms, thickness=1):
+        new_atoms = Layer.translate_to_bottom(atoms)
+        new_cell = new_atoms.get_cell()
+        ratio = new_atoms.get_scaled_positions()[:, 2].max() + thickness / new_cell.lengths()[2]
+        new_cell[2] *= ratio
+        new_atoms.set_cell(new_cell)
+        return new_atoms
+
+    @staticmethod
+    def add_vacuum(atoms, thickness=10):
+        new_atoms = atoms.copy()
+        # new_atoms = Layer.remove_vacuum(atoms, thickness=1)
+        new_cell = new_atoms.get_cell()
+        ratio = thickness / new_atoms.cell.lengths()[2] + 1
+        new_cell[2] *= ratio
+        new_atoms.set_cell(new_cell)
+        return new_atoms
+
+    @classmethod
+    def set_parameters(cls, **parameters):
+        super().set_parameters(**parameters)
+        Default = {
+            'vacuum_thickness': 10, 
+            'bond_ratio': 1.1,
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
+        check_parameters(cls, parameters, [], Default)
+        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+
+    def for_heredity(self):
+        atoms = Layer.remove_vacuum(self)
+        # atoms.set_pbc([True, True, False])
+        return atoms
+
+    @property
+    def volume_ratio(self):
+        return self.remove_vacuum(self).get_volume() / self.ball_volume

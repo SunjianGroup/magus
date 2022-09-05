@@ -89,12 +89,8 @@ class PermMutation(Mutation):
     """
     Default = {'tryNum': 50, 'frac_swaps': 0.5}
 
-    def mutate_bulk(self, ind):
-        atoms = ind.for_heredity()
-        num_swaps = np.random.randint(1, max(int(self.frac_swaps * len(atoms)), 2))
-        unique_symbols = np.unique([atom.symbol for atom in atoms]) # or use get_chemical_symbol?
-        if len(unique_symbols) < 2:
-            return None
+    @staticmethod
+    def permutate(atoms, num_swaps, unique_symbols):
         for _ in range(num_swaps):
             s1, s2 = np.random.choice(unique_symbols, 2, replace=False)
             s1_list = [i for i in range(len(atoms)) if atoms[i].symbol == s1]
@@ -102,8 +98,26 @@ class PermMutation(Mutation):
             i = np.random.choice(s1_list)
             j = np.random.choice(s2_list)
             atoms[i].position, atoms[j].position = atoms[j].position, atoms[i].position
+        return atoms
+
+    def mutate_bulk(self, ind):
+        atoms = ind.for_heredity()
+        num_swaps = np.random.randint(1, max(int(self.frac_swaps * len(atoms)), 2))
+        unique_symbols = np.unique([atom.symbol for atom in atoms]) # or use get_chemical_symbol?
+        if len(unique_symbols) < 2:
+            return None
+        atoms = self.permutate(atoms, num_swaps, unique_symbols)
         return ind.__class__(atoms)
 
+    def mutate_layer(self, ind):
+        atoms = ind.for_heredity()
+        num_swaps = np.random.randint(1, max(int(self.frac_swaps * len(atoms)), 2))
+        unique_symbols = np.unique([atom.symbol for atom in atoms]) # or use get_chemical_symbol?
+        if len(unique_symbols) < 2:
+            return None
+        atoms = self.permutate(atoms, num_swaps, unique_symbols)
+        atoms = ind.add_vacuum(atoms, ind.vacuum_thickness)
+        return atoms
 
 class LatticeMutation(Mutation):
     """
@@ -121,17 +135,28 @@ class LatticeMutation(Mutation):
             [strain[1] / 2, 1 + strain[3], strain[4] / 2],
             [strain[2] / 2, strain[4] / 2, 1 + strain[5]],
             ])
-        new_cell = ind.get_cell() @ strain
         if self.keep_volume:
-            ratio = ind.get_volume() / np.abs(np.linalg.det(new_cell))
-            cellpar = cell_to_cellpar(new_cell)
-            cellpar[:3] = [length * ratio ** (1/3) for length in cellpar[:3]]
-            new_cell = cellpar_to_cell(cellpar)
-
+            strain /= np.linalg.det(strain)
+        new_cell = ind.get_cell() @ strain
         atoms.set_cell(new_cell, scale_atoms=True)
         # positions = atoms.get_positions() + np.random.normal(0, 1, [len(atoms), 3])
         # atoms.set_positions(positions)
         return ind.__class__(atoms)
+
+    def mutate_layer(self, ind):
+        atoms = ind.for_heredity()
+        strain = np.clip(np.random.normal(0, self.sigma, 6), -self.sigma, self.sigma) * self.cell_cut
+        strain = np.array([
+            [1 + strain[0], strain[1] / 2, 0],
+            [strain[1] / 2, 1 + strain[3], 0],
+            [            0,             0, 1],
+            ])
+        if self.keep_volume:
+            strain /= np.linalg.det(strain)
+        new_cell = atoms.get_cell() @ strain
+        atoms.set_cell(new_cell, scale_atoms=True)
+        atoms = ind.add_vacuum(atoms, ind.vacuum_thickness)
+        return atoms
 
 
 class SlipMutation(Mutation):
@@ -149,6 +174,17 @@ class SlipMutation(Mutation):
         atoms.set_scaled_positions(scl_pos)
         return ind.__class__(atoms)
 
+    def mutate_layer(self, ind):
+        atoms = ind.for_heredity()
+        scl_pos = atoms.get_scaled_positions()
+        axis = list(range(2))
+        np.random.shuffle(axis)
+
+        z = np.where(scl_pos[:, axis[0]] > self.cut)
+        scl_pos[z, axis[1]] += np.random.uniform(*self.randRange)
+        atoms.set_scaled_positions(scl_pos)
+        atoms = ind.add_vacuum(atoms, ind.vacuum_thickness)
+        return atoms
 
 ##################################
 # XtalOpt: An open-source evolutionary algorithm for crystal structure prediction. 
@@ -170,6 +206,18 @@ class RippleMutation(Mutation):
 
         atoms.set_scaled_positions(scl_pos)
         return ind.__class__(atoms)
+    
+    def mutate_layer(self, ind):
+        atoms = ind.for_heredity()
+        scl_pos = atoms.get_scaled_positions()
+        axis = list(range(2))
+        np.random.shuffle(axis)
+
+        phase = np.cos(2 * np.pi * self.mu  * scl_pos[:, axis[1]] + np.random.uniform(0, 2 * np.pi))
+        scl_pos[:, axis[0]] += self.rho * phase
+
+        atoms = ind.add_vacuum(atoms, ind.vacuum_thickness)
+        return atoms
 
 
 class RotateMutation(Mutation):
@@ -228,6 +276,14 @@ class RattleMutation(Mutation):
     def mutate_bulk(self, ind):
         ind = self.mutate_normal(ind) if not self.keep_sym else self.mutate_sym(ind)
         return ind
+    
+    def mutate_layer(self, ind):
+        atoms = ind.for_heredity()
+        for i in range(len(atoms)):
+            if np.random.rand() < self.p:
+                atoms[i].position[:2] = self.rattle(atoms[i].position)[:2]
+        atoms = ind.add_vacuum(atoms, ind.vacuum_thickness)
+        return atoms
 
     def mutate_sym(self, atoms):
         sym_ds = get_symmetry_dataset(atoms, self.symprec)
