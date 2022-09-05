@@ -1,4 +1,5 @@
 import itertools, yaml, logging
+from secrets import choice
 import numpy as np
 from sklearn.decomposition import PCA
 from ase import Atoms, build
@@ -13,7 +14,7 @@ from magus.generators import GenerateNew
 log = logging.getLogger(__name__)
 
 
-def get_swap_matrix():
+def get_swap_matrix(random_swap_axis):
     M = np.array([
         [[1,0,0],[0,1,0],[0,0,1]],
         [[0,1,0],[1,0,0],[0,0,1]],
@@ -21,7 +22,10 @@ def get_swap_matrix():
         [[1,0,0],[0,0,1],[0,1,0]],
         [[0,0,1],[1,0,0],[0,1,0]],
         [[0,0,1],[0,1,0],[1,0,0]]])
-    return M[np.random.randint(6)]
+    if random_swap_axis:
+        return M[np.random.randint(6)]
+    else:
+        return M[0]
 
 
 def add_atoms(generator, numlist, radius, symbols):
@@ -63,7 +67,7 @@ def add_moles(generator, numlist, radius, symbols, input_mols, symprec):
 
 
 def spg_generate(spg, threshold_dict, numlist, radius, symbols, 
-                 min_volume, max_volume, min_lattice, max_lattice, 
+                 min_volume, max_volume, min_lattice, max_lattice, random_swap_axis=True, 
                  dimension=3, max_attempts=50, GetConventional=True, method=1,
                  vacuum=None, choice=None, mol_mode=False, input_mols=None, symprec=None,
                  threshold_mol=1.,
@@ -86,13 +90,12 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
     generator.minVolume = min_volume
     generator.maxVolume = max_volume
     # swap axis
-    swap_matrix = get_swap_matrix()
+    swap_matrix = get_swap_matrix(random_swap_axis)
     min_lattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ min_lattice
     max_lattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ max_lattice
 
     generator.SetLatticeMins(min_lattice[0], min_lattice[1], min_lattice[2], min_lattice[3], min_lattice[4], min_lattice[5])
     generator.SetLatticeMaxes(max_lattice[0], max_lattice[1], max_lattice[2], max_lattice[3], max_lattice[4], max_lattice[5])
-
     if mol_mode:
         generator.threshold_mol = threshold_mol
         numbers = add_moles(generator, numlist, radius, symbols, input_mols, symprec)
@@ -114,8 +117,10 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
         if np.linalg.det(L) < 0:
             L[2, 2] *= -1
             positions[:, 2] *= -1
-        atoms = Atoms(cell=L.T, positions=positions, numbers=numbers, pbc=1)
-        atoms.wrap(pbc=[1, 1, 1])
+        pbc = np.zeros(3)
+        pbc[:dimension] = 1
+        atoms = Atoms(cell=L.T, positions=positions, numbers=numbers, pbc=pbc)
+        atoms.wrap(pbc=pbc)
         atoms = build.sort(atoms)
         return label, atoms
     else:
@@ -271,8 +276,8 @@ class SPGGenerator:
             'max_lattice': max_lattice,
         }
         d['GetConventional'] = True if np.random.rand() > self.p_pri else False
-        for key in ['threshold_dict', 'radius', 'symbols', 'dimension', 'max_attempts', 'method', 'vacuum', 'choice']:
-            if hasattr(self, key):
+        for key in ['threshold_dict', 'radius', 'symbols', 'dimension', 'max_attempts', 'method', 'choice']:
+            if hasattr(self, key) and key not in d:
                 d[key] = getattr(self, key)
         return d
 
@@ -422,6 +427,60 @@ class MoleculeSPGGenerator(SPGGenerator):
             u = Atoms(u.get_chemical_formula())
             units.append(u) 
         return units
+
+
+class LayerSPGGenerator(SPGGenerator):
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        Requirement = ['min_thickness', 'max_thickness']
+        Default = {
+            'symprec':0.1, 
+            'threshold_mol': 1.0, 
+            'spg_type': 'layer', 
+            'vacuum_thickness': 10,
+            }
+        check_parameters(self, parameters, Requirement, Default)
+        if self.spg_type == 'plane':
+            self.choice = 0
+            self.spacegroup = [spg for spg in self.spacegroup if spg <= 17]
+        elif self.spg_type == 'layer':
+            self.choice = 1
+            self.spacegroup = [spg for spg in self.spacegroup if spg <= 80]
+        else:
+            raise Exception("Unexcepted spg type '{}', should be 'plane' or 'layer'".format(self.spg_type))
+
+    def get_volume(self, numlist):
+        assert len(numlist) == len(self.volume)
+        ball_volume = sum([v * n for v, n in zip(self.volume, numlist)])
+        mean_volume = ball_volume * self.volume_ratio
+        min_volume = 0.5 * mean_volume
+        max_volume = 1.5 * mean_volume
+        if self.min_volume > 0:
+            min_volume = self.min_volume
+        if self.max_volume > 0:
+            max_volume = self.max_volume
+        assert min_volume <= max_volume
+        return min_volume, max_volume
+
+    def get_min_lattice(self, numlist):
+        min_lattice = super().get_min_lattice(numlist)
+        min_lattice[2] = self.min_thickness 
+        return min_lattice
+
+    def get_max_lattice(self, numlist):
+        max_lattice = super().get_max_lattice(numlist)
+        max_lattice[2] = self.max_thickness 
+        return max_lattice
+
+    def get_generate_parm(self, spg, numlist):
+        d = super().get_generate_parm(spg, numlist)
+        d.update({
+            'choice': self.choice,
+            'dimension': 2,
+            'random_swap_axis': False,
+            'vacuum': self.vacuum_thickness,
+            })
+        return d
 
 
 #test

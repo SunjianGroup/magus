@@ -1,6 +1,6 @@
 import unittest, os
 from ase.io import read
-from magus.populations.individuals import Bulk
+from magus.populations.individuals import Bulk, Layer
 from magus.operations.crossovers import CutAndSplicePairing, ReplaceBallPairing
 
 
@@ -43,6 +43,30 @@ class TestBulkReplaceBallPairing(BulkCrossover, unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.op = ReplaceBallPairing()
+
+
+class LayerCrossover:
+    def setUp(self):
+        path = os.path.dirname(__file__)
+        atoms1 = read(os.path.join(path, 'POSCARS/layer_1.vasp'))
+        atoms2 = read(os.path.join(path, 'POSCARS/layer_2.vasp'))
+        Layer.set_parameters(
+            symbols=['C'],
+            symbol_numlist_pool=[[12]],
+            symprec=0.1,
+            fp_calc='soap',
+            comparator='naive')
+        self.ind1, self.ind2 = Layer(atoms1), Layer(atoms2)
+
+    def test_layer(self):
+        ind = self.op.cross(self.ind1, self.ind2)
+        self.assertIsNotNone(ind)
+
+
+class TestBulkCutAndSplicePairing(BulkCrossover, unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.op = CutAndSplicePairing()
 
 
 if __name__ == '__main__':

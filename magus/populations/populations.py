@@ -36,13 +36,14 @@ class Population:
         cls.Ind = get_Ind(parameters)
         cls.fit_calcs = get_fitness_calculator(parameters)
 
-    def __init__(self, pop, name='temp', gen=None):
+    def __init__(self, pop, name='temp', gen=''):
         self.pop = [ind if isinstance(ind, Individual) else self.Ind(ind) for ind in pop]
         self.name = name
         self.gen = gen
         log.debug('construct Population {} with {} individual'.format(name, len(pop)))
         for i, ind in enumerate(self.pop):
-            ind.info['identity'] = (name, i)
+            if 'identity' not in ind.info:
+                ind.info['identity'] = "{}{}-{}".format(name, gen, i)
 
     def __repr__(self):
         ret = self.__class__.__name__
@@ -108,7 +109,8 @@ class Population:
 
     def append(self, ind):
         ind = ind if isinstance(ind, Individual) else self.Ind(ind)
-        ind.info['identity'] = [self.name, len(self.pop)]
+        if 'identity' not in ind.info:
+            ind.info['identity'] = "{}{}-{}".format(self.name, self.gen, len(self.pop))
         self.pop.append(ind)
         return True
         #谁删的啊，为啥来着？

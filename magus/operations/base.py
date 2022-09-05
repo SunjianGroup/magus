@@ -1,7 +1,7 @@
 import logging, yaml
 from ase import Atoms 
 from magus.utils import *
-from magus.populations.individuals import Bulk
+from magus.populations.individuals import Bulk, Layer
 
 
 log = logging.getLogger(__name__)
@@ -50,13 +50,19 @@ class Mutation(OffspringCreator):
     def mutate(self, ind):
         if isinstance(ind, Bulk):
             return self.mutate_bulk(ind)
+        elif isinstance(ind, Layer):
+            return self.mutate_layer(ind)
         else:
             pass
 
     def mutate_bulk(self, ind):
         raise NotImplementedError("{} cannot apply in bulk".format(self.descriptor))
 
+    def mutate_layer(self, ind):
+        raise NotImplementedError("{} cannot apply in layer".format(self.descriptor))
+
     def get_new_individual(self, ind):
+        log.info("Atoms: {}".format(ind))
         for _ in range(self.tryNum):
             newind = self.mutate(ind)
             if newind is None:
@@ -69,6 +75,7 @@ class Mutation(OffspringCreator):
             log.debug('fail {} in {}'.format(self.descriptor, ind.info['identity']))
             return None
         log.debug('success {} in {}'.format(self.descriptor, ind.info['identity']))
+        log.info("Atoms: {}".format(newind))
         newind.info = {}
         newind.info['parents'] = [ind.info['identity']]
         newind.info['parentE'] = ind.info['enthalpy']
@@ -84,11 +91,16 @@ class Crossover(OffspringCreator):
     def cross(self, ind1, ind2):
         if isinstance(ind1, Bulk):
             return self.cross_bulk(ind1, ind2)
+        elif isinstance(ind1, Layer):
+            return self.cross_layer(ind1, ind2)
         else:
             pass
 
     def cross_bulk(self, ind1, ind2):
         raise NotImplementedError("{} cannot apply in bulk".format(self.descriptor))
+
+    def cross_layer(self, ind1, ind2):
+        raise NotImplementedError("{} cannot apply in layer".format(self.descriptor))
 
     def get_new_individual(self, parents):
         ind1, ind2 = parents

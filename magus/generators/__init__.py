@@ -1,4 +1,4 @@
-from .random import SPGGenerator, MoleculeSPGGenerator
+from .random import SPGGenerator, MoleculeSPGGenerator, LayerSPGGenerator
 from .ga import GAGenerator, AutoOPRatio
 from ..operations import op_dict, get_default_op
 import logging
@@ -11,6 +11,8 @@ log = logging.getLogger(__name__)
 def get_random_generator(p_dict):
     if p_dict['molMode']:
         return MoleculeSPGGenerator(**p_dict)
+    elif p_dict['structureType'] == 'layer':
+        return LayerSPGGenerator(**p_dict)
     else:
         return SPGGenerator(**p_dict)
 
