@@ -25,7 +25,7 @@ class magusParameters:
         #         raise Exception('{} is not given'.format(key))
         Default = {
             'formulaType': 'fix', 
-            'searchType': 'bulk',
+            'structureType': 'bulk',
             'spacegroup': list(range(1, 231)),
             'DFTRelax': False,
             'initSize': p_dict['popSize'],
