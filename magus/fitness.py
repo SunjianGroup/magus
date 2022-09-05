@@ -108,6 +108,9 @@ class EoFitness(FitnessCalculator):
 class XrdFitness(FitnessCalculator):
     def __init__(self, parameters):
         self.wave_length = parameters['waveLength'] # in Angstrom
+        self.match_tolerence = 2
+        if 'matchTol' in parameters:
+            self.match_tolerence = parameters['matchTol']
         self.target_peaks = np.array(parameters['targetXrd'],dtype='float')
         self.two_theta_range = [ max(min(self.target_peaks[0])-2,0),
                                  min(max(self.target_peaks[0])+2,180)]
@@ -115,7 +118,7 @@ class XrdFitness(FitnessCalculator):
     def calc(self,pop):
         for ind in pop:
             xrd = xrdutils.XrdStructure(ind,self.wave_length,self.two_theta_range)
-            ind.info['fitness']['XRD'] = -xrdutils.loss(xrd.getpeakdata().T,self.target_peaks)
+            ind.info['fitness']['XRD'] = -xrdutils.loss(xrd.getpeakdata().T,self.target_peaks,self.match_tolerence)
 
 
 fit_dict = {
