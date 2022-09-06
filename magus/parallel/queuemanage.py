@@ -173,7 +173,7 @@ class BSUBSystemManager(BaseJobManager):
                 "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name, 
                                                                      self.num_core, 
                                                                      out, err, name,
-                                                                     self.kill_time,
+                                                                     int(self.kill_time/60),
                                                                      self.pre_processing, 
                                                                      content)
                 )
