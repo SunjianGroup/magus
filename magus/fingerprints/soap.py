@@ -11,5 +11,5 @@ class SoapFp(FingerprintCalculator):
         self.soap = SOAP(species=symbols, periodic=periodic, rcut=rcut, nmax=nmax, lmax=lmax)
 
     def get_all_fingerprints(self, atoms):
-        eFps = np.sum(self.soap.create(atoms), axis=0)
+        eFps = np.mean(self.soap.create(atoms), axis=0)
         return eFps, eFps, eFps

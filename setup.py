@@ -27,6 +27,12 @@ module_GenerateNew = Pybind11Extension('magus.generators.GenerateNew',
                     extra_compile_args=['-std=c++11'],
                     )
 
+#nepdes
+module_nepdes = Pybind11Extension('magus.fingerprints.nepdes',
+                    sources = ['nepdes/src/nep.cpp'],
+                    extra_compile_args=['-std=c++11'],
+                    )
+
 with open('README.md') as f:
     long_description = f.read()
 
@@ -39,7 +45,7 @@ setup(
     packages=find_packages(),
     python_requires=">=3.6",
     install_requires=[
-        "dscribe",
+        #"dscribe",
         "numpy<1.22.0",     # numba not support numpy >= 1.22.0
         "ase>=3.18",
         "pyyaml>=6.0",
@@ -61,7 +67,7 @@ setup(
     description="Magus: Machine learning And Graph theory assisted Universal structure Searcher",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    ext_modules=[module_GenerateNew], 
+    ext_modules=[module_GenerateNew, module_nepdes], 
     cmdclass={'build_ext': BuildExt},
     entry_points={"console_scripts": ["magus = magus.entrypoints.main:main"]},
 )
