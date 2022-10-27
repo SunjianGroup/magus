@@ -318,8 +318,9 @@ class Layer(Individual):
         z.append(z[0] + 1)
         p[:, 2] -= z[np.argmax(np.diff(z))] + np.max(np.diff(z)) - 1
         new_atoms.set_scaled_positions(p)
+        new_atoms.wrap(pbc=[0, 0, 1])
         return new_atoms
-    
+
     @staticmethod
     def remove_vacuum(atoms, thickness=1):
         new_atoms = Layer.translate_to_bottom(atoms)
@@ -331,12 +332,14 @@ class Layer(Individual):
 
     @staticmethod
     def add_vacuum(atoms, thickness=10):
-        new_atoms = atoms.copy()
-        # new_atoms = Layer.remove_vacuum(atoms, thickness=1)
+        new_atoms = Layer.translate_to_bottom(atoms.copy())
         new_cell = new_atoms.get_cell()
-        ratio = thickness / new_atoms.cell.lengths()[2] + 1
+        ratio = thickness / new_atoms.cell.lengths()[2]
         new_cell[2] *= ratio
         new_atoms.set_cell(new_cell)
+        p = new_atoms.get_scaled_positions()
+        p[:, 2] += 0.5
+        new_atoms.set_scaled_positions(p)
         return new_atoms
 
     @classmethod
