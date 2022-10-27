@@ -62,7 +62,6 @@ class Mutation(OffspringCreator):
         raise NotImplementedError("{} cannot apply in layer".format(self.descriptor))
 
     def get_new_individual(self, ind):
-        log.info("Atoms: {}".format(ind))
         for _ in range(self.tryNum):
             newind = self.mutate(ind)
             if newind is None:
@@ -75,7 +74,6 @@ class Mutation(OffspringCreator):
             log.debug('fail {} in {}'.format(self.descriptor, ind.info['identity']))
             return None
         log.debug('success {} in {}'.format(self.descriptor, ind.info['identity']))
-        log.info("Atoms: {}".format(newind))
         newind.info = {}
         newind.info['parents'] = [ind.info['identity']]
         newind.info['parentE'] = ind.info['enthalpy']

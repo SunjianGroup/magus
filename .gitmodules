@@ -7,3 +7,6 @@
 [submodule "pybind11"]
 	path = pybind11
 	url = git@git.nju.edu.cn:bigd4/pybind11.git
+[submodule "nepdes"]
+	path = nepdes
+	url = git@git.nju.edu.cn:bigd4/nepdes.git

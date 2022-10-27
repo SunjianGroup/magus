@@ -44,7 +44,7 @@ class magusParameters:
             'chkSeed': True,
             'diffE': 0.01,
             'diffV': 0.05,
-            'comparator': 'soap',
+            'comparator': 'nepdes',
             'fp_calc': 'zernike',
             'n_cluster': p_dict['saveGood'],
             'autoOpRatio': False,
