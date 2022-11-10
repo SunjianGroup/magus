@@ -334,8 +334,9 @@ class Layer(Individual):
     def add_vacuum(atoms, thickness=10):
         new_atoms = Layer.translate_to_bottom(atoms.copy())
         new_cell = new_atoms.get_cell()
-        ratio = thickness / new_atoms.cell.lengths()[2]
-        new_cell[2] *= ratio
+        # some old ase version doesn't have cell.area()
+        h = new_atoms.get_volume() / np.linalg.norm(np.cross(new_cell[0], new_cell[1]))
+        new_cell[2] *= thickness / h
         new_atoms.set_cell(new_cell)
         p = new_atoms.get_scaled_positions()
         p[:, 2] += 0.5
@@ -355,6 +356,10 @@ class Layer(Individual):
     def for_heredity(self):
         atoms = Layer.remove_vacuum(self)
         # atoms.set_pbc([True, True, False])
+        return atoms
+
+    def for_calculate(self):
+        atoms = Layer.add_vacuum(self, self.vacuum_thickness)
         return atoms
 
     @property

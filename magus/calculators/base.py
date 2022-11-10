@@ -56,7 +56,14 @@ class Calculator(abc.ABC):
                         os.path.join(path, filename))
 
     def calc_pre_processing(self, calcPop):
-        pass
+        to_calc = []
+        for ind in calcPop:
+            convert_op = getattr(ind, 'for_calculate', None)
+            if callable(convert_op):
+                to_calc.append(ind.for_calculate())
+            else:
+                to_calc.append(ind)
+        return to_calc
 
     def calc_post_processing(self, calcPop, pop):
         if isinstance(calcPop, Population):
@@ -64,13 +71,13 @@ class Calculator(abc.ABC):
         return pop
 
     def relax(self, calcPop):
-        self.calc_pre_processing(calcPop)
-        pop = self.relax_(calcPop)
+        to_relax = self.calc_pre_processing(calcPop)
+        pop = self.relax_(to_relax)
         return self.calc_post_processing(calcPop, pop)
 
     def scf(self, calcPop):
-        self.calc_pre_processing(calcPop)
-        pop = self.scf_(calcPop)
+        to_scf = self.calc_pre_processing(calcPop)
+        pop = self.scf_(to_scf)
         return self.calc_post_processing(calcPop, pop)
 
     @abc.abstractmethod
