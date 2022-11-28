@@ -19,19 +19,20 @@ def normalize(cell):
 
 @COMPARATOR_PLUGIN.register('zurek')
 class ZurekComparator:
-    def __init__(self, angle_tol=3.0, ltol=0.05, stol=0.05, vol_tol=0.05, to_primitive=False, **kwargs):
+    def __init__(self, angle_tol=3.0, ltol=0.05, stol=0.05, vol_tol=0.05, symprec=0.1, to_primitive=True, **kwargs):
         self.angle_tol = angle_tol * np.pi / 180.0  # convert to radians
         self.stol = stol
         self.ltol = ltol
         self.vol_tol = vol_tol
         self.to_primitive = to_primitive
+        self.symprec = symprec
 
     def _reduce_to_primitive(self, atoms):
-        cell, scaled_pos, numbers = spglib.standardize_cell(atoms, to_primitive=True)
+        cell, scaled_pos, numbers = spglib.standardize_cell(atoms, symprec=self.symprec, to_primitive=True)
         atoms_ = atoms.__class__(scaled_positions=scaled_pos, numbers=numbers, cell=cell, pbc=True)
         atoms_.info = atoms.info
         return atoms_
-    
+
     def _least_frequent_element_to_origin(self, atoms):
         atomic_numbers_count = Counter(atoms.numbers)
         least_freq_element = atomic_numbers_count.most_common()[-1][0]
@@ -79,7 +80,6 @@ class ZurekComparator:
         positions_tolerance = (standardize_volume / len(standard_atoms)) ** (1 / 3)
         # expanded atoms
         expanded_atoms = self._expand(standard_atoms)
-
 
         atoms.info['compare_info'].update({
             'atomic_numbers_count': atomic_numbers_count,
@@ -204,36 +204,29 @@ class ZurekComparator:
         vol1 = atoms1.info['compare_info']['volume_per_atom']
         vol2 = atoms2.info['compare_info']['volume_per_atom']
         return np.abs(vol1 - vol2) / vol1 < self.vol_tol
-    #TODO gai cheng atoms bi jiao
-    def looks_like(self, atoms1, atoms2):
-        atoms1 = atoms1.atoms
-        atoms2 = atoms2.atoms
-        self.prepare(atoms1)
-        self.prepare(atoms2)
 
-        # Compare chemical formulae
-        if not self._has_same_elements(atoms1, atoms2):
-            return False
-
-        # Compare angles
-        if not self._has_same_angles(atoms1, atoms2):
-            return False
-
-        # Compare volumes
-        if not self._has_same_volume(atoms1, atoms2):
-            return False
-
-        matrices = self._get_rotation_matrix(atoms1, atoms2)
-
-        if matrices is None:
-            return False
-        # Calculate tolerance on positions
-        self.position_tolerance = self.stol * atoms1.info['compare_info']['positions_tolerance']
-
-        if self._positions_match(matrices, atoms1, atoms2):
-            return True
-
-        # Set the reference structure back to its original
+    def looks_like(self, ind1, ind2):
+        self.prepare(ind1)
+        if isinstance(ind2, Atoms):
+            ind2 = [ind2]
+        for ind in ind2:
+            self.prepare(ind)
+            # Compare chemical formulae
+            if not self._has_same_elements(ind1, ind):
+                continue
+            # Compare angles
+            if not self._has_same_angles(ind1, ind):
+                continue
+            # Compare volumes
+            if not self._has_same_volume(ind1, ind):
+                continue
+            matrices = self._get_rotation_matrix(ind1, ind)
+            if matrices is None:
+                continue
+            # Calculate tolerance on positions
+            self.position_tolerance = self.stol * ind1.info['compare_info']['positions_tolerance']
+            if self._positions_match(matrices, ind1, ind):
+                return True
         return False
 
     def _positions_match(self, matrices, atoms1, atoms2):
@@ -352,11 +345,15 @@ class ASEComparator:
         self.to_primitive = to_primitive
 
     def looks_like(self, ind1, ind2):
-        ind1_, ind2_ = ind1.copy(), ind2.copy()
+        ind1_ = ind1.copy()
+        if isinstance(ind2, Atoms):
+            ind2 = [ind2]
         # we cannot control symprec in ase, so we convert atoms here
         if self.to_primitive:
             lattice, scaled_positions, numbers = spglib.find_primitive(ind1_, symprec=self.symprec)
             ind1_ = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=ind1.pbc)
-            lattice, scaled_positions, numbers = spglib.find_primitive(ind2_, symprec=self.symprec)
-            ind2_ = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=ind2.pbc)
+            ind2_ = []
+            for ind in ind2:
+                lattice, scaled_positions, numbers = spglib.find_primitive(ind, symprec=self.symprec)
+                ind2_.append(Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=ind.pbc))
         return self.comparator.compare(ind1_, ind2_)

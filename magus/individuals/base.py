@@ -11,12 +11,14 @@ from ..comparators import get_comparator
 
 
 log = logging.getLogger(__name__)
-__all__ = ['Bulk']
+__all__ = ['Bulk', 'Layer']
 
 
 def get_Ind(p_dict):
-    if p_dict['searchType'] == 'bulk':
+    if p_dict['structureType'] == 'bulk':
         Ind = Bulk
+    elif p_dict['structureType'] == 'layer':
+        Ind = Layer
     Ind.set_parameters(**p_dict)
     return Ind
 
@@ -52,6 +54,8 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10):
                 toadd[add_symbol] -= 1
                 if toadd[add_symbol] == 0:
                     toadd.pop(add_symbol)
+            else:
+                del rep_atoms[del_index]
         else:
             del rep_atoms[del_index]
         toremove[del_symbol] -= 1
@@ -99,6 +103,7 @@ class Individual(Atoms):
             'max_forces': 50.,
             'max_enthalpy': 100.,
             'full_ele': True,
+            'max_length_ratio': 8,
             }
         check_parameters(cls, parameters, Requirement, Default)
         cls.fp_calc = get_fingerprint(parameters)
@@ -106,7 +111,7 @@ class Individual(Atoms):
         # atoms.symbols has been used by ase
         cls.symbol_list = parameters['symbols']
         cls.distance_dict = get_distance_dict(cls.symbol_list, cls.radius, cls.d_ratio, cls.distance_matrix)
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if 'origin' not in self.info:
@@ -129,6 +134,8 @@ class Individual(Atoms):
         atoms.info['type'] = self.__class__.__name__
         if 'trajs' in atoms.info:
             del atoms.info['trajs']
+        if 'compare_info' in atoms.info:
+            del atoms.info['compare_info']
         return atoms
 
     # TODO avoid repetitive computation 
@@ -147,7 +154,7 @@ class Individual(Atoms):
         except:
             spg = 1
         self.info['spg'] = spg
-        pri_atoms = spglib.find_primitive(self, symprec=self.symprec)
+        pri_atoms = spglib.standardize_cell(self, symprec=self.symprec, to_primitive=True)
         if pri_atoms:
             cell, positions, numbers = pri_atoms
             self.info['priNum'] = numbers
@@ -156,17 +163,20 @@ class Individual(Atoms):
             self.info['priNum'] = self.get_atomic_numbers()
             self.info['priVol'] = self.get_volume()
 
-    def add_symmetry(self):
-        std_para = spglib.standardize_cell(self, symprec=self.symprec)
-        if std_para:
-            std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2])
+    def add_symmetry(self, keep_n_atoms=True, to_primitive=False):
+        std_para = spglib.standardize_cell(self, symprec=self.symprec, to_primitive=to_primitive)
+        if std_para is None:
+            return False
+        std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2])
+        if keep_n_atoms:
             if len(self) % len(std_atoms) == 0:
                 std_atoms = multiply_cell(std_atoms, len(self) // len(std_atoms))
-                self.set_cell(std_atoms.cell)
-                self.set_scaled_positions(std_atoms.get_scaled_positions())
-                self.set_atomic_numbers(std_atoms.numbers)
-                return True
-        return False
+            elif not to_primitive:
+                return self.add_symmetry(keep_n_atoms, to_primitive=True)
+        self.set_cell(std_atoms.cell)
+        self.set_scaled_positions(std_atoms.get_scaled_positions())
+        self.set_atomic_numbers(std_atoms.numbers)
+        return True
 
     @property
     def numlist(self):
@@ -203,16 +213,19 @@ class Individual(Atoms):
 
     def check_cell(self, atoms=None):
         atoms = atoms or self
+        # atoms cell length
+        cell_lengths = atoms.cell.lengths()
+        cell_lengths_ok = max(cell_lengths) / min(cell_lengths) < self.max_length_ratio
         # angle between edges
         edge_angles = atoms.cell.angles()    
-        edge_angles_ok = np.all([*(45 <= edge_angles), *(edge_angles <= 135)])
+        edge_angles_ok = np.all([*(30 <= edge_angles), *(edge_angles <= 150)])
         # angle between edge and surface
         cos_ = np.cos(edge_angles / 180 * np.pi)
         sin_ = np.sin(edge_angles / 180 * np.pi)         
         X = np.sum(cos_ ** 2) - 2 * np.prod(cos_)
         surface_angles = np.arccos(np.sqrt(X - cos_**2) / sin_) / np.pi * 180
-        surface_angles_ok = np.all([*(45 <= surface_angles), *(surface_angles <= 135)])
-        return edge_angles_ok and surface_angles_ok
+        surface_angles_ok = np.all([*(30 <= surface_angles), *(surface_angles <= 150)])
+        return cell_lengths_ok and edge_angles_ok and surface_angles_ok
 
     def check_distance(self, atoms=None):
         atoms = atoms or self
@@ -267,3 +280,89 @@ class Individual(Atoms):
                 return True
         else:
             return False
+
+
+class Bulk(Individual):
+    @classmethod
+    def set_parameters(cls, **parameters):
+        super().set_parameters(**parameters)
+        Default = {
+            'mol_detector': 0, 
+            'bond_ratio': 1.1,
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
+        check_parameters(cls, parameters, [], Default)
+        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+
+    def __init__(self, *args, **kwargs):
+        if 'symbols' in kwargs:
+            if isinstance(kwargs['symbols'], Molfilter):
+                kwargs['symbols'] = kwargs['symbols'].to_atoms()
+        if len(args) > 0:
+            if isinstance(args[0], Molfilter):
+                args = list(args)
+                args[0] = args[0].to_atoms()
+        super().__init__(*args, **kwargs)
+
+    def for_heredity(self):
+        atoms = self.copy()
+        if self.mol_detector > 0:
+            atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
+        return atoms
+
+
+class Layer(Individual):
+    @staticmethod
+    def translate_to_bottom(atoms):
+        new_atoms = atoms.copy()
+        p = atoms.get_scaled_positions()
+        z = sorted(p[:, 2])
+        z.append(z[0] + 1)
+        p[:, 2] -= z[np.argmax(np.diff(z))] + np.max(np.diff(z)) - 1
+        new_atoms.set_scaled_positions(p)
+        new_atoms.wrap(pbc=[0, 0, 1])
+        return new_atoms
+
+    @staticmethod
+    def remove_vacuum(atoms, thickness=1):
+        new_atoms = Layer.translate_to_bottom(atoms)
+        new_cell = new_atoms.get_cell()
+        ratio = new_atoms.get_scaled_positions()[:, 2].max() + thickness / new_cell.lengths()[2]
+        new_cell[2] *= ratio
+        new_atoms.set_cell(new_cell)
+        return new_atoms
+
+    @staticmethod
+    def add_vacuum(atoms, thickness=10):
+        new_atoms = Layer.translate_to_bottom(atoms.copy())
+        new_cell = new_atoms.get_cell()
+        # some old ase version doesn't have cell.area()
+        h = new_atoms.get_volume() / np.linalg.norm(np.cross(new_cell[0], new_cell[1]))
+        new_cell[2] *= thickness / h
+        new_atoms.set_cell(new_cell)
+        p = new_atoms.get_scaled_positions()
+        p[:, 2] += 0.5
+        new_atoms.set_scaled_positions(p)
+        return new_atoms
+
+    @classmethod
+    def set_parameters(cls, **parameters):
+        super().set_parameters(**parameters)
+        Default = {
+            'vacuum_thickness': 10, 
+            'bond_ratio': 1.1,
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
+        check_parameters(cls, parameters, [], Default)
+        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+
+    def for_heredity(self):
+        atoms = Layer.remove_vacuum(self)
+        # atoms.set_pbc([True, True, False])
+        return atoms
+
+    def for_calculate(self):
+        atoms = Layer.add_vacuum(self, self.vacuum_thickness)
+        return atoms
+
+    @property
+    def volume_ratio(self):
+        return self.remove_vacuum(self).get_volume() / self.ball_volume

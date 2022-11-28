@@ -1,7 +1,7 @@
 import logging, yaml
 from ase import Atoms 
 from magus.utils import *
-from magus.individuals.base import Bulk
+from magus.populations.individuals import Bulk, Layer
 
 
 log = logging.getLogger(__name__)
@@ -50,11 +50,16 @@ class Mutation(OffspringCreator):
     def mutate(self, ind):
         if isinstance(ind, Bulk):
             return self.mutate_bulk(ind)
+        elif isinstance(ind, Layer):
+            return self.mutate_layer(ind)
         else:
             pass
 
     def mutate_bulk(self, ind):
         raise NotImplementedError("{} cannot apply in bulk".format(self.descriptor))
+
+    def mutate_layer(self, ind):
+        raise NotImplementedError("{} cannot apply in layer".format(self.descriptor))
 
     def get_new_individual(self, ind):
         for _ in range(self.tryNum):
@@ -69,16 +74,13 @@ class Mutation(OffspringCreator):
             log.debug('fail {} in {}'.format(self.descriptor, ind.info['identity']))
             return None
         log.debug('success {} in {}'.format(self.descriptor, ind.info['identity']))
-        # remove some parent infomation
-        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull', 'energy','forces']
-        for k in rmkeys:
-            if k in newind.info.keys():
-                del newind.info[k]
-
+        newind.info = {}
         newind.info['parents'] = [ind.info['identity']]
         newind.info['parentE'] = ind.info['enthalpy']
         newind.info['pardom'] = ind.info['dominators']
         newind.info['origin'] = self.descriptor
+        newind.info['fitness'] = {}
+        newind.info['used'] = 0
         return newind
 
 
@@ -87,11 +89,16 @@ class Crossover(OffspringCreator):
     def cross(self, ind1, ind2):
         if isinstance(ind1, Bulk):
             return self.cross_bulk(ind1, ind2)
+        elif isinstance(ind1, Layer):
+            return self.cross_layer(ind1, ind2)
         else:
             pass
 
     def cross_bulk(self, ind1, ind2):
         raise NotImplementedError("{} cannot apply in bulk".format(self.descriptor))
+
+    def cross_layer(self, ind1, ind2):
+        raise NotImplementedError("{} cannot apply in layer".format(self.descriptor))
 
     def get_new_individual(self, parents):
         ind1, ind2 = parents
@@ -107,14 +114,11 @@ class Crossover(OffspringCreator):
             log.debug('fail {} between {} and {}'.format(self.descriptor, ind1.info['identity'], ind2.info['identity']))
             return None
         log.debug('success {} between {} and {}'.format(self.descriptor, ind1.info['identity'], ind2.info['identity']))
-        # remove some parent infomation
-        rmkeys = ['enthalpy', 'spg', 'priVol', 'priNum', 'ehull', 'energy', 'forces']
-        for k in rmkeys:
-            if k in newind.info:
-                del newind.info[k]
-
+        newind.info = {}
         newind.info['parents'] = [ind1.info['identity'], ind2.info['identity']]
         newind.info['parentE'] = 0.5 * (ind1.info['enthalpy'] + ind2.info['enthalpy'])
         newind.info['pardom'] = 0.5 * (ind1.info['dominators'] + ind2.info['dominators'])
         newind.info['origin'] = self.descriptor
+        newind.info['fitness'] = {}
+        newind.info['used'] = 0
         return newind

@@ -1,6 +1,7 @@
 import logging, os, shutil, subprocess
 from magus.utils import read_seeds
 from ase.io import read
+# from ase.db import connect
 
 
 log = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ class Magus:
             self.best_pop = self.Population([], 'best')
             self.good_pop = self.Population([], 'good')
             self.keep_pop = self.Population([], 'keep')
+            # self.db = connect("results/all_structures.db")
 
     def init_parms(self, parameters):
         self.parameters = parameters.p_dict
@@ -60,9 +62,10 @@ class Magus:
     def get_init_pop(self):
         # mutate and crossover, empty for first generation
         if self.curgen == 1:
-            init_pop = self.Population([], 'initpop', self.curgen)
+            init_pop = self.Population([], 'init', self.curgen)
         else:
             init_pop = self.pop_generator.get_next_pop(self.cur_pop + self.keep_pop)
+            init_pop.gen = self.curgen
         init_pop.fill_up_with_random()
         ## read seeds
         seed_pop = self.read_seeds()
@@ -70,6 +73,8 @@ class Magus:
         # check and log
         init_pop.check()
         log.info("Generate new initial population with {} individuals:".format(len(init_pop)))
+        for atoms in init_pop:
+            atoms.info['gen'] = self.curgen
         origins = [atoms.info['origin'] for atoms in init_pop]
         for origin in set(origins):
             log.info("  {}: {}".format(origin, origins.count(origin)))
@@ -133,13 +138,17 @@ class Magus:
         relax_pop.save('raw')
         relax_pop.check()
         # find spg before delete duplicate
+        log.debug("find spg...")
         relax_pop.find_spg()
+        log.debug("delete duplicate structures...")
         relax_pop.del_duplicate()
         relax_pop.save('gen', self.curgen)
         self.cur_pop = relax_pop
+        log.debug("set good population..")
         self.set_good_pop()
         self.good_pop.save('good', '')
         self.good_pop.save('good', self.curgen)
+        log.debug("set keep population..")
         self.set_keep_pop()
         self.keep_pop.save('keep', self.curgen)
         self.update_best_pop()

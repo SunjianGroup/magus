@@ -36,13 +36,14 @@ class Population:
         cls.Ind = get_Ind(parameters)
         cls.fit_calcs = get_fitness_calculator(parameters)
 
-    def __init__(self, pop, name='temp', gen=None):
+    def __init__(self, pop, name='temp', gen=''):
         self.pop = [ind if isinstance(ind, Individual) else self.Ind(ind) for ind in pop]
         self.name = name
         self.gen = gen
         log.debug('construct Population {} with {} individual'.format(name, len(pop)))
         for i, ind in enumerate(self.pop):
-            ind.info['identity'] = (name, i)
+            if 'identity' not in ind.info:
+                ind.info['identity'] = "{}{}-{}".format(name, gen, i)
 
     def __repr__(self):
         ret = self.__class__.__name__
@@ -108,7 +109,8 @@ class Population:
 
     def append(self, ind):
         ind = ind if isinstance(ind, Individual) else self.Ind(ind)
-        ind.info['identity'] = [self.name, len(self.pop)]
+        if 'identity' not in ind.info:
+            ind.info['identity'] = "{}{}-{}".format(self.name, self.gen, len(self.pop))
         self.pop.append(ind)
         return True
         #谁删的啊，为啥来着？
@@ -146,6 +148,7 @@ class Population:
         return np.mean([ind.volume_ratio for ind in self.pop])
 
     def calc_dominators(self):
+        log.debug("calculating dominators...")
         self.calc_fitness()
         domLen = len(self.pop)
         for ind1 in self.pop:
@@ -162,6 +165,7 @@ class Population:
             ind1.info['sclDom'] = (dominators) / domLen
 
     def calc_fitness(self):
+        log.debug("calculating fitness...")
         for fit_calc in self.fit_calcs:
             fit_calc.calc(self)
 
@@ -170,13 +174,10 @@ class Population:
         log.debug('del_duplicate {} begin, popsize:{}'.format(self.name, len(self.pop)))
         newpop = []
         # sort the pop so the better individual will be remained
-        self.pop = sorted(self.pop, key=lambda x: x.info['dominators'])
-        for ind1 in self.pop:
-            for ind2 in newpop:
-                if ind1 == ind2:
-                    break
-            else:
-                newpop.append(ind1)
+        self.pop = sorted(self.pop, key=lambda x: (x.info['dominators'], x.info['gen']))
+        for ind in self.pop:
+            if not ind == newpop:
+                newpop.append(ind)
         log.debug('del_duplicate survival: {}'.format(len(newpop)))
         self.pop = newpop
 
@@ -228,9 +229,6 @@ class Population:
         dominators = np.array([ind.info['dominators'] for ind in self.pop])
         best_i = np.where(dominators == np.min(dominators))[0]
         bestInds = [self.pop[i] for i in best_i]
-        # Write generation of bestind
-        for ind in bestInds:
-            ind.info['gen'] = self.gen
         return  bestInds
         #return [self.pop[i] for i in best_i]
 

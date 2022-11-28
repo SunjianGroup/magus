@@ -21,7 +21,7 @@ class ZernikeFp(FingerprintCalculator):
         self.part = lrpot.CalculateFingerprints_part(cutoff, nmax, lmax, ncut, diag)
         self.Nd=self.part.Nd
         self.totNd = self.Nd * self.numEles
-        self.part.SeteleParm(1.0 * np.array(eleParm)) #All numbers must be double here
+        self.part.eleParm = eleParm
 
     def get_all_fingerprints(self, atoms):
         Nat = len(atoms)
@@ -32,10 +32,10 @@ class ZernikeFp(FingerprintCalculator):
         nl = neighbor_list('ijdD', atoms, self.cutoff, max_nbins=10)
         sortNl = [[] for _ in range(Nat)]
         for i,j,d,D in zip(*nl):                                 #All numbers must be double here
-            sortNl[i].extend([i*1.0, j*1.0, d, D[0],D[1],D[2],atoms.numbers[j]])
+            sortNl[i].extend([i, j, d, D[0], D[1], D[2], atoms.numbers[j]])
 
         for ith in range(Nat):
-            self.part.SetNeighbors(ith, np.array(sortNl[ith])) 
+            self.part.SetNeighbors(ith, sortNl[ith]) 
         #Finish the loop above before starting the loop below
 
         eFps = np.zeros((Nat, totNd))

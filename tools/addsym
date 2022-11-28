@@ -1,0 +1,17 @@
+#!/fs00/software/anaconda/3-5.0.1/bin/python
+from ase.io import read, write
+from ase import Atoms
+import spglib
+import sys
+
+a = read(sys.argv[1], index=':')
+b = []
+for atoms in a:
+    std_para = spglib.standardize_cell(atoms, symprec=float(sys.argv[3]))
+    if std_para:
+        std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2], pbc=True)
+        b.append(std_atoms)
+    else:
+        print('fail in {}'.format(atoms))
+write(sys.argv[2], b)
+

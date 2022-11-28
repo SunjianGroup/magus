@@ -1,7 +1,6 @@
 import logging, yaml
 from magus.calculators.base import ASECalculator
 from magus.utils import CALCULATOR_PLUGIN
-from ase.calculators.lj import LennardJones
 from quippy.potential import Potential
 
 
@@ -12,4 +11,4 @@ class QUIPCalculator(ASECalculator):
         with open("{}/quip.yaml".format(self.input_dir)) as f:
             params = yaml.load(f, Loader=yaml.FullLoader)
             self.relax_calc = Potential(**params)
-            self.scf_scf = Potential(**params)
+            self.scf_calc = Potential(**params)

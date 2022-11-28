@@ -1,4 +1,5 @@
 from collections import Counter
+from ase import Atoms
 from magus.utils import COMPARATOR_PLUGIN
 
 
@@ -9,16 +10,19 @@ class NaiveComparator:
         self.dV = dV
 
     def looks_like(self, ind1, ind2):
-        for ind in [ind1, ind2]:
+        if 'spg' not in ind1.info:
+            ind1.find_spg()
+        if isinstance(ind2, Atoms):
+            ind2 = [ind2]
+        for ind in ind2:
             if 'spg' not in ind.info:
                 ind.find_spg()
-        if Counter(ind1.info['priNum']) != Counter(ind2.info['priNum']):
-            return False
-        if ind1.info['spg'] != ind1.info['spg']:
-            return False
-        if abs(1 - ind1.info['priVol'] / ind2.info['priVol']) > self.dV:
-            return False
-        if 'energy' in ind1.info and 'energy' in ind2.info:
-            if abs(ind1.info['energy'] / len(ind1) - ind2.info['energy'] / len(ind2)) > self.dE:
-                return False
-        return True
+            if ind1.info['spg'] != ind.info['spg']:
+                continue
+            if abs(1 - ind1.info['priVol'] / ind.info['priVol']) > self.dV:
+                continue
+            if 'energy' in ind1.info and 'energy' in ind.info:
+                if abs(ind1.info['energy'] / len(ind1) - ind.info['energy'] / len(ind)) > self.dE:
+                    continue
+            return True
+        return False

@@ -7,9 +7,9 @@ from .base import FingerprintCalculator
 
 @FINGERPRINT_PLUGIN.register('soap')
 class SoapFp(FingerprintCalculator):
-    def __init__(self, symbols, rcut=6.0, nmax=8, lmax=6, periodic=True, **kwargs):
+    def __init__(self, symbols, rcut=4.0, nmax=6, lmax=4, periodic=True, **kwargs):
         self.soap = SOAP(species=symbols, periodic=periodic, rcut=rcut, nmax=nmax, lmax=lmax)
 
     def get_all_fingerprints(self, atoms):
-        eFps = normalize(self.soap.create(atoms))
-        return eFps, eFps , eFps
+        eFps = np.mean(self.soap.create(atoms), axis=0)
+        return eFps, eFps, eFps

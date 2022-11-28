@@ -1,4 +1,4 @@
-calcType: fix
+formulaType: fix
 poolSize: 2000 #这个是预训练生成的随机结构，可以设的很大
 initSize: 400
 popSize: 400
@@ -7,16 +7,16 @@ saveGood: 3
 
 #structure parameters
 DFTRelax: False
-minAt: 10
-maxAt: 20
+minNAtoms: 10
+maxNAtoms: 20
 symbols: ['Mg','Si','O']
 formula: [1,1,3]
 molDetector: 2
 fullEles: True
 eleSize: 0
 dRatio: 0.8
-volRatio: 1.3
-randFrac: 0.4
+volumeRatio: 1.3
+randRatio: 0.4
 pressure: 150
 addSym: True
 softNum: 0

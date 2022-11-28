@@ -114,6 +114,7 @@ def parse_args():
         "-sb",
         "--sorted-by",
         type=str,
+        nargs="+",
         default="Default",
         help="sorted by which arg",
     )
@@ -289,6 +290,25 @@ def parse_args():
         nargs='?',
         default="*",
         help="the package to test"
+    )
+    parser_update = subparsers.add_parser(
+        "update",
+        help="update magus",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_update.add_argument(
+        "-u",
+        "--user",
+        action='store_true',
+        default=False,
+        help="add --user to pip install"
+    )
+    parser_update.add_argument(
+        "-f",
+        "--force",
+        action='store_true',
+        default=False,
+        help="add --force-reinstall to pip install"
     )
     #For reconstructions, get a slab
     parser_slab = subparsers.add_parser(

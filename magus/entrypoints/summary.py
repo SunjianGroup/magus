@@ -5,7 +5,7 @@ from math import gcd
 from functools import reduce
 from matplotlib import pyplot as plt
 import pandas as pd
-from ase.io import iread, write
+from ase.io import iread, write, read
 from ase import Atoms
 import numpy as np
 import spglib as spg
@@ -18,7 +18,7 @@ except:
 from magus.utils import get_units_formula
 
 
-pd.set_option('max_rows', None)
+pd.set_option('display.max_rows', None)
 pd.set_option('expand_frame_repr', False)
 # pd.set_option('max_colwidth', 30)
 # pd.set_option('width', 120)
@@ -44,9 +44,10 @@ def convert_glob(filenames):
 def get_frames(filenames):
     for filename in filenames:
         try:
-            frames = iread(filename, index=':')
+            frames = read(filename, index=':')
         except:
             print('Fail to read {}'.format(filename))
+            continue
         for atoms in frames:
             atoms.info['source'] = filename.split('.')[0]
             yield atoms
@@ -58,9 +59,9 @@ class Summary:
     def __init__(self, prec=0.1, remove_features=[], add_features=[], formula_type='fix', boundary=[]):
         self.formula_type = formula_type
         if self.formula_type == 'fix':
-            self.default_sort = 'enthalpy'
+            self.default_sort = ['enthalpy']
         elif self.formula_type == 'var':
-            self.default_sort = 'ehull'
+            self.default_sort = ['ehull', 'enthalpy']
             self.show_features.append('ehull')
             self.boundary = [Atoms(formula) for formula in boundary]
 
@@ -74,7 +75,7 @@ class Summary:
         atoms.info['lengths'] = atoms.info['cellpar'][:3]
         atoms.info['angles'] = atoms.info['cellpar'][3:]
         atoms.info['volume'] = round(atoms.get_volume(), 3)
-        atoms.info['fullSym'] = atoms.get_chemical_formula()
+        atoms.info['fullSym'] = atoms.get_chemical_formula(empirical=True)
         if self.formula_type == 'var':
             ehull = atoms.info['enthalpy'] - self.phase_diagram.decompose(atoms)
             atoms.info['ehull'] = 0 if ehull < 1e-3 else ehull
@@ -117,9 +118,9 @@ class Summary:
     def show_features_table(self, show_number=20, reverse=True, need_sorted=True, sorted_by='Default'):
         df = pd.DataFrame(self.rows, columns=self.show_features)
         if need_sorted:
-            if sorted_by == 'Default' or sorted_by not in self.show_features:
+            if sorted_by == 'Default':
                 sorted_by = self.default_sort
-            df = df.sort_values(by=[sorted_by,])
+            df = df.sort_values(by=sorted_by)
             self.all_frames = [self.all_frames[i] for i in df.index]
         df.index = range(1, len(df) + 1)
         if reverse:

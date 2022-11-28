@@ -1,12 +1,14 @@
-PyYAML
---index-url https://pypi.python.org/simple/
-numpy
-ase>=3.19
+BeautifulReport
+plotly
+dscribe
+numpy<1.22.0
+ase>=3.18
+pyyaml>=6.0
 networkx
 scipy
 scikit-learn
 spglib
 pandas
-BeautifulReport
-setuptools
-distutils
+prettytable
+packaging
+

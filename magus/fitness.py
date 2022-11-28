@@ -1,11 +1,11 @@
 import numpy as np
 from magus.phasediagram import PhaseDiagram
 import abc
-from .reconstruct import RCSPhaseDiagram
+import magus.xrdutils as xrdutils
 
 
 class FitnessCalculator(abc.ABC):
-    def __init__(self, parameters) -> None:
+    def __init__(self, parameters) -> None:    
         pass
 
     @abc.abstractmethod
@@ -17,6 +17,16 @@ class EnthalpyFitness(FitnessCalculator):
     def calc(self, pop):
         for ind in pop:
             ind.info['fitness']['enthalpy'] = -ind.info['enthalpy']
+
+
+class GapFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None:
+        self.target_gap = parameters['targetGap']
+
+    def calc(self, pop):
+        for ind in pop:
+            ind.info['fitness']['gap'] = -abs(ind.info['direct_gap'] - self.target_gap) \
+                                         -abs(ind.info['indirect_gap'] - ind.info['direct_gap']) 
 
 
 class EhullFitness(FitnessCalculator):
@@ -104,6 +114,7 @@ class ErcsFitness(FitnessCalculator):
                 pop[i].info['fitness']['ehull'] = -ehull
                 pop[i].info['Eo'] = Eo[i]
 
+<<<<<<< HEAD
     def Eform(self, Pop):
     #define E_form = E_total - E_ideal - sum_x (nxux)
     #Lu et al, Carbon 159 (2020) 9-15, https://doi.org/10.1016/j.carbon.2019.12.003
@@ -116,11 +127,30 @@ class ErcsFitness(FitnessCalculator):
             ind.atoms.info['Eo'] = Eform
             ind.info['Eo'] = Eform
             ind.info['fitness']['Eform'] = -Eform
+=======
+class XrdFitness(FitnessCalculator):
+    def __init__(self, parameters):
+        self.wave_length = parameters['waveLength'] # in Angstrom
+        self.match_tolerence = 2
+        if 'matchTol' in parameters:
+            self.match_tolerence = parameters['matchTol']
+        self.target_peaks = np.array(parameters['targetXrd'],dtype='float')
+        self.two_theta_range = [ max(min(self.target_peaks[0])-2,0),
+                                 min(max(self.target_peaks[0])+2,180)]
+        
+    def calc(self,pop):
+        for ind in pop:
+            xrd = xrdutils.XrdStructure(ind,self.wave_length,self.two_theta_range)
+            ind.info['fitness']['XRD'] = -xrdutils.loss(xrd.getpeakdata().T,self.target_peaks,self.match_tolerence)
+
+>>>>>>> ec7ae1652c707577850d72ae7d6d2e4dcc837baf
 
 fit_dict = {
     'Enthalpy': EnthalpyFitness,
     'Ehull': EhullFitness,
+    'Gap': GapFitness,
     'Eo': EoFitness,
+    'XRD': XrdFitness,
     }
 
 def get_fitness_calculator(p_dict):
