@@ -3,7 +3,6 @@ import spglib
 from ase import Atoms, Atom
 from ase.neighborlist import neighbor_list
 from ase.geometry import get_distances
-from ase.constraints import FixAtoms
 from magus.utils import *
 from .molecule import Molfilter
 from ..fingerprints import get_fingerprint

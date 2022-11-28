@@ -6,7 +6,7 @@ from ase import Atom
 from ase.geometry import cell_to_cellpar, cellpar_to_cell
 from ase.data import covalent_radii,chemical_symbols
 from magus.utils import *
-from magus.individuals.base import to_target_formula
+from magus.populations.individuals import to_target_formula
 from .base import Mutation
 
 

@@ -1,6 +1,6 @@
 import unittest, os
 from ase.io import read
-from magus.individuals.base import Bulk
+from magus.populations.individuals import Bulk
 from magus.operations.mutations import *
 
 

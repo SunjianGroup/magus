@@ -4,7 +4,7 @@ import numpy as np
 from ase.atoms import Atoms
 from ase.data import atomic_numbers,covalent_radii,atomic_masses
 from ase.cell import Cell
-from ..crystgraph import atoms_to_mol_1, atoms_to_mol_2
+from .crystgraph import atoms_to_mol_1, atoms_to_mol_2
 
 
 class Atomset:

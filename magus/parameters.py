@@ -50,15 +50,6 @@ class magusParameters:
             'autoOpRatio': False,
             'autoRandomRatio': False,
         }
-        if p.calcType=='rcs':
-            log = logging.getLogger(__name__)
-            log.info("rcs mode: used layerfile '{}'".format(p.layerfile))
-            
-        checkParameters(p,p,Requirement,Default)
-
-        # p.initSize = p.popSize
-        expandSpg = []
-        for item in p.spacegroup:
         for key in Default:
             if key not in p_dict:
                 p_dict[key] = Default[key]

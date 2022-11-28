@@ -1,6 +1,5 @@
 import numpy as np
 from ase.atoms import Atoms
-from magus.reconstruct import fixatoms
 from ase.units import GPa
 from collections import defaultdict
 
@@ -112,16 +111,12 @@ def load_cfg(filename, type_to_symbol):
                     positions[i] = [float(fields[d[attr]]) for attr in ['cartes_x', 'cartes_y' ,'cartes_z']]
                     forces[i] = [float(fields[d[attr]]) for attr in ['fx', 'fy' ,'fz']]
                     energies[i] = float(fields[d['site_en']])
-                    constraints[i] = fields[d[attr]] 
                     
                 atoms = Atoms(symbols=symbols, cell=cell, positions=positions, pbc=True)
                 if d['fx'] != 0:
                     atoms.info['forces'] = forces
                 if d['site_en'] != 0:
                     atoms.info['energies'] = energies
-                if d['mvable'] != 0:
-                    c = np.where(constraints == False)
-                    atoms.set_constraint(fixatoms(c))
 
             if 'Energy' in line and 'Weight' not in line:
                 line = f.readline()

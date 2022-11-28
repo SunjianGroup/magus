@@ -130,6 +130,7 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
 # 
 # units: units of Generator such as:
 #  ['Zn', 'OH'] for ['Zn', 'O', 'H'], [[1, 0, 0], [0, 1, 1]]
+#  [']
 class SPGGenerator:
     def __init__(self, **parameters):
         self.all_parameters = parameters
@@ -209,7 +210,7 @@ class SPGGenerator:
             formula_pool.append(combine)
         formula_pool = np.array(formula_pool, dtype='int')
         return formula_pool
-
+    
     @property
     def formula_pool(self):
         if not hasattr(self, 'formula_pool_'):
