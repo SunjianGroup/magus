@@ -10,7 +10,7 @@ from ..comparators import get_comparator
 
 
 log = logging.getLogger(__name__)
-__all__ = ['Bulk', 'Layer']
+__all__ = ['Bulk', 'Layer', 'ConfinedBulk']
 
 
 def get_Ind(p_dict):
@@ -18,6 +18,8 @@ def get_Ind(p_dict):
         Ind = Bulk
     elif p_dict['structureType'] == 'layer':
         Ind = Layer
+    elif p_dict['structureType'] == 'confined_bulk':
+        Ind = ConfinedBulk
     Ind.set_parameters(**p_dict)
     return Ind
 
@@ -317,8 +319,8 @@ class Layer(Individual):
         z = sorted(p[:, 2])
         z.append(z[0] + 1)
         p[:, 2] -= z[np.argmax(np.diff(z))] + np.max(np.diff(z)) - 1
+        p[:, 2] -= np.min(p[:, 2]) - 1e-8   # Prevent numerical error
         new_atoms.set_scaled_positions(p)
-        new_atoms.wrap(pbc=[0, 0, 1])
         return new_atoms
 
     @staticmethod
@@ -339,7 +341,7 @@ class Layer(Individual):
         new_cell[2] *= thickness / h
         new_atoms.set_cell(new_cell)
         p = new_atoms.get_scaled_positions()
-        p[:, 2] += 0.5
+        p[:, 2] += 0.5 - (max(p[:, 2]) - min(p[:, 2])) / 2
         new_atoms.set_scaled_positions(p)
         return new_atoms
 
@@ -356,6 +358,32 @@ class Layer(Individual):
     def for_heredity(self):
         atoms = Layer.remove_vacuum(self)
         # atoms.set_pbc([True, True, False])
+        return atoms
+
+    def for_calculate(self):
+        atoms = Layer.add_vacuum(self, self.vacuum_thickness)
+        return atoms
+
+    @property
+    def volume_ratio(self):
+        return self.remove_vacuum(self).get_volume() / self.ball_volume
+
+
+class ConfinedBulk(Individual):
+    @classmethod
+    def set_parameters(cls, **parameters):
+        super().set_parameters(**parameters)
+        Default = {
+            'vacuum_thickness': 10, 
+            'bond_ratio': 1.1,
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
+        check_parameters(cls, parameters, [], Default)
+        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+
+    def for_heredity(self):
+        atoms = Layer.remove_vacuum(self)
+        if self.mol_detector > 0:
+            atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
         return atoms
 
     def for_calculate(self):
