@@ -304,7 +304,8 @@ class cutcell:
         #print(startpos)
         self.startpos = startpos
 
-        surface_vector = spg.get_symmetry_dataset(onelayer,symprec = 1e-4)['primitive_lattice']
+        #surface_vector = spg.get_symmetry_dataset(onelayer,symprec = 1e-4)['primitive_lattice']
+        surface_vector = onelayer.get_cell()
         abcc, abcp = cell_to_cellpar(onelayer.get_cell()[:])[:3], cell_to_cellpar(surface_vector)[:3]
         axisc = np.where(abcp == abcc[2])[0]
         assert len(axisc) ==1, "cannot match primitive lattice with origin cell, primitive abc = {} while origin abc = {}".format(abcp, abcc)
@@ -720,7 +721,7 @@ class weightenCluster:
     def Exp_j(self, ith, jth):
         return math.exp(-(self.atoms.get_distance(ith, jth) - self.radii[ith] - self.radii[jth]) / self.d)
     
-    def choseAtom(self, ind, atomnum):
+    def choseAtom(self, ind, atomnum = -1):
         if isinstance(ind, Atoms):
             self.atoms = ind.copy()
         else:

@@ -4,7 +4,7 @@ import ase.io
 import math, os, yaml, logging, copy
 from functools import reduce
 import numpy as np
-from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator, ReconstructGenerator, ClusterGenerator
+from .initstruct import BaseGenerator,read_seeds,VarGenerator,MoleculeGenerator, ReconstructGenerator, ClusterGenerator, AdClusterGenerator
 from .utils import *
 from .queuemanage import JobManager
 from .population import Population
@@ -16,7 +16,7 @@ from .offspring_creator import *
 class magusParameters:
     def __init__(self,inputFile):
         with open(inputFile) as f:
-            p_dict = yaml.load(f)
+            p_dict = yaml.load(f, Loader=yaml.FullLoader)
         self.p_dict = p_dict
         self.p_dict['workDir'] = os.getcwd()
         p = EmptyClass()
@@ -126,6 +126,8 @@ class magusParameters:
                 AtomsGenerator = ReconstructGenerator(self.parameters)
             elif self.parameters.calcType == 'clus':
                 AtomsGenerator = ClusterGenerator(self.parameters)
+            elif self.parameters.calcType == 'adclus':
+                AtomsGenerator = AdClusterGenerator(self.parameters)
                 
             else:
                 raise Exception("Undefined calcType '{}'".format(self.parameters.calcType))
@@ -238,6 +240,8 @@ class magusParameters:
             elif self.parameters.calcType == 'rcs':
                 self.FitnessCalculator.append(fit_dict['Ercs'])
             elif self.parameters.calcType == 'clus':
+                self.FitnessCalculator.append(fit_dict['Enthalpy'])
+            elif self.parameters.calcType == 'adclus':
                 self.FitnessCalculator.append(fit_dict['Enthalpy'])
 
         return self.FitnessCalculator

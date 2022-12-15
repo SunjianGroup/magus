@@ -15,7 +15,7 @@ from .descriptor import ZernikeFp
 import copy
 from .molecule import Molfilter
 from ase.constraints import FixAtoms
-# from .reconstruct import fixatoms, weightenCluster
+from .reconstruct import fixatoms, weightenCluster
 from ase import neighborlist
 from scipy import sparse
 
@@ -41,13 +41,17 @@ def set_ind(parameters):
         return RcsInd(parameters)
     if parameters.calcType == 'clus':
         return ClusInd(parameters)
+    if parameters.calcType == 'adclus':
+        return AdClusInd(parameters)
 
 def set_comparator(parameters):
     from .compare.naive import NaiveComparator
     from .compare.bruteforce import ZurekComparator
     from .compare.base import OrGate, AndGate
     from .reconstruct import OverlapMatrixComparator, OganovComparator
+    #from .compare.soap import SoapComparator
 
+    from .compare.ov import ValleOganovComparator
     if parameters.comparator == 'energy':
         return NaiveComparator(dE=parameters.diffE, dV=parameters.diffV)
     elif parameters.comparator == 'zurek':
@@ -60,6 +64,16 @@ def set_comparator(parameters):
         default = {'diffComp': 0.1, 'width': 1.0, 'orbital': 's'}
         checkParameters(parameters, parameters, [], default)
         return OverlapMatrixComparator(orbital= parameters.orbital, tolerance = parameters.diffComp, width = parameters.width)
+    #elif parameters.comparator == 'soap':
+    #    default = {'soap_threshold':0.95, 'soap_rcut':6.0, 'soap_nmax':8, 'soap_lmax':6, 'soap_periodic':True}
+    #    checkParameters(parameters, parameters, [], default)
+    #    return SoapComparator(parameters.symbols, threshold=parameters.soap_threshold, rcut=parameters.soap_rcut, nmax=parameters.soap_nmax, lmax=parameters.soap_lmax, periodic=parameters.soap_periodic)
+    elif parameters.comparator == 'ov_external':
+        default = {'sigma2': 10**(-0.5), 'n2': 100, 'rcut2' : 5, 'sigma3': 10**(-0.5), 'n3': 100, 'rcut3': 5, 'ov_threshold':0.00015}
+        checkParameters(parameters, parameters, [], default)
+        return  ValleOganovComparator(symbols = parameters.symbols,  
+            sigma2 =  parameters.sigma2, n2 = parameters.n2, rcut2 = parameters.rcut2, 
+            sigma3 =  parameters.sigma3, n3 = parameters.n3, rcut3 = parameters.rcut3, threshold = parameters.ov_threshold)
 
 class Population:
     """
@@ -207,7 +221,7 @@ class Population:
         checkpop = []
         for ind in self.pop:
             #log.debug("checking {}".format(ind.info['identity']))
-            if not ind.need_check() or ind.check(delP1 = delP1):
+            if not ind.need_check() or ind.check():#TODO: add delP1
                 checkpop.append(ind)
         log.info("check survival: {}".format(len(checkpop)))
         self.pop = checkpop
@@ -1132,12 +1146,10 @@ class RcsInd(Individual):
         return self.volRatio
 
     def check_sym(self, atoms =None, p = 0.7):
-        """
         a = self.atoms if atoms is None else atoms
         if spglib.get_spacegroup(a, self.p.symprec) == 'P1 (1)':
             if np.random.rand() < p:
                 return False
-        """
         return True
     
     def check(self, atoms=None, delP1 = False):
@@ -1154,7 +1166,7 @@ class RcsInd(Individual):
 class ClusInd(FixInd):
     def __init__(self, parameters):
         super().__init__(parameters)
-        default= {'vacuum':10, 'cutoff':1.0, 'weighten': True}
+        default= {'vacuum':10, 'cutoff':1.0, 'weighten': True, 'set_lattice': None}
         checkParameters(self.p,parameters, Requirement=[], Default=default )
         
         from pkg_resources import resource_filename
@@ -1220,14 +1232,20 @@ class ClusInd(FixInd):
             a = atoms.copy()
 
         pos = a.get_positions().copy()
-        newlattice =[]
-        for i in range(3):
-            ref = sorted(pos[:,i])
-            newlattice.append(ref[-1] - ref[0] + self.p.vacuum)
 
-        trans = [np.array(newlattice)/2 - np.mean(pos, axis = 0)]*len(a)
+        newlattice = np.array((3,3))
+        if self.p.set_lattice is None:
+            for i in range(3):
+                ref = sorted(pos[:,i])
+                newlattice[i][i] = ref[-1] - ref[0] + self.p.vacuum
+
+        else:
+            newlattice = self.p.set_lattice
+
+
+        trans = [np.mean(newlattice, axis = 0) - np.mean(pos, axis = 0)]*len(a)
         a.translate(trans)
-        newlattice.extend([90,90,90])
+
         a.set_cell (newlattice)
 
         return a
@@ -1322,3 +1340,110 @@ class ClusInd(FixInd):
         atoms.info['priNum'] = atoms.get_atomic_numbers()
         atoms.info['priVol'] = 4/3 * math.pi * self.bounding_sphere**3
         self.atoms = atoms
+
+    def get_targetFrml(self):
+        return {self.p.symbols[0]:self.p.minAt}
+ 
+class AdClusInd(Individual):
+    def __init__(self, parameters):
+        super().__init__(parameters)
+        Default = {'substrate': 'substrate.vasp', 'dist_clus2surface':2, 'size':[1,1], 'vacuum':10}
+        checkParameters(self.p,parameters, Requirement=[], Default=Default )
+        
+        self._substratefile_ = ase.io.read(self.p.substrate)*(*self.p.size, 1)
+        c = FixAtoms(indices=range(0, len(self._substratefile_) ))
+        self._substratefile_.set_constraint(c)
+
+        setattr(parameters, "set_lattice", self._substratefile_.get_cell()[:])
+        self._ClusInd_ = ClusInd(parameters)
+
+    def rm_substrate(self):
+        heights = self.atoms.get_scaled_positions()[:,2]
+        substrate_index = np.argpartition(heights, len(self._substratefile_))[:len(self._substratefile_)]
+        del self.atoms[substrate_index]
+        return self.atoms
+        
+    #Cell should be the exact cell of substrate! 
+    def absorb(self, cluster = None):
+        if cluster is None:
+            cluster = self.atoms
+        else:
+            cluster = cluster.copy()
+
+        ref = self._substratefile_
+        self.cluster = self._ClusInd_(cluster)
+        cluspos = self.cluster.atoms.get_positions()
+        self.cluster.atoms.set_cell(ref.get_cell())
+        
+        trans = [[*(np.mean(ref.get_cell()[:2], axis = 0)[:2] - np.mean(cluspos[:,:2], axis = 0)),-np.min(cluspos[:,2]) +np.max(ref.get_positions()[:, 2]) +self.p.dist_clus2surface]]*len(self.cluster.atoms)
+        self.cluster.atoms.translate(trans)
+        
+        self.atoms = ref + self.cluster.atoms
+
+        self.atoms.info = self.cluster.atoms.info
+
+        return self.atoms
+
+    def __call__(self, atoms):
+        newind = self.__new__(self.__class__)
+        newind.p = self.p
+        newind.comparator = self.comparator
+        newind.cf = self.cf
+        newind.inputMols = self.inputMols
+        newind.molCounters = self.molCounters
+        newind.inputFormulas = self.inputFormulas
+        newind._substratefile_ = self._substratefile_
+        newind._ClusInd_ = self._ClusInd_
+
+        if atoms.__class__.__name__ == 'Molfilter':
+            atoms = atoms.to_atoms()
+
+        newind.atoms = atoms.copy()
+
+        if len(atoms) > len(self._substratefile_):
+            #Maybe it is a weird if condition, but I think it's enough to tell if the substrate is in "atoms"
+            len_clus = len(atoms) - len(self._substratefile_)
+
+            cluster_index = np.argpartition(atoms.get_scaled_positions()[:,2], len_clus)[-len_clus:]
+        
+            newind.cluster = self._ClusInd_(atoms[cluster_index].copy())
+        else:
+            newind.cluster = self._ClusInd_(atoms.copy())
+        newind.info = {'numOfFormula':int(round(len(atoms)/sum(self.p.formula)))}
+        newind.info['fitness'] = {}
+        return newind
+
+    def randrotate(self, atoms = None):
+        newind = self.copy()
+        newind.cluster = self.cluster.randrotate()
+
+        if len(self.atoms) > len(self.cluster.atoms):
+            newind.atoms = newind.absorb()
+        
+        return newind
+        
+    def get_volRatio(self):
+        return self.cluster.get_volRatio()
+    def check(self, atoms=None):
+        return self.cluster.check()
+    def check_formula(self, atoms=None):
+        return self.cluster.check_formula()
+    def repair_atoms(self): 
+        return self.cluster.repair_atoms()
+    def find_spg(self):
+        self.cluster.find_spg()
+        self.atoms.info = self.cluster.atoms.info
+
+    @property
+    def fingerprint(self):
+        return self.cluster.fingerprint
+
+    #NOT exactly functions what the name says. (For compatibility reasons. Plus I'm lazy and dont want to change names in old codes.)
+    #NO relaxable exists in structure and DOESNOT remove vacuum.
+    def addbulk_relaxable_vacuum(self, atoms = None):
+        self.absorb()
+        return self.atoms
+        
+    def removebulk_relaxable_vacuum(self, atoms = None):
+        self.rm_substrate()
+        return self.atoms

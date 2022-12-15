@@ -893,10 +893,10 @@ class PopGenerator:
         Pop.calc_dominators()
 
         #remove bulk_layer and relaxable_layer before crossover and mutation
-        if self.p.calcType=='rcs':
+        if self.p.calcType=='rcs' or self.p.calcType=='adclus':
             Pop = Pop.copy()
             Pop.removebulk_relaxable_vacuum()
-        if self.p.calcType=='clus':
+        if self.p.calcType=='clus' or self.p.calcType=='adclus':
             Pop.randrotate()
         if self.p.calcType == 'var':
             Pop.check_full()
@@ -937,7 +937,7 @@ class PopGenerator:
 
         if self.p.calcType == 'var':
             newPop.check_full()
-        if self.p.calcType=='rcs':
+        if self.p.calcType=='rcs' or self.p.calcType=='adclus':
             newPop.addbulk_relaxable_vacuum()
         #newPop.save('testnew')
         newPop.check()

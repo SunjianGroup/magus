@@ -409,6 +409,7 @@ class ReconstructGenerator():
             ase.io.write("Ref/refslab.traj", ase.io.read(para_t.layerfile), format = 'traj')
             #here starts to split layers into [bulk, relaxable, rcs]
             originatoms = ase.io.read(para_t.layerfile)
+            originatoms.pbc = True
             xy = [1,1]
 
             if np.any(np.array([*para_t.rcs_x, *para_t.rcs_y])%1 > 0) or para_t.pcell == False:
@@ -613,7 +614,8 @@ class ReconstructGenerator():
                 scaledp_matrix[i][j] -= spa[i][2] * refcell[2] + latticesub[2] 
         scaledp_matrix /= refcell[2]
         dz = max(np.min(scaledp_matrix), -np.min(spa[:, 2]))
-
+        dz = -2
+        #dz = max(np.min(scaledp_matrix), -np.min(spa[:, 2]))
         atoms.translate([ -dz/refcell[2]* atoms.get_cell()[2]]* len(atoms))
         return True, atoms
 
@@ -715,7 +717,6 @@ class ReconstructGenerator():
             #log.debug("formula {} of number {} with chosen spg = {}".format(self.rcs_generator.p.symbols, numlist,spg))
             #log.debug("with maxlattice = {}".format(self.rcs_generator.p.maxLattice))
             label,ind = self.rcs_generator.Generate_ind(spg,numlist)
-
             if label:
                 label, ind = self.reset_rind_lattice(ind, _x, _y)
 
@@ -748,10 +749,10 @@ class ClusterGenerator(BaseGenerator):
         #For cluster genertor, generates atom positions lies in distance (from origin) range of (minLattice[0], maxLattice[0])
         atomicR = [float(covalent_radii[atomic_numbers[atom]]) for atom in self.p.symbols]
         Volume = np.sum(4*np.pi/3*np.array(atomicR)**3*np.array(numlist))*self.p.volRatio
-        minVolume = Volume*0.5
-        maxVolume = Volume*1.5
+        minVolume = Volume*0.2
+        maxVolume = Volume*0.8
         minLattice = [3*self.p.dRatio*np.mean(atomicR)]*3 + [60,60,60] if not self.p.minLattice else self.p.minLattice
-        maxLattice = [(4 * Volume / (4/3 * math.pi))**(1.0/3)]*3 + [120,120,120] if not self.p.maxLattice else self.p.maxLattice
+        maxLattice = [ ( Volume / (4/3 * math.pi))**(1.0/3)]*3 + [120,120,120] if not self.p.maxLattice else self.p.maxLattice
 
         return minVolume,maxVolume,minLattice,maxLattice
 
@@ -759,6 +760,22 @@ class ClusterGenerator(BaseGenerator):
         pop =  super().Generate_pop(popSize,initpop)
         for ind in pop:
             ind.set_pbc([0,0,0])
+        return pop
+
+from .population import AdClusInd
+class AdClusterGenerator(ClusterGenerator):
+    def __init__(self,parameters):
+        super().__init__(parameters)
+        self.ind = AdClusInd(parameters)
+
+    def Generate_pop(self,popSize,initpop=False):
+        pop =  super().Generate_pop(popSize,initpop)
+        for i, ind in enumerate(pop):
+            c = self.ind(ind)
+            c.absorb()
+            pop[i] = c.atoms.copy()
+            nfm = 1
+            self.afterprocessing(pop[i], nfm)
         return pop
         
 #test
