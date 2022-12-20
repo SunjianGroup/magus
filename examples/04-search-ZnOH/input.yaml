@@ -1,20 +1,19 @@
-calcType: var
+formulaType: var
 pressure: 0
 initSize: 150
-popSize: 150
-numGen: 60
+popSize: 100
+numGen: 40
 saveGood: 8
 
 #structure parameters
-minAt: 8
-maxAt: 16
+minNAtoms: 8
+maxNAtoms: 16
 symbols: ['Zn','O','H']
 formula: [[1,0,0],[0,1,1]]
 fullEles: True
-eleSize: 5
 
 dRatio: 0.5
-volRatio: 10
+volumeRatio: 10
 addSym: False
 
 #main calculator settings
