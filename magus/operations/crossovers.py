@@ -1,4 +1,3 @@
-from matplotlib.pyplot import axis
 import numpy as np
 from ase import Atoms
 from ase.geometry import cell_to_cellpar, cellpar_to_cell

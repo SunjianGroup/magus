@@ -1,23 +1,23 @@
-calcType: fix
+formulaType: fix
 initSize: 20
 popSize: 20
 numGen: 40
 saveGood: 3
 pressure: 50
-minAt: 20
-maxAt: 20
+minNAtoms: 20
+maxNAtoms: 20
 symbols: ['C', 'H']
 ## mol crystal
 molMode: True
-molFile: ['CH4.xyz']
-molFormula: [4]
+inputMols: ['CH4.xyz']
+formula: [4]
 molType: 'fix'
 chkMol: True
 addSym: True
 
 dRatio: 0.8
-volRatio: 5
-randFrac: 0.4
+volumeRatio: 5
+randRatio: 0.4
 molDetector: 2
 
 #main calculator settings
