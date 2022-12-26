@@ -53,7 +53,8 @@ class VaspCalculator(ClusterCalculator):
         self.vasp_setup = {
             'pp_setup': dict(zip(self.symbols, pp_label)),
             'xc': self.xc,
-            'pressure': self.pressure}
+            'pressure': self.pressure,
+            'restart':False}
         self.main_info.append('vasp_setup')
 
     def scf_job(self, index):
@@ -139,7 +140,7 @@ def calc_vasp(calc, frames):
 
 
 def get_calc(vasp_setup):
-    calc = RelaxVasp()
+    calc = RelaxVasp(restart = vasp_setup['restart'])
     calc.read_incar('INCAR')
     calc.set(xc=vasp_setup['xc'])
     calc.set(setups=vasp_setup['pp_setup'])

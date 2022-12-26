@@ -7,7 +7,6 @@ from ase.io import read, write
 from ase.data import atomic_numbers, covalent_radii
 from ase.geometry import cellpar_to_cell
 from magus.utils import *
-# from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 from magus.generators import GenerateNew
 
 

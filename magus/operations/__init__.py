@@ -5,7 +5,6 @@ from .mutations import *
 op_list = ['CutAndSplicePairing', 'ReplaceBallPairing', 
            'SoftMutation', 'PermMutation', 'LatticeMutation', 'RippleMutation', 'SlipMutation',
            'RotateMutation', 'RattleMutation', 'FormulaMutation', 
-           'LyrSlipMutation', 'LyrSymMutation', 'ShellMutation', 'CluSymMutation',
            ]
 
 def remove_end(op_name):
@@ -28,15 +27,4 @@ def get_default_op(p_dict):
         operators['rotate'] = {}
     if p_dict['formulaType'] == 'var':
         operators['formula'] = {}
-    # if self.parameters.calcType=='rcs':
-    #     op_nums['lattce'] = 0
-    #     op_nums['formula'] = num if not self.parameters.chkMol and len(self.parameters.symbols) > 1 else 0
-    #     op_nums['lyrslip'] = num
-    #     op_nums['lyrsym'] = num
-    # if self.parameters.calcType=='clus':
-    #     op_nums['slip'] = 0
-    #     #op_nums['soft'] = num
-    #     op_nums['shell'], op_nums['clusym'] = [num]*2
-    #     operations['ripple'] = RippleMutation(rho=0.05)
-    #     operations['rattle'] = RattleMutation(p=0.25,rattle_range=0.8,dRatio=self.parameters.dRatio)
     return operators

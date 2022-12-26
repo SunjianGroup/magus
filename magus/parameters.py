@@ -3,7 +3,7 @@ from collections import defaultdict
 from .populations import get_population
 from .calculators import get_calculator
 from .generators import get_random_generator, get_ga_generator
-
+from .reconstruct.rcs_interface import rcs_type_list, rcs_interface
 
 #@Singleton
 class magusParameters:
@@ -74,6 +74,10 @@ class magusParameters:
             assert p_dict['molDetector'] > 0, "If you want to check molecules, molDetector should be 1."
 
         self.p_dict = p_dict
+        
+        #This is interface to surface reconstruction, feel free to delete if not needed ;P
+        if p_dict['structureType'] in rcs_type_list:
+            rcs_interface(self)
 
     @property
     def RandomGenerator(self):

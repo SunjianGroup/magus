@@ -2,6 +2,7 @@ import argparse, importlib, logging
 # from magus.calculators import CALCULATOR_PLUGIN
 from magus.logger import set_logger
 from magus import __version__, __picture__
+from ..reconstruct.entrypoints import rcs_interface
 
 
 def parse_args():
@@ -310,54 +311,10 @@ def parse_args():
         default=False,
         help="add --force-reinstall to pip install"
     )
-    #For reconstructions, get a slab
-    parser_slab = subparsers.add_parser(
-        "getslab",
-        help="get the slab model used in rcs-magus",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser_slab.add_argument(
-        "-f",
-        "--filename",
-        type=str,
-        default= 'Ref/layerslices.traj',
-        help="traj of slab model, default is './Ref/layerslices.traj'",
-    )
-    parser_slab.add_argument(
-        "-s",
-        "--slabfile",
-        type=str,
-        default= 'slab.vasp',
-        help="slab file",
-    )
-    #generation energy analizer, a quick version of summary
-    parser_ana = subparsers.add_parser(
-        "analyze",
-        help="get energy tendency of evolution",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser_ana.add_argument(
-        "-f",
-        "--filename",
-        type=str,
-        default= 'results',
-        help="dictionary of results",
-    )
-    parser_ana.add_argument(
-        "-e",
-        "--to-excel",
-        type=str,
-        default= None,
-        help="output to excel",
-    )
-    parser_ana.add_argument(
-        "-p",
-        "--to_plt",
-        type=str,
-        default= None,
-        help="output to plot",
-    )
 
+    #The following one line is interface to surface reconstruction, feel free to delete if not needed ;P
+    rcs_interface(subparsers)
+    
     #for developers: mutation test
     parser_mutate = subparsers.add_parser(
         "mutate",

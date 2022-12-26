@@ -19,7 +19,7 @@ class Population:
     a class of atoms population
     """
     batch_operation = [
-        'find_spg', 'add_symmetry', 'removebulk_relaxable_vacuum', 'addbulk_relaxable_vacuum', 'randrotate'
+        'find_spg', 'add_symmetry', 
         ]
     
     @classmethod
