@@ -1,4 +1,4 @@
-calcType: fix
+formulaType: fix
 pressure: 0
 poolSize: 2000
 initSize: 200
@@ -7,15 +7,15 @@ numGen: 40
 saveGood: 4
 
 #structure parameters
-minAt: 12
-maxAt: 12
-p_pri: 0.5
+minNAtoms: 12
+maxNAtoms: 12
+p_pri: 0.5          # probability to generate primary cell
 symbols: ['B']
 formula: [1]
 dRatio: 0.8
-volRatio: 3.0
+volumeRatio: 3.0
 addSym: True
-randFrac: 0.3
+randRatio: 0.3
 molDetector: 2
 #run settings
 DFTRelax: False
@@ -37,7 +37,8 @@ MLCalculator:
  calculator: mtp
  init_times: 0
  min_dist: 1.2
- queueName: 9242opa!
+ #queueName: 9242opa!
+ queueName: 5220r
  numCore: 48
  waitTime: 10
  force_tolerance: 0.001

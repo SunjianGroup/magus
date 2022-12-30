@@ -1,1 +1,1 @@
-magus gen -n 5 
+magus generate -n 5 

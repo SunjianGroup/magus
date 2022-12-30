@@ -1,5 +1,5 @@
 formulaType: fix
-poolSize: 2000 #这个是预训练生成的随机结构，可以设的很大
+poolSize: 2000  #这个是预训练生成的随机结构，可以设的很大
 initSize: 400
 popSize: 400
 numGen: 60
@@ -19,7 +19,6 @@ volumeRatio: 1.3
 randRatio: 0.4
 pressure: 150
 addSym: True
-softNum: 0
 #main calculator settings
 MainCalculator:
  jobPrefix: Vasp

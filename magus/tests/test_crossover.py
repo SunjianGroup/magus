@@ -1,6 +1,6 @@
 import unittest, os
 from ase.io import read
-from magus.populations.individuals import Bulk, Layer
+from magus.populations.individuals import *
 from magus.operations.crossovers import CutAndSplicePairing, ReplaceBallPairing
 
 

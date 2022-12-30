@@ -1,7 +1,7 @@
 import logging, yaml
 from ase import Atoms 
 from magus.utils import *
-from magus.populations.individuals import Bulk, Layer
+from magus.populations.individuals import *
 
 
 log = logging.getLogger(__name__)

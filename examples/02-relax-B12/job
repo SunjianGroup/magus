@@ -7,4 +7,4 @@
 
 export OMP_NUM_THREADS=4
 export MKL_NUM_THREADS=4
-magus calc gen.traj
+magus calculate gen.traj
