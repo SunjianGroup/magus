@@ -1,58 +1,32 @@
-calcType: clus
-pressure: 0
-initSize: 20
-popSize: 20
-numGen: 20
-saveGood: 4 
-randFrac: 0.4
-
-#cluster model
-vacuum: 20
-cutoff: 1.6
+#Lennard-Jones cluster
+formulaType: fix
+structureType: cluster 
+initSize: 40
+popSize: 40
+numGen: 10
+saveGood: 5                 # number of good structures kept to the next generation
 
 #structure parameters
-minAt: 55
-maxAt: 55
 symbols: ['H']
-formula: [1]
-fullEles: True
-eleSize: 0
-dRatio: 1.5
-volRatio: 5
-addSym: False
-spacegroup: [1-56]
-dimension: 0
+formula: [1]                # Not used
+min_n_atoms: 55
+max_n_atoms: 55
+spacegroup: [2-56]
 
-#evolution settings
-permNum: 0
-repairtryNum: 20
-diffE: 0.01
+cutoff: 3                   #check connection
+vacuum_thickness: 10
+d_ratio: 1.3
+volume_ratio: 8
 
-#main calculator settings
+Comparator:
+ comparator_list: ['naive']
+  
+# main calculator settings
 MainCalculator:
- calculator: lj
- jobPrefix: lj
- mode: parallel
- calcNum: 1
- #ase settings
- epsArr: [0.01]
- stepArr: [300]
- maxRelaxStep: 0.1
- relaxLattice: False
- optimizer: bfgs
+ calculator: 'lj'
+ jobPrefix: 'lj'
+ relax_lattice: False
+ eps: 0.02
+ max_step: 400
  
- #vasp settings
- #xc: PBE
- #ppLabel: ['']
- 
- #gulp settings
- #exeCmd: gulp < input > output
- 
- #parallel settings
- #numParallel: 5
- #numCore: 24
- #queueName: 9242opa! 
- #queueName: e52692v2ib
- #queueName: e5v3ib
- #waitTime: 120
 

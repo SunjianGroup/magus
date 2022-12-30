@@ -1,79 +1,55 @@
-calcType: rcs
-pressure: 0
+#Surface reconstruction of SnO2(110) 4*1
+formulaType: fix        
+structureType: surface 
 initSize: 40
 popSize: 40
-numGen: 20
-saveGood: 5
-randFrac: 0.3
-
-#slab model
-layerfile: 'SnO2.cif'
-direction: [1,1,0]
-cutslices: 2
-bulk_layernum: 1
-relaxable_layernum: 1
-rcs_layernum: 1
-AtomsToAdd: [[-2], [-10]]
-#DefectToAdd: [[0]]
-rcs_x: [1]
-rcs_y: [4]
-vacuum: 10
-extra_c: 1.5
-
+numGen: 40
+saveGood: 8                 # number of good structures kept to the next generation
 #structure parameters
-minAt: 1
-maxAt: 200
-symbols: ['Sn', 'O']
-formula: [22, 38]
-fullEles: True
-eleSize: 0
-spacegroup: [1-17]
-choice: 0
-dimension: 2
-dRatio: 0.5
-volRatio: 3
-addSym: False
+symbols: ['Sn','O']
+formula: [1,1]                # Not used, dont delete
+min_n_atoms: 0              # Not used, dont delete
+max_n_atoms: 0              # Not used, dont delete
+spacegroup: [2-17]
+vacuum_thickness: 10
+spg_type: plane
+rcs_x: [4]
+rcs_y: [1]
+d_ratio: 0.8
+randRatio: 0.3               # fraction of random
+randwalk_ratio: 0.3          # ratio of generation by rand walk
 
-#evolution settings
-range: 6
-permNum: 0
-formNum: 0
-lyrslipNum: 0
-lyrsymNum: 0
-diffE: 0.1
+add_sym: False               # GAgenerator: don't add sym! IMPORTANT!
 
-refE: 0
-refFrml: {'Sn':4, 'O':8}
-#queueName: e52692v2ib
-#queueName: 9242opa! 
-#numCore: 24
+Comparator:
+ comparator_list: ['naive']
 
+#slab model parameters
+slabinfo:
+ bulk_file: "SnO2.cif"
+ cutslices: 2
+ bulk_layernum: 2
+ buffer_layernum: 1
+ rcs_layernum: 1
+ direction: [1,1,0]
+ #pcell: True                 #Use primitive cell
+ addH: True
+ extra_c: 1.5
 
-#main calculator settings
+modification: 
+ adsorb: {'Sn': [-2], 'O':[-14]}         #adsorb or use rcs_formula: [[6],[2]]
+
+# main calculator settings
 MainCalculator:
- calculator: vasp
- jobPrefix: ['vasp1', 'vasp2']
- mode: parallel
- calcNum: 2
+ calculator: 'vasp'
+ jobPrefix: ['vasp1', 'vasp2'] 
 
- #ase settings
- #epsArr: [0.01]
- #stepArr: [400]
- #maxRelaxStep: 0.5
- #relaxLattice: False
- #mainoptimizer: fire
- 
  #vasp settings
  xc: PBE
- ppLabel: ['']
- 
- #gulp settings
- #exeCmd: gulp < input > output
- 
- #parallel settings
- numParallel: 5
- numCore: 12
- #queueName: 9242opa! 
- queueName: e52692v2ib!
- waitTime: 120
+ ppLabel: ['','','']
 
+ #parallel settings
+ numParallel: 8              # number of parallel jobs
+ numCore: 12                  # number of cores
+ queueName: e52692v2ib! 
+ waitTime: 100

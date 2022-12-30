@@ -2,34 +2,47 @@ from magus.parameters import magusParameters
 import ase.io
 import logging
 
-_applied_operations_ = ['cutandsplice', 'replaceball',
-                                  'soft', 'perm', 'lattice', 'ripple', 'slip', 'rotate', 'rattle', 'formula',
-                                  'lyrslip', 'lyrsym', 'shell', 'clusym']
+from magus.operations import op_dict
+from magus.reconstruct.ga import rcs_op_dict
 
-def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file='result', **kwargs):
-    
-    log = logging.getLogger(__name__)
+op_dict.update(rcs_op_dict)
+_applied_operations_ = list(op_dict.keys()) 
 
-    op_nums = {}
-    for key in _applied_operations_:
-        op_nums[key+'Num'] = kwargs[key] if key in kwargs else 0
+#Note: _applied_operations_ = [ 'cutandsplice', 'replaceball',
+#                                                  'soft', 'perm', 'lattice', 'ripple', 'slip', 'rotate', 'rattle', 'formula',
+#                                                  'lyrslip', 'lyrsym', 'shell', 'clusym']
 
+
+log = logging.getLogger(__name__)
+
+def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file='result.traj', **kwargs):
     m = magusParameters(input_file)
-    if not hasattr(m.parameters, 'OffspringCreator'):
-        setattr(m.parameters, 'OffspringCreator', {})
-    inputparm = getattr(m.parameters, 'OffspringCreator') 
-    for key in list(op_nums.keys()):
-        if key not in inputparm:
-            m.parameters.OffspringCreator[key] =  op_nums[key]
-    print(m.parameters.OffspringCreator)
-    PopGenerator = m.get_PopGenerator()
-    Population = m.get_Population()
+    ga = m.NextPopGenerator
+
+
+    operators = {}
+    for key in _applied_operations_:
+        if kwargs[key]:
+            op = op_dict[key]()
+            operators[op] = {}
+
+    ga.op_list = list(operators.keys())
+    ga.op_prob = [1.0/len(ga.op_list)]*len(ga.op_list)
+    pop = m.Population
+
+    print("use ga generater: {}".format(ga))
+    
     seed_pop = ase.io.read(seed_file, index = ':')
     for i, _ in enumerate(seed_pop):
         seed_pop[i].info['energy'] = 0
         seed_pop[i].info['enthalpy'] = 0
-    seed_pop = Population(seed_pop, 'seedPop')
+    
+    seed_pop = pop(seed_pop, 'seedPop')
     seed_pop.gen = 0
-    next_pop = PopGenerator.generate(seed_pop, m.parameters.saveGood)
-    log.debug("generated {} individuals.".format(len(next_pop)))
-    next_pop.save(filename = output_file[:-1], gen = output_file[-1], savedir = '.')
+    next_pop =ga.get_next_pop(seed_pop, 10)
+    print("generated {} individuals.".format(len(next_pop)))
+    new_frames = []
+    for atoms in next_pop:
+        new_frames.append(atoms.for_calculate())
+
+    ase.io.write(output_file, new_frames, format = 'traj')

@@ -106,11 +106,11 @@ class Surface(Individual):
             'buffer': True,
             'fixbulk':True,
             'slices_file': 'Ref/layerslices.traj',
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]
             }
         check_parameters(cls, parameters, [], Default)
-        cls.bulk_layer = read(cls.slices_file, index = 0)
-        if cls.buffer:
-            cls.buffer_layer = read(cls.slices_file, index = 1)
+        cls.slices = read(cls.slices_file, index = ':')
+        
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
 
     def __init__(self, *args, **kwargs):
@@ -125,20 +125,20 @@ class Surface(Individual):
         """
         self.full_ele = False
         super().__init__(*args, **kwargs)
-        if 'n_top' in self.info:
-            if 'check_cell' in self.check_list:
-                self.check_list.remove('check_cell')
-            if 'check_formula' in self.check_list:
-                self.check_list.remove('check_formula')
-                
+        if 'check_cell' in self.check_list:
+            self.check_list.remove('check_cell')
+        
         if 'size' not in self.info:
             self.info['size'] = [1,1]
+        self.bulk_layer = self.slices[0] * (*self.info['size'], 1)
+        if self.buffer:
+            self.buffer_layer = self.slices[1] * (*self.info['size'], 1)
         self.set_pbc([True, True, False])
 
     def for_heredity(self):
         atoms = self.copy()
         if 'n_top' in atoms.info:
-            atoms = Surface.get_top_layer(atoms)
+            atoms = self.get_top_layer(atoms)
             del atoms.info['n_top']
         return atoms
 
@@ -187,13 +187,12 @@ class Surface(Individual):
             atoms.info['n_top'] = len(self)   # record the n_top so extra layers can easily removed by atoms[-n_top:]
         return atoms
 
-    @staticmethod
-    def get_top_layer(atoms):
+    def get_top_layer(self, atoms):
         ats = atoms.copy() 
-        ats = Surface.set_substrate(ats, Surface.bulk_layer, add=-1) 
-        if Surface.buffer:
-            ats = Surface.set_substrate(ats, Surface.buffer_layer, add=-1) 
-        ats = Surface.set_vacuum(ats, -1 *Surface.vacuum_thickness)
+        ats = self.set_substrate(ats, self.bulk_layer, add=-1) 
+        if self.buffer:
+            ats = self.set_substrate(ats, self.buffer_layer, add=-1) 
+        ats = self.set_vacuum(ats, -1 *self.vacuum_thickness)
         return ats
 
     @staticmethod
@@ -242,14 +241,14 @@ class Surface(Individual):
             if not self.buffer:
                 return atoms_top
             else:
-                extratoms = self.buffer_layer * (*self.info['size'] , 1)
+                extratoms = self.buffer_layer
         elif type=='bulk':
-            extratoms = self.bulk_layer * (*self.info['size'] , 1)
+            extratoms = self.bulk_layer
             
             c = FixAtoms(indices=range( 0, len(extratoms) )) if self.fixbulk else fixatoms(indices=range( 0, len(extratoms) ))
             extratoms.set_constraint(c)
         
-        atoms_top = Surface.set_substrate(atoms_top, extratoms, add)
+        atoms_top = self.set_substrate(atoms_top, extratoms, add)
                 
         if atoms is None:
             self = atoms_top 
@@ -290,6 +289,9 @@ class Surface(Individual):
 
     def check_formula(self, atoms=None):
         atoms = atoms or self
+        if 'n_top' in atoms.info:
+            return True
+        
         symbols_numlist = np.array(self.numlist)
         for possible_symbols_numlist in self.symbol_numlist_pool["{},{}".format(*self.info['size'])]:
             if np.all(symbols_numlist == possible_symbols_numlist):
@@ -299,8 +301,10 @@ class Surface(Individual):
 
     def get_target_formula(self, n=1):
         standard = self.symbol_numlist_pool["{},{}".format(*self.info['size'])]
-        target_formula = [{s:np.random.choice(standard[s]) for s in standard}]
         
+        rand_formula = standard[np.random.randint(len(standard))]
+
+        target_formula = [dict(zip(self.symbol_list, rand_formula))]
         return target_formula
 
     @property
@@ -393,9 +397,8 @@ class Cluster(Individual):
 
     def check_connection(self,atoms=None):
         atoms = atoms or self
-        #n_components, _ = self._connecty_(atoms)
-        #return False if n_components > 1 else True
-        return True
+        n_components, _ = self._connecty_(atoms)
+        return False if n_components > 1 else True
     
     def repair_atoms(self):
         n_components, component_list = self._connecty_(self)
@@ -439,8 +442,8 @@ class Cluster(Individual):
         symprec = self.symprec
         molecule = Molecule(self.symbols,self.get_positions())
         
-        #spg = PointGroupAnalyzer(molecule, symprec).sch_symbol
-        spg = 1
+        spg = PointGroupAnalyzer(molecule, symprec).sch_symbol
+
         if spg in self.pointgroup_symbols:
             spg = self.pointgroup_symbols.index(spg) + 1
         else:

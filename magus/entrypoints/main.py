@@ -135,12 +135,7 @@ def parse_args():
         default=[],
         help="the features to be added to the show features",
     )
-    parser_sum.add_argument(
-        "-c",
-        "--cluster",
-        action="store_true",
-        help="whether to summary clusters",
-    )
+
     parser_sum.add_argument(
         "-v",
         "--var",
@@ -326,9 +321,9 @@ def parse_args():
     for i,key in enumerate(arg_mus):
         parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i])
 
-    # from .mutate import _applied_operations_
-    # for key in _applied_operations_:
-    #     parser_mutate.add_argument("--"+key, type=int, default=0)
+    from .mutate import _applied_operations_
+    for key in _applied_operations_:
+        parser_mutate.add_argument("--"+key, action='store_true', default=False)
 
     parsed_args = parser.parse_args()
     if parsed_args.command is None:

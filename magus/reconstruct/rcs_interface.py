@@ -37,11 +37,59 @@ from ..generators import  _cal_op_prob_,op_dict, GAGenerator, AutoOPRatio
 from .ga import rcs_op_dict, rcs_op_list
 
 
+def rcs_cross(cls, ind1, ind2):
+
+    newind = cls.cross_bulk(ind1, ind2)
+    if 'size' in ind1.info and not (newind is None):
+        newind.info['size'] = ind1.info['size']
+
+    return newind
+
+def rcs_mutate(cls, ind):
+    newind = cls.mutate_bulk(ind)
+    if 'size' in ind.info and not (newind is None):
+        newind.info['size'] = ind.info['size']
+    return newind
+
+def rcs_get_new_ind(cls, ind):
+    newind = cls.ori_get_new_ind(ind)
+    if newind is None:
+        return newind
+    if hasattr(ind, 'info'):    #mutate
+        if 'size' in ind.info:
+            newind.info['size'] = ind.info['size']
+    else:                               #cross
+        if 'size' in ind[0].info:
+            newind.info['size'] = ind[0].info['size']
+    return newind
+
+
 def rcs_ga_generator(p_dict):
 
     operators = get_rcs_op(p_dict)
     if 'OffspringCreator' in p_dict:
         operators.update(p_dict['OffspringCreator'])
+
+    for name in op_dict.keys():
+        op = op_dict[name]
+
+        if hasattr(op, 'ver_rcs'):
+            continue
+
+        setattr(op, 'ver_rcs', True)
+
+        setattr(op, 'ori_get_new_ind', op.get_new_individual)
+        setattr(op, "get_new_individual", rcs_get_new_ind)
+
+        if hasattr(op, 'mutate'):
+            log.info("set method 'mutate_bulk' to 'mutate' of {}".format(op.__name__))
+            setattr(op, 'mutate', rcs_mutate)
+        
+        elif hasattr(op, 'cross'):
+            log.info("set method 'cross_bulk' to 'cross' of {}".format(op.__name__))
+            setattr(op, 'cross', rcs_cross)
+        
+        op_dict[name] = op
 
     op_dict.update(rcs_op_dict)
     
@@ -51,15 +99,6 @@ def rcs_ga_generator(p_dict):
         generator =  AutoOPRatio(op_list, op_prob, **p_dict)
     else:
         generator = GAGenerator(op_list, op_prob, **p_dict)
-
-    for i, op in enumerate(generator.op_list):
-        if op.__class__ not in rcs_op_list:
-            if hasattr(op, 'mutate'):
-                log.info("set method 'mutate_bulk' to 'mutate' of {}".format(op.__class__.__name__))
-                setattr(generator.op_list[i], 'mutate', generator.op_list[i].mutate_bulk)
-            elif hasattr(op, 'cross'):
-                log.info("set method 'cross_bulk' to 'cross' of {}".format(op.__class__.__name__))
-                setattr(generator.op_list[i], 'cross', generator.op_list[i].cross_bulk)
 
     return generator
 
@@ -71,9 +110,10 @@ def get_rcs_op(p_dict):
     
     if p_dict['structureType'] == 'surface':
         del operators['lattice']
-        if len(p_dict['symbols']) > 1:
-            operators['formula'] = {}
         
+    if p_dict['formulaType'] == 'var':
+        operators['formula'] = {}
+
         #operators['lyrslip'] = {}
         #operators['lyrsym'] = {}
         #operators['shell'] = {}

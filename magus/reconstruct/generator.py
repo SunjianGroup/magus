@@ -10,6 +10,8 @@ from ase.geometry import cell_to_cellpar,cellpar_to_cell
 from ase.data import atomic_numbers, covalent_radii
 import spglib
 from spglib import get_symmetry_dataset
+import itertools
+
 
 log = logging.getLogger(__name__)
 
@@ -26,8 +28,9 @@ class ClusterSPGGenerator(SPGGenerator):
         return [3*self.d_ratio*np.mean(self.radius)]*3 + [60,60,60] if self.min_lattice[0] < 0 else self.min_lattice
         
     def get_max_lattice(self, numlist):
-        max_volume = self.get_volume(numlist)[0] *2
-        max_lattice = [(4 * max_volume / (4/3 * math.pi))**(1.0/3)]*3 + [120,120,120] 
+        mean_volume = self.get_volume(numlist)[0] *2
+        mean_volume *= 0.7              #???
+        max_lattice = [(mean_volume / (4/3 * math.pi))**(1.0/3)]*3 + [120,120,120] 
 
         return max_lattice if self.max_lattice[0] < 0 else self.max_lattice
 
@@ -200,7 +203,11 @@ class SurfaceGenerator(SPGGenerator):
         assert len(self.input_layers) == (2 + self.buffer), "SurfaceGenerator: len(input_layers) must be {} {} buffer layer.".format(2+self.buffer, 'with' if self.buffer else 'without')
 
         self._init_lattice_()
+
+        self.symbol_list = [s for s in self.symbols]
         self.get_default_formula_pool()
+
+
         if self.spg_type == 'plane':
             self.choice = 0
             self.spacegroup = [spg for spg in self.spacegroup if spg <= 17]
@@ -210,7 +217,7 @@ class SurfaceGenerator(SPGGenerator):
         self._choice_ = self.choice
     
     def afterprocessing(self, atoms, *args, size = [1,1], origin = 'random', **kwargs):
-        atoms.info['symbols'] = self.symbols
+        atoms.info['symbols'] = list(set(atoms.get_chemical_symbols()))
         atoms.info['parentE'] = 0.
         atoms.info['size'] = size
         atoms.info['origin'] = origin
@@ -320,7 +327,7 @@ class SurfaceGenerator(SPGGenerator):
         #dz = np.min(scaledp_matrix)
         #dz = max(np.min(scaledp_matrix), -np.min(spa[:, 2]))
         """
-        dz = -2.0         #dz = 2.0Ang from bottom to substrate top 
+        dz = -1.5         #dz = 1.5 Ang from bottom to substrate top, more flexible later 
         atoms.translate([ -dz/refcell[2]* atoms.get_cell()[2]]* len(atoms))
         
         return True, atoms
@@ -352,6 +359,11 @@ class SurfaceGenerator(SPGGenerator):
         return self.max_lattice
     def get_volume(self, numlist):
         return self.min_volume, self.min_volume
+    
+    def generate_ind(self, spg, formula):
+        self.symbols = np.array([s for s in formula.keys() if formula[s] > 0])
+        numlist = np.array([formula[s] for s in self.symbols])
+        return super().generate_ind(spg, numlist, np.random.choice(self.n_split))
 
     def generate_random_walk_ind(self, _x, _y):
         ind = self.ref_layer * (_x , _y, 1)
@@ -371,12 +383,11 @@ class SurfaceGenerator(SPGGenerator):
                     del ind[_to_del]
         
         if add:
-            numlist = np.array([add[s] for s in self.symbols])
             spg = np.random.choice(self.spacegroup) if self.choice == 0 else np.random.choice(self.get_spg(self.symtype, 'planegroup'))                
             self.choice = 0
             self.reset_generator_lattice(_x, _y, spg)
 
-            label,extraind = self.generate_ind(spg,numlist, np.random.choice(self.n_split))
+            label,extraind = self.generate_ind(spg, add)
             if label:
                 botp = np.max(ind.get_scaled_positions()[:,2]) + np.random.choice(range(5,20))/100
                 label, extraind = self.reset_rind_lattice(extraind, _x, _y, layersub = ind.copy())
@@ -421,12 +432,14 @@ class SurfaceGenerator(SPGGenerator):
                 _x = np.random.choice(self.rcs_x)
                 _y = np.random.choice(self.rcs_y)
 
-                numlist = self.get_numlist(_x, _y)
+                formula_pool = self.formula_pool_["{},{}".format(_x,_y)]
+                rand_formula = formula_pool[np.random.randint(len(formula_pool))]
+                    
                 self.choice = self._choice_
                 self.reset_generator_lattice(_x,_y, spg)
 
-                #log.debug("formula {} of number {} with chosen spg = {}".format(self.symbols, numlist,spg))
-                label,ind = self.generate_ind(spg,numlist, np.random.choice(self.n_split))
+                #log.debug("random layer of formula {} with chosen spg = {}".format(rand_formula,spg))
+                label,ind = self.generate_ind(spg, dict(zip(self.symbol_list, rand_formula)))
                 #print(ind.get_all_distances(mic=True))
                 if label:
                     label, ind = self.reset_rind_lattice(ind, _x, _y)
@@ -470,23 +483,11 @@ class SurfaceGenerator(SPGGenerator):
     
         self._atom_to_modify_ = add, keep, rm
 
-    @property
-    def formula_pool(self):
-        return [1]
 
     @property
     def symbol_numlist_pool(self):
         return self.formula_pool_
-
-    def get_numlist(self, _x, _y):
-        formula_pool = self.formula_pool_["{},{}".format(_x,_y)]
-        numlist = formula_pool[np.random.randint(len(formula_pool))]
-
-        _k = np.where(numlist > 0)[0]
-        self.symbols = [self.symbols[k] for k in _k]
-
-        return numlist[_k]
-        
+  
     def get_default_formula_pool(self):
         #rcs_formula: [ [], [], [] ] with len(symbols)
         #different expressions of same formula on top of Si(for example) layer [10] can be expressed by
@@ -503,7 +504,7 @@ class SurfaceGenerator(SPGGenerator):
             self.cal_formula_typeI()
         else:
             self.cal_formula_typeIII()
-    
+
         return self.formula_pool_
 
     @property
@@ -515,19 +516,28 @@ class SurfaceGenerator(SPGGenerator):
             else:
                self.ref_formula_ = {}
         return self.ref_formula_
+    
+    @staticmethod
+    def combination_in_rcs_formula(rcs_formula):
+        formula_pool = []
+        for f in itertools.product(*rcs_formula):
+            formula_pool.append(np.array(f))
+        return np.array(formula_pool)
 
     #TYPE I/II. BY self.rcs_formula
     def cal_formula_typeI(self):
     
         for i, f in enumerate(self.rcs_formula):
             self.rcs_formula[i] = np.array(split_formula(f))
+
+        formula_pool = self.combination_in_rcs_formula(self.rcs_formula)
         
         for x in self.rcs_x:
             for y in self.rcs_y:
-                self.formula_pool_["{},{}".format(x,y)] = np.array(self.rcs_formula, dtype = 'int')
-                differ = formula_add({s:-1*np.array(f) for s,f in zip(self.symbols, self.rcs_formula)}, {s: self.ref_formula[s]*x*y for s in self.ref_formula.keys()})
+                self.formula_pool_["{},{}".format(x,y)] = formula_pool
+                differ = formula_add({s:-1*np.array(f) for s,f in zip(self.symbol_list, self.rcs_formula)}, {s: self.ref_formula[s]*x*y for s in self.ref_formula.keys()})
                 self.update(self.modification['adsorb'], differ)
-        
+                
         self.refine_modification_list() 
         return self.formula_pool_
 
@@ -541,10 +551,13 @@ class SurfaceGenerator(SPGGenerator):
                 f = formula_add(fxy, keep)
                 self.update(f, formula_add(fxy, add))
                 self.update(f, formula_minus(fxy, rm))
-                self.symbols = list(f.keys())
-                for s in self.symbols:
-                    f[s] = np.array(list(set(f[s])), dtype = 'int')
-                self.formula_pool_["{},{}".format(x,y)] = np.array([f[s] for s in self.symbols])
+                
+                self.rcs_formula = []
+                for s in self.symbol_list:
+                    n = list(set(f[s])) if s in f.keys() else [0]
+                    self.rcs_formula.append(np.array(n))
+                
+                self.formula_pool_["{},{}".format(x,y)] = self.combination_in_rcs_formula(self.rcs_formula)
 
     @staticmethod
     def update(dictA, dictB):
