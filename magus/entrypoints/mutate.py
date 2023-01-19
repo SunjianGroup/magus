@@ -12,6 +12,7 @@ _applied_operations_ = list(op_dict.keys())
 #                                                  'soft', 'perm', 'lattice', 'ripple', 'slip', 'rotate', 'rattle', 'formula',
 #                                                  'lyrslip', 'lyrsym', 'shell', 'clusym']
 
+#   ``Magus mutate -s seed.traj --rattle
 
 log = logging.getLogger(__name__)
 
@@ -21,9 +22,15 @@ def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file=
 
 
     operators = {}
+    if 'OffspringCreator' in m.p_dict:
+        set_parm = m.p_dict['OffspringCreator']
+
     for key in _applied_operations_:
         if kwargs[key]:
-            op = op_dict[key]()
+            parm = {}
+            if key in set_parm:
+                parm.update(set_parm[key])
+            op = op_dict[key](**parm)
             operators[op] = {}
 
     ga.op_list = list(operators.keys())

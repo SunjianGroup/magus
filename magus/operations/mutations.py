@@ -1,6 +1,5 @@
 import copy
 import numpy as np
-from spglib import get_symmetry_dataset
 from collections import Counter
 from ase import Atom 
 from magus.utils import *
@@ -242,8 +241,7 @@ class FormulaMutation(Mutation):
             if len(atoms) > 0:
                 return ind.__class__(atoms)
 
-
-# TODO: keep symmetry   #221227HY: update by branch merge. temp version maybe re-code later.
+#random movement around origin positions of inds.
 class RattleMutation(Mutation):
     """
     Rattles atoms one at a time within a sphere of radius self.rattle_range.
@@ -251,84 +249,71 @@ class RattleMutation(Mutation):
     rattle_range: The maximum distance within witch to rattle the atoms. 
                   Atoms are rattled uniformly within a sphere of this radius.  
     """
-    Default = {'tryNum':50, 'p': 0.25, 'rattle_range': 4, 'dRatio':0.7, 'keep_sym': False, 'symprec': 1e-1}
+    Default = {'tryNum':50, 'p': 0.25, 'rattle_range': 4, 'd_ratio':0.7, 'keep_sym': None, 'symprec': 1e-1}
 
-    #random movement around pos.
-    def rattle(self, pos):
-        r = self.rattle_range * np.random.rand()**(1/3)
-        theta = np.random.uniform(0, np.pi)
-        phi = np.random.uniform(0, 2*np.pi)
-        newpos = pos + r * np.array([np.sin(theta) * np.cos(phi), 
-                                     np.sin(theta) * np.sin(phi),
-                                     np.cos(theta)])
-        return newpos
+    @staticmethod
+    def rattle(atoms, indexs, movemodes):
+        for index, movemode in zip(indexs, movemodes):
+            r, theta, phi = movemode
+            atoms[index].position += r * np.array([np.sin(theta) * np.cos(phi), 
+                                                                        np.sin(theta) * np.sin(phi),
+                                                                        np.cos(theta)])
 
-    def mutate_normal(self, ind):
+        return atoms
+
+    def mutate_p1(self, ind):
+
         atoms = ind.for_heredity()
-        for i in range(len(atoms)):
-            if np.random.rand() < self.p:
-                atoms[i].position = self.rattle(atoms[i].position)
+
+        indexs = [i for i in range(len(atoms)) if np.random.rand() < self.p]
+        movemodes = [ [self.rattle_range * np.random.rand()**(1/3),
+                                np.random.uniform(0, np.pi),
+                                np.random.uniform(0, 2*np.pi)
+                                ]
+                                for _ in indexs]
+
+        atoms = self.rattle(atoms, indexs, movemodes)
         return ind.__class__(atoms)
 
-    def mutate_bulk(self, ind):
-        ind = self.mutate_normal(ind) if not self.keep_sym else self.mutate_sym(ind)
-        return ind
-    
     def mutate_layer(self, ind):
         atoms = ind.for_heredity()
-        for i in range(len(atoms)):
-            if np.random.rand() < self.p:
-                atoms[i].position[:2] = self.rattle(atoms[i].position)[:2]
+
+        indexs = [i for i in range(len(atoms)) if np.random.rand() < self.p]
+        movemodes = [ [self.rattle_range * np.random.rand()**(1/3),
+                                np.pi /2,
+                                np.random.uniform(0, 2*np.pi)
+                                ]
+                                for _ in indexs]
+
+        atoms = self.rattle(atoms, indexs, movemodes)
         atoms = ind.add_vacuum(atoms, ind.vacuum_thickness)
         return atoms
 
     def mutate_sym(self, ind):
-        from ..reconstruct.utils import symposmerge
-        import spglib
-
+        """
+        Mutation that keeps symmetry. Three methods are considered in
+            Xuecheng Shao, et al, J. Chem. Phys. 156, 014105 (2022),
+        Namely:
+            [i] mutate spacegroup
+            [ii] keep spg and mutate combinations
+            [iii] mutate and keep spg and combinations
+        
+        HERE [ii] and [iii] are implied. (For purpose[i], does generating a new structure is ok?)
+        """
+        from ..reconstruct.utils import sym_rattle
+        
         atoms = ind.for_heredity()
 
-        sym_ds = get_symmetry_dataset(atoms, self.symprec)
-        if sym_ds['international'] == 'P1':
-            return self.mutate_normal(atoms)
+        method = self.keep_sym if self.keep_sym in ['keep_spg', 'keep_comb'] else \
+                                        np.random.choice(['keep_spg', 'keep_comb'])    
+        
+        mutate_sym_ = getattr(sym_rattle, method)
+        new_atoms = mutate_sym_(atoms, symprec = self.symprec, trynum = self.tryNum, \
+                                                mutate_rate = self.p, rattle_range = self.rattle_range, d_ratio = self.d_ratio)
+        return ind.__class__(new_atoms)
 
-        eq_at = sym_ds['equivalent_atoms']
-
-        for key in list(Counter(eq_at).keys()):
-            eq = np.where(eq_at == key)[0]
-
-            if np.random.rand() < 1 - (1-self.p)**len(eq):
-                newatoms = atoms.copy()
-                del newatoms[eq]
-                pos,symbol = atoms[key].position,atoms[key].symbol
-                for _ in range(200):
-                    _p_ = self.rattle(pos)
-                    
-                    newpos = np.dot(_p_, np.linalg.inv(atoms.get_cell()))
-                    newpos = np.dot(sym_ds['rotations'], newpos) + sym_ds['translations']
-    
-                    for i, _ in enumerate(newpos):
-                        for j, _ in enumerate(np.where(atoms.get_pbc())[0]):
-                            newpos[i][j] += -int(newpos[i][j]) if newpos[i][j] >= 0 else -int(newpos[i][j]) +1
-
-                    newpos = np.dot(newpos, atoms.get_cell())
-                    if not len(newpos) == len(eq):
-                        newpos = symposmerge(newpos, len(eq)).merge_pos()
-                        if newpos is None:
-                            continue
-                    for _pos_ in newpos:
-                        if check_new_atom_dist(newatoms, _pos_, symbol, self.dRatio):
-                            newatoms += Atom(position=_pos_, symbol=symbol)
-                        else:
-                            break
-                    else:
-                        newspg = spglib.get_spacegroup(newatoms, self.symprec)
-                        if not newspg == 'P1 (1)':
-                            for i, index in enumerate(eq):
-                                atoms[index].position = newpos[i]
-                            break  
-
-        return ind.__class__(atoms)
-
+    def mutate_bulk(self, ind):
+        ind = self.mutate_p1(ind) if (self.keep_sym is None) else self.mutate_sym(ind)
+        return ind
 
 

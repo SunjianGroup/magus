@@ -5,12 +5,10 @@ from ..utils import check_parameters
 from ..populations.populations import Population
 from ase.data import covalent_radii,atomic_numbers
 
-from .utils import *
+from .utils import FixAtoms, modify_fixatoms
 import logging
 
 #from .molecule import Molfilter
-from ase.constraints import FixAtoms
-from .utils import fixatoms, weightenCluster    #???
 from ase import neighborlist
 from scipy import sparse
 
@@ -135,6 +133,8 @@ class Surface(Individual):
             self.buffer_layer = self.slices[1] * (*self.info['size'], 1)
         self.set_pbc([True, True, False])
 
+        modify_fixatoms()
+
     def for_heredity(self):
         atoms = self.copy()
         if 'n_top' in atoms.info:
@@ -245,7 +245,7 @@ class Surface(Individual):
         elif type=='bulk':
             extratoms = self.bulk_layer
             
-            c = FixAtoms(indices=range( 0, len(extratoms) )) if self.fixbulk else fixatoms(indices=range( 0, len(extratoms) ))
+            c = FixAtoms(indices=range( 0, len(extratoms) ), adjust_force = self.fixbulk) 
             extratoms.set_constraint(c)
         
         atoms_top = self.set_substrate(atoms_top, extratoms, add)
@@ -310,7 +310,7 @@ class Surface(Individual):
     @property
     def fingerprint(self):
         if 'fingerprint' not in self.info:
-            atoms = Surface.get_top_layer(self) if 'n_top' in self.info else self
+            atoms = self.get_top_layer(self) if 'n_top' in self.info else self
             self.info['fingerprint'] = self.fp_calc.get_all_fingerprints(atoms)[0]
         return self.info['fingerprint']
     

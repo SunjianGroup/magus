@@ -7,8 +7,8 @@ from ase import Atom
 
 class ShellMutation(Mutation):
     """
-    Original proposed by Lepeshkin et al. in J. Phys. Chem. Lett. 2019, 10, 102−106
-    Mutation (6)/(7), aiming to add/remove atom i of a cluster with probability pi proportional to maxi∈s[Oi]−Oi,
+    Original proposed by Lepeshkin et al. in J. Phys. Chem. Lett. 2019, 10, 102-106
+    Mutation (6)/(7), aiming to add/remove atom i of a cluster with probability pi proportional to maxi∈s[Oi]-Oi,
     def Exp_j = exp(-(r_ij-R_i-R_j)/d); Oi = sum_j (Exp_j) / max_j(Exp_j)
     d is the empirically determined parameter set to be 0.23.
     """

@@ -1,15 +1,12 @@
-from distutils.log import ERROR
 from ..generators.random import SPGGenerator
 import numpy as np
 import math, os, ase.io
-from .utils import reconstruct, cutcell, match_symmetry, resetLattice
+from .utils import check_distance, cutcell, match_symmetry, resetLattice
 from ..utils import check_parameters
 import logging
 from .individuals import Surface
 from ase.geometry import cell_to_cellpar,cellpar_to_cell
-from ase.data import atomic_numbers, covalent_radii
 import spglib
-from spglib import get_symmetry_dataset
 import itertools
 
 
@@ -43,6 +40,45 @@ class ClusterSPGGenerator(SPGGenerator):
             })
         return d
 
+from ..operations import RattleMutation
+class randwalk:
+    def __init__(self, r = 2, d_ratio = 0.5, attempts = 100, **kwargs):
+        self.attempts = attempts
+        self.rattle_range = r
+        self.d_ratio = d_ratio
+        self.base_p = 1.2        #???
+
+    def generate(self, atoms):
+        atoms = atoms.copy()
+
+        #weight: Atoms (i)closer to 'top' surface; (ii)less in atomic number; are easier to move
+        vertical_p = atoms.get_scaled_positions()[:, 2]
+        vertical_p /= np.linalg.norm(vertical_p)
+
+        mass_p = atoms.get_atomic_numbers()
+        mass_p = 1 - mass_p/np.linalg.norm(mass_p)
+
+        self.weight = [ math.sqrt(vp * mp) for vp, mp in zip(vertical_p, mass_p)]
+
+        for _ in range(self.attempts):
+            new_atoms = self.mutate(atoms)
+            if check_distance(new_atoms, self.d_ratio):
+                return True, new_atoms
+        else:
+            return False, None
+
+    def mutate(self, atoms):
+        
+        indexs, movemodes = [], []
+
+        for i, p in enumerate(self.weight):
+            if np.random.rand() < p * self.base_p:
+                indexs.append(i)
+                movemodes.append([self.rattle_range*p, 
+                                                np.random.uniform(0, np.pi),
+                                                np.random.uniform(0, 2*np.pi)])
+    
+        return RattleMutation.rattle(atoms, indexs, movemodes)
 
 def split_formula(modifier):
     expand = []
@@ -225,19 +261,10 @@ class SurfaceGenerator(SPGGenerator):
         return atoms
 
     def _randwalk_(self, ind):
-        c=reconstruct(self.randwalk_range, ind.copy(), self.d_ratio, self.max_attempts)
-        label, pos=c.reconstr()
-        numbers=[]
-        if label:
-            for i in range(len(c.atomnum)):
-                numbers.extend([atomic_numbers[c.atomname[i]]]*c.atomnum[i])
-            cell=c.lattice
-            pos=np.dot(pos,cell)
-            atoms = ase.Atoms(cell=cell, positions=pos, numbers=numbers, pbc=1)
-            
-            return label, atoms
-        else:
-            return label, None
+        label, atoms = randwalk(r = self.randwalk_range, dratio = self.d_ratio, attempts = self.max_attempts).generate(ind)
+
+        return label, atoms
+        
 
     @staticmethod
     def match_symmetry_plane(extraind, bottomind): 
@@ -373,7 +400,7 @@ class SurfaceGenerator(SPGGenerator):
         if rm:
             for symbol in rm:
                 while rm[symbol] > 0:
-                    eq_at = dict(zip(range(len(ind)), get_symmetry_dataset(ind,1e-2)['equivalent_atoms']))
+                    eq_at = dict(zip(range(len(ind)), spglib.get_symmetry_dataset(ind,1e-2)['equivalent_atoms']))
                     indices = [atom.index for atom in ind if atom.symbol == symbol]
                     lucky_atom_to_rm = eq_at[np.random.choice(indices)]
                     eq_ats_with_him = np.array([i for i in eq_at if eq_at[i] == lucky_atom_to_rm])
@@ -454,7 +481,7 @@ class SurfaceGenerator(SPGGenerator):
             else:
                 break
 
-            return build_pop
+        return build_pop
 
     def refine_modification_list(self):
         symbols = self.modification['adsorb'].keys() | self.modification['clean'].keys() | self.modification['defect'].keys()

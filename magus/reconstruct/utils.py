@@ -1,140 +1,18 @@
-from . import moveatom
-#TODO: rewrite class randwalk
-
 import numpy as np
 import ase.io
-from ase.data import atomic_numbers, covalent_radii
+from ase.data import covalent_radii
 import logging
 from ase import Atoms, Atom
 from collections import Counter
 import math
 import spglib
+from ase.neighborlist import neighbor_list
 
 log = logging.getLogger(__name__)
 
-def sort_elements(atoms):
-    return atoms[atoms.numbers.argsort()]
-
-class randwalk:
-    def __init__(self, originpositions, shift, atomnumber, atomname, lattice, spacegroup = 1, eq_atoms=None):
-        self.info=moveatom.Info(np.random.randint(1000))
-        for i in range(len(atomnumber)):
-            pos=np.array(originpositions[i]).flatten()
-            self.info.AppendAtoms(int(atomnumber[i]),atomname[i],covalent_radii[atomic_numbers[atomname[i]]],pos)   #(atomsnumber, atomname, atomradius, atomspos)
-            self.info.AppendShift(np.array(shift[i]))  #shift for the atoms above
-            if(eq_atoms):
-                self.info.EquivalentAtoms(np.array(1.0*eq_atoms[i]))
-        self.lattice=lattice.flatten()
-        self.info.SetLattice(np.array(self.lattice))
-        self.info.spacegroup = spacegroup
-        self.info.resultsize=1
-        
-    def Rotate(self, centeratomtype, centeratompos, clustersize, targetatomtype, threshold, maxattempts, show = False):
-        self.info.Rotate(centeratomtype, centeratompos, clustersize, targetatomtype, threshold, maxattempts)
-        if show:
-            self.info.WritePoscar()
-        '''
-        for i in range(self.info.resultsize):
-            #print(self.info.GetPosition(i))
-        '''
-        return
-
-    def Shift(self, threshold, maxattempts, show = False):
-        label = self.info.Shift(threshold, maxattempts)
-        if show:
-            self.info.WritePoscar()
-        '''
-        for i in range(self.info.resultsize):
-            #print(self.info.GetPosition(i))
-        '''
-        return label
-
-    def WritePoscar(self):
-        self.info.WritePoscar()
-        return
-
-    def GetPos(self):
-        return self.info.GetPosition(0)
-
-#m=randwalk()
-#m.Shift(0.5, 100)
-#m.Rotate(1, 1, 6, 0, 0.5, 100)
-
-class reconstruct:
-    def __init__(self, moverange, originlayer, threshold, maxattempts=100):
-        self.originlayer=originlayer
-        self.range=moverange
-        self.threshold = threshold
-        self.maxattempts = maxattempts
-
-        self.atoms = sort_elements(self.originlayer)
-        self.atoms.set_cell(self.atoms.get_cell_lengths_and_angles().copy(), scale_atoms=True)
-        
-        self.pos=[]
-        self.atomname=[]
-        self.atomnum=[]
-        self.shifts=[]
-        self.eq_atoms=[]
-
-    def reconstr(self):
-        self.lattice=np.array(self.atoms.get_cell())
-        atomicnum=self.atoms.numbers
-        atomname=self.atoms.get_chemical_symbols()
-        #dataset = spglib.get_symmetry_dataset(self.atoms, symprec=1e-2)
-        #self.spacegroup = dataset['number']
-        #transmatrix = dataset['transformation_matrix']
-        #shiftarray = dataset['origin_shift']
-        #eq_atoms=dataset['equivalent_atoms']
-
-        unique, t=np.unique(atomicnum, return_index=True)
-        for i in range(len(unique)):
-            atomnum=np.sum(atomicnum==unique[i])
-            self.atomname.append(atomname[t[i]])
-
-            index = range(t[i], t[i]+atomnum)
-            atom_part = self.atoms[index].copy()
-            #eqatom = eq_atoms[index].copy()
-            #eqatom -= t[i]
-
-            #index = sorted(range(0,atomnum), key=lambda x: eqatom[x] )
-            #atom_part = atom_part[index]
-            #eqatom = eqatom[index]
-
-            atompos=atom_part.get_scaled_positions().copy()
-            #for i in range(len(atompos)):
-                #atompos[i] = np.dot(transmatrix, atompos[i]) + shiftarray
-
-            shift1=atompos[:,2].copy()
-            shift1=np.array(shift1).flatten()
-            shift1*=self.range
-
-            self.shifts.append(shift1)
-            self.atomnum.append(atomnum)
-
-            self.pos.append(atompos)
-            #self.eq_atoms.append(eqatom)
-
-        m=randwalk(self.pos, self.shifts, self.atomnum, self.atomname, self.lattice)  #, self.spacegroup, self.eq_atoms)
-            
-        label = m.Shift(self.threshold, self.maxattempts)
-        if label:
-            self.positions=m.GetPos()
-            self.positions=np.array(self.positions).reshape(sum(self.atomnum),3)
-
-            #for i in range(len(self.positions)):
-                #self.positions[i] = np.dot(np.linalg.inv(transmatrix), (self.positions[i]-shiftarray))
-        
-            return label, self.positions
-        else:
-            return label, None
-
-    def WritePoscar(self, filename):
-        numbers = []
-        for i, name in enumerate(self.atomname):
-            numbers.extend([name]*self.atomnum[i])
-        atoms = Atoms(cell = self.lattice, positions=np.dot(self.positions, self.lattice), numbers=numbers)
-        ase.io.write(filename, atoms, format = 'vasp', vasp5=1)
-        return
+def check_distance(atoms, d_ratio):
+    i_indices = neighbor_list('i', atoms, d_ratio, max_nbins=100.0)
+    return len(i_indices) == 0
 
 class resetLattice:
     def __init__(self, atoms=None, expandsize = (8,8,8)):
@@ -362,7 +240,7 @@ class cutcell:
             
             layerslice = self.supercell.get(cell, neworigin = origin)
             if len(layerslice):
-                layerslice=sort_elements(layerslice)
+                layerslice=layerslice[layerslice.numbers.argsort()]
             else:
                 slicename = ['bulk', 'relaxable', 'reconstruct']
                 log.warning("No atom in {} layer!! Please check the layers before next step.".format(slicename[i-1]))
@@ -453,12 +331,32 @@ class RCSPhaseDiagram:
         return energy, indices, np.array(coefs)
 
 
-from ase.constraints import FixAtoms
-class fixatoms(FixAtoms):
+from ase.constraints import FixAtoms    #, IndexedConstraint
+"""
+modify FixAtoms class in ASE. choose if delete 'force' for fixed atoms.
+ASE version = 3.22.1
+"""
+
+def modify_fixatoms():
+    if hasattr(FixAtoms, 'init'):
+        pass
+    else:
+        setattr(FixAtoms, "init", FixAtoms.__init__)
+        setattr(FixAtoms, "__init__", fa_init_)
+        setattr(FixAtoms, "change_force", FixAtoms.adjust_forces)
+        setattr(FixAtoms, "adjust_forces", adjust_forces)
+
+def fa_init_(cls, indices=None, mask=None, adjust_force = True):
+    cls.__setattr__("adj_f", adjust_force)
+    """ to use later
+    IndexedConstraint().__init__(indices, mask)
     """
-    modified from FixAtoms class in ASE. Don't delete 'force' for fixed atoms.
-    """
-    def adjust_forces(self, atoms, forces):
+    cls.init(indices, mask)
+
+def adjust_forces(cls, atoms, forces):
+    if cls.adj_f:
+        cls.change_force(atoms, forces)
+    else:
         pass
 
 
@@ -941,6 +839,115 @@ class OganovComparator(ClusComparator):
 
     def looks_like(self,aInd,bInd):
         return super().looks_like(aInd, bInd)
+
+from ..generators.GenerateNew import wyckoff_positions_3d
+
+class sym_rattle:
+
+    @staticmethod
+    def read_ds(spacegroup, wyckoff_label):
+        #static const vector< vector<double> > wyck [spg-1] = [num_of_wyckpos, label, matrix, mul, uni]
+        data = wyckoff_positions_3d[spacegroup-1]
+
+        index = (ord(wyckoff_label) -97 ) *15 +2
+        wyck_matrix = np.array(data[index:index+12])
+        return wyck_matrix.reshape(3,4)
+        """
+        num_of_wyck = data[0]
+        data = np.array(data[1:]).reshape(num_of_wyck, 15)
+        ds = [ {chr(line[0]): [
+                        np.array(line[1:13]).reshape(3,4),
+                        line[13],
+                        bool(line[14])
+                    ]
+                    } for line in data]
+        return ds
+        """
+    @staticmethod
+    def _share_method_(atoms, func_del_redundancy, symprec, trynum, mutate_rate, rattle_range, d_ratio):
+        atoms = atoms.copy()
+        sym_ds = spglib.get_symmetry_dataset(atoms, symprec)
+
+        equivalent_atoms = sym_ds['equivalent_atoms']
+        rotations, translations = sym_ds['rotations'], sym_ds['translations']
+        spg = sym_ds['number']
+        wyckoff_labels = sym_ds['wyckoffs']
+
+        for key in list(Counter(equivalent_atoms).keys()):
+
+            eq = np.where(equivalent_atoms == key)[0]
+
+            if np.random.rand() < 1 - (1-mutate_rate)**len(eq):
+                newatoms = atoms.copy()
+                
+                pos, label = atoms[key].position, wyckoff_labels[key]
+
+                for _ in range(trynum):
+                    r, theta, phi = rattle_range * np.random.rand()**(1/3), \
+                                            np.random.uniform(0, np.pi), \
+                                            np.random.uniform(0, 2*np.pi)
+                    _p_ = pos + r * np.array([np.sin(theta) * np.cos(phi), 
+                                                                        np.sin(theta) * np.sin(phi),
+                                                                        np.cos(theta)])
+                    
+                    newpos = np.dot(_p_, np.linalg.inv(atoms.get_cell()))
+                    newpos = np.dot(rotations, newpos) + translations
+
+                    for i, _ in enumerate(newpos):
+                        for j, _ in enumerate(np.where(atoms.get_pbc())[0]):
+                            newpos[i][j] += -int(newpos[i][j]) if newpos[i][j] >= 0 else -int(newpos[i][j]) +1
+
+                    newpos = np.dot(newpos, atoms.get_cell())
+                    if not len(newpos) == len(eq):
+                        newpos = func_del_redundancy(newpos, len(eq), spg, label)
+                        if newpos is None:
+                            continue
+                    newatoms.positions[eq] = newpos
+                    #print("new_spg", spglib.get_spacegroup(newatoms, symprec))
+                    
+                    if check_distance(newatoms, d_ratio) and \
+                                    (not spglib.get_spacegroup(newatoms, symprec) == 'P1 (1)'):
+                        atoms = newatoms.copy()
+                        break
+        return atoms
+
+    @staticmethod
+    def merge_close(positions, target_length, *args):
+        new_pos = symposmerge(positions, target_length).merge_pos()
+        return new_pos
+
+    @staticmethod
+    def keep_spg(atoms, symprec = 0.1, trynum = 20, mutate_rate = 0.25, rattle_range = 4, d_ratio = 0.5):
+        """
+        (a). find equivalent atoms
+        (b). mutate a unique(*non equivalent to any mutated atom) atom
+        (c). use rotations, translations to get its equivalent atoms to keep symmetry
+        (d). dealing with different multiplicity number: merge close atoms. **
+                **Andriy O. Lyakhova et al, Computer Physics Communications 184 (2013) 1172-1182
+        """
+        
+        func_del_redundancy = sym_rattle.merge_close
+        return sym_rattle._share_method_(atoms, func_del_redundancy, symprec, trynum, mutate_rate, rattle_range, d_ratio)
+                    
+    @staticmethod
+    def use_wyck(positions, target_length, spg, wyckoff_label):
+        wyck_matrix = sym_rattle.read_ds(spg, wyckoff_label)
+        new_pos = [np.dot(wyck_matrix[:, :3], p) for p in positions]
+        new_pos = np.unique(new_pos, axis = 0)
+
+        return new_pos if  len(new_pos) == target_length else None
+
+    @staticmethod
+    def keep_comb(atoms, symprec = 0.1, trynum = 10, mutate_rate = 0.25, rattle_range = 4, d_ratio = 0.5):
+        """
+        (a). find wyckoff_labels
+        (b). mutate but keep this wyckoff position
+        (c). calculate all equivalent atoms
+        """
+        func_del_redundancy = sym_rattle.use_wyck
+        
+        return sym_rattle._share_method_(atoms, func_del_redundancy, symprec, trynum, mutate_rate, rattle_range, d_ratio)
+        
 
 class symposmerge:
     def __init__(self, positions, length, dmprec = 4):
