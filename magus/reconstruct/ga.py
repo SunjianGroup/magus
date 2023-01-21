@@ -51,7 +51,7 @@ class ShellMutation(Mutation):
 
         return ind.__class__(atoms)
 
-
+from .utils import LayerIdentifier
 class LyrSlipMutation(Mutation):
     Default = {'tryNum':10, 'cut':0.2, 'randRange':[0, 1]}
 
@@ -61,7 +61,7 @@ class LyrSlipMutation(Mutation):
         """
         cut = self.cut
         atoms = ind.for_heredity()
-        from .utils import LayerIdentifier
+
         layers = LayerIdentifier(atoms, prec = self.cut)
         chosenlayer = layers[np.random.choice(len(layers))]
         direction = np.random.uniform(0,2*math.pi)
@@ -75,7 +75,6 @@ class LyrSlipMutation(Mutation):
         return ind.__class__(atoms)
 
 
-# from magus.reconstruct import resetLattice
 class LyrSymMutation(Mutation):
     Default = {'tryNum':10, 'symprec': 1e-4}
     

@@ -21,9 +21,9 @@ class BuildExt(build_ext):
         super().build_extensions()
 
 
-#generatenew
-module_GenerateNew = Pybind11Extension('magus.generators.GenerateNew',
-                    sources = ['generatenew/src/main.cpp'],
+#gensym
+module_gensym = Pybind11Extension('magus.generators.gensym',
+                    sources = ['gensym/src/main.cpp'],
                     extra_compile_args=['-std=c++11'],
                     )
 
@@ -67,7 +67,7 @@ setup(
     description="Magus: Machine learning And Graph theory assisted Universal structure Searcher",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    ext_modules=[module_GenerateNew, module_nepdes], 
+    ext_modules=[module_gensym, module_nepdes], 
     cmdclass={'build_ext': BuildExt},
     entry_points={"console_scripts": ["magus = magus.entrypoints.main:main"]},
 )

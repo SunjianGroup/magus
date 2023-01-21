@@ -14,7 +14,8 @@ from scipy import sparse
 
 from .fitness import ErcsFitness
 from ..fitness import fit_dict
-
+import math
+import spglib
 from pymatgen import Molecule
 from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 
@@ -145,14 +146,15 @@ class Surface(Individual):
     def substrate_sym(self, symprec = 1e-4):
         
         if not hasattr(self, "substrate_symmetry"):
-            rlxatoms = self.layerslices[1] * (*self.info['size'], 1)
-            rlxatoms.info['size'] = self.info['size']
-            allatoms = self.addextralayer('bulk', atoms = rlxatoms, add = 1)
+            if self.buffer:
+                substrate = self.add_extra_layer('bulk',add=1, atoms=self.buffer_layer) 
+            else:
+                substrate = self.bulk_layer
             
-            symdataset = spglib.get_symmetry_dataset(allatoms, symprec= symprec)
+            symdataset = spglib.get_symmetry_dataset(substrate, symprec= symprec)
             self.substrate_symmetry = list(zip(symdataset['rotations'], symdataset['translations']))
             self.substrate_symmetry = [s for s in self.substrate_symmetry if ( (s[0]==s[0]*np.reshape([1,1,0]*2+[0]*3, (3,3))+ np.reshape([0]*8+[1], (3,3))).all()  and not (s[0]==np.eye(3)).all())]
-            cell = allatoms.get_cell()[:]
+            cell = substrate.get_cell()[:]
 
             #some simple tricks for '2', 'm', '4', '3', '6' symmetry. No sym_matrix containing 'z'_axis transformation are included.
             for i, s in enumerate(self.substrate_symmetry):
@@ -315,8 +317,7 @@ class Surface(Individual):
         return self.info['fingerprint']
     
 
-from pkg_resources import resource_filename
-from monty.serialization import loadfn
+from ..generators.gensym import symbols_0d
 
 class Cluster(Individual):
     @classmethod
@@ -330,10 +331,7 @@ class Cluster(Individual):
         check_parameters(cls, parameters, [], Default)
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
 
-        #TODO: long logs appear if use 'resource_filename' on pyxtal. Setting logconfig to > debug also solves it. But why??
-        #file = resource_filename("pyxtal", "database/symbols.json")
-        file = '/fs08/home/js_hanyu/.local/lib/python3.6/site-packages/pyxtal/database/symbols.json'
-        cls.pointgroup_symbols = loadfn(file)["point_group"]
+        cls.pointgroup_symbols = {symbol:index+1 for index,symbol in enumerate(symbols_0d)}
         
     #TODO: Molecule Molfilter????
     def __init__(self, *args, **kwargs):
@@ -444,8 +442,8 @@ class Cluster(Individual):
         
         spg = PointGroupAnalyzer(molecule, symprec).sch_symbol
 
-        if spg in self.pointgroup_symbols:
-            spg = self.pointgroup_symbols.index(spg) + 1
+        if spg in symbols_0d:
+            spg = self.pointgroup_symbols[spg]
         else:
             spg = 1
         

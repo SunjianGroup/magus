@@ -69,7 +69,9 @@ def rcs_ga_generator(p_dict):
     operators = get_rcs_op(p_dict)
     if 'OffspringCreator' in p_dict:
         operators.update(p_dict['OffspringCreator'])
-
+    
+    op_dict.update(rcs_op_dict)
+    
     for name in op_dict.keys():
         op = op_dict[name]
 
@@ -81,17 +83,16 @@ def rcs_ga_generator(p_dict):
         setattr(op, 'ori_get_new_ind', op.get_new_individual)
         setattr(op, "get_new_individual", rcs_get_new_ind)
 
-        if hasattr(op, 'mutate'):
+        if hasattr(op, 'mutate_bulk'):
             log.info("set method 'mutate_bulk' to 'mutate' of {}".format(op.__name__))
             setattr(op, 'mutate', rcs_mutate)
         
-        elif hasattr(op, 'cross'):
+        elif hasattr(op, 'cross_bulk'):
             log.info("set method 'cross_bulk' to 'cross' of {}".format(op.__name__))
             setattr(op, 'cross', rcs_cross)
         
         op_dict[name] = op
 
-    op_dict.update(rcs_op_dict)
     
     op_list, op_prob = _cal_op_prob_(operators, op_dict)
 

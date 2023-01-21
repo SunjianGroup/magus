@@ -1,6 +1,6 @@
-[submodule "generatenew"]
-	path = generatenew
-	url = git@git.nju.edu.cn:HanYu/generatenew.git
+[submodule "gensym"]
+	path = gensym
+	url = git@git.nju.edu.cn:HanYu/gensym.git
 [submodule "pybind11"]
 	path = pybind11
 	url = git@git.nju.edu.cn:bigd4/pybind11.git

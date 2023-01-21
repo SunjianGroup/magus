@@ -209,19 +209,19 @@ $ git submodule update
 \end{tcolorbox}
 \texttt 
 或直接下载压缩包.
-\subsubsection{编译GenerateNew模块}
-进入\file{magus/generatenew}中,编译\file{generatenew.so}文件,并将其放入magus/magus文件夹下.
+\subsubsection{编译gensym模块}
+进入\file{magus/gensym}中,编译\file{gensym.so}文件,并将其放入magus/magus文件夹下.
 如使用集群anaconda/3-5.0.1,命令为:
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
 $ g++ -std=c++11 -I/fs00/software/anaconda/3-5.0.1/include 
 -I/fs00/software/anaconda/3-5.0.1/include/python3.6m 
 -L/fs00/software/anaconda/3-5.0.1/lib -lboost_python 
--lboost_numpy -lpython3.6m main.cpp -o GenerateNew.so -shared -fPIC
+-lboost_numpy -lpython3.6m main.cpp -o gensym.so -shared -fPIC
     \end{minted}
 \end{tcolorbox}
 具体可见:
-\textcolor{blue}{\url{https://git.nju.edu.cn/HanYu/generatenew}}
+\textcolor{blue}{\url{https://git.nju.edu.cn/HanYu/gensym}}
 \subsubsection{编译lrpot模块}
 进入\file{magus/lrpot}中,编译\file{lrpot.so}文件,并将其放入magus/magus文件夹下.
 如使用集群anaconda/3-5.0.1,命令为:

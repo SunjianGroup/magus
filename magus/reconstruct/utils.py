@@ -840,7 +840,7 @@ class OganovComparator(ClusComparator):
     def looks_like(self,aInd,bInd):
         return super().looks_like(aInd, bInd)
 
-from ..generators.GenerateNew import wyckoff_positions_3d
+from ..generators.gensym import wyckoff_positions_3d
 
 class sym_rattle:
 
@@ -864,7 +864,7 @@ class sym_rattle:
         return ds
         """
     @staticmethod
-    def _share_method_(atoms, func_del_redundancy, symprec, trynum, mutate_rate, rattle_range, d_ratio):
+    def _share_method_(atoms, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, d_ratio):
         atoms = atoms.copy()
         sym_ds = spglib.get_symmetry_dataset(atoms, symprec)
 
@@ -889,32 +889,42 @@ class sym_rattle:
                     _p_ = pos + r * np.array([np.sin(theta) * np.cos(phi), 
                                                                         np.sin(theta) * np.sin(phi),
                                                                         np.cos(theta)])
+                    _sp_ = np.dot(_p_, np.linalg.inv(atoms.get_cell()))
+
+                    new_cartpos = func_get_all_position( _sp_, (atoms.get_cell(), atoms.get_pbc()), \
+                                                                                        (rotations, translations, spg, label), \
+                                                                                        len(eq))
                     
-                    newpos = np.dot(_p_, np.linalg.inv(atoms.get_cell()))
-                    newpos = np.dot(rotations, newpos) + translations
+                    if new_cartpos is None:
+                        continue
 
-                    for i, _ in enumerate(newpos):
-                        for j, _ in enumerate(np.where(atoms.get_pbc())[0]):
-                            newpos[i][j] += -int(newpos[i][j]) if newpos[i][j] >= 0 else -int(newpos[i][j]) +1
-
-                    newpos = np.dot(newpos, atoms.get_cell())
-                    if not len(newpos) == len(eq):
-                        newpos = func_del_redundancy(newpos, len(eq), spg, label)
-                        if newpos is None:
-                            continue
-                    newatoms.positions[eq] = newpos
-                    #print("new_spg", spglib.get_spacegroup(newatoms, symprec))
+                    newatoms.positions[eq] = new_cartpos
                     
                     if check_distance(newatoms, d_ratio) and \
                                     (not spglib.get_spacegroup(newatoms, symprec) == 'P1 (1)'):
+                        #print("new_spg", spglib.get_spacegroup(newatoms, symprec))
                         atoms = newatoms.copy()
                         break
         return atoms
 
     @staticmethod
-    def merge_close(positions, target_length, *args):
-        new_pos = symposmerge(positions, target_length).merge_pos()
-        return new_pos
+    def merge_close(_sp_, cellinfo, symmetry, target_length, *args):
+        cell, pbc = cellinfo
+        rotations, translations, spg, wyckoff_label = symmetry
+
+        new_sp = np.dot(rotations, _sp_) + translations
+
+        for i, _ in enumerate(new_sp):
+            for j, _ in enumerate(np.where(pbc)[0]):
+                new_sp[i][j] += -int(new_sp[i][j]) if new_sp[i][j] >= 0 else -int(new_sp[i][j]) +1
+        
+        new_cartpos = np.dot(new_sp, cell)
+
+        if not len(new_cartpos) == target_length:            
+            new_cartpos = symposmerge(new_cartpos, target_length).merge_pos()
+            
+        return new_cartpos
+
 
     @staticmethod
     def keep_spg(atoms, symprec = 0.1, trynum = 20, mutate_rate = 0.25, rattle_range = 4, d_ratio = 0.5):
@@ -926,16 +936,21 @@ class sym_rattle:
                 **Andriy O. Lyakhova et al, Computer Physics Communications 184 (2013) 1172-1182
         """
         
-        func_del_redundancy = sym_rattle.merge_close
-        return sym_rattle._share_method_(atoms, func_del_redundancy, symprec, trynum, mutate_rate, rattle_range, d_ratio)
+        func_get_all_position = sym_rattle.merge_close
+        return sym_rattle._share_method_(atoms, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, d_ratio)
                     
     @staticmethod
-    def use_wyck(positions, target_length, spg, wyckoff_label):
+    def use_wyck(_sp_, cellinfo, symmetry, target_length, *args):
+        cell, pbc = cellinfo
+        rotations, translations, spg, wyckoff_label = symmetry
         wyck_matrix = sym_rattle.read_ds(spg, wyckoff_label)
-        new_pos = [np.dot(wyck_matrix[:, :3], p) for p in positions]
-        new_pos = np.unique(new_pos, axis = 0)
+        
+        _sp_ = np.dot(wyck_matrix[:, :3], _sp_) 
 
-        return new_pos if  len(new_pos) == target_length else None
+        new_sp = np.dot(rotations, _sp_) + translations
+        new_sp = np.unique(new_sp, axis = 0)
+
+        return np.dot(new_sp, cell) if  len(new_sp) == target_length else None
 
     @staticmethod
     def keep_comb(atoms, symprec = 0.1, trynum = 10, mutate_rate = 0.25, rattle_range = 4, d_ratio = 0.5):
@@ -944,9 +959,9 @@ class sym_rattle:
         (b). mutate but keep this wyckoff position
         (c). calculate all equivalent atoms
         """
-        func_del_redundancy = sym_rattle.use_wyck
+        func_get_all_position = sym_rattle.use_wyck
         
-        return sym_rattle._share_method_(atoms, func_del_redundancy, symprec, trynum, mutate_rate, rattle_range, d_ratio)
+        return sym_rattle._share_method_(atoms, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, d_ratio)
         
 
 class symposmerge:

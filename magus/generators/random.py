@@ -7,7 +7,7 @@ from ase.io import read, write
 from ase.data import atomic_numbers, covalent_radii
 from ase.geometry import cellpar_to_cell
 from magus.utils import *
-from magus.generators import GenerateNew
+from magus.generators import gensym
 
 
 log = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
                  threshold_mol=1.,
                  *args, **kwargs):
     # set generator
-    generator = GenerateNew.Info()
+    generator = gensym.Info()
     generator.spg = int(spg)
     generator.spgnumber = 1
     generator.maxAttempts = max_attempts

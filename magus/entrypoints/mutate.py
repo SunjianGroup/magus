@@ -5,8 +5,7 @@ import logging
 from magus.operations import op_dict
 from magus.reconstruct.ga import rcs_op_dict
 
-op_dict.update(rcs_op_dict)
-_applied_operations_ = list(op_dict.keys()) 
+_applied_operations_ = list(op_dict.keys()) + list(rcs_op_dict.keys()) 
 
 #Note: _applied_operations_ = [ 'cutandsplice', 'replaceball',
 #                                                  'soft', 'perm', 'lattice', 'ripple', 'slip', 'rotate', 'rattle', 'formula',
@@ -22,8 +21,7 @@ def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file=
 
 
     operators = {}
-    if 'OffspringCreator' in m.p_dict:
-        set_parm = m.p_dict['OffspringCreator']
+    set_parm = m.p_dict['OffspringCreator'] if 'OffspringCreator' in m.p_dict else {}
 
     for key in _applied_operations_:
         if kwargs[key]:
@@ -50,6 +48,6 @@ def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file=
     print("generated {} individuals.".format(len(next_pop)))
     new_frames = []
     for atoms in next_pop:
-        new_frames.append(atoms.for_calculate())
+        new_frames.append(atoms.for_calculate() if hasattr(atoms, "for_calculate") else atoms)
 
     ase.io.write(output_file, new_frames, format = 'traj')
