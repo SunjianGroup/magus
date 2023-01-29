@@ -16,7 +16,7 @@ from .fitness import ErcsFitness
 from ..fitness import fit_dict
 import math
 import spglib
-from pymatgen import Molecule
+from pymatgen.core import Molecule
 from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 
 log = logging.getLogger(__name__)
