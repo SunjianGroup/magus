@@ -45,7 +45,6 @@ setup(
     packages=find_packages(),
     python_requires=">=3.6",
     install_requires=[
-        #"dscribe",
         "numpy<1.22.0",     # numba not support numpy >= 1.22.0
         "ase>=3.18",
         "pyyaml>=6.0",
