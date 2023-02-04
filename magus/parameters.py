@@ -3,7 +3,10 @@ from collections import defaultdict
 from .populations import get_population
 from .calculators import get_calculator
 from .generators import get_random_generator, get_ga_generator
-from .reconstruct.rcs_interface import rcs_type_list, rcs_interface
+try:
+    from .reconstruct.rcs_interface import rcs_type_list, rcs_interface
+except:
+    rcs_type_list = []
 
 #@Singleton
 class magusParameters:

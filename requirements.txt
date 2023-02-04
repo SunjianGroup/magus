@@ -1,14 +1,11 @@
 BeautifulReport
-plotly
-dscribe
 numpy<1.22.0
 ase>=3.18
 pyyaml>=6.0
 networkx
 scipy
-scikit-learn
 spglib
 pandas
 prettytable
 packaging
-
+scikit-learn
