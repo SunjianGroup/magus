@@ -1,6 +1,7 @@
 #Surface reconstruction of SnO2(110) 4*1
 formulaType: fix        
 structureType: surface 
+
 initSize: 40
 popSize: 40
 numGen: 40
@@ -15,7 +16,7 @@ vacuum_thickness: 10
 spg_type: plane
 rcs_x: [4]
 rcs_y: [1]
-d_ratio: 0.8
+d_ratio: 0.6
 randRatio: 0.3               # fraction of random
 randwalk_ratio: 0.3          # ratio of generation by rand walk
 
@@ -37,7 +38,7 @@ slabinfo:
  extra_c: 1.5
 
 modification: 
- adsorb: {'Sn': [-2], 'O':[-14]}         #adsorb or use rcs_formula: [[6],[2]]
+ adsorb: {'Sn': [-2], 'O':[-8, -6, -4]}         #adsorb or use rcs_formula: [[6],[6]]
 
 # main calculator settings
 MainCalculator:
@@ -50,6 +51,6 @@ MainCalculator:
 
  #parallel settings
  numParallel: 8              # number of parallel jobs
- numCore: 12                  # number of cores
+ numCore: 24                # number of cores
  queueName: e52692v2ib! 
  waitTime: 100

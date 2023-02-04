@@ -122,7 +122,7 @@ class SurfaceGenerator(SPGGenerator):
         #2. 2d group symmetry generated structures.
     """
     @staticmethod
-    def __cutcell__( bulk_file = None, 
+    def __cutcell__( bulk_file = None,
                                 bulk_layernum = None, buffer_layernum = None, rcs_layernum = None,
                                 cutslices = None,
                                 direction = None, rotate = 0, matrix = None, extra_c =1.0, 
@@ -589,4 +589,4 @@ class SurfaceGenerator(SPGGenerator):
     @staticmethod
     def update(dictA, dictB):
         for key in dictB:
-            dictA[key] = dictB[key] if not key in dictA else list(dictA[key]) + list(dictB[key])
+            dictA[key] = dictB[key] if not key in dictA else list(set(list(dictA[key]) + list(dictB[key])))
