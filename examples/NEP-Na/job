@@ -1,0 +1,9 @@
+#BSUB -J example-nep
+#BSUB -n 4
+#BSUB -e err
+#BSUB -o out
+#BSUB -q 9242opa!
+
+export OMP_NUM_THREADS=4
+export MKL_NUM_THREADS=4
+python magus search -m
