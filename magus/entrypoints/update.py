@@ -2,7 +2,7 @@ import os
 
 
 def update(*args, user=False, force=False, **kwargs):
-    url = "git.nju.edu.cn/gaaooh/magus.git@devel"
+    url = "gitlab.com/bigd4/magus.git"
     pip_cmd = "pip install --upgrade"
     if user:
         pip_cmd += " --user"
