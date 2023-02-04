@@ -48,11 +48,11 @@ class RcsPopulation(Population):
         fitness_calculator = []
         if 'Fitness' in parameters:
             for fitness in parameters['Fitness']:
-                fitness_calculator.append(fit_dict[fitness](parameters))
-        elif parameters['formulaType'] == 'surface':
-            fitness_calculator.append(fit_dict['Ercs'](parameters))
-        elif parameters['formulaType'] == 'cluster' or 'adclus':
-            fitness_calculator.append(fit_dict['Enthalpy'](parameters))
+                fitness_calculator.append(rcs_fit_dict[fitness](parameters))
+        elif parameters['structureType'] == 'surface':
+            fitness_calculator.append(rcs_fit_dict['Ercs'](parameters))
+        elif parameters['structureType'] == 'cluster' or 'adclus':
+            fitness_calculator.append(rcs_fit_dict['Enthalpy'](parameters))
 
         cls.fit_calcs = fitness_calculator
         return 
@@ -64,6 +64,24 @@ class RcsPopulation(Population):
         for ind in add_frames:
             self.append(self.Ind(ind))
 
+    def calc_dominators(self):
+        #separate different formula
+        log.debug("calculating dominators...")
+        self.calc_fitness()
+        domLen = len(self.pop)
+        for ind1 in self.pop:
+            dominators = -1 #number of individuals that dominate the current ind
+            for ind2 in self.pop:
+                if len(ind1.atoms) == len(ind2.atoms):
+                    for key in ind1.info['fitness']:
+                        if ind1.info['fitness'][key] > ind2.info['fitness'][key]:
+                            break
+                    else:
+                        dominators += 1
+                        
+            ind1.info['dominators'] = dominators
+            ind1.info['MOGArank'] = dominators + 1
+            ind1.info['sclDom'] = (dominators)/domLen
 
 
 def get_newcell(atoms, thickness):
@@ -99,8 +117,7 @@ class Surface(Individual):
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
         Default = {
-            'refE': 0, 
-            'refFrml': None,
+            'refE': None, 
             'vacuum_thickness': 10,
             'buffer': True,
             'fixbulk':True,
