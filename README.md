@@ -106,13 +106,13 @@ to see what features you can use.
 
 [1] Junjie Wang, et al. "MAGUS: machine learning and graph theory assisted universal structure searcher". (under review)
 
-[2] Kang Xia, Hao Gao, Cong Liu, Jianan Yuan, Jian Sun*, Hui-Tian Wang*, Dingyu Xing, “A novel superhard tungsten nitride predicted by machine-learning accelerated crystal structure search”, Sci. Bull. 63, 817 (2018).
+[2] Kang Xia, Hao Gao, Cong Liu, Jianan Yuan, Jian Sun, Hui-Tian Wang, Dingyu Xing, “A novel superhard tungsten nitride predicted by machine-learning accelerated crystal structure search”, Sci. Bull. 63, 817 (2018).
 
 
-[3] Hao Gao, Junjie Wang, Yu Han, Jian Sun*, “Enhancing Crystal Structure Prediction by Decomposition and Evolution Schemes Based on Graph Theory”, Fundamental Research 1, 466 (2021).
+[3] Hao Gao, Junjie Wang, Yu Han, Jian Sun, “Enhancing Crystal Structure Prediction by Decomposition and Evolution Schemes Based on Graph Theory”, Fundamental Research 1, 466 (2021).
 
-[4] Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun*, “Determining dimensionalities and multiplicities of crystal nets” npj Comput. Mater. 6, 143 (2020).
+[4] Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun, “Determining dimensionalities and multiplicities of crystal nets” npj Comput. Mater. 6, 143 (2020).
 
-[5] Yu Han, Junjie Wang, Chi Ding, Hao Gao, Shuning Pan, Qiuhan Jia, Jian Sun*, arXiv:2212.11549.
+[5] Yu Han, Junjie Wang, Chi Ding, Hao Gao, Shuning Pan, Qiuhan Jia, Jian Sun, arXiv:2212.11549.
 
-[6] Chi Ding, Junjie Wang, Yu Han, Jianan Yuan, Hao Gao, and Jian Sun*, “High Energy Density Polymeric Nitrogen Nanotubes inside Carbon Nanotubes”, Chin. Phys. Lett. 39, 036101 (2022). (Express Letter)
+[6] Chi Ding, Junjie Wang, Yu Han, Jianan Yuan, Hao Gao, and Jian Sun, “High Energy Density Polymeric Nitrogen Nanotubes inside Carbon Nanotubes”, Chin. Phys. Lett. 39, 036101 (2022). (Express Letter)
