@@ -1,16 +1,16 @@
 formulaType: fix
 pressure: 0
-initSize: 40
+initSize: 20
 popSize: 20
 numGen: 20
 saveGood: 2
 
 #structure parameters
-minNAtoms: 6
-maxNAtoms: 12
+minNAtoms: 1
+maxNAtoms: 4
 pPri: 0.1 # probability of generate primitive cell
-symbols: ["Ti", "O"]
-formula: [2, 4]
+symbols: [Si]
+formula: [1]
 fullEles: True
 eleSize: 0
 
@@ -20,17 +20,18 @@ addSym: False
 
 #main calculator settings
 MainCalculator:
-  jobPrefix: ["q", "w", "e", "r"]
-  calculator: vasp
+  jobPrefix: ["first"]
+  calculator: castep
   mode: parallel
-  #castep settings
-  kpts: "{'density': 10, 'gamma': True, 'even': False}"
-  # pseudo-potential: <Species>_<pspot>.<suffix>
-  # for example: Si_00PBE.usp
+  # castep settings
+  xc_functional: PBE
+  kpts: { "density": 10, "gamma": True, "even": False }
+  castep_command: castep
+  castep_pp_path: /fs08/home/js_pansn/apps/CASTEP-22.11/Test/Pseudopotentials
   pspot: 00PBE
   suffix: usp
   #parallel settings
-  numParallel: 10
-  numCore: 24
+  numParallel: 4
+  numCore: 1
   queueName: 9242opa!
   waitTime: 30
