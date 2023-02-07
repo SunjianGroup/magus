@@ -91,10 +91,10 @@ class ErcsFitness(FitnessCalculator):
             from ..entrypoints.calculate import calculate
             from .tools import getslab
             slab = getslab(slabfile=None)
-            #res_pop = [ase.io.read("Ref/refslab.traj", index = 0)]
-            #res_pop.append(slab)
-            #ase.io.write("Ref/refslab.traj", res_pop)
-            #calculate(filename = "Ref/refslab.traj", output_file="Ref/refslab.traj")
+            res_pop = [ase.io.read("Ref/refslab.traj", index = 0)]
+            res_pop.append(slab)
+            ase.io.write("Ref/refslab.traj", res_pop)
+            calculate(filename = "Ref/refslab.traj", output_file="Ref/refslab.traj")
             res_pop = ase.io.read("Ref/refslab.traj", index = ':')
             bulk, slab = res_pop[0], res_pop[1]
 
