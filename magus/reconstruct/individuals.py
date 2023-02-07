@@ -72,7 +72,7 @@ class RcsPopulation(Population):
         for ind1 in self.pop:
             dominators = -1 #number of individuals that dominate the current ind
             for ind2 in self.pop:
-                if len(ind1.atoms) == len(ind2.atoms):
+                if len(ind1) == len(ind2):
                     for key in ind1.info['fitness']:
                         if ind1.info['fitness'][key] > ind2.info['fitness'][key]:
                             break

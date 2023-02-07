@@ -9,8 +9,8 @@ saveGood: 5                 # number of good structures kept to the next generat
 #structure parameters
 symbols: ['H']
 formula: [1]                # Not used
-min_n_atoms: 55
-max_n_atoms: 55
+min_n_atoms: 26
+max_n_atoms: 26
 spacegroup: [2-56]
 
 cutoff: 3                   #check connection
