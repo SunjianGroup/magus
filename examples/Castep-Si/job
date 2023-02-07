@@ -1,0 +1,7 @@
+#BSUB -J Si-castep
+#BSUB -n 1
+#BSUB -e err
+#BSUB -o out
+#BSUB -q 9242opa!
+
+python magus search 
