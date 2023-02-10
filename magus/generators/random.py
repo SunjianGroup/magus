@@ -358,9 +358,12 @@ class MoleculeSPGGenerator(SPGGenerator):
             distance = np.linalg.norm(mol.positions - center, axis=1)
             self.mol_radius.append(np.max(distance + radius))
             # use thickness?
-            pca = PCA(n_components=3).fit(mol.positions)
-            new = mol.positions @ pca.components_
-            self.thickness.append(np.max(new[:, -1] + radius) - np.min(new[:, -1] - radius))
+            if len(mol) > 2:
+                pca = PCA(n_components=3).fit(mol.positions)
+                new = mol.positions @ pca.components_
+                self.thickness.append(np.max(new[:, -1] + radius) - np.min(new[:, -1] - radius))
+            else:
+                self.thickness.append(2 * np.max(radius))
 
             self.input_mols[i] = mol
 
