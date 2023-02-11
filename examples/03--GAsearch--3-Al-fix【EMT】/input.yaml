@@ -1,0 +1,29 @@
+#GAsearch of fixed composition Al (12 atoms per cell) by EMT.
+formulaType: fix        
+structureType: bulk
+pressure: 0
+initSize: 50        # number of structures of 1st generation
+popSize: 50         # number of structures of per generation
+numGen: 20          # number of total generation
+saveGood: 5         # number of good structures kept to the next generation
+#structure parameters
+symbols: ["Al"]
+formula: [1]                
+min_n_atoms: 12              # minimun number of atoms per unit cell
+max_n_atoms: 12              # maxium number of atoms per unit cell
+spacegroup: [2-230]
+d_ratio: 0.6
+volume_ratio: 3
+#GA parameters
+rand_ratio: 0.4               # fraction of random structures per generation (except 1st gen.)
+add_sym: True               # add symmetry to each structure during evolution
+#main calculator settings
+MainCalculator:
+ calculator: 'emt'
+ jobPrefix: ['EMT'] 
+ #emt relax settings
+ eps: 0.05                      # convergence energy < 0.05
+ maxStep: 30                # maximum number of relax steps
+ maxMove: 0.1                # maximum relax step length
+ optimizer: bfgs            # use bfgs as optimizer
+

@@ -140,14 +140,14 @@ def parse_args():
         "-v",
         "--var",
         action="store_true",
-        help="bian zu fen",
+        help="use variable composition mode",
     )
     parser_sum.add_argument(
         "-b",
         "--boundary",
         nargs="+",
         default=[],
-        help="bian zu fen boundary",
+        help="in variable composition mode: add boundary",
     )
     parser_sum.add_argument(
         "-t",
@@ -185,13 +185,13 @@ def parse_args():
         "-v",
         "--var",
         action="store_true",
-        help="bian zu fen sou suo",
+        help="variable composition search",
     )
     parser_pre.add_argument(
         "-m",
         "--mol",
         action="store_true",
-        help="fen zi jing ti sou suo",
+        help="molecule crystal search",
     )
     # calculate
     parser_calc = subparsers.add_parser(
@@ -231,7 +231,7 @@ def parse_args():
         "--pressure",
         type=int, 
         default=None,
-        help="hehe"
+        help="add pressure"
     )
     # generate
     parser_gen = subparsers.add_parser(

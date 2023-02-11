@@ -1,0 +1,13 @@
+#Generate 3d periodic crystal structures of molecule crystal with 8 NH4 and NO3 molecules per unit cell by symmetry.
+formulaType: fix
+structureType: bulk
+symbols: ['H', 'N', 'O']
+molMode: True
+inputMols: ['NH4.xyz', 'NO3.xyz']
+formula: [1,1]              #formula: ((NH4)1(NO3)1)
+min_n_atoms: 72
+max_n_atoms: 72
+spacegroup: [56]     #symmetry spacegroup
+d_ratio: 0.5
+volume_ratio: 8 
+threshold_mol: 1.0      

@@ -1,7 +1,0 @@
-#BSUB -J TiO2-vasp
-#BSUB -n 1
-#BSUB -e err
-#BSUB -o out
-#BSUB -q e52692v2ib!
-
-magus search 

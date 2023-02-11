@@ -1,8 +1,0 @@
-formulaType: fix
-minNAtoms: 12
-maxNAtoms: 12
-symbols: ['B']
-formula: [1]
-addSym: True
-dRatio: 0.5
-volumeRatio: 15

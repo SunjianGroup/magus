@@ -1,0 +1,54 @@
+#Surface reconstruction of dimond(100) 2*1
+formulaType: fix        
+structureType: surface 
+
+initSize: 8
+popSize: 8
+numGen: 2
+saveGood: 4                 # number of good structures kept to the next generation
+#structure parameters
+symbols: ['C']
+formula: [1]                # Not used, dont delete
+min_n_atoms: 0              # Not used, dont delete
+max_n_atoms: 0              # Not used, dont delete
+spacegroup: [2-17]
+vacuum_thickness: 10
+spg_type: plane
+rcs_x: [2]
+rcs_y: [1]
+d_ratio: 0.6
+randRatio: 0.3               # fraction of random
+randwalk_ratio: 1          # ratio of generation by rand walk
+
+add_sym: False               # GAgenerator: don't add sym! IMPORTANT!
+ 
+Comparator:
+ comparator_list: ['naive']
+
+#slab model parameters
+slabinfo:
+ bulk_file: "dimond.vasp"
+ cutslices: 2
+ bulk_layernum: 2
+ buffer_layernum: 1
+ rcs_layernum: 1
+ direction: [1,0,0]
+ #pcell: True                 #Use primitive cell
+ addH: True
+ extra_c: 1.5
+
+
+# main calculator settings
+MainCalculator:
+ calculator: 'vasp'
+ jobPrefix: ['vasp1'] 
+
+ #vasp settings
+ xc: PBE
+ ppLabel: ['','','']
+
+ #parallel settings
+ numParallel: 8              # number of parallel jobs
+ numCore: 8                # number of cores
+ queueName: e52692v2ib! 
+

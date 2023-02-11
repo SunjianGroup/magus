@@ -1,0 +1,13 @@
+symbols: ['C']
+#main calculator settings
+MainCalculator:
+ calculator: 'vasp'
+ jobPrefix: ['VASP']
+ #vasp settings
+ xc: PBE
+ ppLabel: ['']
+ #parallel settings
+ preProcessing: export PATH=$PATH
+ numParallel: 20
+ numCore: 24
+ queueName: e52692v2ib!
