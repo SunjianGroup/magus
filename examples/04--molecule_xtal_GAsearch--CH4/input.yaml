@@ -1,0 +1,34 @@
+#GAsearch of molecule crystal CH4 with 4 molecules per unit cell.
+formulaType: fix        
+structureType: bulk
+pressure: 50
+initSize: 20        # number of structures of 1st generation
+popSize: 20         # number of structures of per generation
+numGen: 40          # number of total generation
+saveGood: 3         # number of good structures kept to the next generation
+#structure parameters
+symbols: ['C', 'H']  
+molMode: True
+inputMols: ['CH4.xyz']
+formula: [4]
+min_n_atoms: 20              # minimun number of atoms per unit cell
+max_n_atoms: 20              # maxium number of atoms per unit cell
+spacegroup: [2-230]
+d_ratio: 0.8
+volume_ratio: 5
+#GA parameters
+rand_ratio: 0.4               # fraction of random structures per generation (except 1st gen.)
+add_sym: True               # add symmetry to each structure during evolution
+chkMol: True                
+molDetector: 1
+#main calculator settings
+MainCalculator:
+ calculator: 'vasp'
+ jobPrefix: ['Vasp1', 'Vasp2']
+ #vasp settings
+ xc: PBE
+ ppLabel: ['','']
+ #parallel settings
+ numParallel: 4              # number of parallel jobs
+ numCore: 6                # number of cores
+ queueName: e52692v2ib! 

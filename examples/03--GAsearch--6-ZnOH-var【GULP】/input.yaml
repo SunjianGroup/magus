@@ -1,0 +1,31 @@
+#GAsearch of variable composition Znx(OH)y.
+formulaType: var        
+structureType: bulk
+pressure: 0
+initSize: 150        # number of structures of 1st generation
+popSize: 100         # number of structures of per generation
+numGen: 40          # number of total generation
+saveGood: 8         # number of good structures kept to the next generation
+#structure parameters
+symbols: ['Zn','O','H']
+formula: [[1,0,0],[0,1,1]]         #Zn: (OH) = 1:1       
+min_n_atoms: 8              # minimun number of atoms per unit cell
+max_n_atoms: 16              # maxium number of atoms per unit cell
+full_ele: True                #structure must contain all elements
+spacegroup: [2-230]
+d_ratio: 0.5
+volume_ratio: 10
+#GA parameters
+rand_ratio: 0.3               # fraction of random structures per generation (except 1st gen.)
+add_sym: True               # add symmetry to each structure during evolution
+#main calculator settings
+MainCalculator:
+ calculator: 'gulp'
+ jobPrefix: ['Gulp1', 'Gulp2', 'Gulp3'] 
+ #gulp settings
+ exeCmd: gulp < input > output
+ #parallel settings
+ numParallel: 10              # number of parallel jobs
+ numCore: 4                # number of cores
+ preProcessing: export OMP_NUM_THREADS=4; export MKL_NUM_THREADS=4    
+ queueName: e52692v2ib! 

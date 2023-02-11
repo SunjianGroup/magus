@@ -1,0 +1,12 @@
+#Generate 3d periodic crystal structures of boron with 12 atoms per unit cell by symmetry.
+formulaType: fix
+structureType: bulk
+
+#structure parameters
+symbols: ['B']
+formula: [1]                
+min_n_atoms: 12         # minimun number of atoms per unit cell
+max_n_atoms: 12         # maxium number of atoms per unit cell
+spacegroup: [1-230]     # symmetry spacegroup
+d_ratio: 0.5                  
+volume_ratio: 8            
