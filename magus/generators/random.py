@@ -400,8 +400,8 @@ class MoleculeSPGGenerator(SPGGenerator):
         return numlist_pool
 
     def get_min_lattice(self, numlist):
-        radius = [r for i, r in enumerate(self.thickness) if numlist[i] > 0]
-        min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
+        thickness = [r for i, r in enumerate(self.thickness) if numlist[i] > 0]
+        min_lattice = [np.max(thickness)] * 3 + [45.] * 3
         min_lattice = [b if b > 0 else a for a, b in zip(min_lattice, self.min_lattice)]
         return min_lattice
 
