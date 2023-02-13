@@ -11,7 +11,7 @@ import numpy as np
 import spglib as spg
 from magus.phasediagram import PhaseDiagram, get_units
 try:
-    from pymatgen import Molecule
+    from pymatgen.core import Molecule
     from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 except:
     pass
