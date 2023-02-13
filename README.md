@@ -15,8 +15,8 @@ Magus is an open-source Python package designed to predict crystal structures.
 
 |  Package    |    version   |
 |  -------    |    -------   |
-| [python](https://www.python.org/)                          | >= 3.8    |
-| [gcc](https://gcc.gnu.org/)                                | >= 7.4.0  |
+| [python](https://www.python.org/)                          |     |
+| [gcc](https://gcc.gnu.org/)                                |   |
 | [numpy](https://docs.scipy.org/doc/numpy/reference/)       | <  1.22.0 |
 | [scipy](https://docs.scipy.org/doc/scipy/reference/)       | >= 1.1    |
 | [scikit-learn](https://scikit-learn.org/stable/index.html) |           |
@@ -27,6 +27,8 @@ Magus is an open-source Python package designed to predict crystal structures.
 | [prettytable](https://github.com/jazzband/prettytable)     |           |
 | [packaging](https://packaging.pypa.io/en/stable/)          |           |
 
+\* The requirements will be installed automatically when using [pip](#using_pip)  
+   
 And the following packages are optional: 
 
 |  Package    |    function   |
@@ -40,6 +42,7 @@ And the following packages are optional:
 
 
 # Installation
+<span id= "using_pip"> </span>
 ## Use pip 
 ```shell
 $ pip install git+https://gitlab.com/bigd4/magus.git
