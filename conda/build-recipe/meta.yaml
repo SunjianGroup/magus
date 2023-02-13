@@ -45,6 +45,7 @@ requirements:
     - pandas
     - prettytable
     - networkx
+    - pymatgen
 
 about:
   home: https://gitlab.com/bigd4/magus.git

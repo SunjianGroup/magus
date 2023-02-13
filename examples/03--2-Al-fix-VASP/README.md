@@ -1,4 +1,4 @@
-Example 3.1
+Example 3.2
 GAsearch of fixed composition Al (12 atoms per cell) by VASP.
 
 $ ls

@@ -1,4 +1,4 @@
-Example 3.2
+Example 3.3
 GAsearch of fixed composition TiO2 (12 atoms per cell).
 
 $ ls
