@@ -19,6 +19,7 @@ examples/*/*
 !examples/*/job
 !examples/*/Seeds
 !examples/*/summary.py
+!examples/*/README.md
 mypps/
 run_vasp.py
 #tools
