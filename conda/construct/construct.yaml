@@ -1,0 +1,21 @@
+{% set version = environ.get('MAGUS_VERSION', 'unknown') %}
+
+name: magus
+version: {{ version }}
+
+channels:
+  - http://repo.anaconda.com/pkgs/main/
+  - conda-forge
+  - local
+
+specs:
+  - python
+  - conda
+  - magus  =={{ version }}
+
+ignore_duplicate_files: True
+license_file: LICENSE
+initialize_conda: True
+initialize_by_default: False
+extra_files: 
+  - examples.zip
