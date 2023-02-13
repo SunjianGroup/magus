@@ -35,7 +35,6 @@ MainCalculator:
 MLCalculator:
  jobPrefix: MTP
  calculator: mtp
- init_times: 0
  min_dist: 1.2
  #queueName: 9242opa!
  queueName: 5220r

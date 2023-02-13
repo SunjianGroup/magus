@@ -13,6 +13,7 @@ cutandsplice.py
 .VSCodeCounter
 paths.yaml
 examples/*/*
+!examples/02--2-B12-MTP/gen.traj
 !examples/*/inputFold
 !examples/*/*.xyz
 !examples/*/input.yaml

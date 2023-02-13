@@ -1,4 +1,4 @@
-Example 3.3
+Example 3.1
 GAsearch of fixed composition Al (12 atoms per cell) by EMT.
 
 $ ls

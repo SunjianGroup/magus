@@ -1,9 +1,0 @@
-#BSUB -J example-mtp
-#BSUB -n 4
-#BSUB -e err
-#BSUB -o out
-#BSUB -q e52692v2ib!
-
-export OMP_NUM_THREADS=4
-export MKL_NUM_THREADS=4
-magus search -m
