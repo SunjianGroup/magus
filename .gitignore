@@ -22,6 +22,14 @@ examples/*/*
 !examples/*/README.md
 mypps/
 run_vasp.py
+
+# conda
+conda/tmp
+conda/construct/examples.zip
+conda/construct/LICENSE
+conda/*.sh
+!conda/build.sh
+!conda/construct.sh
 #tools
 # tex info
 /doc/*

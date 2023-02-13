@@ -1,0 +1,60 @@
+{% set name = "magus" %}
+{% set version = environ.get('MAGUS_VERSION', 'unknown') %}
+{% set py = environ.get('CONDA_PY', '') %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ../../ 
+
+build:
+  number: 0
+  string: "py{{ py }}_{{ PKG_BUILDNUM }}"
+  script:
+    - "{{ PYTHON }} setup.py install"
+  skip: true  # [not linux]
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - cmake  >=3.15
+    - make  # [unix]
+    - ninja
+
+  host:
+    - python
+    - pip
+    - numpy            ==1.21
+    - setuptools_scm
+    - scikit-build
+    - pyyaml
+    - packaging
+
+  run:
+    - python
+    - numpy            ==1.21
+    - scipy
+    - scikit-build
+    - ase              >=3.18
+    - pyyaml           >=6.0
+    - packaging
+    - spglib
+    - pandas
+    - prettytable
+    - networkx
+
+about:
+  home: https://gitlab.com/bigd4/magus.git
+  license: LGPL-3.0
+  license_family: LGPL
+  license_file: LICENSE
+  summary: 'A machine learning and graph theory assisted universal structure searcher'
+  doc_url: https://gitlab.com/bigd4/magus.git
+  dev_url: https://gitlab.com/bigd4/magus.git
+
+extra:
+  recipe-maintainers:
+    - gegejunOvO
