@@ -281,7 +281,7 @@ class SPGGenerator:
         return d
 
     def generate_ind(self, spg, numlist, n_split):
-        numlist_ = np.ceil(numlist / n_split).astype(np.int)
+        numlist_ = np.ceil(numlist / n_split).astype(np.int32)
         n_symbols, n_symbols_ = self.get_n_symbols(numlist), self.get_n_symbols(numlist_ * n_split)
         residual = {s: n_symbols[s] - n_symbols_[s] for s in self.symbols}
         label, atoms = spg_generate(**self.get_generate_parm(spg, numlist_))
