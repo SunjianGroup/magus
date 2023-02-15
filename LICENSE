@@ -1,12 +1,23 @@
-MAGUS is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3.0 of the License, or
-(at your option) any later version.
+MAGUS is a Python package designed to predict crystal structures, which is free for non-commercial academic use. 
+1) This Code or its derivative work will not be used for any purpose other than non-commercial research.
+2) This Code or its derivative code will not be published or otherwise distributed.
+3) The use of this Code should be acknowledged by citing the tutorial paper
 
-MAGUS is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
+describing the use of this code:
+[1] Junjie Wang, et al. "MAGUS: machine learning and graph theory assisted universal structure searcher". (under review)
+[2] Kang Xia, Hao Gao, Cong Liu, Jianan Yuan, Jian Sun, Hui-Tian Wang, Dingyu Xing, “A novel superhard tungsten nitride predicted by machine-learning accelerated crystal structure search”, Sci. Bull. 63, 817 (2018).
 
-You should have received a copy of the GNU Lesser General Public License
-along with MAGUS.  If not, see <http://www.gnu.org/licenses/>.
+
+Additional references that may be cited (at the discretion of the user) are:
+
+Graph theory:
+[3] Hao Gao, Junjie Wang, Yu Han, Jian Sun, “Enhancing Crystal Structure Prediction by Decomposition and Evolution Schemes Based on Graph Theory”, Fundamental Research 1, 466 (2021).
+[4] Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun, “Determining dimensionalities and multiplicities of crystal nets” npj Comput. Mater. 6, 143 (2020).
+
+
+Surface reconstruction:
+[5] Yu Han, Junjie Wang, Chi Ding, Hao Gao, Shuning Pan, Qiuhan Jia, Jian Sun, arXiv:2212.11549.
+
+
+Structure searching in confined space:
+[6] Chi Ding, Junjie Wang, Yu Han, Jianan Yuan, Hao Gao, and Jian Sun, “High Energy Density Polymeric Nitrogen Nanotubes inside Carbon Nanotubes”, Chin. Phys. Lett. 39, 036101 (2022). (Express Letter)
