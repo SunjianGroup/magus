@@ -1,6 +1,6 @@
 # **MAGUS: Machine learning And Graph theory assisted Universal structure Searcher**
 
-`MAGUS` is an open-source Python package designed to predict crystal structures. 
+`MAGUS` is a Python package designed to predict crystal structures, which is free for non-commercial academic use.
 
 # Current Features
 * Generation of atomic structures for a given symmetry , support cluster, 2D, 3D including molecules
@@ -170,6 +170,19 @@ $ export VASP_PP_PATH=<your-path-to-mypps>
 More details can be seen [here](https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html#module-ase.calculators.vasp).
 
 ## Castep
+
+
+# Contributors
+MAGUS is developed by Prof. Jian Sun's group at the School of Physics at Nanjing University. 
+
+The current main developers are:  
+Hao Gao  
+Junjie Wang  
+Yu Han  
+Shuning Pan  
+Qiuhan Jia  
+Yong Wang  
+Chi Ding  
 
 # Citations
 |  Reference    |    cite for what   |
