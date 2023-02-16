@@ -1,0 +1,16 @@
+PREC = Normal
+ENCUT = 450
+EDIFF = 1e-5
+IBRION = 2
+ISIF = 2
+NSW = 0
+ISMEAR = 0
+SIGMA = 0.060
+POTIM = 0.250
+ISTART = 0
+LCHARG = FALSE
+LWAVE = FALSE
+#Crude optimisation
+EDIFFG = 1e-3
+KSPACING = 0.314
+#ALGO = Fast

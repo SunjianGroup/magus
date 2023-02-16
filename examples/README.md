@@ -7,7 +7,8 @@
 | 04 | [Molecule crystal search](#molecule-crystal-search)    |
 | 05 | [Cluster search](#cluster-search)          |
 | 06 | [Surface reconstruct](#surface-reconstruct) |
-| 07 | [Machine learning search](#machine-learning-search)    |
+| 07 | [Machine learning search](#machine-learning-search)    | 
+| 08 | [2D bulk search](#2d-bulk-search) | 
 
 ## Generate structures
 - 01--1-B12: Generate 3d periodic crystal structures of boron with 12 atoms per unit cell by symmetry.
@@ -30,9 +31,12 @@
 - 04--1-CH4-fix-VASP: GAsearch of molecule crystal CH4 with 4 molecules per unit cell.
 
 ## Cluster search
-- 05--1-LJ26: Ground state of Lennard-Jones cluster of 26 atoms
+- 05--1-LJ26: Ground state of Lennard-Jones cluster of 26 atoms.
 ## Surface reconstruct
-- 06--1-C_2x1_100: Surface reconstruction of diamond (100)-2×1
-- 06--2-SnO2_4x1_110: Surface reconstruction of SnO2 (110)-4×1
+- 06--1-C_2x1_100: Surface reconstruction of diamond (100)-2×1.
+- 06--2-SnO2_4x1_110: Surface reconstruction of SnO2 (110)-4×1.
 ## Machine learning search
-- 07--2-Na-NEP: A toy example for use NEP to search sodium
+- 07--1-MgSiO3-MTP: Use mtp to search MgSiO3 under high pressure.
+- 07--2-Na-NEP: A toy example for use NEP to search sodium.
+## 2D-bulk-search
+- 08--1-graphene: GAsearch of 2D carbon (graphene) by VASP.
