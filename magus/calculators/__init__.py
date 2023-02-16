@@ -4,9 +4,6 @@ from copy import deepcopy
 from magus.utils import load_plugins, CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN
 
 
-load_plugins(__file__, 'magus.calculators')
-
-
 need_convert = ['jobPrefix', 'eps', 'maxStep', 'optimizer', 'maxMove', 
                 'relaxLattice', 'exeCmd', 'calculator',
                 'queueName', 'numCore', 'Preprocessing', 'waitTime',
@@ -16,6 +13,7 @@ log = logging.getLogger(__name__)
 
 
 def get_one_calculator(p_dict):
+    load_plugins(__file__, 'magus.calculators')
     if 'calculator' not in p_dict:
         log.warning('calculator not given, auto guess by jobprefix')
         calculator = p_dict['jobPrefix'].lower().translate(str.maketrans('', '', digits))
@@ -27,6 +25,7 @@ def get_one_calculator(p_dict):
 
 
 def get_calculator(p_dict):
+    load_plugins(__file__, 'magus.calculators')
     if type(p_dict['jobPrefix']) is list:
         if 'calculator' not in p_dict:
             log.warning('calculator not given, auto guess by jobprefix')
