@@ -14,9 +14,9 @@
 # Requirements
 
 `MAGUS` need [Python](https://www.python.org/) (3.6 or newer) and [gcc](https://gcc.gnu.org/) to build some module. Besides, the following python package are required:
-|  Package    |    version   |
-|  -------    |    -------   |
-| [numpy](https://docs.scipy.org/doc/numpy/reference/)       |  |
+| Package                                                    | version   |
+| ---------------------------------------------------------- | --------- |
+| [numpy](https://docs.scipy.org/doc/numpy/reference/)       |           |
 | [scipy](https://docs.scipy.org/doc/scipy/reference/)       | >= 1.1    |
 | [scikit-learn](https://scikit-learn.org/stable/index.html) |           |
 | [ase](https://wiki.fysik.dtu.dk/ase/index.html)            | >= 3.18.0 |
@@ -31,13 +31,13 @@
 
 And the following packages are optional: 
 
-|  Package    |    function   |
-|  ----       |     ----      |
-|[beautifulreport](https://github.com/mocobk/BeautifulReport) |Generate html report for `magus test`|
-|[plotly](https://plotly.com/python/)                         |Generate html phasediagram for varcomp search|
-|[dscribe](https://singroup.github.io/dscribe/latest/)        |Use fingerprint such as soap|
-|[networkx](https://networkx.org/)                            |Use graph module|
-|[pymatgen](https://pymatgen.org/)                            |Use reconstruct and cluster module|
+| Package                                                      | function                                      |
+| ------------------------------------------------------------ | --------------------------------------------- |
+| [beautifulreport](https://github.com/mocobk/BeautifulReport) | Generate html report for `magus test`         |
+| [plotly](https://plotly.com/python/)                         | Generate html phasediagram for varcomp search |
+| [dscribe](https://singroup.github.io/dscribe/latest/)        | Use fingerprint such as soap                  |
+| [networkx](https://networkx.org/)                            | Use graph module                              |
+| [pymatgen](https://pymatgen.org/)                            | Use reconstruct and cluster module            |
 
 
 
@@ -170,7 +170,7 @@ $ export VASP_PP_PATH=<your-path-to-mypps>
 More details can be seen [here](https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html#module-ase.calculators.vasp).
 
 ## Castep
-
+We use the Castep calculator provided by [ase](https://wiki.fysik.dtu.dk/ase/index.html). Unlike vasp, we don't have to set up env variables, but write them directly to `input.yaml`. For more infomation, check the castep example under `examples` folder.
 
 # Contributors
 MAGUS is developed by Prof. Jian Sun's group at the School of Physics at Nanjing University. 
@@ -185,12 +185,12 @@ Yong Wang
 Chi Ding  
 
 # Citations
-|  Reference    |    cite for what   |
-|  ----  | ----  |
-|[1, 2]|for any work that used `MAGUS`|
-|[3, 4]|Graph theory|
-|[5]|Surface reconstruction|
-|[6]|Structure searching in confined space|
+| Reference | cite for what                         |
+| --------- | ------------------------------------- |
+| [1, 2]    | for any work that used `MAGUS`        |
+| [3, 4]    | Graph theory                          |
+| [5]       | Surface reconstruction                |
+| [6]       | Structure searching in confined space |
 
 # Reference
 
