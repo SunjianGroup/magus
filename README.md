@@ -63,7 +63,7 @@ $ git clone --recursive https://gitlab.com/bigd4/magus.git
 It must be careful that the downloaded zip will not include the submodules (nepdes, pybind11, gensym), you may need download them manually.  
 2. Install the requirements by:
 ```shell
-$ pip install -r requirement.txt
+$ pip install -r requirements.txt
 ```
 or by yourself. 
 
@@ -136,6 +136,21 @@ If you installed from source, use:
 $ cd <path-to-magus-package>
 $ git pull origin master
 ```
+
+# Environment variables
+## Job management system
+Add
+```shell
+$ export JOB_SYSTEM=LSF/SLURM/PBS
+```
+in your `~/.bashrc` according to your job management system.
+
+## Auto completion
+Put [`auto_complete.sh`](https://gitlab.com/bigd4/magus/-/blob/master/magus/auto_complete.sh) in your `PATH` like:
+```shell
+export PATH=$PATH:<your-path-to-auto_complete.sh>
+```
+
 # Interface
 `MAGUS` now support the following packages to calculate the energy of structures, some of them are commercial or need registration to get the permission to use.
 
@@ -176,13 +191,14 @@ We use the Castep calculator provided by [ase](https://wiki.fysik.dtu.dk/ase/ind
 MAGUS is developed by Prof. Jian Sun's group at the School of Physics at Nanjing University. 
 
 The current main developers are:  
-Hao Gao  
-Junjie Wang  
-Yu Han  
-Shuning Pan  
-Qiuhan Jia  
-Yong Wang  
-Chi Ding  
+- Hao Gao
+- Junjie Wang
+- Yu Han
+- Shuning Pan
+- Qiuhan Jia
+- Yong Wang
+- Chi Ding
+- Bin Li
 
 # Citations
 | Reference | cite for what                         |

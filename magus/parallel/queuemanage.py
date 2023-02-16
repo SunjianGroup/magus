@@ -150,7 +150,7 @@ class BaseJobManager:
 #         return allDone
     
 
-class BSUBSystemManager(BaseJobManager):
+class LSFSystemManager(BaseJobManager):
     def kill(self, jobid):
         subprocess.call('bkill {}'.format(jobid), shell=True)
 
@@ -173,7 +173,7 @@ class BSUBSystemManager(BaseJobManager):
                 "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name, 
                                                                      self.num_core, 
                                                                      out, err, name,
-                                                                     int(self.kill_time/60),
+                                                                     time.strftime("%H:%M:%S", time.gmtime(self.kill_time)),
                                                                      self.pre_processing, 
                                                                      content)
                 )
@@ -207,14 +207,14 @@ class SLURMSystemManager(BaseJobManager):
                 "#!/bin/bash\n\n"
                 "#SBATCH --no-requeue\n"
                 "#SBATCH --mem=1000M\n"
-                "#SBATCH --time=01:00:00\n"
+                "#SBATCH --time={7}\n"
                 "#SBATCH --nodes=1\n"
                 "#SBATCH --ntasks-per-node={1}\n"
-                #"#SBATCH --time={7}\n"
                 "#SBATCH --job-name={4}\n"
                 "#SBATCH --output={2}\n"
                 "{5}\n"
-                "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content)
+                "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
+                             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
                 )
         command = 'sbatch ' + file
         job = dict()
@@ -250,14 +250,76 @@ class SLURMSystemManager(BaseJobManager):
                 job['state'] = 'PEND'
                 allDone = False
             elif stat == 'RUNNING':
-                if 'begintime' not in job.keys():
-                    job['begintime'] = datetime.datetime.now()
                 job['state'] = 'RUN'
                 allDone = False
-                #runtime = (nowtime - job['begintime']).total_seconds()
-                #if runtime > self.kill_time:
-                #    self.kill(job['id'])
-                #    log.warning('job {} id {} has run {}s, ni pao ni ma ne?'.format(job['name'],job['id'],runtime))
+            else:
+                job['state'] = 'ERROR'
+            if self.verbose:
+                log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
+        return allDone
+
+
+class PBSSystemManager(BaseJobManager):
+    def kill(self, jobid):
+        subprocess.call('qdel {}'.format(jobid), shell=True)
+
+    def sub(self, content, name='job', file='job', out='out', err='err'):
+        self.reload()
+        if os.path.exists('DONE'):
+            os.remove('DONE')
+        if os.path.exists('ERROR'):
+            os.remove('ERROR')
+        with open(file, 'w') as f:
+            f.write(
+                "#!/bin/bash\n\n"
+                "#PBS -q {0}\n"
+                "#PBS -l nodes=1:ppn={1},walltime={7}\n"
+                "#PBS -j oe\n"
+                "#PBS -V\n"
+                "#PBS -N {4}\n"
+                "cd $PBS_O_WORKDIR\n"
+                "NP=`cat $PBS_NODEFILE|wc -l`\n"
+                "{5}\n"
+                "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
+                             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
+                )
+        command = 'qsub  ' + file
+        job = dict()
+        jobid = subprocess.check_output(command, shell=True).split()[-1]
+        if type(jobid) is bytes:
+            jobid = jobid.decode()
+        job['id'] = jobid
+        job['workDir'] = os.getcwd()
+        job['subtime'] = datetime.datetime.now()
+        job['name'] = name
+        #job['err'] = err
+        #job['out'] = out
+        self.jobs.append(job)
+        time.sleep(3)
+        return job
+    
+    def check_jobs(self):
+        log.debug("Checking jobs...")
+        nowtime = datetime.datetime.now()
+        log.debug(nowtime.strftime('%m-%d %H:%M:%S'))
+        allDone = True
+        for job in self.jobs:
+            try:
+                stat = subprocess.check_output("qstat {0} | grep {0} | awk '{print $5}'".format(job['id']), shell=True)
+                stat = stat.decode()[:-1]
+            except:
+                s = sys.exc_info()
+                log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+                stat = ''
+            log.debug("{}\t{}".format(job['id'], stat))
+            if stat == 'C' or stat == '':
+                job['state'] = 'DONE'
+            elif stat == 'Q':
+                job['state'] = 'PEND'
+                allDone = False
+            elif stat == 'R':
+                job['state'] = 'RUN'
+                allDone = False
             else:
                 job['state'] = 'ERROR'
             if self.verbose:
@@ -266,8 +328,9 @@ class SLURMSystemManager(BaseJobManager):
 
 
 JobManager_dict = {
-    'BSUB': BSUBSystemManager,
+    'LSF': LSFSystemManager,
     'SLURM': SLURMSystemManager,
+    'PBS': PBSSystemManager,
 }
-job_system = os.getenv('JOB_SYSTEM') or 'BSUB'
+job_system = os.getenv('JOB_SYSTEM') or 'LSF'
 JobManager = JobManager_dict[job_system]
