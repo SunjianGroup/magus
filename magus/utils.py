@@ -332,8 +332,12 @@ class Plugin:
         raise NotImplementedError("{} has not been registered in {}".format(key, self.name))
 
 
-def load_plugins(path, PACKAGE_BASE, NOT_LOADABLE = ("__init__.py",), verbose=False):
-    for module_file in Path(path).parent.glob("*.py"):
+def load_plugins(path, PACKAGE_BASE, PACKAGE_LOAD="all", NOT_LOADABLE=None, verbose=False):
+    if NOT_LOADABLE is None:
+        NOT_LOADABLE = ("__init__.py",)
+    if PACKAGE_LOAD == "all":
+        PACKAGE_LOAD = Path(path).parent.glob("*.py")
+    for module_file in PACKAGE_LOAD:
         if module_file.name not in NOT_LOADABLE:
             module_name = f".{module_file.stem}"
             try:

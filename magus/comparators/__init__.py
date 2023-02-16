@@ -2,13 +2,11 @@ import logging
 from magus.utils import load_plugins, COMPARATOR_PLUGIN, COMPARATOR_CONNECT_PLUGIN
 
 
-load_plugins(__file__, 'magus.comparators')
-
-
 log = logging.getLogger(__name__)
 
 
 def get_comparator(p_dict):
+    load_plugins(__file__, 'magus.comparators')
     comparators = {
         'connect': 'or', 
         'comparator_list': ['naive', 'zurek'],
