@@ -173,7 +173,7 @@ class LSFSystemManager(BaseJobManager):
                 "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name, 
                                                                      self.num_core, 
                                                                      out, err, name,
-                                                                     time.strftime("%H:%M:%S", time.gmtime(self.kill_time)),
+                                                                     time.strftime("%H:%M", time.gmtime(self.kill_time)),
                                                                      self.pre_processing, 
                                                                      content)
                 )
