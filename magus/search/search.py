@@ -62,11 +62,12 @@ class Magus:
     def get_init_pop(self):
         # mutate and crossover, empty for first generation
         if self.curgen == 1:
-            init_pop = self.Population([], 'init', self.curgen)
+            random_frames = self.atoms_generator.generate_pop(self.parameters['initSize'])
+            init_pop = self.Population(random_frames, 'init', self.curgen)
         else:
             init_pop = self.pop_generator.get_next_pop(self.cur_pop + self.keep_pop)
             init_pop.gen = self.curgen
-        init_pop.fill_up_with_random()
+            init_pop.fill_up_with_random()
         ## read seeds
         seed_pop = self.read_seeds()
         init_pop.extend(seed_pop)
