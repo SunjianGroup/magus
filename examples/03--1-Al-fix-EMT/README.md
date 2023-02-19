@@ -1,5 +1,5 @@
 Example 3.1  
-GAsearch of fixed composition Al (12 atoms per cell) by EMT  
+GAsearch of fixed composition Al (4 atoms per cell) by EMT  
 ====================================================  
 ```shell  
 $ ls  
@@ -9,19 +9,19 @@ Consistent with former examples, "input.yaml" sets all parameters and most of th
 Unique parameters for EMT search include:  
 ```shell  
 $ cat input.yaml  
- #GAsearch of fixed composition Al (12 atoms per cell) by EMT.  
- formulaType: fix  
+ #GAsearch of fixed composition Al (4 atoms per cell) by EMT.  
+ formulaType: fix        
  structureType: bulk  
  pressure: 0  
- initSize: 50        # number of structures of 1st generation  
- popSize: 50         # number of structures of per generation  
- numGen: 20          # number of total generation  
- saveGood: 5         # number of good structures kept to the next generation  
+ initSize: 20        # number of structures of 1st generation  
+ popSize: 20         # number of structures of per generation  
+ numGen: 5          # number of total generation  
+ saveGood: 4         # number of good structures kept to the next generation  
  #structure parameters  
  symbols: ["Al"]  
- formula: [1]  
- min_n_atoms: 12              # minimun number of atoms per unit cell  
- max_n_atoms: 12              # maxium number of atoms per unit cell  
+ formula: [1]                
+ min_n_atoms: 4              # minimun number of atoms per unit cell  
+ max_n_atoms: 4              # maxium number of atoms per unit cell  
  spacegroup: [2-230]  
  d_ratio: 0.6  
  volume_ratio: 3  
@@ -36,15 +36,46 @@ $ cat input.yaml
   eps: 0.05                      # convergence energy < 0.05  
   maxStep: 30                # maximum number of relax steps  
   maxMove: 0.1                # maximum relax step length  
-  optimizer: bfgs            # use bfgs as optimizer  
+  optimizer: bfgs            # use bfgs as optimizer    
 ```  
-**You can also change min_n_atoms and max_n_atoms to 6 to run this example for minor calculation cost.**  
 Submit search job:  
 ```shell  
 $ magus search -i input.yaml -ll DEBUG  
 ```  
 Several EMT calculations will be carried and summary the result by:  
 ```shell  
+$ magus summary results/good.traj -s  
+        symmetry  enthalpy formula priFormula  
+  1   P6_3/mmc (194) -0.008819     Al4        Al2  
+  2      P2_1/m (11) -0.006640     Al4        Al4  
+  3      Fm-3m (225) -0.004883     Al4         Al  
+  4        C2/m (12) -0.003680     Al4        Al2  
+  5        Cmme (67) -0.002916     Al4        Al4  
+  6        Cmcm (63) -0.001297     Al4        Al2  
+  7      Im-3m (229)  0.001971     Al4         Al  
+  8          P-1 (2)  0.003438     Al4        Al4  
+  9           P1 (1)  0.005110     Al4        Al4  
+  10     P2_1/m (11)  0.020729     Al4        Al4  
+```  
+We obtained best structure with enthalpy -0.008819 per atom with symmetry P6_3/mmc (194):  
+```shell  
+$ cat POSCAR_1.vasp  
+ Al  
+ 1.0000000000000000  
+ 2.8200471582615059    0.0000005982378061    0.0000004465288568  
+ -0.0000037118760154   -8.9478207691000211   -0.0000021430525911  
+ -1.4100239658360989   -0.0000005982378093   -2.4422322556601017  
+ Al  
+ 4  
+ Direct  
+ 0.3333331125252604  0.0328560006694292  0.6666668874747523  
+ 0.3333331125252587  0.5328560006694323  0.6666668874747500  
+ 0.9999998874747432  0.7828753416610273  0.0000001125252534  
+ 0.9999998874747441  0.2828753416610245  0.0000001125252544  
+```  
+Here we also provide input file and results for fixed composition Al (12 atoms per cell):  
+```shell  
+$ magus search -i 12at.yaml -ll DEBUG  
 $ magus summary results/good.traj -s  
      symmetry  enthalpy formula priFormula  
  1    P6_3/mmc (194) -0.008824    Al12        Al2  
@@ -57,9 +88,6 @@ $ magus summary results/good.traj -s
  8       P2_1/m (11) -0.005191    Al12        Al2  
  9    P6_3/mmc (194) -0.005041    Al12        Al6  
  10      Fm-3m (225) -0.004883    Al12         Al  
-```  
-We obtained best structure with enthalpy -0.008824 per atom with symmetry P6_3/mmc (194):  
-```shell  
 $ cat POSCAR_1.vasp  
  Al  
  1.0000000000000000  
