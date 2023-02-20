@@ -1,16 +1,16 @@
-#GAsearch of fixed composition Al (4 atoms per cell) by EMT.
+#GAsearch of fixed composition Al (12 atoms per cell) by EMT.
 formulaType: fix        
 structureType: bulk
 pressure: 0
-initSize: 20        # number of structures of 1st generation
-popSize: 20         # number of structures of per generation
-numGen: 5          # number of total generation
-saveGood: 4         # number of good structures kept to the next generation
+initSize: 50        # number of structures of 1st generation
+popSize: 50         # number of structures of per generation
+numGen: 20          # number of total generation
+saveGood: 5         # number of good structures kept to the next generation
 #structure parameters
 symbols: ["Al"]
 formula: [1]                
-min_n_atoms: 4              # minimun number of atoms per unit cell
-max_n_atoms: 4              # maxium number of atoms per unit cell
+min_n_atoms: 12              # minimun number of atoms per unit cell
+max_n_atoms: 12              # maxium number of atoms per unit cell
 spacegroup: [2-230]
 d_ratio: 0.6
 volume_ratio: 3
