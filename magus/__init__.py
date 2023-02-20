@@ -1,4 +1,4 @@
-__version__ = '1.0.5'
+__version__ = '1.6.0'
 __picture__ = """ 
             ,'  , `.     MAGUS                                           
         ,-+-,.' _ |      (v.{} RELEASE)                                    

@@ -37,7 +37,7 @@ with open('README.md') as f:
     long_description = f.read()
 
 setup(
-    name="magus-test",
+    name="magus-kit",
     version=__version__,
     author="Gao Hao, Wang Junjie, Han Yu, DC, Sun Jian",
     author_email="141120108@smail.nju.edu",
