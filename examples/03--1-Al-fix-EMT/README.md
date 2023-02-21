@@ -20,8 +20,8 @@ $ cat input.yaml
  #structure parameters  
  symbols: ["Al"]  
  formula: [1]                
- min_n_atoms: 4              # minimun number of atoms per unit cell  
- max_n_atoms: 4              # maxium number of atoms per unit cell  
+ min_n_atoms: 4              # minimum number of atoms per unit cell  
+ max_n_atoms: 4              # maximum number of atoms per unit cell  
  spacegroup: [2-230]  
  d_ratio: 0.6  
  volume_ratio: 3  

@@ -11,8 +11,8 @@ symbols: ['C', 'H']
 molMode: True
 inputMols: ['CH4.xyz']
 formula: [4]
-min_n_atoms: 20              # minimun number of atoms per unit cell
-max_n_atoms: 20              # maxium number of atoms per unit cell
+min_n_atoms: 20              # minimum number of atoms per unit cell
+max_n_atoms: 20              # maximum number of atoms per unit cell
 spacegroup: [2-230]
 d_ratio: 0.8
 volume_ratio: 5

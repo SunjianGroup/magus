@@ -19,11 +19,11 @@ $ cat input.yaml
  #structure parameters
  symbols: ["C"]
  formula: [1]                
- min_n_atoms: 4              # minimun number of atoms per unit cell
- max_n_atoms: 12              # maxium number of atoms per unit cell
+ min_n_atoms: 4              # minimum number of atoms per unit cell
+ max_n_atoms: 12              # maximum number of atoms per unit cell
  spacegroup: [2-17]            # use plane group no. 2-17
- min_thickness: 1                # minimun cell thickness
- max_thickness: 2              # maxium cell thickness
+ min_thickness: 1                # minimum cell thickness
+ max_thickness: 2              # maximum cell thickness
  spg_type: plane                  # Note-1
  vacuum_thickness: 15
  d_ratio: 0.6

@@ -9,8 +9,8 @@ saveGood: 2         # number of good structures kept to the next generation
 #structure parameters
 symbols: ['Mg','Al','O']
 formula: [4,8,16]         
-min_n_atoms: 28              # minimun number of atoms per unit cell
-max_n_atoms: 28              # maxium number of atoms per unit cell
+min_n_atoms: 28              # minimum number of atoms per unit cell
+max_n_atoms: 28              # maximum number of atoms per unit cell
 spacegroup: [2-230]
 d_ratio: 0.5
 volume_ratio: 3
