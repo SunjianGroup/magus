@@ -365,13 +365,12 @@ number &  target  \\ \hline
 \end{itemize}
 
 \newpage
-\chapter{Parameters}
-\section{HELP FOR INPUTS}
+\chapter{Input parameters}
 In magus we use inputs including command lines and parameter input file (in yaml format) to control programs. 
 
 If you are a new user of MAGUS (AND SINCERELY THANKS VERY MUCH FOR USING OUR PROGRAM! ), before you read the full description about all inputs below, we recommand first taking a look at examples which are easier to follow. 
 
-\subsection{Command lines}
+\section{Command lines}
 You can simply type
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
@@ -671,10 +670,9 @@ optional arguments:
   --shell               add option to use operation! (default: False)
   --lyrsym              add option to use operation! (default: False)
   --clusym              add option to use operation! (default: False)
+    \end{minted}
 \end{tcolorbox}
-
-\section{parameter input files}
-
+\section{Parameter inputs}
 A yaml format parameter file is also necessary. By default is 'input.yaml'. IN THE FUTURE we will add command line to easily export notes and default values by
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
@@ -685,7 +683,7 @@ to see help for which parameters you can set in 'input.yaml'. For current versio
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{text}
 parameter information for <class 'magus.parameters.magusParameters'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 formulaType    : type of formula, choose from fix or var
                   default value: fix
 structureType  : structure type, choose from bulk, layer, confined_bulk, cluster, surface
@@ -740,16 +738,16 @@ autoOpRatio    : automantic GA operation ratio
                   default value: False
 autoRandomRatio: automantic random structure generation ratio
                   default value: False
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.generators.random.MoleculeSPGGenerator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 input_mols     : input molecules
 formula_type   : type of formula, choose from fix or var
 symbols        : atom symbols
 formula        : formula
 min_n_atoms    : minimum number of atoms per unit cell
 max_n_atoms    : maximum number of atoms per unit cell
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 symprec        : tolerance for symmetry finding for molucule
                   default value: 0.1
 threshold_mol  : distance between each pair of two molecules in the structure is 
@@ -792,9 +790,9 @@ max_ratio      :  max formula ratio in variable composition mode, for example se
                   default value: 1000
 full_ele       : only generate structures with full elements
                   default value: True
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.generators.random.LayerSPGGenerator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 min_thickness  : minimum thickness
 max_thickness  : maximum thickness
 formula_type   : type of formula, choose from fix or var
@@ -802,7 +800,7 @@ symbols        : atom symbols
 formula        : formula
 min_n_atoms    : minimum number of atoms per unit cell
 max_n_atoms    : maximum number of atoms per unit cell
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 symprec        : symprec
                   default value: 0.1
 threshold_mol  : threshold_mol
@@ -848,26 +846,26 @@ max_ratio      :  max formula ratio in variable composition mode, for example se
                   default value: 1000
 full_ele       : only generate structures with full elements
                   default value: True
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.generator.ClusterSPGGenerator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 formula_type   : type of formula, choose from fix or var
 symbols        : atom symbols
 formula        : formula
 min_n_atoms    : minimum number of atoms per unit cell
 max_n_atoms    : maximum number of atoms per unit cell
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 vacuum_thickness: vacuum thickness
                   default value: 10
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.generators.random.SPGGenerator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 formula_type   : type of formula, choose from fix or var
 symbols        : atom symbols
 formula        : formula
 min_n_atoms    : minimum number of atoms per unit cell
 max_n_atoms    : maximum number of atoms per unit cell
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 max_attempts   : max attempts to generate a random structure
                   default value: 50
 p_pri          : probability of generate primitive cell
@@ -905,15 +903,15 @@ max_ratio      :  max formula ratio in variable composition mode, for example se
                   default value: 1000
 full_ele       : only generate structures with full elements
                   default value: True
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.generator.SurfaceGenerator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 formula_type   : type of formula, choose from fix or var
 symbols        : atom symbols
 formula        : formula
 min_n_atoms    : minimum number of atoms per unit cell
 max_n_atoms    : maximum number of atoms per unit cell
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 randwalk_range : maximum range of random walk
                   default value: 0.5
 randwalk_ratio : ratio of random walk atoms
@@ -928,7 +926,7 @@ rcs_formula    : formula of surface region
                   default value: None
 spg_type       : generate with planegroup/layergroup
                   default value: plane
-+++++	slabinfo parameters	+++++
++++++  slabinfo parameters  +++++
 bulk_file      : file of bulk structure
                   default value: None
 cutslices      : bulk_file contains how many atom layers
@@ -949,18 +947,18 @@ addH           : passivate bottom surface with H
                   default value: False
 pcell          : use primitive cell
                   default value: True
-+++++	modification parameters	+++++
++++++  modification parameters  +++++
 adsorb         : adsorb atoms to cleaved surface
                   default value: {}
 clean          : clean cleaved surface
                   default value: {}
 defect         : add defect to cleaved surface
                   default value: {}
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.populations.individuals.Bulk'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 symprec        : tolerance for symmetry finding
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 mol_detector   : methods to detect mol, choose from 1 and 2. See
                  Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun, "Determining dimensionalities and multiplicities
                  of crystal nets" npj Comput. Mater. 6, 143 (2020) [doi.org/10.1016/j.fmre.2021.06.005]
@@ -992,11 +990,11 @@ full_ele       : full_ele
                   default value: True
 max_length_ratio: if max-cell-length/min-cell-length of a structure is larger than this number it will be deleted.
                   default value: 8
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.populations.individuals.Layer'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 symprec        : tolerance for symmetry finding
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 vacuum_thickness: vacuum_thickness
                   default value: 10
 bond_ratio     : bond_ratio
@@ -1027,11 +1025,11 @@ full_ele       : full_ele
                   default value: True
 max_length_ratio: if max-cell-length/min-cell-length of a structure is larger than this number it will be deleted.
                   default value: 8
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.populations.individuals.ConfinedBulk'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 symprec        : tolerance for symmetry finding
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 vacuum_thickness: vacuum thickness
                   default value: 10
 n_repair_try   : attempts to repair structures when doing GA operation
@@ -1060,11 +1058,11 @@ full_ele       : full_ele
                   default value: True
 max_length_ratio: if max-cell-length/min-cell-length of a structure is larger than this number it will be deleted.
                   default value: 8
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.individuals.Surface'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 symprec        : tolerance for symmetry finding
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 vacuum_thickness: vacuum thickness
                   default value: 10
 buffer         : use buffer region
@@ -1099,11 +1097,11 @@ full_ele       : full_ele
                   default value: True
 max_length_ratio: if max-cell-length/min-cell-length of a structure is larger than this number it will be deleted.
                   default value: 8
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.individuals.Cluster'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 symprec        : tolerance for symmetry finding
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 vacuum_thickness: vacuum thickness surrounding cluster to break pbc when runing calculation
                   default value: 10
 cutoff         : two atoms are "connected" if their distance < cutoff*radius.
@@ -1136,11 +1134,11 @@ full_ele       : full_ele
                   default value: True
 max_length_ratio: if max-cell-length/min-cell-length of a structure is larger than this number it will be deleted.
                   default value: 8
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.individuals.AdClus'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 symprec        : tolerance for symmetry finding
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 substrate      : substrate file name
                   default value: substrate.vasp
 dist_clus2surface: distance from cluster to surface
@@ -1179,67 +1177,67 @@ full_ele       : full_ele
                   default value: True
 max_length_ratio: if max-cell-length/min-cell-length of a structure is larger than this number it will be deleted.
                   default value: 8
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.populations.populations.FixPopulation'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 results_dir    : path for results
 pop_size       : population size
 symbols        : symbols
 formula        : formula
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 check_seed     : if check seed is turned on, we will check your seeds and delete those donot meet requirements
                   default value: False
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.populations.populations.VarPopulation'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 results_dir    : path for results
 pop_size       : population size
 symbols        : symbols
 formula        : formula
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 check_seed     : if check seed is turned on, we will check your seeds and delete those donot meet requirements
                   default value: False
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.individuals.RcsPopulation'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 results_dir    : path for results
 pop_size       : population size
 symbols        : symbols
 formula        : formula
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 check_seed     : if check seed is turned on, we will check your seeds and delete those donot meet requirements
                   default value: False
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.crossovers.CutAndSplicePairing'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 50
 cut_disp       : cut displacement
                   default value: 0
 best_match     : choose best match
                   default value: False
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.crossovers.ReplaceBallPairing'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 50
 cut_range      : cut range
                   default value: [1, 2]
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.mutations.SoftMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : tryNum
                   default value: 50
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.mutations.PermMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 50
 frac_swaps     : possibility to swap
                   default value: 0.5
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.mutations.LatticeMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 50
 sigma          : Gauss distribution standard deviation
@@ -1248,9 +1246,9 @@ cell_cut       : coefficient of gauss distribution in cell mutation
                   default value: 1
 keep_volume    : whether to keep the volume unchange
                   default value: True
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.mutations.RippleMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 50
 rho            : rho
@@ -1259,25 +1257,25 @@ mu             : mu
                   default value: 2
 eta            : eta
                   default value: 1
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.mutations.SlipMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 50
 cut            : cut position
                   default value: 0.5
 randRange      : range of movement
                   default value: [0.5, 2]
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.mutations.RotateMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 50
 p              : possibility
                   default value: 1
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.mutations.RattleMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 50
 p              : possibility
@@ -1290,49 +1288,49 @@ keep_sym       : if keeps symmetry when rattles
                   default value: None
 symprec        : tolerance for symmetry finding
                   default value: 0.1
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.operations.mutations.FormulaMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : try attempts
                   default value: 10
 n_candidate    : number of candidates
                   default value: 5
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.ga.LyrSlipMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : tryNum
                   default value: 10
 cut            : cut
                   default value: 0.2
 randRange      : randRange
                   default value: [0, 1]
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.ga.ShellMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : tryNum
                   default value: 10
 d              : d
                   default value: 0.23
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.ga.LyrSymMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : tryNum
                   default value: 10
 symprec        : symprec
                   default value: 0.0001
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.ga.CluSymMutation'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 tryNum         : tryNum
                   default value: 10
 symprec        : symprec
                   default value: 0.0001
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.emt.EMTCalculator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 eps            : convergence energy
                   default value: 0.05
 max_step       : maximum number of relax steps
@@ -1345,9 +1343,9 @@ relax_lattice  : if to relax lattice
                   default value: True
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.lammps.LammpsCalculator'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 mode           : choose from parallel or serial
                   default value: parallel
 pressure       : pressure
@@ -1360,12 +1358,12 @@ atomStyle      : atomStyle
                   default value: atomic
 job_prefix     : job_prefix
                   default value: Lammps
-+++++	Requirement_parallel parameters	+++++
++++++  Requirement_parallel parameters  +++++
 queue_name     : quene name
 num_core       : num_core
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default_parallel parameters	+++++
++++++  Default_parallel parameters  +++++
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
 wait_time      : wait_time
@@ -1378,9 +1376,9 @@ num_parallel   : num_parallel
                   default value: 1
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.mtp.MTPNoSelectCalculator'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 mode           : choose from parallel or serial
                   default value: parallel
 pressure       : pressure
@@ -1395,12 +1393,12 @@ n_epoch        : n_epoch
                   default value: 200
 job_prefix     : job_prefix
                   default value: MTP
-+++++	Requirement_parallel parameters	+++++
++++++  Requirement_parallel parameters  +++++
 queue_name     : quene name
 num_core       : num_core
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default_parallel parameters	+++++
++++++  Default_parallel parameters  +++++
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
 wait_time      : wait_time
@@ -1413,9 +1411,9 @@ num_parallel   : num_parallel
                   default value: 1
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.mtp.MTPSelectCalculator'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 mode           : choose from parallel or serial
                   default value: parallel
 pressure       : pressure
@@ -1440,12 +1438,12 @@ job_prefix     : job_prefix
                   default value: MTP
 n_fail         : n_fail
                   default value: 0
-+++++	Requirement_parallel parameters	+++++
++++++  Requirement_parallel parameters  +++++
 queue_name     : quene name
 num_core       : num_core
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default_parallel parameters	+++++
++++++  Default_parallel parameters  +++++
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
 wait_time      : wait_time
@@ -1458,9 +1456,9 @@ num_parallel   : num_parallel
                   default value: 1
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.mtp.MTPLammpsCalculator'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 mode           : choose from parallel or serial
                   default value: parallel
 pressure       : pressure
@@ -1485,12 +1483,12 @@ job_prefix     : job_prefix
                   default value: MTP
 n_fail         : n_fail
                   default value: 0
-+++++	Requirement_parallel parameters	+++++
++++++  Requirement_parallel parameters  +++++
 queue_name     : quene name
 num_core       : num_core
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default_parallel parameters	+++++
++++++  Default_parallel parameters  +++++
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
 wait_time      : wait_time
@@ -1503,12 +1501,12 @@ num_parallel   : num_parallel
                   default value: 1
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.quip.QUIPCalculator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 eps            : convergence energy
                   default value: 0.05
 max_step       : maximum number of relax steps
@@ -1521,9 +1519,9 @@ relax_lattice  : if to relax lattice
                   default value: True
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.vasp.VaspCalculator'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 mode           : choose from parallel or serial
                   default value: parallel
 pressure       : pressure
@@ -1534,12 +1532,12 @@ pp_label       : pp_label
                   default value: None
 job_prefix     : job_prefix
                   default value: Vasp
-+++++	Requirement_parallel parameters	+++++
++++++  Requirement_parallel parameters  +++++
 queue_name     : quene name
 num_core       : num_core
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default_parallel parameters	+++++
++++++  Default_parallel parameters  +++++
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
 wait_time      : wait_time
@@ -1552,9 +1550,9 @@ num_parallel   : num_parallel
                   default value: 1
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.castep.CastepCalculator'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 mode           : choose from parallel or serial
                   default value: parallel
 pressure       : pressure
@@ -1573,12 +1571,12 @@ castep_command : castep_command
                   default value: castep
 castep_pp_path : castep_pp_path
                   default value: None
-+++++	Requirement_parallel parameters	+++++
++++++  Requirement_parallel parameters  +++++
 queue_name     : quene name
 num_core       : num_core
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default_parallel parameters	+++++
++++++  Default_parallel parameters  +++++
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
 wait_time      : wait_time
@@ -1591,12 +1589,12 @@ num_parallel   : num_parallel
                   default value: 1
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.lj.LJCalculator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 eps            : convergence energy
                   default value: 0.05
 max_step       : maximum number of relax steps
@@ -1609,9 +1607,9 @@ relax_lattice  : if to relax lattice
                   default value: True
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.gulp.GulpCalculator'>
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 mode           : choose from parallel or serial
                   default value: parallel
 pressure       : pressure
@@ -1620,12 +1618,12 @@ exe_cmd        : command line to run gulp
                   default value: gulp < input > output
 job_prefix     : job_prefix
                   default value: Gulp
-+++++	Requirement_parallel parameters	+++++
++++++  Requirement_parallel parameters  +++++
 queue_name     : quene name
 num_core       : num_core
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default_parallel parameters	+++++
++++++  Default_parallel parameters  +++++
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
 wait_time      : wait_time
@@ -1638,23 +1636,23 @@ num_parallel   : num_parallel
                   default value: 1
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.base.AdjointCalculator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
 parameter information for <class 'magus.calculators.mtp.TwoShareMTPCalculator'>
-+++++	Requirement parameters	+++++
++++++  Requirement parameters  +++++
 work_dir       : work dictionary
 job_prefix     : calculation dictionary
-+++++	Default parameters	+++++
++++++  Default parameters  +++++
 pressure       : pressure
                   default value: 0.0
-----------------------------------------------------------------
+-------------------------------------------------------------
     \end{minted}
 \end{tcolorbox}
 
