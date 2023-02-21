@@ -14,8 +14,8 @@ $ cat input.yaml
  #structure parameters  
  symbols: ['B']  
  formula: [1]  
- min_n_atoms: 12            # minimun number of atoms per unit cell  
- max_n_atoms: 12             # maxium number of atoms per unit cell  
+ min_n_atoms: 12            # minimum number of atoms per unit cell  
+ max_n_atoms: 12             # maximum number of atoms per unit cell  
  spacegroup: [1-230]     #symmetry spacegroup  
  d_ratio: 0.5                  #Note-1  
  volume_ratio: 8            #Note-2  

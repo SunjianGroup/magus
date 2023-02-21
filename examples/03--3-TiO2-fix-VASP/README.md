@@ -19,8 +19,8 @@ $ cat input.yaml
  #structure parameters  
  symbols: ["Ti", "O"]  
  formula: [1, 2]  
- min_n_atoms: 12              # minimun number of atoms per unit cell  
- max_n_atoms: 12              # maxium number of atoms per unit cell  
+ min_n_atoms: 12              # minimum number of atoms per unit cell  
+ max_n_atoms: 12              # maximum number of atoms per unit cell  
  spacegroup: [2-230]  
  d_ratio: 0.6  
  volume_ratio: 3  

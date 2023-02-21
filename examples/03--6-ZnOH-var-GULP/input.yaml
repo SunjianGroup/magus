@@ -9,8 +9,8 @@ saveGood: 8         # number of good structures kept to the next generation
 #structure parameters
 symbols: ['Zn','O','H']
 formula: [[1,0,0],[0,1,1]]         #Zn: (OH) = 1:1       
-min_n_atoms: 8              # minimun number of atoms per unit cell
-max_n_atoms: 16              # maxium number of atoms per unit cell
+min_n_atoms: 8              # minimum number of atoms per unit cell
+max_n_atoms: 16              # maximum number of atoms per unit cell
 full_ele: True                #structure must contain all elements
 spacegroup: [2-230]
 d_ratio: 0.5
