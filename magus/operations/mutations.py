@@ -182,10 +182,7 @@ class SlipMutation(Mutation):
         atoms = ind.add_vacuum(atoms, ind.vacuum_thickness)
         return atoms
 
-##################################
-# XtalOpt: An open-source evolutionary algorithm for crystal structure prediction. 
-#   Computer Physics Communications 182, 372–387 (2011).
-##################################
+
 class RippleMutation(Mutation):
 
     Default = {'tryNum': 50, 'rho': 0.3, 'mu': 2, 'eta': 1}
