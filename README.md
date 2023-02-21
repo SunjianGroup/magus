@@ -108,7 +108,7 @@ to use magus instead of
 $ magus
 ```
 ## Offline package
-We provide an offline package [here](). You can also use [conda-build](https://docs.conda.io/projects/conda-build/en/latest/) and [constructor](https://conda.github.io/constructor/) to make it by yourself as described in [here](https://gitlab.com/bigd4/magus/-/tree/master/conda).  
+We provide an offline package in the [release](https://gitlab.com/bigd4/magus/-/releases). You can also use [conda-build](https://docs.conda.io/projects/conda-build/en/latest/) and [constructor](https://conda.github.io/constructor/) to make it by yourself as described [here](https://gitlab.com/bigd4/magus/-/tree/master/conda).  
 After get the package,
 ```shell
 $ chmod +x magus-***-Linux-x86_64.sh
