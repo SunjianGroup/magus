@@ -1,20 +1,16 @@
 from __future__ import print_function, division
-from enum import unique
-import os, re, logging, itertools, traceback
+import os, logging, itertools, traceback
 import numpy as np
 from ase import Atoms
-from ase.io import read, write
 from ase.geometry import wrap_positions
 from ase.data import atomic_numbers, covalent_radii
 from scipy.spatial.distance import cdist
-from ase.build import make_supercell
-from ase.geometry import cell_to_cellpar,cellpar_to_cell
 from functools import reduce
 from math import gcd
 from importlib import import_module
 from pathlib import Path
 import logging
-
+import re
 
 log = logging.getLogger(__name__)
 
@@ -42,35 +38,6 @@ def check_new_atom_dist(atoms, newPosition, newSymbol, threshold):
         if dist/(rs[i]+rnew) < threshold:
             return False
     return True
-
-
-def camel2snake(name):
-    snake_case = re.sub(r"(?P<key>[A-Z])", r"_\g<key>", name)
-    return snake_case.lower().strip('_')
-
-
-def snake2camel(name):
-    return re.sub(r"(_[a-z])", lambda x: x.group(1)[1].upper(), name)
-
-
-def check_parameters(instance, parameters, Requirement=[], Default={}):
-    name = instance.__class__.__name__
-    for key in Requirement:
-        if key in parameters:
-            setattr(instance, key, parameters[key])
-        elif snake2camel(key) in parameters:
-            setattr(instance, key, parameters[snake2camel(key)])
-        else:
-            raise Exception("'{}' must have {}".format(name, key))
-
-    for key in Default.keys():
-        if key in parameters:
-            setattr(instance, key, parameters[key])
-        elif snake2camel(key) in parameters:
-            setattr(instance, key, parameters[snake2camel(key)])  
-        else:
-            setattr(instance, key, Default[key])
-
 
 # def match_lattice(atoms1,atoms2):
 #     """lattice matching , 10.1016/j.scib.2019.02.009

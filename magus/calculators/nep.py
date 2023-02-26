@@ -9,7 +9,7 @@ from pynep.select import FarthestPointSample
 
 
 from magus.calculators.base import ASECalculator, ClusterCalculator
-from magus.utils import CALCULATOR_PLUGIN, check_parameters
+from magus.utils import CALCULATOR_PLUGIN
 from magus.populations.populations import Population
 
 log = logging.getLogger(__name__)
@@ -17,18 +17,20 @@ log = logging.getLogger(__name__)
 
 @CALCULATOR_PLUGIN.register('nep')
 class PyNEPCalculator(ASECalculator, ClusterCalculator):
+    __requirement = ['query_calculator', 'symbols']
+    __default = {
+        'xc': 'PBE',
+        'job_prefix': 'NEP',
+        'version': 4,
+        'generation': 1000,
+        'neuron': 30,
+        'cutoff': [5, 5]
+    }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['query_calculator', 'symbols']
-        Default = {
-            'xc': 'PBE',
-            'job_prefix': 'NEP',
-            'version': 4,
-            'generation': 1000,
-            'neuron': 30,
-            'cutoff': [5, 5]
-        }
-        check_parameters(self, parameters, Requirement, Default)
+        
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
 
         # copy files
         self.ml_dir = "{}/mlFold/{}".format(self.work_dir, self.job_prefix)

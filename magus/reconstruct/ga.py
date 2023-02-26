@@ -12,7 +12,8 @@ class ShellMutation(Mutation):
     def Exp_j = exp(-(r_ij-R_i-R_j)/d); Oi = sum_j (Exp_j) / max_j(Exp_j)
     d is the empirically determined parameter set to be 0.23.
     """
-    Default = {'tryNum':10, 'd':0.23}
+    __default = {'tryNum':10, 'd':0.23}
+    __requirement = []
     
     def mutate(self,ind, addatom = True, addfrml = None):
         
@@ -53,8 +54,8 @@ class ShellMutation(Mutation):
 
 from .utils import LayerIdentifier
 class LyrSlipMutation(Mutation):
-    Default = {'tryNum':10, 'cut':0.2, 'randRange':[0, 1]}
-
+    __default = {'tryNum':10, 'cut':0.2, 'randRange':[0, 1]}
+    __requirement = []
     def mutate(self, ind):
         """
         slip of one layer.
@@ -76,8 +77,8 @@ class LyrSlipMutation(Mutation):
 
 
 class LyrSymMutation(Mutation):
-    Default = {'tryNum':10, 'symprec': 1e-4}
-    
+    __default = {'tryNum':10, 'symprec': 1e-4}
+    __requirement = []
     def mirrorsym(self, atoms, rot):
         #TODO: remove the self.threshold below
         #self.threshold = 0.5
@@ -209,7 +210,8 @@ class CluSymMutation(LyrSymMutation):
     I put it here for it is very easy to implement with codes we have now.
     And since population is randrotated before mutation, maybe it doesnot matter if 'm' and '2'_axis is specified.  
     """
-
+    __requirement = []
+    __default = {}
     def mutate(self, ind):
 
         self.threshold = ind.d_ratio

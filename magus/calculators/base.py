@@ -6,7 +6,8 @@ import logging
 from magus.populations.populations import Population
 from magus.formatting.traj import write_traj
 from magus.parallel.queuemanage import JobManager
-from magus.utils import CALCULATOR_CONNECT_PLUGIN, check_parameters
+from magus.utils import CALCULATOR_CONNECT_PLUGIN
+from magus.parmbase import Parmbase
 from ase.constraints import ExpCellFilter
 from ase.units import GPa, eV, Ang
 from ase.optimize import BFGS, LBFGS, FIRE
@@ -27,12 +28,14 @@ def split2(Njobs, Npara):
     return [[i * Neach + j for j in range(Neach) if i * Neach + j < Njobs] for i in range(Npara)]
 
 
-class Calculator(abc.ABC):
+class Calculator(Parmbase):
+    __requirement = ['work_dir        //work dictionary', 
+            'job_prefix         //calculation dictionary']
+    __default={'pressure          //pressure': 0.}
     def __init__(self, **parameters):
         self.all_parameters = parameters
-        Requirement = ['work_dir', 'job_prefix']
-        Default={'pressure': 0.}
-        check_parameters(self, parameters, Requirement, Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         self.input_dir = '{}/inputFold/{}'.format(self.work_dir, self.job_prefix) 
         self.calc_dir = "{}/calcFold/{}".format(self.work_dir, self.job_prefix)
         os.makedirs(self.calc_dir, exist_ok=True)
@@ -90,21 +93,37 @@ class Calculator(abc.ABC):
 
 
 class ClusterCalculator(Calculator, abc.ABC):
+    __help_list = ["default", "requirement_parallel", "default_parallel"]
+    __requirement_parallel = ['queue_name  //quene name', 
+                            'num_core'] 
+    __default_parallel={
+        'pre_processing     //serves to add any sentence you wish when submiting the job to change system variables, load modules etc.': '', 
+        'wait_time': 200, 
+        'verbose': False, 
+        'kill_time': 100000,
+        'num_parallel': 1,
+        }
+    __default = {
+        'mode           //choose from parallel or serial': 'parallel',
+        }
+    __requirement = []
+    
+    @property 
+    def default_parallel(self):
+        return self.transform("default_parallel")
+    @property
+    def requirement_parallel(self):
+        return self.transform("requirement_parallel")
+
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        check_parameters(self, parameters, [], {'mode': 'parallel'})
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters ,Requirement=Requirement, Default=Default)
         assert self.mode in ['serial', 'parallel'], "only support 'serial' and 'parallel'"
         self.main_info.append('mode')
         if self.mode == 'parallel':
-            Requirement = ['queue_name', 'num_core']
-            Default={
-                'pre_processing': '', 
-                'wait_time': 200, 
-                'verbose': False, 
-                'kill_time': 100000,
-                'num_parallel': 1,
-                }
-            check_parameters(self, parameters, Requirement, Default)
+            Requirement_parallel, Default_parallel = self.transform(self.__requirement_parallel), self.transform(self.__default_parallel)
+            self.check_parameters(self, parameters, Requirement = Requirement_parallel, Default = Default_parallel)
 
             self.J = JobManager(
                 queue_name=self.queue_name,
@@ -182,17 +201,18 @@ class ASECalculator(Calculator):
         'lbfgs': LBFGS,
         'fire': FIRE,
     }
+    __requirement = []
+    __default={
+        'eps        //convergence energy': 0.05, 
+        'max_step       //maximum number of relax steps': 100, 
+        'optimizer          //optimizer method, choose from bfgs, fire, lbfgs': 'bfgs', 
+        'max_move           //max range of movement': 0.1, 
+        'relax_lattice      //if to relax lattice': True,
+        }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = []
-        Default={
-            'eps': 0.05, 
-            'max_step': 100, 
-            'optimizer': 'bfgs', 
-            'max_move': 0.1, 
-            'relax_lattice': True,
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         self.optimizer = self.optimizer_dict[self.optimizer]
         self.main_info.extend(['eps', 'max_step', 'optimizer', 'max_move', 'relax_lattice'])
 
@@ -261,6 +281,8 @@ class ASECalculator(Calculator):
 
 @CALCULATOR_CONNECT_PLUGIN.register('naive')
 class AdjointCalculator(Calculator):
+    __default = {}
+    __requirement = []
     def __init__(self, calclist):
         self.calclist = calclist
     

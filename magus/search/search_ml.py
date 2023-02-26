@@ -1,5 +1,5 @@
 import logging
-from magus.utils import check_parameters
+from magus.parmbase import Parmbase
 from magus.populations.populations import Population
 from .search import Magus
 
@@ -14,7 +14,7 @@ class MLMagus(Magus):
 
     def init_parms(self, parameters):
         super().init_parms(parameters)
-        check_parameters(self, self.parameters, [], {'init_times': 2})
+        Parmbase.check_parameters(self, self.parameters, [], {'init_times': 2})
         self.ml_calculator = parameters.MLCalculator
         log.debug('ML Calculator information:\n{}'.format(self.ml_calculator))
 

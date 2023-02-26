@@ -4,7 +4,7 @@ from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
 from magus.formatting.gulp import load_gulp, dump_gulp
-from magus.utils import CALCULATOR_PLUGIN, check_parameters
+from magus.utils import CALCULATOR_PLUGIN
 
 
 log = logging.getLogger(__name__)
@@ -13,14 +13,15 @@ log = logging.getLogger(__name__)
 # units must be real!!
 @CALCULATOR_PLUGIN.register('gulp')
 class GulpCalculator(ClusterCalculator):
+    __requirement = []
+    __default = {
+        'exe_cmd        //command line to run gulp': 'gulp < input > output',
+        'job_prefix': 'Gulp',
+        }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = []
-        Default={
-            'exe_cmd': 'gulp < input > output',
-            'job_prefix': 'Gulp',
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
    
         self.gulp_setup = {
             'pressure': self.pressure,

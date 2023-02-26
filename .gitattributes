@@ -12,6 +12,8 @@
 *README* text eol=lf
 INCAR text eol=lf
 *.vasp text eol=lf
+*.md text eol=lf
+*.tex text eol=lf
 
 # Declare files that will always have CRLF line endings on checkout.
 *.sln text eol=crlf

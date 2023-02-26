@@ -8,7 +8,7 @@ from ase.data import atomic_numbers, covalent_radii
 from ase.geometry import cellpar_to_cell
 from magus.utils import *
 from magus.generators import gensym
-
+from ..parmbase import Parmbase
 
 log = logging.getLogger(__name__)
 
@@ -130,32 +130,42 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
 # units: units of Generator such as:
 #  ['Zn', 'OH'] for ['Zn', 'O', 'H'], [[1, 0, 0], [0, 1, 1]]
 #  [']
-class SPGGenerator:
+class SPGGenerator(Parmbase):
+    __requirement = [
+        'formula_type           //type of formula, choose from fix or var', 
+        'symbols        //atom symbols', 
+        'formula', 
+        'min_n_atoms        //minimum number of atoms per unit cell', 
+        'max_n_atoms        //maximum number of atoms per unit cell ']
+    __default = {#'threshold': 1.0,
+        'max_attempts        //max attempts to generate a random structure': 50,
+        'method                  //inner': 1, 
+        'p_pri                   //probability of generate primitive cell': 0.,           
+        'volume_ratio            //cell_volume/SUM(atom_ball_volume) when generating structures (around this number)': 1.5,
+        'n_split                         //split cell into n_split parts': [1],
+        'max_n_try               //inner': 100, 
+        'dimension               //dimension': 3,
+        'ele_size                    //number of single compontent structures to\n' + '                 '\
+                                        'generate to decide hull boundarys in variable composition mode': 0,
+        'min_lattice         //min lattice': [-1, -1, -1, -1, -1, -1],
+        'max_lattice         //max lattice': [-1, -1, -1, -1, -1, -1],
+        'min_volume          //min volume': -1,
+        'max_volume          //max volume': -1,
+        'min_n_formula       //minimum formula': None,
+        'max_n_formula       //maximum formula': None,
+        'd_ratio                     //distance between each pair of two atoms in the structure is\n' + '                 '\
+                                                'not less than (radius1+radius2)*d_ratio': 1.,
+        'distance_matrix         //distance between each pair of two atoms in the structure is\n' + '                 '\
+                                            'not less than (radius1+radius2)*distance_matrix[1][2]': None,
+        'spacegroup      //spacegroup to generate random structures': "2~231",
+        'max_ratio           // max formula ratio in variable composition mode, for example set 10 and Zn11(OH) is not allowed': 1000,    
+        'full_ele        //only generate structures with full elements': True,     
+        }
     def __init__(self, **parameters):
         self.all_parameters = parameters
-        Requirement = ['formula_type', 'symbols', 'formula', 'min_n_atoms', 'max_n_atoms']
-        Default = {#'threshold': 1.0,
-                   'max_attempts': 50,
-                   'method': 1, 
-                   'p_pri': 0.,           # probability of generate primitive cell
-                   'volume_ratio': 1.5,
-                   'n_split': [1],
-                   'max_n_try': 100, 
-                   'dimension': 3,
-                   'ele_size': 0,
-                   'min_lattice': [-1, -1, -1, -1, -1, -1],
-                   'max_lattice': [-1, -1, -1, -1, -1, -1],
-                   'min_volume': -1,
-                   'max_volume': -1,
-                   'min_n_formula': None,
-                   'max_n_formula': None,
-                   'd_ratio': 1.,
-                   'distance_matrix': None,
-                   'spacegroup': np.arange(2, 231),
-                   'max_ratio': 1000,    # max ratio in var search, for 10, Zn11(OH) is not allowed
-                   'full_ele': True,     # only generate structures with full elements
-                   }
-        check_parameters(self, parameters, Requirement, Default)
+        self.__default['spacegroup      //spacegroup to generate random structures'] = np.arange(2, 231)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         if self.ele_size > 0:
             assert not self.full_ele, 'fullEle setting is conflict with eleSize'
         if 'radius' in parameters:
@@ -337,11 +347,18 @@ class SPGGenerator:
 
 
 class MoleculeSPGGenerator(SPGGenerator):
+    __requirement = ['input_mols          //input molecules'] 
+    __default = {
+        'symprec     //tolerance for symmetry finding for molucule':0.1, 
+        'threshold_mol      //distance between each pair of two molecules in the structure is \n' + '                 '\
+                            'not less than (mol_radius1+mol_radius2)*threshold_mol': 1.0,
+    }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['input_mols']
-        Default = {'symprec':0.1, 'threshold_mol': 1.0}
-        check_parameters(self, parameters, Requirement, Default)
+
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
+
         radius_dict = dict(zip(self.symbols, self.radius))
         self.mol_n_atoms, self.mol_radius, self.thickness = [], [], []
         for i, mol in enumerate(self.input_mols):
@@ -432,16 +449,22 @@ class MoleculeSPGGenerator(SPGGenerator):
 
 
 class LayerSPGGenerator(SPGGenerator):
+    __requirement = ['min_thickness       //minimum thickness', 
+                       'max_thickness           //maximum thickness'] 
+    __default = {
+        'symprec     //tolerance for symmetry finding for molucule':0.1, 
+        'threshold_mol      //distance between each pair of two molecules in the structure is \n' + '                 '\
+                            'not less than (mol_radius1+mol_radius2)*threshold_mol': 1.0, 
+        'spg_type       //choose from layer and plane to decide if use layergroup/planegroup': 'layer', 
+        'vacuum_thickness': 10,
+        'dimension': 2,
+        'spacegroup      //spacegroup to generate random structures': "For planegroups use 1~17; for layergroups use 1~80",
+        }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['min_thickness', 'max_thickness']
-        Default = {
-            'symprec':0.1, 
-            'threshold_mol': 1.0, 
-            'spg_type': 'layer', 
-            'vacuum_thickness': 10,
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         if self.spg_type == 'plane':
             self.choice = 0
             self.spacegroup = [spg for spg in self.spacegroup if spg <= 17]

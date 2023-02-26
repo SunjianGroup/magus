@@ -6,7 +6,7 @@ from magus.utils import *
 import prettytable as pt
 from collections import defaultdict
 # from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
-
+from magus.parmbase import Parmbase
 
 log = logging.getLogger(__name__)
 
@@ -24,11 +24,16 @@ log = logging.getLogger(__name__)
 # For now, we use a scheme similar to oganov's, because it just use rank information and can be easily extend to multi-target search.
 ##################################
 
-class GAGenerator:
+class GAGenerator(Parmbase):
+    __requirement = ['pop_size        //population size', 
+                   'n_cluster       //inner']
+    __default = {
+        'rand_ratio        //ratio of new generated random structures in next generation': 0.3, 
+        'add_sym        //add symmetry when using GA operations': True
+        }
     def __init__(self, op_list, op_prob, **parameters):
-        Requirement = ['pop_size', 'n_cluster']
-        Default={'rand_ratio': 0.3, 'add_sym': True}
-        check_parameters(self, parameters, Requirement, Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
 
         assert len(op_list) == len(op_prob), "number of operations and probabilities not match"
         assert np.sum(op_prob) > 0 and np.all(op_prob >= 0), "unreasonable probability are given"
@@ -158,9 +163,17 @@ class GAGenerator:
 
 
 class AutoOPRatio(GAGenerator):
+
+    __requirement = []
+    __default = {
+        'good_ratio      //ratio of good structures': 0.6, 
+        'auto_random_ratio      //auto calculate ratio of random structures': True,
+        }
+
     def __init__(self, op_list, op_prob, **parameters):
-        Default = {'good_ratio': 0.6, 'auto_random_ratio': True}
-        check_parameters(self, parameters, [], Default)
+        
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         super().__init__(op_list, op_prob, **parameters)
 
     def change_op_ratio(self, pop):

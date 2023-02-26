@@ -3,13 +3,46 @@ from collections import defaultdict
 from .populations import get_population
 from .calculators import get_calculator
 from .generators import get_random_generator, get_ga_generator
+from .parmbase import Parmbase
 try:
     from .reconstruct.rcs_interface import rcs_type_list, rcs_interface
 except:
     rcs_type_list = []
 
 #@Singleton
-class magusParameters:
+class magusParameters(Parmbase):
+    __help_list = ["default"]
+    __default = {
+        'formulaType        //type of formula, choose from fix or var': 'fix', 
+        'structureType      //structure type, choose from bulk, layer, confined_bulk, cluster, surface': 'bulk',
+        'spacegroup     //spacegroup to generate random structures': "[1-230]",
+        'DFTRelax': False,
+        'initSize       //size of first population': "=popSize",
+        'goodSize       //number of good indivials per generation': '=popSize',
+        'molMode            //search molecule clusters': False,
+        'mlRelax            //use Machine learning relaxation': False,
+        'symprec            //tolerance for symmetry finding': 0.1,
+        'bondRatio              //limitation to detect clusters': 1.15,
+        'eleSize                //used in variable composition mode, control how many boundary structures are generated': 0,
+        'volRatio       //cell_volume/SUM(atom_ball_volume) when generating structures (around this number)': 2,
+        'dRatio         //distance between each pair of two atoms in the structure is\n' + '                 '\
+                                                            'not less than (radius1+radius2)*d_ratio': 0.7,
+        'molDetector        //methods to detect mol, choose from 1 and 2. See\n' + '                 '\
+                        'Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun, "Determining dimensionalities and multiplicities\n' + '                 '\
+                        'of crystal nets" npj Comput. Mater. 6, 143 (2020) [doi.org/10.1016/j.fmre.2021.06.005]\n' + '                 '\
+                        'for more details.': 0,
+        'addSym     //whether to add symmetry before crossover and mutation': True,
+        'randRatio  //ratio of new generated random structures in next generation': 0.2,
+        'chkMol     //use mol dectector': False,
+        'chkSeed        //check seeds': True,
+        'diffE          //energy difference to determin structure duplicates': 0.01,
+        'diffV          //volume difference to determin structure duplicates': 0.05,
+        'comparator     //comparator, type magus checkpack to see which comparators you have.': 'nepdes',
+        'fp_calc        //fingerprints, type magus checkpack to see which fingerprint method you have.': 'nepdes',
+        'n_cluster      //number of good individuals per generation': '=saveGood',
+        'autoOpRatio        //automantic GA operation ratio': False,
+        'autoRandomRatio        //automantic random structure generation ratio': False,
+        }
     def __init__(self, file):
         p_dict = defaultdict(int)
         if isinstance(file, dict):
@@ -21,38 +54,16 @@ class magusParameters:
         p_dict['resultsDir'] = os.path.join(p_dict['workDir'], 'results')
         p_dict['calcDir']    = os.path.join(p_dict['workDir'], 'calcFold')
         p_dict['mlDir']      = os.path.join(p_dict['workDir'], 'mlFold')
-        # not check here
-        # Requirement = ['MainCalculator', 'popSize', 'numGen', 'saveGood', 'symbols']
-        # for key in Requirement:
-        #     if key not in p_dict:
-        #         raise Exception('{} is not given'.format(key))
-        Default = {
-            'formulaType': 'fix', 
-            'structureType': 'bulk',
+
+        Default = self.transform(self.__default)
+        #avoid trouble in exporting help for static __default. 
+        Default.update({
             'spacegroup': list(range(1, 231)),
-            'DFTRelax': False,
             'initSize': p_dict['popSize'],
             'goodSize': p_dict['popSize'],
-            'molMode': False,
-            'mlRelax': False,
-            'symprec': 0.1,
-            'bondRatio': 1.15,
-            'eleSize': 0,
-            'volRatio': 2,
-            'dRatio': 0.7,
-            'molDetector': 0,
-            'addSym': True,
-            'randRatio': 0.2,
-            'chkMol': False,
-            'chkSeed': True,
-            'diffE': 0.01,
-            'diffV': 0.05,
-            'comparator': 'nepdes',
-            'fp_calc': 'zernike',
             'n_cluster': p_dict['saveGood'],
-            'autoOpRatio': False,
-            'autoRandomRatio': False,
-        }
+        })
+        
         for key in Default:
             if key not in p_dict:
                 p_dict[key] = Default[key]

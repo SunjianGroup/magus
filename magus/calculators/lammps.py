@@ -3,7 +3,7 @@ import numpy as np
 from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
-from magus.utils import CALCULATOR_PLUGIN, check_parameters
+from magus.utils import CALCULATOR_PLUGIN
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
 #TODO: return None
@@ -11,16 +11,18 @@ from ase.io.lammpsrun import read_lammps_dump_text
 # units must be metal!!
 @CALCULATOR_PLUGIN.register('lammps')
 class LammpsCalculator(ClusterCalculator):
+    __requirement = ['symbols'] 
+    __default = {
+        'exe_cmd        //command line to run lammps': '', 
+        'save_traj': False, 
+        'atomStyle': 'atomic',
+        'job_prefix': 'Lammps',
+        }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['symbols']
-        Default={
-            'exe_cmd': '', 
-            'save_traj': False, 
-            'atomStyle': 'atomic',
-            'job_prefix': 'Lammps',
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         self.lammps_setup = {
             'pressure': self.pressure,
             'symbols': self.symbols,

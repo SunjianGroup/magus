@@ -33,6 +33,7 @@ conda/*.sh
 !conda/construct.sh
 #tools
 # tex info
+*.md
 /doc/*
 !/doc/pic
 !/doc/manual.tex

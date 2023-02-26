@@ -2,18 +2,20 @@ import logging, yaml
 from ase import Atoms 
 from magus.utils import *
 from magus.populations.individuals import *
-
+from ..parmbase import Parmbase
 
 log = logging.getLogger(__name__)
 
 
-class OffspringCreator:
+class OffspringCreator(Parmbase):
     main_info = [] # info need to be print
-    Requirement = []
-    Default = {'tryNum': 50}
+    __requirement = []
+    __default = {'tryNum': 50}
     def __init__(self, **parameters):
         self.all_parameters = parameters
-        check_parameters(self, parameters, self.Requirement, self.Default)
+        Requirement = self.__class__.__dict__["_{}__requirement".format(self.__class__.__name__)]
+        Default = self.__class__.__dict__["_{}__default".format(self.__class__.__name__)]
+        self.check_parameters(self, parameters, Requirement = self.transform(Requirement), Default = self.transform(Default))
         self.descriptor = self.__class__.__name__
 
     def __repr__(self):
@@ -46,6 +48,8 @@ class AdjointOP(OffspringCreator):
 
 
 class Mutation(OffspringCreator):
+    __requirement = []
+    __default = {}
     n_input = 1
     def mutate(self, ind):
         if isinstance(ind, Bulk):
@@ -85,6 +89,8 @@ class Mutation(OffspringCreator):
 
 
 class Crossover(OffspringCreator):
+    __default = {}
+    __requirement = []
     n_input = 2
     def cross(self, ind1, ind2):
         if isinstance(ind1, Bulk):

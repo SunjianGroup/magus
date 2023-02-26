@@ -17,8 +17,10 @@ __all__ = ['CutAndSplicePairing', 'ReplaceBallPairing',]
 #
 ##################################
 class CutAndSplicePairing(Crossover):
-
-    Default = {'tryNum': 50, 'cut_disp': 0, 'best_match': False}
+    __requirement = []
+    __default = {'tryNum      //try attempts': 50, 
+               'cut_disp        //cut displacement': 0, 
+               'best_match          //choose best match': False}
 
     @staticmethod
     def match_lattice(ind1, ind2):
@@ -84,7 +86,9 @@ class ReplaceBallPairing(Crossover):
     """
     replace some atoms in a ball
     """
-    Default = {'tryNum': 50, 'cut_range': [1, 2]}
+    __requirement = []
+    __default = {'tryNum      //try attempts': 50, 
+               'cut_range       //cut range': [1, 2]}
 
     def cross_bulk(self, ind1, ind2):
         """

@@ -8,7 +8,7 @@ import logging
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
 from magus.calculators.lammps import calc_lammps_once
-from magus.utils import CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN, check_parameters
+from magus.utils import CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN
 from magus.populations.populations import Population
 if len(os.popen('which mlp').readlines()) == 0:
     raise ImportError("No 'mlp' detected")
@@ -19,17 +19,19 @@ log = logging.getLogger(__name__)
 
 @CALCULATOR_PLUGIN.register('mtp-noselect')
 class MTPNoSelectCalculator(ClusterCalculator):
+    __requirement = ['symbols'] 
+    __default = {
+        'force_tolerance': 0.05,
+        'stress_tolerance': 1.,
+        'min_dist': 0.5,
+        'n_epoch': 200,
+        'job_prefix': 'MTP',
+        }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['symbols']
-        Default={
-            'force_tolerance': 0.05,
-            'stress_tolerance': 1.,
-            'min_dist': 0.5,
-            'n_epoch': 200,
-            'job_prefix': 'MTP',
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.symbols)}
         self.type_to_symbol = {i: j for i, j in enumerate(self.symbols)}
 
@@ -93,22 +95,24 @@ class MTPNoSelectCalculator(ClusterCalculator):
 
 @CALCULATOR_PLUGIN.register('mtp')
 class MTPSelectCalculator(ClusterCalculator):
+    __requirement = ['query_calculator', 'symbols'] 
+    __default = {
+        'xc': 'PBE', 
+        'weights': [1., 0.01, 0.001],
+        'scaled_by_force': 0.,
+        'force_tolerance': 0.05,
+        'stress_tolerance': 1.,
+        'min_dist': 0.5, 
+        'n_epoch': 200, 
+        'ignore_weights': True,
+        'job_prefix': 'MTP',
+        'n_fail': 0,
+        }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['query_calculator', 'symbols']
-        Default={
-            'xc': 'PBE', 
-            'weights': [1., 0.01, 0.001],
-            'scaled_by_force': 0.,
-            'force_tolerance': 0.05,
-            'stress_tolerance': 1.,
-            'min_dist': 0.5, 
-            'n_epoch': 200, 
-            'ignore_weights': True,
-            'job_prefix': 'MTP',
-            'n_fail': 0,
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.symbols)}
         self.type_to_symbol = {i: j for i, j in enumerate(self.symbols)}
         self.ml_dir = "{}/mlFold/{}".format(self.work_dir, self.job_prefix)
@@ -369,6 +373,8 @@ class MTPSelectCalculator(ClusterCalculator):
 
 @CALCULATOR_CONNECT_PLUGIN.register('share-trainset')
 class TwoShareMTPCalculator(Calculator):
+    __default = {}
+    __requirement = []
     def __init__(self, mtps):
         assert isinstance(mtps, list), "TwoShareMTP input should be list"
         assert len(mtps) == 2, "length of mtps must be 2"
@@ -451,6 +457,8 @@ class TwoShareMTPCalculator(Calculator):
 
 @CALCULATOR_PLUGIN.register('mtp-lammps')
 class MTPLammpsCalculator(MTPSelectCalculator):
+    __default = {}
+    __requirement = []
     def __init__(self, **parameters):
         super().__init__(**parameters)
         self.lammps_setup = {

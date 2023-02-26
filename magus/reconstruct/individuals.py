@@ -1,7 +1,6 @@
 import numpy as np
 from ase.io import read
 from ..populations.individuals import Individual
-from ..utils import check_parameters
 from ..populations.populations import Population
 from ase.data import covalent_radii,atomic_numbers
 
@@ -23,13 +22,17 @@ log = logging.getLogger(__name__)
 
 
 class RcsPopulation(Population):
+    __requirement = ['results_dir     //path for results', 
+            'pop_size           //population size', 
+            'symbols            //symbols', 
+            'formula            //formula', 
+            'units          //inner'] 
+    __default = {'check_seed          //if check seed is turned on, we will check your seeds and delete those donot meet requirements': False}
     @classmethod
     def set_parameters(cls, **parameters):
         cls.all_parameters = parameters
-        Requirement = ['results_dir', 'pop_size', 'symbols', 'formula', 'units']
-        Default = {'check_seed': False}
-        check_parameters(cls, parameters, Requirement, Default)
-        
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         cls.atoms_generator = parameters['atoms_generator']
         parameters['symbol_numlist_pool'] = cls.atoms_generator.symbol_numlist_pool
 
@@ -113,18 +116,20 @@ def add_vacuum_layer(atoms, thickness):
 
 
 class Surface(Individual):
+    __requirement = []
+    __default = {
+        'refE               //inner': None, 
+        'vacuum_thickness       //vacuum thickness': 10,
+        'buffer             //use buffer region': True,
+        'fixbulk            //fix atom positions in substrate':True,
+        'slices_file        //file name for slices_file': 'Ref/layerslices.traj',
+        }
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
-        Default = {
-            'refE': None, 
-            'vacuum_thickness': 10,
-            'buffer': True,
-            'fixbulk':True,
-            'slices_file': 'Ref/layerslices.traj',
-            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]
-            }
-        check_parameters(cls, parameters, [], Default)
+        cls.__default.update({'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]})
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         cls.slices = read(cls.slices_file, index = ':')
         
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
@@ -337,15 +342,18 @@ class Surface(Individual):
 from ..generators.gensym import symbols_0d
 
 class Cluster(Individual):
+    __requirement = []
+    __default = {
+        'vacuum_thickness           //vacuum thickness surrounding cluster to break pbc when runing calculation': 10, 
+        'cutoff                     //two atoms are "connected" if their distance < cutoff*radius.  ': 1.0,
+        'weighten           //use weighten atoms when appending or removing atoms': True,
+    }
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
-        Default = {
-            'vacuum_thickness': 10, 
-            'cutoff': 1.0,
-            'weighten': True,
-            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
-        check_parameters(cls, parameters, [], Default)
+        cls.__default.update({'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]})
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
 
         cls.pointgroup_symbols = {symbol:index+1 for index,symbol in enumerate(symbols_0d)}
@@ -482,19 +490,20 @@ class Cluster(Individual):
 
     def for_calculate(self):
         return Cluster.reset_center(self)
- 
+
+import ase.io 
 class AdClus(Cluster):
+    __requirement = []
+    __default = {
+        'substrate          //substrate file name': 'substrate.vasp', 
+        'dist_clus2surface              //distance from cluster to surface':2, 
+        'size               //size':[1,1],
+        }
     @classmethod
     def set_parameters(cls, **parameters):
-        super().set_parameters(**parameters)
         Cluster.set_parameters(**parameters)
-        
-        Default = {
-            'substrate': 'substrate.vasp', 
-            'dist_clus2surface':2, 
-            'size':[1,1]
-            }
-        check_parameters(cls,parameters, Requirement=[], Default=Default )
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         
         cls._substratefile_ = ase.io.read(cls.substrate)*(*cls.size, 1)
         c = FixAtoms(indices=range(0, len(cls._substratefile_) ))

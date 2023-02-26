@@ -4,17 +4,18 @@ from numpy.core.numeric import indices
 import numpy as np
 from sklearn import cluster
 import ase.io
-from magus.utils import check_parameters, get_units_numlist
+from magus.utils import get_units_numlist
 from .individuals import Individual, get_Ind
 from ..fitness import get_fitness_calculator
 from ..generators import get_random_generator
+from ..parmbase import Parmbase
 
 
 log = logging.getLogger(__name__)
 __all__ = ['FixPopulation', 'VarPopulation']
 
 
-class Population:
+class Population(Parmbase):
     """
     a class of atoms population
     """
@@ -22,12 +23,18 @@ class Population:
         'find_spg', 'add_symmetry', 
         ]
     
+    __requirement = ['results_dir     //path for results', 
+        'pop_size           //population size', 
+        'symbols            //symbols', 
+        'formula            //formula', 
+        'units          //inner'] 
+    __default = {'check_seed          //if check seed is turned on, we will check your seeds and delete those donot meet requirements': False}
+    
     @classmethod
     def set_parameters(cls, **parameters):
         cls.all_parameters = parameters
-        Requirement = ['results_dir', 'pop_size', 'symbols', 'formula', 'units']
-        Default = {'check_seed': False}
-        check_parameters(cls, parameters, Requirement, Default)
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         if 'atoms_generator' not in parameters:
             cls.atoms_generator = get_random_generator(parameters)
         else:
@@ -237,6 +244,8 @@ class Population:
 
 
 class FixPopulation(Population):
+    __requirement = []
+    __default = {}
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
@@ -248,10 +257,15 @@ class FixPopulation(Population):
 
 
 class VarPopulation(Population):
+    __requirement = []
+    __default = {
+        'ele_size': 0
+    }
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
-        check_parameters(cls, parameters, [], {'ele_size': 0})
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
 
     def fill_up_with_random(self):
         units = self.atoms_generator.units

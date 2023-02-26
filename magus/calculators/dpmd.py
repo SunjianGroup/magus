@@ -6,7 +6,7 @@ from ase.io import read, write
 from ase.calculators.calculator import Calculator
 from ase.units import GPa, eV, Ang
 from ase.atoms import Atoms
-from magus.utils import CALCULATOR_PLUGIN, check_parameters
+from magus.utils import CALCULATOR_PLUGIN
 from magus.populations.populations import Population
 from deepmd import DeepPotential
 from dpdata import MultiSystems, LabeledSystem
@@ -96,15 +96,17 @@ class DPEnsemble(Calculator):
 
 @CALCULATOR_PLUGIN.register('dp')
 class DPCalculator(ASECalculator):
+    __requirement = ['symbols'] 
+    __default = {
+        'model_dir': "input_dir",
+        'n_ensemble': 1,
+        'keep_prob': 1.0,
+    }
     def __init__(self, **parameters):
+        self.Default.update({'model_dir': self.input_dir})
         super().__init__(**parameters)
-        Requirement = ['symbols']
-        Default = {
-            'model_dir': self.input_dir,
-            'n_ensemble': 1,
-            'keep_prob': 1.0,
-        }
-        check_parameters(self, parameters, Requirement, Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         type_dict = {j: i for i, j in enumerate(self.symbols)}
         model_path="{}/graph.pb".format(self.model_dir)
         self.relax_calc = self.scf_calc = DPEnsemble(model_path, type_dict, self.n_ensemble, self.keep_prob)
@@ -112,19 +114,21 @@ class DPCalculator(ASECalculator):
 
 @CALCULATOR_PLUGIN.register('dp-otf')
 class OTFDPCalculator(ClusterCalculator):
+    __requirement = ['query_calculator', 'symbols'] 
+    __default = {
+        'break_threshold': 2.0,
+        'record_threshold': 0.5,
+        'job_prefix': 'DP',
+        'select_ratio': 0.5,
+        'n_epoch': 200, 
+        'n_ensemble': 5,
+        'keep_prob': 0.9,
+        }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['query_calculator', 'symbols']
-        Default={
-            'break_threshold': 2.0,
-            'record_threshold': 0.5,
-            'job_prefix': 'DP',
-            'select_ratio': 0.5,
-            'n_epoch': 200, 
-            'n_ensemble': 5,
-            'keep_prob': 0.9,
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         self.ml_dir = "{}/mlFold/{}".format(self.work_dir, self.job_prefix)
         os.makedirs(self.ml_dir, exist_ok=True)
 

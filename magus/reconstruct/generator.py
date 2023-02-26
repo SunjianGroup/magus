@@ -2,7 +2,6 @@ from ..generators.random import SPGGenerator
 import numpy as np
 import math, os, ase.io
 from .utils import check_distance, cutcell, match_symmetry, resetLattice
-from ..utils import check_parameters
 import logging
 from .individuals import Surface
 from ase.geometry import cell_to_cellpar,cellpar_to_cell
@@ -13,10 +12,12 @@ import itertools
 log = logging.getLogger(__name__)
 
 class ClusterSPGGenerator(SPGGenerator):
+    __requirement = []
+    __default = {'vacuum_thickness        //vacuum thickness':10}
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Default = {'vacuum_thickness':10}
-        check_parameters(self, parameters, [], Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         self.dimension = 0
         self.spacegroup = [spg for spg in self.spacegroup if spg <= 56]
 
@@ -121,6 +122,38 @@ class SurfaceGenerator(SPGGenerator):
         #1. random walk of the surface atoms
         #2. 2d group symmetry generated structures.
     """
+    __help_list = ['requirement', 'default', 'default_slabinfo', 'default_modification']
+    __requirement = []
+    __default = { 
+        'randwalk_range     //maximum range of random walk': 0.5,
+        'randwalk_ratio         //ratio of random walk atoms': 0.3,
+        'rcs_x                              //size[x] of reconstruction': [1], 
+        'rcs_y                  //size[y] of reconstruction': [1],  
+        'buffer             //use buffer layer': True,
+        'rcs_formula        //formula of surface region': None,
+        'spg_type           //generate with planegroup/layergroup': 'plane',
+        'molMode        //inner':False,            #???
+        }
+    __default_slabinfo = {
+        'bulk_file      //file of bulk structure': None, 
+        'cutslices      //bulk_file contains how many atom layers': 2,
+        'bulk_layernum      //number of atom layers in substrate region': 3, 
+        'buffer_layernum      //number of atom layers in buffer region': 3, 
+        'rcs_layernum                   //number of atom layers in top surface region': 2, 
+        'direction          //Miller indices of surface direction, i.e.[1,0,0]': None, 
+        'rotate             //R': 0, 
+        'matrix         //matrix notation': None, 
+        'extra_c            //inner': 1.0,
+        'addH       //passivate bottom surface with H': False, 
+        'pcell          //use primitive cell': True,
+        }
+    
+    __default_modification = {
+        'adsorb         //adsorb atoms to cleaved surface': {},
+        'clean          //clean cleaved surface': {},
+        'defect         //add defect to cleaved surface': {},
+        }
+    
     @staticmethod
     def __cutcell__( bulk_file = None,
                                 bulk_layernum = None, buffer_layernum = None, rcs_layernum = None,
@@ -188,41 +221,16 @@ class SurfaceGenerator(SPGGenerator):
         #i dont think it makes sense to support user-define. change it here if u really want to. 
         refDir, refSlab, slices_file = 'Ref', 'Ref/refslab.traj', 'Ref/layerslices.traj'
         
-        Default = { 
-            'randwalk_range': 0.5, 
-            'randwalk_ratio': 0.3,
-            'rcs_x': [1], 
-            'rcs_y': [1],  
-            'buffer': True,
-            'rcs_formula': None,
-            'spg_type': 'plane',
-            'molMode':False,            #???
-            }
-
-        self.slabinfo = {
-            'bulk_file': None, 
-            'cutslices': 2,
-            'bulk_layernum': 3, 
-            'buffer_layernum': 3, 
-            'rcs_layernum': 2, 
-            'direction': None, 
-            'rotate': 0, 
-            'matrix': None, 
-            'extra_c': 1.0,
-            'addH': False, 
-            'pcell': True,
-            }
-        self.slabinfo.update(parameters['slabinfo'])
-
-        self.modification = {
-            'adsorb': {},
-            'clean': {},
-            'defect': {},
-            }
+        self.slabinfo = self.transform(self.__default_slabinfo)
+        if 'slabinfo' in parameters:
+            self.slabinfo.update(parameters['slabinfo'])
+        
+        self.modification = self.transform(self.__default_modification)
         if 'modification' in parameters:
             self.modification.update(parameters['modification'])
         
-        check_parameters(self, parameters, [], Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         
         self.dimension = 2
 

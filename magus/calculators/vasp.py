@@ -4,7 +4,6 @@ import numpy as np
 from ase.io import read, write
 from ase.units import GPa, eV, Ang
 from magus.calculators.base import ClusterCalculator
-from magus.utils import check_parameters
 from ase.calculators.vasp import Vasp
 from magus.utils import CALCULATOR_PLUGIN
 
@@ -39,15 +38,17 @@ class RelaxVasp(Vasp):
 
 @CALCULATOR_PLUGIN.register('vasp')
 class VaspCalculator(ClusterCalculator):
+    __requirement = ['symbols'] 
+    __default = {
+        'xc': 'PBE', 
+        'pp_label': None, 
+        'job_prefix': 'Vasp',
+        }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['symbols']
-        Default={
-            'xc': 'PBE', 
-            'pp_label': None, 
-            'job_prefix': 'Vasp',
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
 
         pp_label = self.pp_label or [''] * len(self.symbols)
         self.vasp_setup = {

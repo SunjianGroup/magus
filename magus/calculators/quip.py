@@ -6,6 +6,8 @@ from quippy.potential import Potential
 
 @CALCULATOR_PLUGIN.register('quip')
 class QUIPCalculator(ASECalculator):
+    __default = {}
+    __requirement = []
     def __init__(self, **parameters):
         super().__init__(**parameters)
         with open("{}/quip.yaml".format(self.input_dir)) as f:

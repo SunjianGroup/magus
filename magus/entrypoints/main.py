@@ -78,7 +78,7 @@ def parse_args():
         "--prec",
         type=float,
         default=0.1,
-        help="prec to judge symmetry",
+        help="tolerance for symmetry finding",
     )
     parser_sum.add_argument(
         "-r",
@@ -319,11 +319,48 @@ def parse_args():
     arg_mus = ['input_file', 'seed_file', 'output_file']
     arg_def = ['input.yaml', 'seed.traj', 'result']
     for i,key in enumerate(arg_mus):
-        parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i])
+        parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i], help=key)
 
     from .mutate import _applied_operations_
     for key in _applied_operations_:
-        parser_mutate.add_argument("--"+key, action='store_true', default=False)
+        parser_mutate.add_argument("--"+key, action='store_true', default=False, help = "add option to use operation!")
+    
+    
+    from .parmhelp import _help_options_
+    parser_help = subparsers.add_parser(
+        "parmhelp",
+        help="help with parameters. Output all default and required parameters.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_help.add_argument(
+        "-s",
+        "--show_avail",
+        action="store_true",
+        help="show names of all available types"
+    )
+    parser_help.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="output help for all!",
+    )
+        
+    for key in _help_options_:
+        parser_help.add_argument("--"+key, action='store_true', default=False, help = "add option to see help for this module!")
+    
+    parser_help.add_argument(
+        "-t",
+        "--type",
+        default="non-set",
+        help="select a type from available types."
+    )
+    parser_help.add_argument(
+        "-i",
+        "--input-file",
+        type=str, 
+        default=None,
+        help="the input parameter file in yaml format. It is not required to print help for parameters, but if you give an input file we will also show you the real time value in program by your input file. "
+    )
 
     parsed_args = parser.parse_args()
     if parsed_args.command is None:

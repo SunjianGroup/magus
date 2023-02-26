@@ -8,7 +8,6 @@ from ase.io import read, write
 from ase.calculators.castep import Castep
 
 from magus.calculators.base import ClusterCalculator
-from magus.utils import check_parameters
 from magus.utils import CALCULATOR_PLUGIN
 
 
@@ -17,19 +16,20 @@ log = logging.getLogger(__name__)
 
 @CALCULATOR_PLUGIN.register('castep')
 class CastepCalculator(ClusterCalculator):
+    __requirement = ['symbols']
+    __default = {
+        'xc_functional': 'PBE',
+        'pspot': '00PBE',
+        'suffix': 'usp',
+        'job_prefix': 'Castep',
+        'kpts': "{'density': 10, 'gamma': True, 'even': False}",
+        'castep_command': 'castep',
+        'castep_pp_path': None,
+    }
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        Requirement = ['symbols', ]
-        Default = {
-            'xc_functional': 'PBE',
-            'pspot': '00PBE',
-            'suffix': 'usp',
-            'job_prefix': 'Castep',
-            'kpts': "{'density': 10, 'gamma': True, 'even': False}",
-            'castep_command': 'castep',
-            'castep_pp_path': None,
-        }
-        check_parameters(self, parameters, Requirement, Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
 
         self.castep_setup = {
             'pressure': self.pressure,

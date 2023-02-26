@@ -23,7 +23,8 @@ class SoftMutation(Mutation):
       __ https://dx.doi.org/10.1016/j.cpc.2010.06.007
 
     """
-    parm = {'tryNum':10 ,'bounds': [0.5,2.0]}
+    __requirement = []
+    __default = {'tryNum      //try attempts':10 ,'bounds': [0.5,2.0]}
     def __init__(self, calculator = None, **kwargs):
         self.calc = calculator
         super().__init__(**kwargs)
@@ -83,7 +84,9 @@ class PermMutation(Mutation):
     """
     frac_swaps -- max ratio of atoms exchange
     """
-    Default = {'tryNum': 50, 'frac_swaps': 0.5}
+    __requirement = []
+    __default = {'tryNum      //try attempts': 50, 
+               'frac_swaps      //possibility to swap': 0.5}
 
     @staticmethod
     def permutate(atoms, num_swaps, unique_symbols):
@@ -116,12 +119,11 @@ class PermMutation(Mutation):
         return atoms
 
 class LatticeMutation(Mutation):
-    """
-    sigma: Gauss distribution standard deviation
-    cell_cut: coefficient of gauss distribution in cell mutation
-    keep_volume: whether to keep the volume unchange
-    """
-    Default = {'tryNum': 50, 'sigma': 0.1, 'cell_cut': 1, 'keep_volume': True}
+    __requirement = []
+    __default = {'tryNum      //try attempts': 50, 
+               'sigma       //Gauss distribution standard deviation': 0.1, 
+               'cell_cut        //coefficient of gauss distribution in cell mutation': 1, 
+               'keep_volume             //whether to keep the volume unchange': True}
 
     def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
@@ -156,7 +158,10 @@ class LatticeMutation(Mutation):
 
 
 class SlipMutation(Mutation):
-    Default = {'tryNum':50, 'cut': 0.5, 'randRange': [0.5, 2]}
+    __requirement = []
+    __default = {'tryNum      //try attempts':50, 
+               'cut     //cut position': 0.5, 
+               'randRange       //range of movement': [0.5, 2]}
 
     def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
@@ -187,8 +192,8 @@ class SlipMutation(Mutation):
 #   Computer Physics Communications 182, 372–387 (2011).
 ##################################
 class RippleMutation(Mutation):
-
-    Default = {'tryNum': 50, 'rho': 0.3, 'mu': 2, 'eta': 1}
+    __requirement = []
+    __default = {'tryNum      //try attempts': 50, 'rho': 0.3, 'mu': 2, 'eta': 1}
 
     def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
@@ -217,7 +222,9 @@ class RippleMutation(Mutation):
 
 
 class RotateMutation(Mutation):
-    Default = {'tryNum': 50, 'p': 1}
+    __requirement = []
+    __default = {'tryNum      //try attempts': 50, 
+               'p       //possibility': 1}
 
     def mutate_bulk(self, ind):
         assert ind.mol_detector > 0
@@ -231,7 +238,9 @@ class RotateMutation(Mutation):
 
 # TODO: how to apply in mol
 class FormulaMutation(Mutation):
-    Default = {'tryNum': 10, 'n_candidate': 5}
+    __requirement = []
+    __default = {'tryNum      //try attempts': 10, 
+               'n_candidate     //number of candidates': 5}
 
     def mutate(self, ind):
         candidate = ind.get_target_formula(n=self.n_candidate)
@@ -243,13 +252,19 @@ class FormulaMutation(Mutation):
 
 #random movement around origin positions of inds.
 class RattleMutation(Mutation):
+    __requirement = []
     """
     Rattles atoms one at a time within a sphere of radius self.rattle_range.
     p: possibility of rattle
     rattle_range: The maximum distance within witch to rattle the atoms. 
                   Atoms are rattled uniformly within a sphere of this radius.  
     """
-    Default = {'tryNum':50, 'p': 0.25, 'rattle_range': 4, 'd_ratio':0.7, 'keep_sym': None, 'symprec': 1e-1}
+    __default = {'tryNum      //try attempts':50, 
+               'p       //possibility': 0.25, 
+               'rattle_range        //range of rattle': 4, 
+               'd_ratio':0.7, 
+               'keep_sym        //if keeps symmetry when rattles': None, 
+               'symprec     //tolerance for symmetry finding': 1e-1}
 
     @staticmethod
     def rattle(atoms, indexs, movemodes):

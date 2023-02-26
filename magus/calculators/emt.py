@@ -9,6 +9,8 @@ log = logging.getLogger(__name__)
 
 @CALCULATOR_PLUGIN.register('emt')
 class EMTCalculator(ASECalculator):
+    __requirement = []
+    __default = {}
     def __init__(self, **parameters):
         super().__init__(**parameters)
         self.relax_calc = EMT()

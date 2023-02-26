@@ -1,21 +1,21 @@
 import subprocess, sys, os, time, logging, datetime, yaml
-from magus.utils import check_parameters
-
+from magus.parmbase import Parmbase
 
 log = logging.getLogger(__name__)
 
 
-class BaseJobManager:
+class BaseJobManager(Parmbase):
+    __requirement = ['queue_name', 'num_core']
+    __default={
+        'control_file': None, 
+        'pre_processing': 200, 
+        'verbose': False, 
+        'kill_time': 7200, 
+        }
     control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time']
     def __init__(self, **parameters):
-        Requirement = ['queue_name', 'num_core']
-        Default={
-            'control_file': None, 
-            'pre_processing': 200, 
-            'verbose': False, 
-            'kill_time': 7200, 
-            }
-        check_parameters(self, parameters, Requirement, Default)
+        Requirement, Default = self.transform(self.__requirement), self.transform(self.__default)
+        self.check_parameters(self, parameters, Requirement = Requirement, Default = Default)
         self.jobs = []
         self.history = []
         if self.control_file:

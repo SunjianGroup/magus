@@ -7,7 +7,7 @@ from magus.utils import *
 from .molecule import Molfilter
 from ..fingerprints import get_fingerprint
 from ..comparators import get_comparator
-
+from ..parmbase import Parmbase
 
 log = logging.getLogger(__name__)
 __all__ = ['Bulk', 'Layer', 'ConfinedBulk']
@@ -86,27 +86,34 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10):
     return rep_atoms
 
 
-class Individual(Atoms):
+class Individual(Parmbase, Atoms):
+    __requirement = ['symbol_numlist_pool     //inner', 
+                    'symprec            //tolerance for symmetry finding', 
+                    'fp_calc         //inner',       
+                    'comparator      //inner']
+    __default={
+        'n_repair_try       //attempts to repair structures when doing GA operation': 5, 
+        'max_attempts       //maximum attempts': 50,
+        'check_seed         //if check seeds': False,
+        'min_lattice': [0., 0., 0., 45., 45., 45.],
+        'max_lattice': [99, 99, 99, 135, 135, 135],
+        'd_ratio         //distance between each pair of two atoms in the structure is\n' + '                 '\
+                                                            'not less than (radius1+radius2)*d_ratio': 1.,
+        'distance_matrix        //distance between each pair of two atoms in the structure is\n' + '                 '\
+                                            'not less than (radius1+radius2)*distance_matrix[1][2]': None,
+        'radius': None,
+        'max_forces     //if forces of a structure larger is than this number it will be deleted.': 50.,
+        'max_enthalpy       //if enthalpy of a structure is larger than this number it will be deleted.': 100.,
+        'full_ele': True,
+        'max_length_ratio       //if max-cell-length/min-cell-length of a structure is larger than this number it will be deleted.': 8,
+        }
     @classmethod
     def set_parameters(cls, **parameters):
         # symbols is a property of atoms, will raise Error if set symbols here
         cls.all_parameters = parameters
-        Requirement = ['symbol_numlist_pool', 'symprec', 'fp_calc', 'comparator']
-        Default={
-            'n_repair_try': 5, 
-            'max_attempts': 50,
-            'check_seed': False,
-            'min_lattice': [0., 0., 0., 45., 45., 45.],
-            'max_lattice': [99, 99, 99, 135, 135, 135],
-            'd_ratio': 1.,
-            'distance_matrix': None,
-            'radius': None,
-            'max_forces': 50.,
-            'max_enthalpy': 100.,
-            'full_ele': True,
-            'max_length_ratio': 8,
-            }
-        check_parameters(cls, parameters, Requirement, Default)
+        
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         cls.fp_calc = get_fingerprint(parameters)
         cls.comparator = get_comparator(parameters)
         # atoms.symbols has been used by ase
@@ -284,14 +291,20 @@ class Individual(Atoms):
 
 
 class Bulk(Individual):
+    __requirement = []
+    __default = {
+        'mol_detector        //methods to detect mol, choose from 1 and 2. See\n' + '                 '\
+                        'Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun, "Determining dimensionalities and multiplicities\n' + '                 '\
+                        'of crystal nets" npj Comput. Mater. 6, 143 (2020) [doi.org/10.1016/j.fmre.2021.06.005]\n' + '                 '\
+                        'for more details.': 0, 
+        'bond_ratio         //inner': 1.1,
+        }
     @classmethod
     def set_parameters(cls, **parameters):
+        cls.__default.update({'radius     //inner': [covalent_radii[atomic_numbers[atom]] for atom in parameters['symbols']]})
         super().set_parameters(**parameters)
-        Default = {
-            'mol_detector': 0, 
-            'bond_ratio': 1.1,
-            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
-        check_parameters(cls, parameters, [], Default)
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
 
     def __init__(self, *args, **kwargs):
@@ -312,6 +325,11 @@ class Bulk(Individual):
 
 
 class Layer(Individual):
+    __requirement = []
+    __default = {
+        'vacuum_thickness': 10, 
+        'bond_ratio': 1.1,
+            }
     @staticmethod
     def translate_to_bottom(atoms):
         new_atoms = atoms.copy()
@@ -346,13 +364,11 @@ class Layer(Individual):
         return new_atoms
 
     @classmethod
-    def set_parameters(cls, **parameters):
+    def set_parameters(cls, **parameters):  
+        cls.Default.update({'radius         //inner': [covalent_radii[atomic_numbers[atom]] for atom in parameters['symbols']]})
         super().set_parameters(**parameters)
-        Default = {
-            'vacuum_thickness': 10, 
-            'bond_ratio': 1.1,
-            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
-        check_parameters(cls, parameters, [], Default)
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
 
     def for_heredity(self):
@@ -370,14 +386,17 @@ class Layer(Individual):
 
 
 class ConfinedBulk(Individual):
+    __requirement = []
+    __default = {
+        'vacuum_thickness       //vacuum thickness': 10, 
+        'bond_ratio         //inner': 1.1,
+        }
     @classmethod
     def set_parameters(cls, **parameters):
+        cls.Default.update( {'radius         //inner': [covalent_radii[atomic_numbers[atom]] for atom in parameters['symbols']]})
         super().set_parameters(**parameters)
-        Default = {
-            'vacuum_thickness': 10, 
-            'bond_ratio': 1.1,
-            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
-        check_parameters(cls, parameters, [], Default)
+        Requirement, Default = cls.transform(cls.__requirement), cls.transform(cls.__default)
+        cls.check_parameters(cls, parameters, Requirement = Requirement, Default = Default)
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
 
     def for_heredity(self):
