@@ -8,14 +8,6 @@ from .base import Crossover
 __all__ = ['CutAndSplicePairing', 'ReplaceBallPairing',]
 
 
-##################################
-#
-# USPEX—Evolutionary crystal structure prediction. 
-#   Computer Physics Communications 175, 713–720 (2006).
-# XtalOpt: An open-source evolutionary algorithm for crystal structure prediction. 
-#   Computer Physics Communications 182, 372–387 (2011).
-#
-##################################
 class CutAndSplicePairing(Crossover):
     __requirement = []
     __default = {'tryNum      //try attempts': 50, 

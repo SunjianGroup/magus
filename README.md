@@ -188,7 +188,7 @@ More details can be seen [here](https://wiki.fysik.dtu.dk/ase/ase/calculators/va
 We use the Castep calculator provided by [ase](https://wiki.fysik.dtu.dk/ase/index.html). Unlike vasp, we don't have to set up env variables, but write them directly to `input.yaml`. For more infomation, check the castep example under `examples` folder.
 
 # Contributors
-MAGUS is developed by Prof. Jian Sun's group at the School of Physics at Nanjing University. 
+MAGUS is developed by Prof. Jian Sun's group at the School of Physics at Nanjing University. Please contact us with email (magus@nju.edu.cn) if you have any questions concerning MAGUS. 
 
 The current main developers are:  
 - Hao Gao
