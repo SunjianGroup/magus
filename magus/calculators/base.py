@@ -29,8 +29,9 @@ def split2(Njobs, Npara):
 
 
 class Calculator(Parmbase):
-    __requirement = ['work_dir        //work dictionary', 
-            'job_prefix         //calculation dictionary']
+    __requirement = ['work_dir        //current work dictionary', 
+            'job_prefix         //calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]',
+            ]
     __default={'pressure          //pressure': 0.}
     def __init__(self, **parameters):
         self.all_parameters = parameters
@@ -95,16 +96,16 @@ class Calculator(Parmbase):
 class ClusterCalculator(Calculator, abc.ABC):
     __help_list = ["default", "requirement_parallel", "default_parallel"]
     __requirement_parallel = ['queue_name  //quene name', 
-                            'num_core'] 
+                            'num_core       //number of cores'] 
     __default_parallel={
         'pre_processing     //serves to add any sentence you wish when submiting the job to change system variables, load modules etc.': '', 
-        'wait_time': 200, 
-        'verbose': False, 
-        'kill_time': 100000,
-        'num_parallel': 1,
+        'wait_time      //inner': 200, 
+        'verbose        //if turned on, output more detailed log.': False, 
+        'kill_time          //if job runs longer than this value, kill it': 100000,
+        'num_parallel       //number of parallel jobs': 1,
         }
     __default = {
-        'mode           //choose from parallel or serial': 'parallel',
+        'mode           //mode, choose from parallel or serial': 'parallel',
         }
     __requirement = []
     

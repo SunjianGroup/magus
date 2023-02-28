@@ -1,5 +1,14 @@
 # **HELP FOR INPUTS**
-In magus we use inputs including command lines and parameter input file (in yaml format) to control programs. 
+In magus we use inputs including  
+
+|   number   |    target    |
+|  :-------:    |    :-------:   |
+| 01 | [Command lines](#command-lines)  |
+| 02 | [Calculator input file](#calculator-input-file) |
+| 03 | <a href="#sf">Seeds file (optional)</a>  | 
+| 04 | [Parameter yaml file](#parameter-yaml-file)  |  
+
+to control programs. 
 
 If you are a new user of MAGUS (AND SINCERELY THANKS VERY MUCH FOR USING OUR PROGRAM! ), before you read the full description about all inputs below, we recommand first taking a look at examples which are easier to follow. 
 
@@ -36,8 +45,8 @@ Valid subcommands:
     parmhelp            help with parameters. Output all default and required
                         parameters.
 ```
-which prints valid subcommands. You can also helps for each command line:  
-**search** : Run a GA search.
+which prints valid subcommands. You can also use '-h' for each command line:  
+**search** : Run a GA/ML search.
 ```shell
 $ magus search -h
 usage: magus search [-h] [-ll {DEBUG,INFO,WARNING,ERROR}] [-lp LOG_PATH]
@@ -57,7 +66,7 @@ optional arguments:
   -m, --use-ml          use ml to accelerate(?) the search (default: False)
   -r, --restart         Restart the searching. (default: False)
 ```
-**summary**: (After search) Analyze the result structures.
+**summary**: (After completed your search) Analyze the result structures.
 ```shell
 $ magus summary -h
 usage: magus summary [-h] [-p PREC] [-r] [-s] [--need-sort] [-o OUTDIR]
@@ -94,7 +103,7 @@ optional arguments:
                         [])
   -t {bulk,cluster}, --atoms-type {bulk,cluster}
 ```
-**clean**: clean all former log files, result dictionary etc. in the path
+**clean**: Clean all former generated log files, result dictionary etc. in the path.
 ```shell
 $ magus clean -h
 usage: magus clean [-h] [-f]
@@ -103,7 +112,7 @@ optional arguments:
   -h, --help   show this help message and exit
   -f, --force  rua!!!! (default: False)
 ```
-**prepare**: prepare input files in the path
+**prepare**: Prepare input files in the path.
 ```shell
 $ magus prepare -h
 usage: magus prepare [-h] [-v] [-m]
@@ -113,7 +122,7 @@ optional arguments:
   -v, --var   variable composition search (default: False)
   -m, --mol   molecule crystal search (default: False)
 ```
-**calculate**: run local relaxation for input structures.
+**calculate**: Run local relaxation for input structures.
 ```shell
 $ magus calculate -h
 usage: magus calculate [-h] [-ll {DEBUG,INFO,WARNING,ERROR}] [-lp LOG_PATH]
@@ -142,7 +151,7 @@ optional arguments:
   -p PRESSURE, --pressure PRESSURE
                         add pressure (default: None)
 ```
-**generate**: generate random structures
+**generate**: Generate random structures.
 ```shell                        
 $ magus generate -h
 usage: magus generate [-h] [-ll {DEBUG,INFO,WARNING,ERROR}] [-lp LOG_PATH]
@@ -164,7 +173,7 @@ optional arguments:
   -n NUMBER, --number NUMBER
                         generate number (default: 10)
 ```
-**checkpack**: check if you have installed FULL version MAGUS
+**checkpack**: Check if you have installed FULL version MAGUS.
 ```shell
 $ magus checkpack -h
 usage: magus checkpack [-h] [-ll {DEBUG,INFO,WARNING,ERROR}] [-lp LOG_PATH]
@@ -183,7 +192,7 @@ optional arguments:
                         set log file to log messages to disk (default:
                         log.txt)
 ```
-**test**: run tests
+**test**: Run tests.
 ```shell
 $ magus test -h
 usage: magus test [-h] [totest]
@@ -194,7 +203,7 @@ positional arguments:
 optional arguments:
   -h, --help  show this help message and exit
 ```
-**update**: update MAGUS to latest version
+**update**: Update MAGUS to the latest version.
 ```shell
 $ magus update -h
 usage: magus update [-h] [-u] [-f]
@@ -204,7 +213,7 @@ optional arguments:
   -u, --user   add --user to pip install (default: False)
   -f, --force  add --force-reinstall to pip install (default: False)
 ```
-**getslabtool**: (Surface mode) get slab model.
+**getslabtool**: (In surface mode) Get the slab model.
 ```shell
 $ magus getslabtool -h
 usage: magus getslabtool [-h] [-f FILENAME] [-s SLABFILE]
@@ -217,7 +226,7 @@ optional arguments:
   -s SLABFILE, --slabfile SLABFILE
                         slab file (default: slab.vasp)
 ```
-**mutate**: do mutations and crossovers with input structures
+**mutate**: Do mutations and crossovers on input structures.
 ```shell
 $ magus mutate -h
 usage: magus mutate [-h] [-i INPUT_FILE] [-s SEED_FILE] [-o OUTPUT_FILE]
@@ -248,7 +257,7 @@ optional arguments:
   --lyrsym              add option to use operation! (default: False)
   --clusym              add option to use operation! (default: False)
 ```  
-**parmhelp**: show help information for all parameters.
+**parmhelp**: Show help information for all parameters.  
 ```shell
 $ magus parmhelp -h
 usage: magus parmhelp [-h] [-s] [-a] [--parameters] [--generators]
@@ -272,8 +281,35 @@ optional arguments:
                         an input file we will also show you the real time
                         value in program by your input file. (default: None)
 ```
+# Calculator input file
+Input files for local relaxations are needed in 'inputFold/' dictionary, for example the INCAR for VASP calculations. In 'examples/03--2-Al-fix-VASP' we showed how to set such inputs and here's the general description:   
+If you set multiple INCARs for stepwise optimization, put them in different dictionarys in 'inputFold/' for example,
+```shell
+$ ls inputFold/
+VASP1 VASP2 VASP3 VASP4
+$ ls inputFold/VASP1
+INCAR
+$ ls inputFold/VASP2
+INCAR
+``` 
+And write 
+```shell
+$ vim input.yaml
+...
+MainCalculator:  
+ calculator: 'vasp'  
+ jobPrefix: ['VASP1', 'VASP2', 'VASP3', 'VASP4']    
+```
+in parameter.yaml. And all structures will relaxed in order of VASP1/INCAR, VASP2/INCAR, ... . Note there is a space before the keyword 'calculator' and 'jobPrefix' because it is sub-parameters for 'MainCalculator' rather than keyword for MAGUS.  
 
-# parameter input files
+# <a name = "sf">Seeds file (optional)</a>
+If you want to include seeds in a GA run, you can put it in 'Seeds/' dictionary named "POSCARS_$gen$" or "seeds_$gen$.traj". For example add seeds to the first generation:
+```shell
+$ ls Seeds/
+POSCARS_1
+```
+
+# Parameter yaml file
 
 A yaml format parameter file is necessary and important. By default is 'input.yaml' and again we strongly recommend a read of 'examples' first to know how to set parameters for different purposes briefly. And if you want to know more, we provide command line "magus parmhelp" to show more supported settings in our program.   
 
@@ -374,101 +410,96 @@ min_n_atoms    : minimum number of atoms per unit cell
 symbols        : atom symbols
 ----------------------------------------------------------------
 ```
+And if I want to generate bulk structures, I have to write at least all requirement parameters 'formula', 'formula_type', 'max_n_atoms', 'min_n_atoms', 'symbols' (plus the target structure_type) in input.yaml.
 
-Finally here is an additional function for parmhelp command. If there is an parameters.yaml, you can see the real time value set by this file. Take examples/08--1-graphene/input.yaml for example, check parameters of type Layer in module generator by:
+Finally here is an additional function for parmhelp command. If there is a parameters.yaml, you can see the real time value set by this file. Take examples/03--2-Al-fix-VASP/input.yaml for example, check parameters of type VASP in module calculator by:
 ```shell
-$ magus parmhelp -i input.yaml --generator -t Layer
-parameter information for LayerSPGGenerator
+$ magus parmhelp --calculator -t vasp -i input.yaml
+parameter information for <class 'magus.calculators.vasp.VaspCalculator'>
++++++	default parameters	+++++
+job_prefix     : job_prefix
+                  default value: Vasp
+mode           : mode, choose from parallel or serial
+                  default value: parallel
+pp_label       : Pseudopotential (POTCAR) set used (LDA, PW91 or PBE). List order is same 
+                 with order of symbols, eg. ['_s', ''] for symbols: ['O', 'Ti'] to use O_s, Ti.
+                  default value: None
+pressure       : pressure
+                  default value: 0.0
+xc             : Exchange-correlation functionals, eg. PBE, LDA, PW-91
+                  default value: PBE
++++++	requirement parameters	+++++
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
+symbols        : symbols
+work_dir       : current work dictionary
++++++	requirement_parallel parameters	+++++
+num_core       : number of cores
+queue_name     : quene name
++++++	default_parallel parameters	+++++
+kill_time      : if job runs longer than this value, kill it
+                  default value: 100000
+num_parallel   : number of parallel jobs
+                  default value: 1
+pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
+                  default value: 
+verbose        : if turned on, output more detailed log.
+                  default value: False
+----------------------------------------------------------------
++++++	real time values	+++++
+AdjointCalculator:
+Calculator 1: VaspCalculator
 -------------------
-formula_type   : fix
-symbols        : ['C']
-min_n_atoms    : 4
-max_n_atoms    : 12
+job_prefix     : VASP1
+pressure       : 0
+input_dir      : /home/magus/examples/03--2-Al-fix-VASP/inputFold/VASP1
+calc_dir       : /home/magus/examples/03--2-Al-fix-VASP/calcFold/VASP1
+mode           : parallel
+vasp_setup     : pp_setup:
+                   Al: ''
+                 pressure: 0
+                 restart: false
+                 xc: PBE
+-------------------
+Calculator 2: VaspCalculator
+-------------------
+job_prefix     : VASP2
+pressure       : 0
+input_dir      : /home/magus/examples/03--2-Al-fix-VASP/inputFold/VASP2
+calc_dir       : /home/magus/examples/03--2-Al-fix-VASP/calcFold/VASP2
+mode           : parallel
+vasp_setup     : pp_setup:
+                   Al: ''
+                 pressure: 0
+                 restart: false
+                 xc: PBE
+-------------------
+Calculator 3: VaspCalculator
+-------------------
+job_prefix     : VASP3
+pressure       : 0
+input_dir      : /home/magus/examples/03--2-Al-fix-VASP/inputFold/VASP3
+calc_dir       : /home/magus/examples/03--2-Al-fix-VASP/calcFold/VASP3
+mode           : parallel
+vasp_setup     : pp_setup:
+                   Al: ''
+                 pressure: 0
+                 restart: false
+                 xc: PBE
+-------------------
+Calculator 4: VaspCalculator
+-------------------
+job_prefix     : VASP4
+pressure       : 0
+input_dir      : /home/magus/examples/03--2-Al-fix-VASP/inputFold/VASP4
+calc_dir       : /home/magus/examples/03--2-Al-fix-VASP/calcFold/VASP4
+mode           : parallel
+vasp_setup     : pp_setup:
+                   Al: ''
+                 pressure: 0
+                 restart: false
+                 xc: PBE
 -------------------
 
-+++++	default parameters	+++++
-d_ratio        : distance between each pair of two atoms in the structure is
-                 not less than (radius1+radius2)*d_ratio
-                  default value: 1.0
-                  real-time value: 0.6
-dimension      : dimension
-                  default value: 2
-                  real-time value: 2
-distance_matrix: distance between each pair of two atoms in the structure is
-                 not less than (radius1+radius2)*distance_matrix[1][2]
-                  default value: None
-                  real-time value: None
-ele_size       : number of single compontent structures to
-                 generate to decide hull boundarys in variable composition mode
-                  default value: 0
-                  real-time value: 0
-full_ele       : only generate structures with full elements
-                  default value: True
-                  real-time value: True
-max_attempts   : max attempts to generate a random structure
-                  default value: 50
-                  real-time value: 50
-max_lattice    : max lattice
-                  default value: [-1, -1, -1, -1, -1, -1]
-                  real-time value: [-1, -1, -1, -1, -1, -1]
-max_n_formula  : maximum formula
-                  default value: None
-                  real-time value: None
-max_ratio      :  max formula ratio in variable composition mode, for example set 10 and Zn11(OH) is not allowed
-                  default value: 1000
-                  real-time value: 1000
-max_volume     : max volume
-                  default value: -1
-                  real-time value: -1
-min_lattice    : min lattice
-                  default value: [-1, -1, -1, -1, -1, -1]
-                  real-time value: [-1, -1, -1, -1, -1, -1]
-min_n_formula  : minimum formula
-                  default value: None
-                  real-time value: None
-min_volume     : min volume
-                  default value: -1
-                  real-time value: -1
-n_split        : split cell into n_split parts
-                  default value: [1]
-                  real-time value: [1]
-p_pri          : probability of generate primitive cell
-                  default value: 0.0
-                  real-time value: 0.0
-spacegroup     : spacegroup to generate random structures
-                  default value: For planegroups use 1~17; for layergroups use 1~80
-                  real-time value: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
-spg_type       : choose from layer and plane to decide if use layergroup/planegroup
-                  default value: layer
-                  real-time value: plane
-symprec        : tolerance for symmetry finding for molucule
-                  default value: 0.1
-                  real-time value: 0.1
-threshold_mol  : distance between each pair of two molecules in the structure is 
-                 not less than (mol_radius1+mol_radius2)*threshold_mol
-                  default value: 1.0
-                  real-time value: 1.0
-vacuum_thickness: vacuum_thickness
-                  default value: 10
-                  real-time value: 15
-volume_ratio   : cell_volume/SUM(atom_ball_volume) when generating structures (around this number)
-                  default value: 1.5
-                  real-time value: 3
-+++++	requirement parameters	+++++
-formula        : formula
-                  real-time value: [[1]]
-formula_type   : type of formula, choose from fix or var
-                  real-time value: fix
-max_n_atoms    : maximum number of atoms per unit cell
-                  real-time value: 12
-max_thickness  : maximum thickness
-                  real-time value: 2
-min_n_atoms    : minimum number of atoms per unit cell
-                  real-time value: 4
-min_thickness  : minimum thickness
-                  real-time value: 1
-symbols        : atom symbols
-                  real-time value: ['C']
 ----------------------------------------------------------------
 ```
 Show help for all parameters:
@@ -1212,8 +1243,8 @@ pressure       : pressure
 relax_lattice  : if to relax lattice
                   default value: True
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
-work_dir       : work dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
+work_dir       : current work dictionary
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.lammps.LammpsCalculator'>
 +++++	default parameters	+++++
@@ -1223,157 +1254,149 @@ exe_cmd        : command line to run lammps
                   default value: 
 job_prefix     : job_prefix
                   default value: Lammps
-mode           : choose from parallel or serial
+mode           : mode, choose from parallel or serial
                   default value: parallel
 pressure       : pressure
                   default value: 0.0
 save_traj      : save_traj
                   default value: False
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
 symbols        : symbols
-work_dir       : work dictionary
+work_dir       : current work dictionary
 +++++	requirement_parallel parameters	+++++
-num_core       : num_core
+num_core       : number of cores
 queue_name     : quene name
 +++++	default_parallel parameters	+++++
-kill_time      : kill_time
+kill_time      : if job runs longer than this value, kill it
                   default value: 100000
-num_parallel   : num_parallel
+num_parallel   : number of parallel jobs
                   default value: 1
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
-verbose        : verbose
+verbose        : if turned on, output more detailed log.
                   default value: False
-wait_time      : wait_time
-                  default value: 200
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.mtp.MTPNoSelectCalculator'>
 +++++	default parameters	+++++
-force_tolerance: force_tolerance
+force_tolerance: converge condition of forces
                   default value: 0.05
 job_prefix     : job_prefix
                   default value: MTP
-min_dist       : min_dist
+min_dist       : minimum distance
                   default value: 0.5
-mode           : choose from parallel or serial
+mode           : mode, choose from parallel or serial
                   default value: parallel
-n_epoch        : n_epoch
+n_epoch        : generation number for training
                   default value: 200
 pressure       : pressure
                   default value: 0.0
-stress_tolerance: stress_tolerance
+stress_tolerance: converge condition of stress
                   default value: 1.0
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
 symbols        : symbols
-work_dir       : work dictionary
+work_dir       : current work dictionary
 +++++	requirement_parallel parameters	+++++
-num_core       : num_core
+num_core       : number of cores
 queue_name     : quene name
 +++++	default_parallel parameters	+++++
-kill_time      : kill_time
+kill_time      : if job runs longer than this value, kill it
                   default value: 100000
-num_parallel   : num_parallel
+num_parallel   : number of parallel jobs
                   default value: 1
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
-verbose        : verbose
+verbose        : if turned on, output more detailed log.
                   default value: False
-wait_time      : wait_time
-                  default value: 200
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.mtp.MTPSelectCalculator'>
 +++++	default parameters	+++++
-force_tolerance: force_tolerance
+force_tolerance: converge condition of forces
                   default value: 0.05
 ignore_weights : ignore_weights
                   default value: True
 job_prefix     : job_prefix
                   default value: MTP
-min_dist       : min_dist
+min_dist       : minimum distance
                   default value: 0.5
-mode           : choose from parallel or serial
+mode           : mode, choose from parallel or serial
                   default value: parallel
-n_epoch        : n_epoch
+n_epoch        : generation number for training
                   default value: 200
 n_fail         : n_fail
                   default value: 0
 pressure       : pressure
                   default value: 0.0
-scaled_by_force: scaled_by_force
+scaled_by_force: add extra weight to minor force
                   default value: 0.0
-stress_tolerance: stress_tolerance
+stress_tolerance: converge condition of stress
                   default value: 1.0
-weights        : weights
+weights        : weight of energy, force, stress,
                   default value: [1.0, 0.01, 0.001]
 xc             : xc
                   default value: PBE
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
 query_calculator: query_calculator
 symbols        : symbols
-work_dir       : work dictionary
+work_dir       : current work dictionary
 +++++	requirement_parallel parameters	+++++
-num_core       : num_core
+num_core       : number of cores
 queue_name     : quene name
 +++++	default_parallel parameters	+++++
-kill_time      : kill_time
+kill_time      : if job runs longer than this value, kill it
                   default value: 100000
-num_parallel   : num_parallel
+num_parallel   : number of parallel jobs
                   default value: 1
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
-verbose        : verbose
+verbose        : if turned on, output more detailed log.
                   default value: False
-wait_time      : wait_time
-                  default value: 200
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.mtp.MTPLammpsCalculator'>
 +++++	default parameters	+++++
-force_tolerance: force_tolerance
+force_tolerance: converge condition of forces
                   default value: 0.05
 ignore_weights : ignore_weights
                   default value: True
 job_prefix     : job_prefix
                   default value: MTP
-min_dist       : min_dist
+min_dist       : minimum distance
                   default value: 0.5
-mode           : choose from parallel or serial
+mode           : mode, choose from parallel or serial
                   default value: parallel
-n_epoch        : n_epoch
+n_epoch        : generation number for training
                   default value: 200
 n_fail         : n_fail
                   default value: 0
 pressure       : pressure
                   default value: 0.0
-scaled_by_force: scaled_by_force
+scaled_by_force: add extra weight to minor force
                   default value: 0.0
-stress_tolerance: stress_tolerance
+stress_tolerance: converge condition of stress
                   default value: 1.0
-weights        : weights
+weights        : weight of energy, force, stress,
                   default value: [1.0, 0.01, 0.001]
 xc             : xc
                   default value: PBE
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
 query_calculator: query_calculator
 symbols        : symbols
-work_dir       : work dictionary
+work_dir       : current work dictionary
 +++++	requirement_parallel parameters	+++++
-num_core       : num_core
+num_core       : number of cores
 queue_name     : quene name
 +++++	default_parallel parameters	+++++
-kill_time      : kill_time
+kill_time      : if job runs longer than this value, kill it
                   default value: 100000
-num_parallel   : num_parallel
+num_parallel   : number of parallel jobs
                   default value: 1
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
-verbose        : verbose
+verbose        : if turned on, output more detailed log.
                   default value: False
-wait_time      : wait_time
-                  default value: 200
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.quip.QUIPCalculator'>
 +++++	default parameters	+++++
@@ -1390,8 +1413,8 @@ pressure       : pressure
 relax_lattice  : if to relax lattice
                   default value: True
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
-work_dir       : work dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
+work_dir       : current work dictionary
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.nep.PyNEPCalculator'>
 +++++	default parameters	+++++
@@ -1420,41 +1443,40 @@ version        : version
 xc             : xc
                   default value: PBE
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
 query_calculator: query_calculator
 symbols        : symbols
-work_dir       : work dictionary
+work_dir       : current work dictionary
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.vasp.VaspCalculator'>
 +++++	default parameters	+++++
 job_prefix     : job_prefix
                   default value: Vasp
-mode           : choose from parallel or serial
+mode           : mode, choose from parallel or serial
                   default value: parallel
-pp_label       : pp_label
+pp_label       : Pseudopotential (POTCAR) set used (LDA, PW91 or PBE). List order is same 
+                 with order of symbols, eg. ['_s', ''] for symbols: ['O', 'Ti'] to use O_s, Ti.
                   default value: None
 pressure       : pressure
                   default value: 0.0
-xc             : xc
+xc             : Exchange-correlation functionals, eg. PBE, LDA, PW-91
                   default value: PBE
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
 symbols        : symbols
-work_dir       : work dictionary
+work_dir       : current work dictionary
 +++++	requirement_parallel parameters	+++++
-num_core       : num_core
+num_core       : number of cores
 queue_name     : quene name
 +++++	default_parallel parameters	+++++
-kill_time      : kill_time
+kill_time      : if job runs longer than this value, kill it
                   default value: 100000
-num_parallel   : num_parallel
+num_parallel   : number of parallel jobs
                   default value: 1
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
-verbose        : verbose
+verbose        : if turned on, output more detailed log.
                   default value: False
-wait_time      : wait_time
-                  default value: 200
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.castep.CastepCalculator'>
 +++++	default parameters	+++++
@@ -1466,7 +1488,7 @@ job_prefix     : job_prefix
                   default value: Castep
 kpts           : kpts
                   default value: {'density': 10, 'gamma': True, 'even': False}
-mode           : choose from parallel or serial
+mode           : mode, choose from parallel or serial
                   default value: parallel
 pressure       : pressure
                   default value: 0.0
@@ -1477,23 +1499,21 @@ suffix         : suffix
 xc_functional  : xc_functional
                   default value: PBE
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
 symbols        : symbols
-work_dir       : work dictionary
+work_dir       : current work dictionary
 +++++	requirement_parallel parameters	+++++
-num_core       : num_core
+num_core       : number of cores
 queue_name     : quene name
 +++++	default_parallel parameters	+++++
-kill_time      : kill_time
+kill_time      : if job runs longer than this value, kill it
                   default value: 100000
-num_parallel   : num_parallel
+num_parallel   : number of parallel jobs
                   default value: 1
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
-verbose        : verbose
+verbose        : if turned on, output more detailed log.
                   default value: False
-wait_time      : wait_time
-                  default value: 200
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.lj.LJCalculator'>
 +++++	default parameters	+++++
@@ -1510,8 +1530,8 @@ pressure       : pressure
 relax_lattice  : if to relax lattice
                   default value: True
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
-work_dir       : work dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
+work_dir       : current work dictionary
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.gulp.GulpCalculator'>
 +++++	default parameters	+++++
@@ -1519,42 +1539,40 @@ exe_cmd        : command line to run gulp
                   default value: gulp < input > output
 job_prefix     : job_prefix
                   default value: Gulp
-mode           : choose from parallel or serial
+mode           : mode, choose from parallel or serial
                   default value: parallel
 pressure       : pressure
                   default value: 0.0
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
-work_dir       : work dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
+work_dir       : current work dictionary
 +++++	requirement_parallel parameters	+++++
-num_core       : num_core
+num_core       : number of cores
 queue_name     : quene name
 +++++	default_parallel parameters	+++++
-kill_time      : kill_time
+kill_time      : if job runs longer than this value, kill it
                   default value: 100000
-num_parallel   : num_parallel
+num_parallel   : number of parallel jobs
                   default value: 1
 pre_processing : serves to add any sentence you wish when submiting the job to change system variables, load modules etc.
                   default value: 
-verbose        : verbose
+verbose        : if turned on, output more detailed log.
                   default value: False
-wait_time      : wait_time
-                  default value: 200
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.base.AdjointCalculator'>
 +++++	default parameters	+++++
 pressure       : pressure
                   default value: 0.0
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
-work_dir       : work dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
+work_dir       : current work dictionary
 ----------------------------------------------------------------
 parameter information for <class 'magus.calculators.mtp.TwoShareMTPCalculator'>
 +++++	default parameters	+++++
 pressure       : pressure
                   default value: 0.0
 +++++	requirement parameters	+++++
-job_prefix     : calculation dictionary
-work_dir       : work dictionary
+job_prefix     : calculation dictionary. For stepwise optimization use a list eg. ["VASP1", "VASP2", "VASP3"]
+work_dir       : current work dictionary
 ----------------------------------------------------------------
 ```

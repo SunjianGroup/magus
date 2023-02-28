@@ -40,8 +40,9 @@ class RelaxVasp(Vasp):
 class VaspCalculator(ClusterCalculator):
     __requirement = ['symbols'] 
     __default = {
-        'xc': 'PBE', 
-        'pp_label': None, 
+        'xc     //Exchange-correlation functionals, eg. PBE, LDA, PW-91': 'PBE', 
+        "pp_label       //Pseudopotential (POTCAR) set used (LDA, PW91 or PBE). List order is same \n" + '                 '\
+                                    "with order of symbols, eg. ['_s', ''] for symbols: ['O', 'Ti'] to use O_s, Ti.": None, 
         'job_prefix': 'Vasp',
         }
     def __init__(self, **parameters):

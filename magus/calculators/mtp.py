@@ -21,10 +21,10 @@ log = logging.getLogger(__name__)
 class MTPNoSelectCalculator(ClusterCalculator):
     __requirement = ['symbols'] 
     __default = {
-        'force_tolerance': 0.05,
-        'stress_tolerance': 1.,
-        'min_dist': 0.5,
-        'n_epoch': 200,
+        'force_tolerance        //converge condition of forces': 0.05,
+        'stress_tolerance   //converge condition of stress': 1.,
+        'min_dist           //minimum distance': 0.5,
+        'n_epoch                //generation number for training': 200,
         'job_prefix': 'MTP',
         }
     def __init__(self, **parameters):
@@ -98,12 +98,12 @@ class MTPSelectCalculator(ClusterCalculator):
     __requirement = ['query_calculator', 'symbols'] 
     __default = {
         'xc': 'PBE', 
-        'weights': [1., 0.01, 0.001],
-        'scaled_by_force': 0.,
-        'force_tolerance': 0.05,
-        'stress_tolerance': 1.,
-        'min_dist': 0.5, 
-        'n_epoch': 200, 
+        'weights        //weight of energy, force, stress,': [1., 0.01, 0.001], 
+        'scaled_by_force            //add extra weight to minor force': 0.,
+        'force_tolerance        //converge condition of forces': 0.05,
+        'stress_tolerance        //converge condition of stress': 1.,
+        'min_dist           //minimum distance': 0.5, 
+        'n_epoch                //generation number for training': 200, 
         'ignore_weights': True,
         'job_prefix': 'MTP',
         'n_fail': 0,
