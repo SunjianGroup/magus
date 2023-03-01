@@ -78,7 +78,7 @@ def parse_args():
         "--prec",
         type=float,
         default=0.1,
-        help="prec to judge symmetry",
+        help="tolerance for symmetry finding",
     )
     parser_sum.add_argument(
         "-r",
@@ -93,8 +93,8 @@ def parse_args():
         help="whether to save POSCARS",
     )
     parser_sum.add_argument(
-        "--need-sort",
-        action="store_true",
+        "--need_sorted",
+        default =True,
         help="whether to sort",
     )
     parser_sum.add_argument(
@@ -319,12 +319,12 @@ def parse_args():
     arg_mus = ['input_file', 'seed_file', 'output_file']
     arg_def = ['input.yaml', 'seed.traj', 'result']
     for i,key in enumerate(arg_mus):
-        parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i])
+        parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i], help=key)
 
     from .mutate import _applied_operations_
     for key in _applied_operations_:
-        parser_mutate.add_argument("--"+key, action='store_true', default=False)
-
+        parser_mutate.add_argument("--"+key, action='store_true', default=False, help = "add option to use operation!")
+    
     parsed_args = parser.parse_args()
     if parsed_args.command is None:
         print(__picture__)

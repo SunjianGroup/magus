@@ -3,10 +3,8 @@ from ase.data import atomic_numbers
 from ase.neighborlist import neighbor_list
 from magus.utils import FINGERPRINT_PLUGIN
 from .base import FingerprintCalculator
-from . import lrpot
 
-
-@FINGERPRINT_PLUGIN.register('zernike')
+#@FINGERPRINT_PLUGIN.register('zernike')
 class ZernikeFp(FingerprintCalculator):
     def __init__(self, symbols, cutoff=4.0, nmax=8, lmax=None, ncut=4, diag=True, eleParm=None, **kwargs):
         self.cutoff = cutoff

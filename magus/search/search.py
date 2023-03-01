@@ -136,7 +136,7 @@ class Magus:
         except:
             pass
         # save raw date before checking
-        relax_pop.save('raw')
+        relax_pop.save('raw', self.curgen)
         relax_pop.check()
         # find spg before delete duplicate
         log.debug("find spg...")

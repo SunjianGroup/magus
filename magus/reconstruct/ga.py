@@ -3,7 +3,10 @@ from .utils import weightenCluster, resetLattice
 from ase.data import covalent_radii
 import math
 import numpy as np
-from ase import Atom
+from ase import Atom, Atoms
+
+__all__ = ['ShellMutation', 'LyrSlipMutation', 'LyrSymMutation', 'CluSymMutation']
+
 
 class ShellMutation(Mutation):
     """
@@ -14,10 +17,10 @@ class ShellMutation(Mutation):
     """
     Default = {'tryNum':10, 'd':0.23}
     
-    def mutate(self,ind, addatom = True, addfrml = None):
+    def mutate_bulk(self,ind, addatom = True, addfrml = None):
         
         atoms = ind.for_heredity()
-        i = weightenCluster(self.d).choseAtom(ind)
+        i = weightenCluster(self.d).choseAtom(atoms)
         
         if not addatom:
             del atoms[i]
@@ -55,7 +58,7 @@ from .utils import LayerIdentifier
 class LyrSlipMutation(Mutation):
     Default = {'tryNum':10, 'cut':0.2, 'randRange':[0, 1]}
 
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
         """
         slip of one layer.
         """
@@ -180,7 +183,7 @@ class LyrSymMutation(Mutation):
         return resetLattice(atoms=rats, expandsize=(1,1,1)).get(atoms.get_cell()[:], neworigin = -np.mean(atoms.get_cell()[:2], axis = 0) )
 
 
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
         self.threshold = ind.d_ratio
         """
         re_shape the layer according to its substrate symmetry. 
@@ -210,7 +213,7 @@ class CluSymMutation(LyrSymMutation):
     And since population is randrotated before mutation, maybe it doesnot matter if 'm' and '2'_axis is specified.  
     """
 
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
 
         self.threshold = ind.d_ratio
         COU = np.array([0.5, 0.5, 0])
