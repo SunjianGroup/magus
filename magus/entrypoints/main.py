@@ -93,8 +93,8 @@ def parse_args():
         help="whether to save POSCARS",
     )
     parser_sum.add_argument(
-        "--need-sort",
-        action="store_true",
+        "--need_sorted",
+        default =True,
         help="whether to sort",
     )
     parser_sum.add_argument(

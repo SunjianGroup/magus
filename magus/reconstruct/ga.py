@@ -15,10 +15,10 @@ class ShellMutation(Mutation):
     __default = {'tryNum':10, 'd':0.23}
     __requirement = []
     
-    def mutate(self,ind, addatom = True, addfrml = None):
+    def mutate_bulk(self,ind, addatom = True, addfrml = None):
         
         atoms = ind.for_heredity()
-        i = weightenCluster(self.d).choseAtom(ind)
+        i = weightenCluster(self.d).choseAtom(atoms)
         
         if not addatom:
             del atoms[i]
@@ -56,7 +56,7 @@ from .utils import LayerIdentifier
 class LyrSlipMutation(Mutation):
     __default = {'tryNum':10, 'cut':0.2, 'randRange':[0, 1]}
     __requirement = []
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
         """
         slip of one layer.
         """
@@ -181,7 +181,7 @@ class LyrSymMutation(Mutation):
         return resetLattice(atoms=rats, expandsize=(1,1,1)).get(atoms.get_cell()[:], neworigin = -np.mean(atoms.get_cell()[:2], axis = 0) )
 
 
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
         self.threshold = ind.d_ratio
         """
         re_shape the layer according to its substrate symmetry. 
@@ -212,7 +212,7 @@ class CluSymMutation(LyrSymMutation):
     """
     __requirement = []
     __default = {}
-    def mutate(self, ind):
+    def mutate_bulk(self, ind):
 
         self.threshold = ind.d_ratio
         COU = np.array([0.5, 0.5, 0])

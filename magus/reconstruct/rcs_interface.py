@@ -115,9 +115,9 @@ def get_rcs_op(p_dict):
     if p_dict['formulaType'] == 'var':
         operators['formula'] = {}
 
-        #operators['lyrslip'] = {}
-        #operators['lyrsym'] = {}
-        #operators['shell'] = {}
+    operators['lyrslip'] = {}
+    operators['lyrsym'] = {}
+    operators['shell'] = {}
         
     if p_dict['structureType'] == 'cluster' or 'adclus':
         del operators['slip']
