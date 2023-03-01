@@ -143,7 +143,9 @@ Add
 ```shell
 $ export JOB_SYSTEM=LSF/SLURM/PBS
 ```
-in your `~/.bashrc` according to your job management system.
+in your `~/.bashrc` according to your job management system.  
+
+*Please note parallel setting does not work on PBS system due to job limitations of PBS.  
 
 ## Auto completion
 Put [`auto_complete.sh`](https://gitlab.com/bigd4/magus/-/blob/master/magus/auto_complete.sh) in your `PATH` like:
