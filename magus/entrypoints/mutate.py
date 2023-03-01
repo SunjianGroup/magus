@@ -35,7 +35,7 @@ def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file=
     ga.op_prob = [1.0/len(ga.op_list)]*len(ga.op_list)
     pop = m.Population
 
-    print("use ga generater: {}".format(ga))
+    log.info("use ga generater: {}".format(ga))
     
     seed_pop = ase.io.read(seed_file, index = ':')
     for i, _ in enumerate(seed_pop):
@@ -45,7 +45,7 @@ def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file=
     seed_pop = pop(seed_pop, 'seedPop')
     seed_pop.gen = 0
     next_pop =ga.get_next_pop(seed_pop, 10)
-    print("generated {} individuals.".format(len(next_pop)))
+    log.info("generated {} individuals.".format(len(next_pop)))
     new_frames = []
     for atoms in next_pop:
         new_frames.append(atoms.for_calculate() if hasattr(atoms, "for_calculate") else atoms)
