@@ -7,7 +7,7 @@ from ase.io import read, write
 from ase.data import atomic_numbers, covalent_radii
 from ase.geometry import cellpar_to_cell
 from magus.utils import *
-from magus.generators import gensym
+from . import gensym
 
 
 log = logging.getLogger(__name__)

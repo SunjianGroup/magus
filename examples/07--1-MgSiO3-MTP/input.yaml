@@ -1,5 +1,5 @@
 calcType: fix
-poolSize: 2000 #这个是预训练生成的随机结构，可以设的很大
+poolSize: 2000
 initSize: 200
 popSize: 200
 numGen: 60
@@ -21,8 +21,7 @@ addSym: True
 softNum: 0
 #main calculator settings
 MainCalculator:
- jobPrefix: ['Vasp1', 'Vasp2', 'Vasp3']
- #如果jobprefix带calculator名称可以不设calculator
+ jobPrefix: ['Vasp1', 'Vasp2', 'Vasp3'] # only the last one will be used
  mode: parallel
  #vasp parameters
  xc: PBE
@@ -34,11 +33,11 @@ MainCalculator:
  waitTime: 100
 MLCalculator:
  mlmodel: MTP
- init_times: 1 #与训练次数
+ init_times: 1
  queueName: 9242opa!
  force_tolerance: 0.001
  stress_tolerance: 0.01
  numCore: 96
- min_dist: 1.0 #mtp优化最小距离，这个我没测试
- # Preprocessing: export I_MPI_DEBUG=100
+ min_dist: 1.0
+ # preProcessing: export I_MPI_DEBUG=100
  waitTime: 30
