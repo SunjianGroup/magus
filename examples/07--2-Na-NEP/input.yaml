@@ -1,5 +1,5 @@
 formulaType: fix
-poolSize: 100 #这个是预训练生成的随机结构，可以设的很大
+poolSize: 100
 initSize: 30
 popSize: 30
 numGen: 60

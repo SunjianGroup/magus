@@ -1,10 +1,12 @@
 import copy
 import numpy as np
 from collections import Counter
+import ase
 from ase import Atom 
 from magus.utils import *
 from magus.populations.individuals import to_target_formula
 from .base import Mutation
+from ase.ga.soft_mutation import BondElectroNegativityModel
 
 
 __all__ = [
@@ -14,18 +16,15 @@ __all__ = [
 
 
 class SoftMutation(Mutation):
-    """
-    Mutates the structure by displacing it along the lowest (nonzero)
-    frequency modes found by vibrational analysis, as in:
-
-    * `Lyakhov, Oganov, Valle, Comp. Phys. Comm. 181 (2010) 1623-1632`__
-
-      __ https://dx.doi.org/10.1016/j.cpc.2010.06.007
 
     """
-    parm = {'tryNum':10 ,'bounds': [0.5,2.0]}
-    def __init__(self, calculator = None, **kwargs):
-        self.calc = calculator
+    Lyakhov, Oganov, Valle, Comp. Phys. Comm. 181 (2010) 1623-1632
+    https://dx.doi.org/10.1016/j.cpc.2010.06.007
+
+    """
+    Default = {'tryNum': 50, 'bounds': [0.5,2.0]}
+
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     def _get_hessian(self, atoms, dx):
@@ -35,48 +34,42 @@ class SoftMutation(Mutation):
         for i in range(N):
             for j in range(3):
                 pos_ = np.copy(pos)
-                pos_[i,j] += dx
+                pos_[i, j] += dx
                 atoms.set_positions(pos_)
                 f1 = atoms.get_forces().flatten()
 
-                pos_[i,j] -= 2*dx
+                pos_[i, j] -= 2 * dx
                 atoms.set_positions(pos_)
                 f2 = atoms.get_forces().flatten()
-                hessian[3*i+j] = (f1 - f2)/(2 * dx)
+                hessian[3 * i + j] = (f1 - f2) / (2 * dx)
         atoms.set_positions(pos)
         hessian = -0.5*(hessian + hessian.T)
         return hessian
 
-    def _get_modes(self, atoms, dx=0.02, k=2, massweighing=False):
+    def _get_modes(self, atoms, dx=0.02, k=2):
         hessian = self._get_hessian(atoms, dx)
-        if massweighing:
-            m = np.array([np.repeat(atoms.get_masses()**-0.5, 3)])
-            hessian *= (m * m.T)
         eigvals, eigvecs = np.linalg.eigh(hessian)
         modes = {eigval: eigvecs[:, i] for i, eigval in enumerate(eigvals)}
         keys = np.array(sorted(modes))
-        ekeys = np.e**(-k*keys)
+        ekeys = np.e**(-k * keys)
         ekeys[:3] = 0
-        p = ekeys/np.sum(ekeys)
-        key = np.random.choice(keys,p=p)
-        mode = modes[key].reshape(-1,3)
+        p = ekeys / np.sum(ekeys)
+        key = np.random.choice(keys, p=p)
+        mode = modes[key].reshape(-1, 3)
         return mode
 
-    def mutate(self, ind):
-        atoms = ind.atoms.copy()
-        atoms.set_calculator(self.calc)
-
-        if ind.p.molDetector != 0:
-            atoms = copy.deepcopy(ind.molCryst)
+    def mutate_bulk(self, ind):
+        atoms = ind.for_heredity()
+        atoms.set_calculator(BondElectroNegativityModel(atoms))
         pos = atoms.get_positions()
         mode = self._get_modes(atoms)
         largest_norm = np.max(np.apply_along_axis(np.linalg.norm, 1, mode))
-        amplitude = np.random.uniform(*self.bounds)/largest_norm
-        direction = np.random.choice([-1,1])
+        amplitude = np.random.uniform(*self.bounds) / largest_norm
+        direction = np.random.choice([-1, 1])
         pos_new = pos + direction * amplitude * mode
         atoms.set_positions(pos_new)
         atoms.wrap()
-        return ind(atoms)
+        return ind.__class__(atoms)
 
 
 class PermMutation(Mutation):
