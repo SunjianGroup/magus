@@ -1,5 +1,5 @@
 from fileinput import filename
-import shutil, logging, copy, sys, yaml, linecache
+import shutil, logging, copy, sys, yaml, linecache, os
 import numpy as np
 from ase.io import read, write
 from ase.units import GPa, eV, Ang
@@ -142,6 +142,8 @@ def calc_vasp(calc, frames):
 def get_calc(vasp_setup):
     calc = RelaxVasp(restart = vasp_setup['restart'])
     calc.read_incar('INCAR')
+    if os.path.exists('KPOINTS'):
+        calc.read_kpoints('KPOINTS')
     calc.set(xc=vasp_setup['xc'])
     calc.set(setups=vasp_setup['pp_setup'])
     calc.set(pstress=vasp_setup['pressure'] * 10)
