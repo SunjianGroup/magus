@@ -137,7 +137,9 @@ class ClusterCalculator(Calculator, abc.ABC):
             scfPop = self.read_parallel_results()
             self.J.clear()
         else:
+            os.chdir(self.calc_dir)
             scfPop = self.scf_serial(calcPop)
+            os.chdir(self.work_dir)
         return scfPop
 
     def relax_(self, calcPop):
@@ -146,7 +148,9 @@ class ClusterCalculator(Calculator, abc.ABC):
             relaxPop = self.read_parallel_results()
             self.J.clear()
         else:
+            os.chdir(self.calc_dir)
             relaxPop = self.relax_serial(calcPop)
+            os.chdir(self.work_dir)
         return relaxPop
 
     def read_parallel_results(self):
