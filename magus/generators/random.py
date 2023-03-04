@@ -147,6 +147,8 @@ class SPGGenerator:
                    'max_lattice': [-1, -1, -1, -1, -1, -1],
                    'min_volume': -1,
                    'max_volume': -1,
+                   'min_volume_ratio': 0.5,
+                   'max_volume_ratio': 1.5,
                    'min_n_formula': None,
                    'max_n_formula': None,
                    'd_ratio': 1.,
@@ -240,8 +242,8 @@ class SPGGenerator:
         assert len(numlist) == len(self.volume)
         ball_volume = sum([v * n for v, n in zip(self.volume, numlist)])
         mean_volume = ball_volume * self.volume_ratio
-        min_volume = 0.5 * mean_volume
-        max_volume = 1.5 * mean_volume
+        min_volume = self.min_volume_ratio * mean_volume
+        max_volume = self.max_volume_ratio * mean_volume
         if self.min_volume > 0:
             min_volume = self.min_volume
         if self.max_volume > 0:
@@ -455,8 +457,8 @@ class LayerSPGGenerator(SPGGenerator):
         assert len(numlist) == len(self.volume)
         ball_volume = sum([v * n for v, n in zip(self.volume, numlist)])
         mean_volume = ball_volume * self.volume_ratio
-        min_volume = 0.5 * mean_volume
-        max_volume = 1.5 * mean_volume
+        min_volume = self.min_volume_ratio * mean_volume
+        max_volume = self.max_volume_ratio * mean_volume
         if self.min_volume > 0:
             min_volume = self.min_volume
         if self.max_volume > 0:
