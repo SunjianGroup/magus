@@ -81,7 +81,7 @@ def calc_orca(orca_setup, frames):
             enthalpy = energy #+ pressure * GPa * volume / 10
             enthalpy = enthalpy/len(struct)
 
-            struct.info['enthalpy'] = round(enthalpy, 3)
+            struct.info['enthalpy'] = round(enthalpy, 6)
 
             # save energy, forces, stress for trainning potential
             struct.info['energy'] = energy

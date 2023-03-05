@@ -84,7 +84,7 @@ def calc_gulp(gulp_setup, frames):
             atoms.info.update(new_atoms.info)
             new_atoms.info = atoms.info
             enthalpy = (new_atoms.info['energy'] + pressure * GPa * new_atoms.get_volume()) / len(new_atoms)
-            new_atoms.info['enthalpy'] = round(enthalpy, 3)
+            new_atoms.info['enthalpy'] = round(enthalpy, 6)
             new_frames.append(new_atoms)
         except:
             log.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))

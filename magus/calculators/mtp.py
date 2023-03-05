@@ -65,7 +65,7 @@ class MTPNoSelectCalculator(ClusterCalculator):
         relaxpop = load_cfg("relaxed.cfg", self.type_to_symbol)
         for atoms in relaxpop:
             enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
-            atoms.info['enthalpy'] = round(enthalpy, 3)
+            atoms.info['enthalpy'] = round(enthalpy, 6)
             origin_atoms = calcPop[atoms.info['identification']]
             origin_atoms.info.update(atoms.info)
             atoms.info = origin_atoms.info
@@ -87,7 +87,7 @@ class MTPNoSelectCalculator(ClusterCalculator):
         scfpop = load_cfg("{}/scf_out.cfg".format(basedir), self.type_to_symbol)
         for atoms in scfpop:
             enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
-            atoms.info['enthalpy'] = round(enthalpy, 3)
+            atoms.info['enthalpy'] = round(enthalpy, 6)
         return scfpop
 
 
@@ -338,7 +338,7 @@ class MTPSelectCalculator(ClusterCalculator):
         relaxpop = load_cfg("relaxed.cfg", self.type_to_symbol)
         for atoms in relaxpop:
             enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
-            atoms.info['enthalpy'] = round(enthalpy, 3)
+            atoms.info['enthalpy'] = round(enthalpy, 6)
             origin_atoms = calcPop[atoms.info['identification']]
             origin_atoms.info.update(atoms.info)
             atoms.info = origin_atoms.info
@@ -363,7 +363,7 @@ class MTPSelectCalculator(ClusterCalculator):
         scfpop = load_cfg("{}/scf_out.cfg".format(basedir), self.type_to_symbol)
         for atoms in scfpop:
             enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
-            atoms.info['enthalpy'] = round(enthalpy, 3)
+            atoms.info['enthalpy'] = round(enthalpy, 6)
         return scfpop
 
 

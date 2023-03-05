@@ -96,7 +96,7 @@ def calc_lammps_once(lammps_setup, atoms):
                 break
     energy = thermo_content[-1]['PotEng']
     enthalpy = (energy + pressure * GPa * new_atoms.get_volume()) / len(new_atoms)
-    new_atoms.info['enthalpy'] = round(enthalpy, 3)
+    new_atoms.info['enthalpy'] = round(enthalpy, 6)
     new_atoms.info['energy'] = energy
     new_atoms.info['forces'] = new_atoms.get_forces()
     new_atoms.info['stress'] = np.array(
@@ -107,7 +107,7 @@ def calc_lammps_once(lammps_setup, atoms):
         for i, atoms in enumerate(traj):
             energy = thermo_content[i]['PotEng']
             enthalpy = (energy + pressure * GPa * atoms.get_volume()) / len(atoms)
-            new_atoms.info['enthalpy'] = round(enthalpy, 3)
+            new_atoms.info['enthalpy'] = round(enthalpy, 6)
             new_atoms.info['energy'] = energy
             atoms.info['forces'] = atoms.get_forces()
             atoms.info['stress'] = np.array(
