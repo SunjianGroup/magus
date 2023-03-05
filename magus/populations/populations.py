@@ -1,4 +1,4 @@
-
+import copy
 import os, itertools, logging, numbers
 from numpy.core.numeric import indices
 import numpy as np
@@ -195,7 +195,7 @@ class Population:
         clustering by fingerprints
         TODO may not be a class method
         """
-        pop = [ind.copy() for ind in self.pop]
+        pop = [copy.copy(ind) for ind in self.pop]
         if n_clusters >= len(pop):
             return np.arange(len(pop)), pop
 

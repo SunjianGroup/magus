@@ -45,7 +45,7 @@ setup(
     packages=find_packages(),
     python_requires=">=3.6",
     install_requires=[
-        "numpy",     # numba not support numpy >= 1.22.0
+        "numpy",
         "ase>=3.18",
         "pyyaml>=6.0",
         "networkx",
