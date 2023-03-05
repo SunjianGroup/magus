@@ -265,7 +265,7 @@ class OTFDPCalculator(ClusterCalculator):
 
         for atoms in relax_frames:
             enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
-            atoms.info['enthalpy'] = round(enthalpy, 3)
+            atoms.info['enthalpy'] = round(enthalpy, 6)
             origin_atoms = calcPop[atoms.info['identification']]
             origin_atoms.info.update(atoms.info)
             atoms.info = origin_atoms.info
