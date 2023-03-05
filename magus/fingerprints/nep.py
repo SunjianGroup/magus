@@ -1,17 +1,19 @@
 from .nepdes import NEPDes
 import numpy as np
-from magus.utils import FINGERPRINT_PLUGIN
+from magus.utils import FINGERPRINT_PLUGIN, check_parameters
 from .base import FingerprintCalculator
 
 
 @FINGERPRINT_PLUGIN.register('nepdes')
 class NEPFp(FingerprintCalculator):
-    def __init__(self, symbols, r_cut=5., a_cut=3., 
-                 r_nmax=10, a_nmax=8, r_basis_size=10, a_basis_size=8,
-                 l_max=4, l4_max=2, l5_max=1) -> None:
-        self.calc = NEPDes(len(symbols), symbols, r_cut, a_cut, r_nmax, a_nmax, 
-                           r_basis_size, a_basis_size, l_max, l4_max, l5_max)
-        self.type_dict = {e: i for i, e in enumerate(symbols)}
+    def __init__(self, **parameters) -> None:
+        Requirement = ['symbols']
+        Default={'r_cut': 5., 'a_cut': 3, 'r_nmax': 10, 'a_nmax': 8, 'r_basis_size': 10,
+                 'a_basis_size': 8, 'l_max': 4, 'l4_max': 2, 'l5_max': 1}
+        check_parameters(self, parameters, Requirement, Default)
+        self.calc = NEPDes(len(self.symbols), self.symbols, self.r_cut, self.a_cut, self.r_nmax, self.a_nmax, 
+                           self.r_basis_size, self.a_basis_size, self.l_max, self.l4_max, self.l5_max)
+        self.type_dict = {e: i for i, e in enumerate(self.symbols)}
 
     def get_all_fingerprints(self, atoms):
         symbols = atoms.get_chemical_symbols()
