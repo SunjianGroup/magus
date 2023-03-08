@@ -19,12 +19,14 @@ class GulpCalculator(ClusterCalculator):
         Default={
             'exe_cmd': 'gulp < input > output',
             'job_prefix': 'Gulp',
+            'shell': None,
             }
         check_parameters(self, parameters, Requirement, Default)
-   
+
         self.gulp_setup = {
             'pressure': self.pressure,
             'exe_cmd': self.exe_cmd,
+            'shell': self.shell,
         }
         self.main_info.append('gulp_setup')
         if not os.path.exists("{}/goption.scf".format(self.input_dir)):
@@ -33,7 +35,7 @@ class GulpCalculator(ClusterCalculator):
         if not os.path.exists("{}/goption.relax".format(self.input_dir)):
             with open("{}/goption.relax".format(self.input_dir), 'w') as f:
                 f.write('opti conjugate nosymmetry conp\n')
-        
+
     def scf_job(self, index):
         self.cp_input_to('.')
         job_name = self.job_prefix + '_s_' + str(index)
@@ -68,12 +70,13 @@ class GulpCalculator(ClusterCalculator):
 def calc_gulp(gulp_setup, frames):
     exe_cmd = gulp_setup['exe_cmd']
     pressure = gulp_setup['pressure']
+    shell = gulp_setup['shell']
     new_frames = []
     for i, atoms in enumerate(frames):
         if os.path.exists('output'):
             os.remove('output')
         try:
-            dump_gulp(atoms, 'structure')
+            dump_gulp(atoms, 'structure', shell=shell)
             subprocess.call('cat goption structure gpot > input', shell=True)
             with open('input', 'a') as f:
                 f.write('\npressure\n{}\n'.format(pressure))

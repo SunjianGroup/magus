@@ -4,15 +4,23 @@ import re
 from ase.units import GPa, eV, Ang
 # TODO: 0d, 1d, 2d...
 
-def dump_gulp(atoms, filename, mode='w'):
+
+def dump_gulp(atoms, filename, shell=None, mode='w'):
+    if shell is not None:
+        assert isinstance(shell, list), "shell should be a list!"
+    s = "cell\n"
+    a, b, c, alpha, beta, gamma = atoms.cell.cellpar()
+    s += "%g %g %g %g %g %g\n" %(a, b, c, alpha, beta, gamma)
+    s += "fractional\n"
+    # core
+    for atom in atoms:
+        s += "%s core %.6f %.6f %.6f \n" %(atom.symbol, atom.a, atom.b, atom.c)
+    # shell
+    for atom in atoms:
+        if shell is not None and atom.symbol in shell:
+            s += "%s shel %.6f %.6f %.6f \n" %(atom.symbol, atom.a, atom.b, atom.c)
     with open(filename, mode) as f:
-        f.write('cell\n')
-        a, b, c, alpha, beta, gamma = atoms.cell.cellpar()
-        f.write("%g %g %g %g %g %g\n" %(a, b, c, alpha, beta, gamma))
-        f.write('fractional\n')
-        for atom in atoms:
-            f.write("%s %.6f %.6f %.6f\n" %(atom.symbol, atom.a, atom.b, atom.c))
-        f.write('\n')
+        f.write(s)
 
 
 def load_gulp(filename):
