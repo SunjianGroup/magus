@@ -3,7 +3,43 @@ from .utils import weightenCluster, resetLattice
 from ase.data import covalent_radii
 import math
 import numpy as np
-from ase import Atom
+from ase import Atom, Atoms
+
+__all__ = ['ShellMutation', 'LyrSlipMutation', 'LyrSymMutation', 'CluSymMutation']
+
+#class CutAndSplicePairing
+def cross_surface(instance, ind1, ind2):
+    cut_disp = instance.cut_disp
+
+    axis = np.random.choice([0, 1])
+    atoms1 = ind1.for_heredity()
+    atoms2 = ind2.for_heredity()
+    
+    atoms1.set_scaled_positions(atoms1.get_scaled_positions() + np.random.rand(3))
+    atoms2.set_scaled_positions(atoms2.get_scaled_positions() + np.random.rand(3))
+
+    cut_cellpar = atoms1.get_cell()
+    
+    cut_atoms = atoms1.__class__(Atoms(cell=cut_cellpar, pbc=[True, True, False]))
+
+    scaled_positions = []
+    cut_position = [0, 0.5 + cut_disp * np.random.uniform(-0.5, 0.5), 1]
+
+    for n, atoms in enumerate([atoms1, atoms2]):
+        spositions = atoms.get_scaled_positions()
+        for i, atom in enumerate(atoms):
+            if cut_position[n] <= spositions[i, axis] < cut_position[n+1]:
+                cut_atoms.append(atom)
+                scaled_positions.append(spositions[i])
+    if len(scaled_positions) == 0:
+        return None
+    
+    cut_atoms.set_scaled_positions(scaled_positions)
+    return ind1.__class__(cut_atoms)
+
+
+
+
 
 class ShellMutation(Mutation):
     """

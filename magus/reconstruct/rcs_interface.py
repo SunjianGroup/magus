@@ -34,7 +34,7 @@ def rcs_random_generator(p_dict):
 #2. Change GA population generator. Operators are changed.
 **********************************************"""
 from ..generators import  _cal_op_prob_,op_dict, GAGenerator, AutoOPRatio
-from .ga import rcs_op_dict, rcs_op_list
+from .ga import rcs_op_dict
 
 
 def rcs_cross(cls, ind1, ind2):
@@ -63,6 +63,7 @@ def rcs_get_new_ind(cls, ind):
             newind.info['size'] = ind[0].info['size']
     return newind
 
+from .ga import cross_surface
 
 def rcs_ga_generator(p_dict):
 
@@ -74,6 +75,8 @@ def rcs_ga_generator(p_dict):
     
     for name in op_dict.keys():
         op = op_dict[name]
+        if name == "cutandsplice":
+            setattr(op, 'cross_bulk', cross_surface)
 
         if hasattr(op, 'ver_rcs'):
             continue
