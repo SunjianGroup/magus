@@ -40,14 +40,28 @@ def load_gulp(filename):
                 forces.append([-float(f) * eV / Ang for f in lines[i].split()[3:6]])
                 i += 1
             forces = np.array(forces)
+
+        # coordinate format example:
+        #   Final fractional coordinates of atoms :    
+        #                                                                                            
+        # --------------------------------------------------------------------------------
+        #    No.  Atomic        x           y          z          Radius
+        #         Label       (Frac)      (Frac)     (Frac)       (Angs) 
+        # --------------------------------------------------------------------------------
+        #      1  O     c     0.509638    0.713272    0.160793    0.000000
+        #      2  O     s     0.509638    0.713272    0.160793    0.000000
+        # --------------------------------------------------------------------------------
         if 'coordinates of atoms' in lines[i]:
             positions, symbols = [], []
             scaled = 'fractional' in lines[i]
             i += 6
             while '------' not in lines[i]:
-                positions.append([float(p) * Ang for p in lines[i].split()[3:6]])
-                symbols.append(lines[i].split()[1])
+                line = lines[i].split()
                 i += 1
+                if line[2] == 's':
+                    continue
+                positions.append([float(p) * Ang for p in line[3:6]])
+                symbols.append(line[1])
             positions = np.array(positions)
         if 'Final cell parameters and derivatives' in lines[i]:
             i += 3
