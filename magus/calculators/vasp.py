@@ -90,7 +90,7 @@ class VaspCalculator(ClusterCalculator):
         return opt_pop    
 
 
-def calc_vasp(calc, frames):
+def calc_vasp(calc, frames, savetraj=False):
     new_frames = []
     for i, atoms in enumerate(frames):
         pbc = atoms.get_pbc()
@@ -101,10 +101,23 @@ def calc_vasp(calc, frames):
             energy = atoms.get_potential_energy()
             forces = atoms.get_forces()
             stress = atoms.get_stress()
-            # get the energy without PV becaruse new ase version gives enthalpy, should be removed if ase fix the bug
+            # get the energy without PV becaruse new ase version gives enthalpy, 
+            # should be removed if ase fix the bug
             atoms_tmp = read('OUTCAR', format='vasp-out')
             energy = atoms_tmp.get_potential_energy()
             direct_gap, indirect_gap = read_eigen()
+
+            if savetraj:
+                # save relax trajectory
+                traj = read('OUTCAR', index=':', format='vasp-out')
+                # save relax steps
+                log.debug('vasp relax steps: {}'.format(len(traj)))
+                if 'relax_step' not in atoms.info:
+                    atoms.info['relax_step'] = []
+                else:
+                    atoms.info['relax_step'] = list(atoms.info['relax_step'])
+                atoms.info['relax_step'].append(len(traj))
+
         except:
             s = sys.exc_info()
             log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
@@ -122,15 +135,6 @@ def calc_vasp(calc, frames):
         atoms.info['energy'] = energy
         atoms.info['forces'] = forces
         atoms.info['stress'] = stress
-        # save relax trajectory
-        traj = read('OUTCAR', index=':', format='vasp-out')
-        # save relax steps
-        log.debug('vasp relax steps: {}'.format(len(traj)))
-        if 'relax_step' not in atoms.info:
-            atoms.info['relax_step'] = []
-        else:
-            atoms.info['relax_step'] = list(atoms.info['relax_step'])
-        atoms.info['relax_step'].append(len(traj))
         # remove calculator becuase some strange error when save .traj
         atoms.set_calculator(None)
         log.debug("VASP finish")

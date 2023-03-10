@@ -104,9 +104,11 @@ class MLMagus(Magus):
             to_relax = self.select_to_relax(relax_pop)
             #######  compare target and predict energy  #######   
             dft_relaxed_pop = self.main_calculator.relax(to_relax)
-            relax_step = sum([atoms.info['relax_step'][-1] for atoms in dft_relaxed_pop])
-            log.info('DFT relax {} structures with {} scf'.format(len(dft_relaxed_pop), relax_step))
-
+            try:
+                relax_step = sum([atoms.info['relax_step'][-1] for atoms in dft_relaxed_pop])
+                log.info('DFT relax {} structures with {} scf'.format(len(dft_relaxed_pop), relax_step))
+            except:
+                pass
             dft_relaxed_pop.find_spg()
             dft_relaxed_pop.del_duplicate()
             self.cur_pop = dft_relaxed_pop
