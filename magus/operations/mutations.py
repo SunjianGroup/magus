@@ -239,15 +239,16 @@ class RattleMutation(Mutation):
     rattle_range: The maximum distance within witch to rattle the atoms. 
                   Atoms are rattled uniformly within a sphere of this radius.  
     """
-    Default = {'tryNum':50, 'p': 0.25, 'rattle_range': 4, 'd_ratio':0.7, 'keep_sym': None, 'symprec': 1e-1}
+    Default = {'tryNum':50, 'p': 0.25, 'rattle_range': 1.0, 'd_ratio':0.7, 'keep_sym': None, 'symprec': 1e-1}
 
     @staticmethod
     def rattle(atoms, indexs, movemodes):
         for index, movemode in zip(indexs, movemodes):
             r, theta, phi = movemode
-            atoms[index].position += r * np.array([np.sin(theta) * np.cos(phi), 
-                                                                        np.sin(theta) * np.sin(phi),
-                                                                        np.cos(theta)])
+            atoms[index].position += r * np.array([
+                np.sin(theta) * np.cos(phi), 
+                np.sin(theta) * np.sin(phi),
+                np.cos(theta)])
 
         return atoms
 
@@ -298,8 +299,8 @@ class RattleMutation(Mutation):
                                         np.random.choice(['keep_spg', 'keep_comb'])    
         
         mutate_sym_ = getattr(sym_rattle, method)
-        new_atoms = mutate_sym_(atoms, symprec = self.symprec, trynum = self.tryNum, \
-                                                mutate_rate = self.p, rattle_range = self.rattle_range, d_ratio = self.d_ratio)
+        new_atoms = mutate_sym_(atoms, symprec = self.symprec, trynum = self.tryNum,
+                                mutate_rate = self.p, rattle_range = self.rattle_range, d_ratio = self.d_ratio)
         return ind.__class__(new_atoms)
 
     def mutate_bulk(self, ind):
