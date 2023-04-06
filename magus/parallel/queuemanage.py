@@ -305,7 +305,7 @@ class PBSSystemManager(BaseJobManager):
         allDone = True
         for job in self.jobs:
             try:
-                stat = subprocess.check_output("qstat {0} | grep {0} | awk '{print $5}'".format(job['id']), shell=True)
+                stat = subprocess.check_output("qstat {0} | grep {0} | awk '{{print $5}}'".format(job['id']), shell=True)
                 stat = stat.decode()[:-1]
             except:
                 s = sys.exc_info()
