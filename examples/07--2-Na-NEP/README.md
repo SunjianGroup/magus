@@ -2,7 +2,8 @@
 
 NEP is a MLFF. Go to its [website](https://gpumd.org/) for more information.
 
-You need to install `pyNEP`, which is available on github.
+You need to install `pyNEP`, which is available on github:  
+https://github.com/bigd4/PyNEP
 
 A typical input file:
 
