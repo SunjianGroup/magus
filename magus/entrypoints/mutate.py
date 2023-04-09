@@ -1,21 +1,21 @@
-from magus.parameters import magusParameters
-import ase.io
 import logging
 
-from magus.operations import op_dict
-from magus.reconstruct.ga import rcs_op_dict
 
-_applied_operations_ = list(op_dict.keys()) + list(rcs_op_dict.keys()) 
+#_applied_operations_ = list(op_dict.keys()) + list(rcs_op_dict.keys()) 
 
-#Note: _applied_operations_ = [ 'cutandsplice', 'replaceball',
-#                                                  'soft', 'perm', 'lattice', 'ripple', 'slip', 'rotate', 'rattle', 'formula',
-#                                                  'lyrslip', 'lyrsym', 'shell', 'clusym']
+_applied_operations_ = [ 'cutandsplice', 'replaceball',
+                                                  'soft', 'perm', 'lattice', 'ripple', 'slip', 'rotate', 'rattle', 'formula',
+                                                  'lyrslip', 'lyrsym', 'shell', 'clusym']
 
 #   ``Magus mutate -s seed.traj --rattle
 
 log = logging.getLogger(__name__)
 
 def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file='result.traj', **kwargs):
+    from magus.parameters import magusParameters
+    import ase.io
+    from magus.operations import op_dict
+    
     m = magusParameters(input_file)
     ga = m.NextPopGenerator
 
