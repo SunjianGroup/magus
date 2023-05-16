@@ -205,6 +205,7 @@ class SLURMSystemManager(BaseJobManager):
         with open(file, 'w') as f:
             f.write(
                 "#!/bin/bash\n\n"
+                "#SBATCH --partition={0}\n"
                 "#SBATCH --no-requeue\n"
                 "#SBATCH --mem=1000M\n"
                 "#SBATCH --time={7}\n"

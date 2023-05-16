@@ -321,9 +321,9 @@ def parse_args():
     for i,key in enumerate(arg_mus):
         parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i], help=key)
 
-    from .mutate import _applied_operations_
-    for key in _applied_operations_:
-        parser_mutate.add_argument("--"+key, action='store_true', default=False, help = "add option to use operation!")
+    #from .mutate import _applied_operations_
+    #for key in _applied_operations_:
+    #    parser_mutate.add_argument("--"+key, action='store_true', default=False, help = "add option to use operation!")
     
     parsed_args = parser.parse_args()
     if parsed_args.command is None:
