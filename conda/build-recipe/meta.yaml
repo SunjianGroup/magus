@@ -27,7 +27,7 @@ requirements:
   host:
     - python
     - pip
-    - numpy            ==1.21
+    - numpy            >=1.21
     - setuptools_scm
     - scikit-build
     - pyyaml
@@ -35,7 +35,7 @@ requirements:
 
   run:
     - python
-    - numpy            ==1.21
+    - numpy            >=1.21
     - scipy
     - scikit-build
     - ase              >=3.18
