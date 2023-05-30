@@ -11,7 +11,7 @@ class SoapFp(FingerprintCalculator):
         Requirement = ['symbols']
         Default={'r_cut': 4., 'nmax': 6, 'lmax': 4, 'periodic': True}
         check_parameters(self, parameters, Requirement, Default)
-        self.soap = SOAP(species=self.symbols, periodic=self.periodic, rcut=self.rcut, 
+        self.soap = SOAP(species=self.symbols, periodic=self.periodic, rcut=self.r_cut, 
                          nmax=self.nmax, lmax=self.lmax)
 
     def get_all_fingerprints(self, atoms):
