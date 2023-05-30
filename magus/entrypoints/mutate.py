@@ -5,7 +5,7 @@ import logging
 
 _applied_operations_ = [ 'cutandsplice', 'replaceball',
                                                   'soft', 'perm', 'lattice', 'ripple', 'slip', 'rotate', 'rattle', 'formula',
-                                                  'lyrslip', 'lyrsym', 'shell', 'clusym']
+                                                  'sym', 'shell']
 
 #   ``Magus mutate -s seed.traj --rattle
 

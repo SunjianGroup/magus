@@ -34,19 +34,17 @@ def rcs_random_generator(p_dict):
 #2. Change GA population generator. Operators are changed.
 **********************************************"""
 from ..generators import  _cal_op_prob_,op_dict, GAGenerator, AutoOPRatio
-from .ga import rcs_op_dict, rcs_op_list
+from .ga import rcs_op_dict, rcs_op_list, GA_interface
 
 
 def rcs_cross(cls, ind1, ind2):
-
-    newind = cls.cross_bulk(ind1, ind2)
+    newind = cls.func(ind1, ind2)
     if 'size' in ind1.info and not (newind is None):
         newind.info['size'] = ind1.info['size']
-
     return newind
 
 def rcs_mutate(cls, ind):
-    newind = cls.mutate_bulk(ind)
+    newind = cls.func(ind)
     if 'size' in ind.info and not (newind is None):
         newind.info['size'] = ind.info['size']
     return newind
@@ -77,18 +75,29 @@ def rcs_ga_generator(p_dict):
 
         if hasattr(op, 'ver_rcs'):
             continue
-
+        
+        GA_interface()
         setattr(op, 'ver_rcs', True)
 
         setattr(op, 'ori_get_new_ind', op.get_new_individual)
         setattr(op, "get_new_individual", rcs_get_new_ind)
 
-        if hasattr(op, 'mutate_bulk'):
-            log.info("set method 'mutate_bulk' to 'mutate' of {}".format(op.__name__))
+        s_t = p_dict['structureType']
+
+        if hasattr(op, 'mutate'):
+            if hasattr(op, "mutate_{}".format(s_t)):
+                func = getattr(op, "mutate_{}".format(s_t))
+            else:
+                func = getattr(op, "mutate_bulk")
+            setattr(op, "func", func)
             setattr(op, 'mutate', rcs_mutate)
         
-        elif hasattr(op, 'cross_bulk'):
-            log.info("set method 'cross_bulk' to 'cross' of {}".format(op.__name__))
+        elif hasattr(op, 'cross'):
+            if hasattr(op, "cross_{}".format(s_t)):
+                func = getattr(op, "cross_{}".format(s_t))
+            else:
+                func = getattr(op, "cross_bulk")
+            setattr(op, "func", func)                
             setattr(op, 'cross', rcs_cross)
         
         op_dict[name] = op
@@ -115,15 +124,15 @@ def get_rcs_op(p_dict):
     if p_dict['formulaType'] == 'var':
         operators['formula'] = {}
 
-        #operators['lyrslip'] = {}
-        #operators['lyrsym'] = {}
+        #operators['slip'] = {}
+        #operators['sym'] = {}
         #operators['shell'] = {}
         
     if p_dict['structureType'] == 'cluster' or 'adclus':
         del operators['slip']
-        #operators['soft'] = {}
+        operators['soft'] = {}
         
-        #operators['shell'], operators['clusym'] = {}, {}
+        #operators['shell'], operators['sym'] = {}, {}
         
     return operators
 
