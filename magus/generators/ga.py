@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 class GAGenerator:
     def __init__(self, op_list, op_prob, **parameters):
         Requirement = ['pop_size', 'n_cluster']
-        Default={'rand_ratio': 0.3, 'add_sym': True}
+        Default={'rand_ratio': 0.3, 'add_sym': True, 'history_punish':1.0}
         check_parameters(self, parameters, Requirement, Default)
 
         assert len(op_list) == len(op_prob), "number of operations and probabilities not match"
@@ -50,6 +50,8 @@ class GAGenerator:
         ret += "\nRandom Ratio         : {:.2%}".format(self.rand_ratio) 
         ret += "\nNumber of cluster    : {}".format(self.n_cluster) 
         ret += "\nAdd symmertry        : {}".format(self.add_sym) 
+        if self._punish != 1.0:
+            ret += "\nHistory punishment   : {}".format(self.history_punish) 
         ret += "\n-------------------\n"
         return ret
 
@@ -63,7 +65,8 @@ class GAGenerator:
         elif n_input == 2:
             return self.get_pair(pop)
 
-    def get_pair(self, pop, k=2, n_try=50, history_punish=1.):
+    def get_pair(self, pop, k=2, n_try=50):
+        history_punish = self.history_punish
         assert 0 < history_punish <= 1, "history_punish should between 0 and 1"
         # k = k / len(pop)
         k = 0.3
@@ -94,7 +97,8 @@ class GAGenerator:
         pop[j].info['used'] += 1
         return pop[i].copy(), pop[j].copy()
 
-    def get_ind(self, pop, k=2, history_punish=1.):
+    def get_ind(self, pop, k=2):
+        history_punish = self.history_punish
         # k = k / len(pop)
         k = 0.3
         dom = np.array([ind.info['dominators'] for ind in pop])

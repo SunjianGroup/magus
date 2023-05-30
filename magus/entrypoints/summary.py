@@ -117,7 +117,7 @@ class Summary:
 
     def show_features_table(self, show_number=20, reverse=True, need_sorted=True, sorted_by='Default'):
         df = pd.DataFrame(self.rows, columns=self.show_features)
-        if need_sorted:
+        if need_sorted and sorted_by != ['None']:
             if sorted_by == 'Default':
                 sorted_by = self.default_sort
             df = df.sort_values(by=sorted_by)

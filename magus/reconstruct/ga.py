@@ -4,8 +4,42 @@ from ase.data import covalent_radii
 import math
 import numpy as np
 from ase import Atom, Atoms
+import logging
 
-__all__ = ['ShellMutation', 'LyrSlipMutation', 'LyrSymMutation', 'CluSymMutation']
+log = logging.getLogger(__name__)
+
+__all__ = ['ShellMutation', 'SymMutation']
+
+#class CutAndSplicePairing
+def cross_surface_cutandsplice(instance, ind1, ind2):
+    cut_disp = instance.cut_disp
+
+    axis = np.random.choice([0, 1])
+    atoms1 = ind1.for_heredity()
+    atoms2 = ind2.for_heredity()
+    
+    atoms1.set_scaled_positions(atoms1.get_scaled_positions() + np.random.rand(3))
+    atoms2.set_scaled_positions(atoms2.get_scaled_positions() + np.random.rand(3))
+
+    cut_cellpar = atoms1.get_cell()
+    
+    cut_atoms = atoms1.__class__(Atoms(cell=cut_cellpar, pbc=ind1.pbc))
+
+    scaled_positions = []
+    cut_position = [0, 0.5 + cut_disp * np.random.uniform(-0.5, 0.5), 1]
+
+    for n, atoms in enumerate([atoms1, atoms2]):
+        spositions = atoms.get_scaled_positions()
+        for i, atom in enumerate(atoms):
+            if cut_position[n] <= spositions[i, axis] < cut_position[n+1]:
+                cut_atoms.append(atom)
+                scaled_positions.append(spositions[i])
+    if len(scaled_positions) == 0:
+        return None
+    
+    cut_atoms.set_scaled_positions(scaled_positions)
+    return ind1.__class__(cut_atoms)
+
 
 
 class ShellMutation(Mutation):
@@ -17,7 +51,7 @@ class ShellMutation(Mutation):
     """
     Default = {'tryNum':10, 'd':0.23}
     
-    def mutate_bulk(self,ind, addatom = True, addfrml = None):
+    def mutate_surface(self,ind, addatom = True, addfrml = None):
         
         atoms = ind.for_heredity()
         i = weightenCluster(self.d).choseAtom(atoms)
@@ -54,32 +88,32 @@ class ShellMutation(Mutation):
 
         return ind.__class__(atoms)
 
+    def mutate_cluster(self,ind, addatom = True, addfrml = None):
+        return self.mutate_surface(self,ind, addatom = True, addfrml = None)
+
+#class SlipMutation
 from .utils import LayerIdentifier
-class LyrSlipMutation(Mutation):
-    Default = {'tryNum':10, 'cut':0.2, 'randRange':[0, 1]}
+def mutate_surface_slip(self, ind):
+    """
+    slip of one layer.
+    """
+    atoms = ind.for_heredity()
 
-    def mutate_bulk(self, ind):
-        """
-        slip of one layer.
-        """
-        cut = self.cut
-        atoms = ind.for_heredity()
+    layers = LayerIdentifier(atoms, prec = self.cut)
+    chosenlayer = layers[np.random.choice(len(layers))]
+    direction = np.random.uniform(0,2*math.pi)
+    trans = [math.cos(direction), math.sin(direction),0]
 
-        layers = LayerIdentifier(atoms, prec = self.cut)
-        chosenlayer = layers[np.random.choice(len(layers))]
-        direction = np.random.uniform(0,2*math.pi)
-        trans = [math.cos(direction), math.sin(direction),0]
+    pos = atoms.get_positions().copy()
+    pos[chosenlayer, :] += np.dot(np.array(trans)*np.random.uniform(*self.randRange), atoms.get_cell())
 
-        pos = atoms.get_positions().copy()
-        pos[chosenlayer, :] += np.dot(np.array(trans)*np.random.uniform(*self.randRange), atoms.get_cell())
-
-        atoms.set_positions(pos)
-        atoms.wrap()
-        return ind.__class__(atoms)
+    atoms.set_positions(pos)
+    atoms.wrap()
+    return ind.__class__(atoms)
 
 
-class LyrSymMutation(Mutation):
-    Default = {'tryNum':10, 'symprec': 1e-4}
+class SymMutation(Mutation):
+    Default = {'tryNum':50, 'symprec': 1e-4}
     
     def mirrorsym(self, atoms, rot):
         #TODO: remove the self.threshold below
@@ -204,7 +238,6 @@ class LyrSymMutation(Mutation):
         return ind.__class__(atoms)
 
 
-class CluSymMutation(LyrSymMutation):
     """
     maybe it is not a good mutation schedule but it was widely used in earlier papers for cluster prediction, such as
         Rata et al, Phys. Rev. Lett. 85, 546 (2000) 'piece reflection'
@@ -213,7 +246,7 @@ class CluSymMutation(LyrSymMutation):
     And since population is randrotated before mutation, maybe it doesnot matter if 'm' and '2'_axis is specified.  
     """
 
-    def mutate_bulk(self, ind):
+    def mutate_cluster(self, ind):
 
         self.threshold = ind.d_ratio
         COU = np.array([0.5, 0.5, 0])
@@ -233,8 +266,16 @@ class CluSymMutation(LyrSymMutation):
         atoms.wrap()
         
         return ind.__class__(atoms)
+    
 
 from ..operations import remove_end
 
-rcs_op_list = [LyrSlipMutation, ShellMutation, LyrSymMutation, CluSymMutation]
+rcs_op_list = [ShellMutation, SymMutation]
 rcs_op_dict = {remove_end(op.__name__): op for op in rcs_op_list}
+
+def GA_interface():
+    from ..operations.crossovers import CutAndSplicePairing
+    from ..operations.mutations import SlipMutation
+    setattr(CutAndSplicePairing, "cross_surface", cross_surface_cutandsplice)
+    setattr(CutAndSplicePairing, "cross_cluster", cross_surface_cutandsplice)
+    setattr(SlipMutation, "mutate_surface", mutate_surface_slip)
