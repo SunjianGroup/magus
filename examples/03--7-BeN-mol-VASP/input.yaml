@@ -1,0 +1,36 @@
+formulaType: fix
+initSize: 30
+popSize: 40
+numGen: 20
+saveGood: 5
+pressure: 50
+minNAtoms: 22
+maxNAtoms: 22
+symbols: ['Be', 'N']
+## mol crystal
+molMode: True
+inputMols: ['Be.xyz', 'N5.xyz']
+formula: [2,4]
+molType: 'fix'
+chkMol: True
+addSym: True
+
+dRatio: 0.6
+volumeRatio: 5
+randRatio: 0.4
+molDetector: 2
+
+#main calculator settings
+MainCalculator:
+ calculator: vasp
+ jobPrefix: ['1','2','3','4','5']
+ mode: parallel
+ #vasp settings
+ xc: PBE
+ ppLabel: ['','']
+ 
+ #parallel settings
+ numParallel: 20
+ numCore: 12
+ queueName: 9242opa!
+
