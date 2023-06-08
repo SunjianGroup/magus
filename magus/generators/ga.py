@@ -50,7 +50,7 @@ class GAGenerator:
         ret += "\nRandom Ratio         : {:.2%}".format(self.rand_ratio) 
         ret += "\nNumber of cluster    : {}".format(self.n_cluster) 
         ret += "\nAdd symmertry        : {}".format(self.add_sym) 
-        if self._punish != 1.0:
+        if self.history_punish != 1.0:
             ret += "\nHistory punishment   : {}".format(self.history_punish) 
         ret += "\n-------------------\n"
         return ret
