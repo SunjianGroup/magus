@@ -392,4 +392,4 @@ class ConfinedBulk(Individual):
 
     @property
     def volume_ratio(self):
-        return self.remove_vacuum(self).get_volume() / self.ball_volume
+        return Layer.remove_vacuum(self).get_volume() / self.ball_volume

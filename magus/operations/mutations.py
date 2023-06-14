@@ -126,7 +126,7 @@ class LatticeMutation(Mutation):
             ])
         if self.keep_volume:
             strain /= np.linalg.det(strain)
-        new_cell = ind.get_cell() @ strain
+        new_cell = atoms.get_cell() @ strain
         atoms.set_cell(new_cell, scale_atoms=True)
         # positions = atoms.get_positions() + np.random.normal(0, 1, [len(atoms), 3])
         # atoms.set_positions(positions)
