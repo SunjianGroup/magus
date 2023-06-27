@@ -43,6 +43,7 @@ And the following packages are optional:
 
 # Installation
 <span id= "using_pip"> </span>
+
 ## Use pip 
 You can use https:
 ```shell
@@ -52,62 +53,25 @@ or use [ssh](https://docs.gitlab.com/ee/user/ssh.html)
 ```shell
 $ pip install git+ssh://git@gitlab.com/bigd4/magus.git
 ```
-Your may need to add `--user` if you do not have the root permission.  
-Or use `--force-reinstall` if you already  have `MAGUS` (add `--no-dependencies` if you do not want to reinstall the dependencies).
+Your may need to add `--user` if you do not have the root permission. Or use `--force-reinstall` if you already  have `MAGUS` (add `--no-dependencies` if you do not want to reinstall the dependencies).
 
 ## From Source
-1. Use clone or download to get the source code:
+1. Use git clone to get the source code:
 ```shell
 $ git clone --recursive https://gitlab.com/bigd4/magus.git
 ```
-It must be careful that the downloaded zip will not include the submodules (nepdes, pybind11, gensym), you may need download them manually.  
-2. Install the requirements by:
-```shell
-$ pip install -r requirements.txt
-```
-or by yourself. 
+If the command works properly, all the submodules (nepdes, pybind11, gensym) will be downloaded automatically. But if your network connection has problem and you fail to download some of the submodules, you need download them manually and replace the corresponding empty folders in the source code.  
 
-3. build the [gensym](https://gitlab.com/bigd4/gensym) and put it in `magus/generator`:
-```shell
-$ cd gensym
-$ mkdir build && cd build
-$ cmake .. && make
-$ cp gensym.so ../../magus/generators
-```
-4. build the [nepdes](https://gitlab.com/bigd4/nepdes) and put it in `magus/fingerprints`:
-```shell
-$ cd nepdes
-$ mkdir build && cd build
-$ cmake .. && make
-$ cp nepdes.so ../../magus/fingerprints
-```
+Alternatively, you can download the source code from website. Notice that the package you download does not include any submodules, so you should download them at the same time.
 
-5. Add `magus` (the folder you download, not the inner `magus`) to your [`PYTHONPATH`](https://wiki.fysik.dtu.dk/ase/install.html#envvar-PYTHONPATH) environment variable in your `~/.bashrc` file. 
+2. Go into the directory and install with pip:
+```shell
+$ pip install -e .
+```
+pip will read **setup.py** in your current directory and install. The `-e` option means python will directly import the module from the current path, but not copy the codes to the default lib path and import the module there, which is convenient for modifying in the future. If you do not have the need, you can remove the option.
 
-```shell
-$ export PYTHONPATH=<path-to-magus-package>:$PYTHONPATH
-```
-
-6. (Optional) Create a new file named `magus` with following content and put it in your `PATH`.
-```python
-#!your-path-to-python
-# -*- coding: utf-8 -*-
-import re
-import sys 
-from magus.entrypoints.main import main
-if __name__ == '__main__':
-    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
-    sys.exit(main())
-```
-This step can be skipped, but you should use 
-```shell
-$ python -m magus.main ...
-```
-to use magus instead of
-```shell
-$ magus
-```
 ## Offline package
+
 We provide an offline package in the [release](https://gitlab.com/bigd4/magus/-/releases). You can also use [conda-build](https://docs.conda.io/projects/conda-build/en/latest/) and [constructor](https://conda.github.io/constructor/) to make it by yourself as described [here](https://gitlab.com/bigd4/magus/-/tree/master/conda).  
 After get the package,
 ```shell
@@ -119,7 +83,7 @@ and follow the guide.
 You can use 
 ```shell
 $ magus -v
-``` 
+```
 to check if you have installed successfully
 and 
 ```shell
@@ -143,7 +107,7 @@ Add
 ```shell
 $ export JOB_SYSTEM=LSF/SLURM/PBS
 ```
-in your `~/.bashrc` according to your job management system.  
+in your `~/.bashrc` according to your job management system (choose one of them).  
 
 *Please note parallel setting does not work on PBS system due to job limitations of PBS.  
 

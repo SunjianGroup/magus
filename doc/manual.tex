@@ -1,5 +1,4 @@
 % Manual for the MAGUS program
-% TODO: 例子中结果展示
 %
 \documentclass[12pt,oneside]{book}
 \setcounter{secnumdepth}{4} % seting level of numbering
@@ -164,10 +163,14 @@ MAGUS does VASP calculation based on ASE API. Hence, you need to do the followin
     \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{python}
 import subprocess
-exitcode = subprocess.call("mpiexec.hydra vasp_std", shell=True)
+exitcode = subprocess.call("Your_vasp_command", shell=True)
     \end{minted}
     \end{tcolorbox}
-    \href{https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html}{ase manual}.
+    ``Your\_vasp\_command" is the command to run VASP on your cluster, e.g. ``mpirun vasp\_std".
+
+    \textbf{Notice:} remember to load the corresponding environment, such as ips or openmpi, if you want to run vasp in parallel (run a single vasp job with multiple cores). If you want to use parallel mode (run several vasp jobs at the same time), you also need to load environment in sub jobs by adding control lines after ``preProcessing" option, see details in \ref{sec: preprocessing}.
+    
+    %\href{https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html}{ase manual}.
 \item [2)] 
     Make a new \file{mypps} dir to store vasp pseudopotentials. You can also use soft links:
     \begin{verbatim}
@@ -181,7 +184,7 @@ exitcode = subprocess.call("mpiexec.hydra vasp_std", shell=True)
 $ ln -s /your/path/PBE-5.4 mypps/potpaw_PBE
         \end{minted}
     \end{tcolorbox}
-    Three sub directories correspond to LDA, PW91 and PBE, respectively. It is allowed to leave some of them nonexistent if you do use these potentials. It is also allowed to add other pseudopotentials.
+    Three sub directories correspond to LDA, PW91 and PBE, respectively. It is allowed to leave some of them nonexistent if you do not use these potentials. It is also allowed to add other pseudopotentials.
 \item [3)] 
     Set environment variables:
     \begin{tcolorbox}[breakable, enhanced]
@@ -207,7 +210,7 @@ Add this line into your \file{bashrc} to make the setting work every time you lo
 MLIP is a software for Machine Learning Interatomic Potentials. It has been developed at Skoltech (Moscow) by Alexander Shapeev, Evgeny Podryabinkin, Konstantin Gubaev, and Ivan Novikov.\footnote{Novikov, Ivan S., et al. ``The MLIP package: moment tensor potentials with MPI and active learning.'' Machine Learning: Science and Technology 2.2 (2020): 025002.} According to the license, MLIP is not allowed to be published and otherwise distributed. You need to register in \url{https://mlip.skoltech.ru/download/} and follow the instructions.
 
 \subsection{Build a Virtual Environment (Optional)}
-And we highly recommend that you use \chref{https://www.anaconda.com}{Anaconda} to build a virtual environment and install MAGUS in an isolated environment to avoid conflicts. After installing anaconda, it will automatically write several lines in your \file{bashrc} which is used to initialize anaconda environment. You should source \file{bashrc} or re-login to make anaconda activated.
+We highly recommend that you use \chref{https://www.anaconda.com}{Anaconda} to build a virtual environment and install MAGUS in an isolated environment to avoid conflicts. After installing anaconda, it will automatically write several lines in your \file{bashrc} which is used to initialize anaconda environment. You should source \file{bashrc} or re-login to make anaconda activated.
 If you do the jobs correctly, your shell prompt should be modified to be started as \code{(base)}, which means you are now in base environment of anaconda. Then, create a new virtual environment with
 \begin{tcolorbox}[breakable, enhanced]
 \begin{minted}[breaklines, breaksymbolleft={},]{bash}
@@ -228,7 +231,7 @@ It is convenient to install with pip. It will automatically download the source 
 $ pip install git+https://gitlab.com/bigd4/magus.git
     \end{minted}
 \end{tcolorbox}
-You may need to type in your username and password of your gitlab account because the project is not public. If you want to install in a virtual environment, do not forget to activate the environment first. If you works in a cluster and do not have permission to install in the default location, you may add \verb|--user| parameter.
+You may need to type in your username and password of your gitlab account because the project is not public. If you want to install in a virtual environment, do not forget to activate the environment first. If you work in a cluster and do not have permission to install in the default location, you may add \code{--user} parameter.
 
 \section{Install with Source Code}
 \subsection{Download Code}
@@ -240,7 +243,7 @@ $ git clone --recursive https://gitlab.com:bigd4/magus.git
     \end{minted}
 \end{tcolorbox}
 \subsubsection{From Website}
-If you have problem downloading with git, you have the alternative choose to download the zipped package on our \textcolor{blue}{\href{https://gitlab.com/bigd4/magus}{gitlab website}}. Notice that the submodules such as pybind11 will not be downloaded at the same time. You should download and extract them and replace the empty folders in the source code, respectively.
+If you have problem downloading with git, you have the alternative choice to download the zipped package on our \textcolor{blue}{\href{https://gitlab.com/bigd4/magus}{gitlab website}}. Notice that the submodules such as pybind11 will not be downloaded at the same time. You should download and extract them and replace the empty folders in the source code, respectively.
 
 \subsection{Use pip to Install the Source Code}
 After downloading the code, go into the directory and install with:
@@ -249,7 +252,7 @@ After downloading the code, go into the directory and install with:
 $ pip install -e .
     \end{minted}
 \end{tcolorbox}
-pip will read \file{setup.py} in your current directory and install. The \code{-e} option means python will import the module from the current path, but not copy the codes to the default lib path and import the module there, which is convenient for modifying in the future. If you do not have the need, you can remove the option.
+pip will read \file{setup.py} in your current directory and install. The \code{-e} option means that python will import the module directly from the current path, but not copy the codes to the default lib path and import the module there, which is convenient for modifying in the future. If you do not have the need, you can remove the option.
 
 \section{Install Offline}
 If you have no access to Internet and your cluster does not have a python pypi mirror, which means you cannot use pip to install packages. You have the alternative choose to download with our pre-built offline installation package. You can download it from \chref{https://gitlab.com/bigd4/magus/-/releases/}{here}. Install with 
@@ -258,15 +261,15 @@ If you have no access to Internet and your cluster does not have a python pypi m
 $ ./magus-<version-number>.sh
     \end{minted}
 \end{tcolorbox}
-Follow the instructions. It will build an isolated conda environment with all required packages. You should go into your install path. Then, add \file{bin} into PATH and add condalib into PYTHONPATH. Notice that this method will build a new conda. If have  already installed a conda in your system, the new one will not merge into the old one, which may cause difficulties to switch conda environments. As a result, it is not recommended to install with this method if your pip works normally.
+Follow the instructions. It will build an isolated conda environment with all required packages. You should go into your install path. Then, add \file{bin} into PATH and add \file{condalib} into PYTHONPATH. Notice that this method will build a new conda. If have  already installed a conda in your system, the new one will not merge into the old one, which may cause difficulties to switch conda environments. As a result, it is not recommended to install with this method if your pip works normally.
 
 \section{Other Settings}
 \subsection{Set up Environment Variables}
 To run MAGUS in your console, you need to add PATH in \file{bashrc}.
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
-$ export PATH=$PATH:/your_path_to_magus
-$ export PYTHONPATH=$PYTHONPATH:/your_path_to_magus
+$ export PATH=$PATH:<your_path_to_magus>
+$ export PYTHONPATH=$PYTHONPATH:<your_path_to_magus>
     \end{minted}
 \end{tcolorbox}
 
@@ -297,37 +300,38 @@ $ magus checkpack
 \end{tcolorbox}
 
 \chapter{Examples}
+We have prepared a series of examples which you can find in the \file{examples} folder in your MAGUS installation path. In each example, there is a \file{README.md}. You should follow the instructions in it. The input parameters and other needed input files are almost ready, but you should modify the computing queue in both \file{job} and \file{input.yaml}. If you use virtual environment, you should also write the control lines to activate your python environment (see section \ref{sec: virtual environment} for details).
 \section{Example List}
 \begin{table}[h]
 \centering
 \begin{tabular}{c|c}
 \hline
 number &  target  \\ \hline
-01     &  \hyperref[Generate structures]{Generate structures}\\
-02     &  \hyperref[Relax structures]{Relax structures}\\
-03     &  \hyperref[3D bulk search]{3D bulk search}\\
-04     &  \hyperref[Molecule crystal search]{Molecule crystal search}\\
-05     &  \hyperref[Cluster search]{Cluster search}\\
-06     &  \hyperref[Surface reconstruct]{Surface reconstruct}\\
-07     &  \hyperref[Machine learning search]{Machine learning search}\\
-08     &  \hyperref[2D bulk search]{2D bulk search}\\ \hline
+01     &  \hyperref[Generate Structures]{Generate Structures}\\
+02     &  \hyperref[Relax Structures]{Relax Structures}\\
+03     &  \hyperref[3D Bulk Search]{3D Bulk Search}\\
+04     &  \hyperref[Molecule Crystal Search]{Molecule Crystal Search}\\
+05     &  \hyperref[Cluster Search]{Cluster Search}\\
+06     &  \hyperref[Surface Reconstruct]{Surface Reconstruct}\\
+07     &  \hyperref[Machine Learning Search]{Machine Learning Search}\\
+08     &  \hyperref[2D Bulk Search]{2D Bulk Search}\\ \hline
 \end{tabular}
 \end{table}
 
 \section{Example Introductions}
-\subsection{Generate structures}\label{Generate structures}
+\subsection{Generate Structures}\label{Generate Structures}
 \begin{itemize}
 \item \verb|01--1-B12|: Generate 3d periodic crystal structures of boron with 12 atoms per unit cell by symmetry.
 \item \verb|01--2-NH4NO3|: Generate 3d periodic crystal structures of molecule crystal with 8 NH4 and NO3 molecules per unit cell by symmetry Pccn (56).
 \end{itemize}
 
-\subsection{Relax structures}\label{Relax structures}
+\subsection{Relax Structures}\label{Relax Structures}
 \begin{itemize}
 \item \verb|02--1-C8-VASP|: Structure relaxation of diamond by vasp interface. 
 \item \verb|02--2-B12-MTP|: Relax 2000 structures with MTP and VASP.
 \end{itemize}
 
-\subsection{3D bulk search}\label{3D bulk search}
+\subsection{3D Bulk Search}\label{3D Bulk Search}
 \begin{itemize}
 \item \verb|03--1-Al-fix-EMT|: GAsearch of fixed composition Al (12 atoms per cell) by EMT.
 \item \verb|03--2-Al-fix-VASP|: GAsearch of fixed composition Al (12 atoms per cell) by VASP.
@@ -337,34 +341,49 @@ number &  target  \\ \hline
 \item \verb|03--6-ZnOH-var-GULP|: GAsearch of variable composition \ce{Zn_x(OH)_y}.
 \end{itemize}
 
-\subsection{Molecule crystal search}\label{Molecule crystal search}
+\subsection{Molecule Crystal Search}\label{Molecule Crystal Search}
 \begin{itemize}
 \item \verb|04--1-CH4-fix-VASP|: GAsearch of molecule crystal CH4 with 4 molecules per unit cell.
 \end{itemize}
 
-\subsection{Cluster search}\label{Cluster search}
+\subsection{Cluster Search}\label{Cluster Search}
 \begin{itemize}
 \item \verb|05--1-LJ26|: Ground state of Lennard-Jones cluster of 26 atoms.
 \end{itemize}
 
-\subsection{Surface reconstruct}\label{Surface reconstruct}
+\subsection{Surface Reconstruct}\label{Surface Reconstruct}
 \begin{itemize}
-\item \verb|06--1-C_2x1_100|: Surface reconstruction of diamond (100)-2×1.
-\item \verb|06--2-SnO2_4x1_110|: Surface reconstruction of \ce{SnO2} (110)-4×1.
+\item \verb|06--1-C_2x1_100|: Surface Reconstruction of diamond (100)-2×1.
+\item \verb|06--2-SnO2_4x1_110|: Surface Reconstruction of \ce{SnO2} (110)-4×1.
 \end{itemize}
 
-\subsection{Machine learning search}\label{Machine learning search}
+\subsection{Machine Learning Search}\label{Machine Learning Search}
 \begin{itemize}
 \item \verb|07--1-MgSiO3-MTP|: Use mtp to search \ce{MgSiO3} under high pressure.
 \item \verb|07--2-Na-NEP|: A toy example for use NEP to search sodium.
 \end{itemize}
 
-\subsection{2D bulk search}\label{2D bulk search}
+\subsection{2D Bulk Search}\label{2D Bulk Search}
 \begin{itemize}
 \item \verb|08--1-graphene|: GAsearch of 2D carbon (graphene) by VASP.
 \end{itemize}
 
-\newpage
+\chapter{Input Files}
+A typical structure search task needs the following input files:
+\begin{itemize}
+    \item input.yaml: the basic input file that defines the main parameters in the task. See section \ref{sec: input.yaml}.
+    \item inputFold: the folder containing the extra needed input files for calculators, such as INCAR for VASP and in.lammps for LAMMPS. See section \ref{sec: inputFold}.
+    \item Seeds: the folder containing seed structures. See section \ref{sec: Seeds}.
+\end{itemize}
+\section{input.yaml}\label{sec: input.yaml}
+\subsection{General Parameters}
+
+\subsection{Calculators}
+
+\section{inputFold}\label{sec: inputFold}
+
+\section{Seeds}\label{sec: Seeds}
+
 \chapter{Input parameters}
 In magus we use inputs including command lines and parameter input file (in yaml format) to control programs. 
 
@@ -497,7 +516,7 @@ usage: magus prepare [-h] [-v] [-m]
 optional arguments:
   -h, --help  show this help message and exit
   -v, --var   variable composition search (default: False)
-  -m, --mol   molecule crystal search (default: False)
+  -m, --mol   Molecule Crystal Search (default: False)
     \end{minted}
 \end{tcolorbox}
 \subsection{calculate}
@@ -672,6 +691,7 @@ optional arguments:
   --clusym              add option to use operation! (default: False)
     \end{minted}
 \end{tcolorbox}
+
 \section{Parameter inputs}
 A yaml format parameter file is also necessary. By default is 'input.yaml'. IN THE FUTURE we will add command line to easily export notes and default values by
 \begin{tcolorbox}[breakable, enhanced]
@@ -686,7 +706,8 @@ parameter information for <class 'magus.parameters.magusParameters'>
 +++++  Default parameters  +++++
 formulaType    : type of formula, choose from fix or var
                   default value: fix
-structureType  : structure type, choose from bulk, layer, confined_bulk, cluster, surface
+structureType  : structure type, choose from bulk, layer, 
+                  confined_bulk, cluster, surface
                   default value: bulk
 spacegroup     : spacegroup to generate random structures
                   default value: [1-230]
@@ -704,12 +725,14 @@ symprec        : tolerance for symmetry finding
                   default value: 0.1
 bondRatio      : limitation to detect clusters
                   default value: 1.15
-eleSize        : used in variable composition mode, control how many boundary structures are generated
+eleSize        : used in variable composition mode, 
+                  control how many boundary structures are generated
                   default value: 0
-volRatio       : cell_volume/SUM(atom_ball_volume) when generating structures (around this number)
+volRatio       : cell_volume/SUM(atom_ball_volume) when
+                  generating structures (around this number)
                   default value: 2
-dRatio         : distance between each pair of two atoms in the structure is
-                 not less than (radius1+radius2)*d_ratio
+dRatio         : distance between each pair of two atoms
+                  in the structure is not less than (radius1+radius2)*d_ratio
                   default value: 0.7
 molDetector    : methods to detect mol, choose from 1 and 2. See
                  Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun, "Determining dimensionalities and multiplicities
@@ -718,7 +741,8 @@ molDetector    : methods to detect mol, choose from 1 and 2. See
                   default value: 0
 addSym         : whether to add symmetry before crossover and mutation
                   default value: True
-randRatio      : ratio of new generated random structures in next generation
+randRatio      : ratio of new generated random structures in next
+                 generation
                   default value: 0.2
 chkMol         : use mol dectector
                   default value: False
@@ -788,7 +812,7 @@ spacegroup     : spacegroup to generate random structures
                   default value: [1-230]
 max_ratio      :  max formula ratio in variable composition mode, for example set 10 and Zn11(OH) is not allowed
                   default value: 1000
-full_ele       : only generate structures with full elements
+full_ele       : only Generate Structures with full elements
                   default value: True
 -------------------------------------------------------------
 parameter information for <class 'magus.generators.random.LayerSPGGenerator'>
@@ -844,7 +868,7 @@ spacegroup     : spacegroup to generate random structures
                   default value: [1-230]
 max_ratio      :  max formula ratio in variable composition mode, for example set 10 and Zn11(OH) is not allowed
                   default value: 1000
-full_ele       : only generate structures with full elements
+full_ele       : only Generate Structures with full elements
                   default value: True
 -------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.generator.ClusterSPGGenerator'>
@@ -901,7 +925,7 @@ spacegroup     : spacegroup to generate random structures
                   default value: [1-230]
 max_ratio      :  max formula ratio in variable composition mode, for example set 10 and Zn11(OH) is not allowed
                   default value: 1000
-full_ele       : only generate structures with full elements
+full_ele       : only Generate Structures with full elements
                   default value: True
 -------------------------------------------------------------
 parameter information for <class 'magus.reconstruct.generator.SurfaceGenerator'>
@@ -1656,4 +1680,51 @@ pressure       : pressure
     \end{minted}
 \end{tcolorbox}
 
+\chapter{FAQ}
+\section{How to Set Environment Variables}\label{sec: preprocessing}
+There are two modes in MAGUS: serial mode and parallel mode, controlled by ``mode" option.
+
+In serial mode (``mode: serial"), only one main job runs. All sub calculations (such as vasp relaxations) will run under the computing resource you apply for the main job. Hence, you can modify environment variables in the main job and they will be effective to all calculations.
+
+In parallel mode (``mode: parallel"), the main job only works for some simple calculations and submitting sub jobs into job system to do more time-consuming calculations, which means sub jobs take different environment variables from the main job. Generally, sub job submission scripts are generated automatically by MAGUS, but you should add some environment variables to make the scripts fit for your system. The most convenient way to do that is to add ``preprocessing" option in \file{input.yaml} under each Calculator category. For example:
+\begin{tcolorbox}[breakable, enhanced]
+    \begin{minted}[breaklines, breaksymbolleft={},]{yaml}
+# general parameters
+formulaType: fix
+...
+# calcultor parameters
+MainCalculator:
+  jobPrefix: Vasp
+  ...
+  preProcessing: |
+    #BSUB -gpu "num=1"
+    module purge
+    module load ips/xxxx cuda/xxxx
+    export PATH=$PATH:xxxx
+    \end{minted}
+\end{tcolorbox}
+or you can just write in a single line if your code is short:
+\begin{tcolorbox}
+    \begin{minted}[breaklines, breaksymbolleft={},]{yaml}
+  preProcessing: module load ips; source activate myenv
+    \end{minted}
+\end{tcolorbox}
+MAGUS will concatenate these codes after preProcessing into the submission script.
+
+\textbf{TIPS:} There is a trick that most job systems run a new submission job with a new shell which will execute your bashrc at first. As a result, you can add the frequently used codes, such as \code{module load ips}, into bashrc and then you need not add such codes in preProcessing.
+
+\section{How to Use Python Virtual Environment}\label{sec: virtual environment}
+If you install MAGUS in your default env and you can directly run MAGUS in your console and \code{import magus} in python, you need do nothing and it will all work fine. If you install MAGUS in another env, you should modify the input files to activate the env in jobs. Add
+\begin{tcolorbox}
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+$ source activate <your-env-name>
+    \end{minted}
+\end{tcolorbox}
+in the submission job and add
+\begin{tcolorbox}
+    \begin{minted}[breaklines, breaksymbolleft={},]{text}
+preProcessing: source activate <your-env-name>
+    \end{minted}
+\end{tcolorbox}
+in the \file{input.yaml} under each Calculator category such as MainCalculator.
 \end{document}
