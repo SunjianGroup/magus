@@ -176,7 +176,7 @@ The current main developers are:
 
 # Reference
 
-[1] Junjie Wang, et al. "MAGUS: machine learning and graph theory assisted universal structure searcher". (https://doi.org/10.1093/nsr/nwad128)
+[1] Junjie Wang, Hao Gao, Yu Han, Chi Ding, Shuning Pan, Yong Wang, Qiuhan Jia, Hui-Tian Wang, Dingyu Xing, and Jian Sun, “MAGUS: machine learning and graph theory assisted universal structure searcher”, Natl. Sci. Rev. 10, nwad128, (2023). (https://doi.org/10.1093/nsr/nwad128)
 
 [2] Kang Xia, Hao Gao, Cong Liu, Jianan Yuan, Jian Sun, Hui-Tian Wang, Dingyu Xing, “A novel superhard tungsten nitride predicted by machine-learning accelerated crystal structure search”, Sci. Bull. 63, 817 (2018). (https://doi.org/10.1016/j.scib.2018.05.027)
 
@@ -185,6 +185,6 @@ The current main developers are:
 
 [4] Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun, “Determining dimensionalities and multiplicities of crystal nets” npj Comput. Mater. 6, 143 (2020). (https://doi.org/10.1038/s41524-020-00409-0)
 
-[5] Yu Han, Junjie Wang, Chi Ding, Hao Gao, Shuning Pan, Qiuhan Jia, Jian Sun, arXiv:2212.11549. (https://doi.org/10.1063/5.0142281)
+[5] Yu Han, Junjie Wang, Chi Ding, Hao Gao, Shuning Pan, Qiuhan Jia, and Jian Sun, “Prediction of surface reconstructions using MAGUS”, J. Chem. Phys. 158, 174109 (2023). (https://doi.org/10.1063/5.0142281)
 
 [6] Chi Ding, Junjie Wang, Yu Han, Jianan Yuan, Hao Gao, and Jian Sun, “High Energy Density Polymeric Nitrogen Nanotubes inside Carbon Nanotubes”, Chin. Phys. Lett. 39, 036101 (2022). (Express Letter) (https://doi.org/10.1088/0256-307X/39/3/036101)
