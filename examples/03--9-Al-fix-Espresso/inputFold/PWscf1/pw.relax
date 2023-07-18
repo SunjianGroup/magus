@@ -1,0 +1,18 @@
+&CONTROL
+         calculation = 'vc-relax' ,
+        restart_mode = 'from_scratch' ,
+              prefix = 'Espresso' ,
+              outdir = './tmp' ,
+          pseudo_dir = '/fs08/home/js_dingc/bin/q-e-qe-6.4.1/ONCVPSP-master/abinit/' 
+       etot_conv_thr = 1.0E-4 ,
+       forc_conv_thr = 1.0E-3 ,
+             tstress = True,
+             tprnfor = True
+ /
+ &SYSTEM
+               ibrav = 0,
+             ecutwfc = 60 ,
+!            ecutrho = 600 ,
+         occupations = 'smearing' ,
+            smearing = 'methfessel-paxton' ,
+             degauss = 0.02 ,
