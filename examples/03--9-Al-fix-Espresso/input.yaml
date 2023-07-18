@@ -1,0 +1,29 @@
+#GAsearch of fixed composition Al by Espresso(4 atoms per cell)
+formulaType: fix        
+structureType: bulk
+pressure: 0
+initSize: 20        # number of structures of 1st generation
+popSize:  20        # number of structures of per generation
+numGen:   5         # number of total generation
+saveGood: 3         # number of good structures kept to the next generation
+#structure parameters
+symbols: ["Al"]
+formula: [1]                
+min_n_atoms: 4              # minimum number of atoms per unit cell
+max_n_atoms: 4              # maximum number of atoms per unit cell
+spacegroup: [2-230]
+d_ratio: 0.6
+volume_ratio: 2
+#GA parameters
+rand_ratio: 0.3             # fraction of random structures per generation (except 1st gen.)
+add_sym: True               # add symmetry to each structure during evolution
+#main calculator settings
+MainCalculator:
+ calculator: 'espresso'
+ jobPrefix: ['PWscf1']
+ ppLabel: ['Al_ONCV_PBE_sr.upf']
+ #parallel settings
+ numParallel: 10            # number of parallel jobs
+ numCore: 12                # number of cores
+ queueName: 9242opa!
+ #preProcessing: source activate magusking
