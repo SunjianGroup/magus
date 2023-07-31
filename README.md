@@ -128,7 +128,8 @@ export PATH=$PATH:<your-path-to-auto_complete.sh>
 - [DeepMD](https://docs.deepmodeling.com/projects/deepmd/en/master/index.html) 
 - [gulp](https://gulp.curtin.edu.au/gulp/) 
 - [lammps](https://www.lammps.org/)
-- [XTB](https://xtb-docs.readthedocs.io/en/latest/contents.html)  
+- [XTB](https://xtb-docs.readthedocs.io/en/latest/contents.html)
+- [Quantum ESPRESSO](https://www.quantum-espresso.org/)
 
 You can also write interfaces to connect `MAGUS` and other codes by add them in the `/magus/calculators` directory.  
 ## VASP
