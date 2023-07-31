@@ -160,6 +160,7 @@ The current main developers are:
 - Hao Gao
 - Junjie Wang
 - Yu Han
+- Jian Sun
 - Shuning Pan
 - Qiuhan Jia
 - Yong Wang
