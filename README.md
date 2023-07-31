@@ -156,7 +156,8 @@ We use the Castep calculator provided by [ase](https://wiki.fysik.dtu.dk/ase/ind
 # Contributors
 MAGUS is developed by Prof. Jian Sun's group at the School of Physics at Nanjing University. Please contact us with email (magus@nju.edu.cn) if you have any questions concerning MAGUS. 
 
-The current main developers are:  
+The main contributors are:
+- Jian Sun
 - Hao Gao
 - Junjie Wang
 - Yu Han
