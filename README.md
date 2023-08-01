@@ -122,14 +122,15 @@ export PATH=$PATH:<your-path-to-auto_complete.sh>
 
 - [VASP](https://www.vasp.at/)
 - [CASTEP](http://www.castep.org/)
+- [Quantum ESPRESSO](https://www.quantum-espresso.org/)
 - [ORCA](https://orcaforum.kofo.mpg.de/app.php/portal)
+- [ASE built-in EMT & LJ](https://wiki.fysik.dtu.dk/ase/ase/calculators/calculators.html#module-ase.calculators)
 - [MTP](https://mlip.skoltech.ru/)
 - [NEP](https://gpumd.zheyongfan.org/index.php/Main_Page)
 - [DeepMD](https://docs.deepmodeling.com/projects/deepmd/en/master/index.html) 
 - [gulp](https://gulp.curtin.edu.au/gulp/) 
 - [lammps](https://www.lammps.org/)
 - [XTB](https://xtb-docs.readthedocs.io/en/latest/contents.html)
-- [Quantum ESPRESSO](https://www.quantum-espresso.org/)
 
 You can also write interfaces to connect `MAGUS` and other codes by add them in the `/magus/calculators` directory.  
 ## VASP
