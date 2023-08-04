@@ -11,10 +11,16 @@
 \usepackage{booktabs}
 \usepackage{color}
 % dirtree字体问题
+\usepackage{float}
 \usepackage{fontspec}
 \setmonofont{Source Code Pro}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue, 
+    urlcolor=cyan,
+    }
 \usepackage{indentfirst}
 \usepackage{listings}
 \usepackage[version=4]{mhchem}
@@ -61,7 +67,7 @@
 \pagestyle{fancy}
 \lhead{\slshape\nouppercase{\leftmark}} % controls the left corner of the header
 \chead{} % controls the center of the header
-\rhead{MAGUS 1.6.0} % controls the right corner of the header
+\rhead{MAGUS 1.6.1} % controls the right corner of the header
 \lfoot{\today} % controls the left corner of the footer
 \cfoot{} % controls the center of the footer
 \rfoot{Page~\thepage} % controls the right corner of the footer
@@ -92,7 +98,7 @@ Machine learning And Graph theory assisted \vspace{0.5cm} \\
 Universal structure Searcher}
 \vspace{1.5cm}
 
-\textbf{Hao Gao, Junjie Wang, Yu Han, Qiuhan Jia, Shuning Pan, Jian Sun}
+\textbf{Junjie Wang, Hao Gao, Yu Han, Qiuhan Jia, Shuning Pan, Chi Ding, Yong Wang, Jian Sun}
 
 \vspace{0.5cm}
 
@@ -105,7 +111,7 @@ School of Physics and Collaborative Innovation Center of Advanced Microstructure
 
 \textbf{\Large Manual}
 
-\textbf{Version 1.6.0, \today.}
+\textbf{Version 1.6.1, \today.}
 
 \vspace{2.0cm}
 
@@ -124,6 +130,72 @@ School of Physics and Collaborative Innovation Center of Advanced Microstructure
 \tableofcontents
 
 \newpage
+\chapter{Introduction}
+\section{Overview}
+\textbf{MAGUS} is the abbreviation for Machine learning And Graph theory assisted Universal structure Searcher. It is a machine learning and graph theory assisted crystal structure prediction method developed by Prof. Jian Sun's group at the School of Physics at Nanjing University. The programming languages are mainly Python and C++ and it is built as a pip installable package. Users can use just a few commands to install the package. MAGUS has also the advantage of high modularity and extensibility. All source codes are transparent to users after installation, and users can modify particular parts according to their needs.
+
+MAGUS has been used to study multiple systems. Several designed new materials have been synthesized experimentally, and a number of high-profile academic papers have been published. (\href{https://gitlab.com/bigd4/magus/-/wikis/home/Publications}{Publications using MAGUS})
+
+\section{Current Features}
+\begin{itemize}
+    \item Generation of atomic structures for a given symmetry, support cluster, surface, 2D and 3D crystals including molecules, confined systems, etc
+    \item Geometry optimization of a large number of structures with DFT or active learning machine learning potential
+    \item Multi-target search for structures with fixed or variationally component
+    \item API for VASP, CASTEP, Quantum ESPRESSO, ORCA, MTP, NEP, DeepMD, gulp, lammps, XTB, ASE, etc. Easy for extension.
+\end{itemize}
+
+\section{Interface}
+MAGUS now supports the following packages to calculate the energy of structures, some of them are commercial or need registration to get the permission to use.
+\begin{itemize}
+    \item \href{https://www.vasp.at/}{VASP}
+    \item \href{http://www.castep.org/}{CASTEP}
+    \item \href{https://www.quantum-espresso.org/}{Quantum ESPRESSO}
+    \item \href{https://orcaforum.kofo.mpg.de/app.php/portal}{ORCA}
+    \item \href{https://wiki.fysik.dtu.dk/ase/ase/calculators/calculators.html#module-ase.calculators}{ASE built-in EMT \& LJ}
+    \item \href{https://mlip.skoltech.ru/}{MTP}
+    \item \href{https://gpumd.zheyongfan.org/index.php/Main_Page}{NEP}
+    \item \href{https://docs.deepmodeling.com/projects/deepmd/en/master/index.html}{DeepMD}
+    \item \href{https://gulp.curtin.edu.au/gulp/}{gulp}
+    \item \href{https://www.lammps.org/}{lammps}
+    \item \href{https://xtb-docs.readthedocs.io/en/latest/contents.html}{XTB}
+\end{itemize}
+You can also write interfaces to connect MAGUS and other codes by add them in the \file{/magus/calculators} directory.
+
+\section{How to Get Access}
+MAGUS is free for non-commercial academic use. To get access to the source code, you need to register at the following link (\url{https://www.wjx.top/vm/m5eWS0X.aspx}). We will invite you into our gitlab project as soon as possible. Then you can see the whole project after logging in. Please contact us by email (\href{mailto:magus@nju.edu.cn}{magus@nju.edu.cn}) if you have any questions concerning MAGUS.
+
+\section{How to Cite}
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|c}
+    Reference    &   Cite for What  \\ \hline
+    1, 2       &   for any work that used MAGUS \\
+    3, 4       &   Graph theory \\
+    5          &   Surface reconstruction \\
+    6          &   Structure searching in confined space \\
+    \end{tabular}
+\end{table}
+
+\begin{enumerate}
+    \item Junjie Wang, Hao Gao, Yu Han, Chi Ding, Shuning Pan, Yong Wang, Qiuhan Jia, Hui-Tian Wang, Dingyu Xing, and Jian Sun, ``MAGUS: machine learning and graph theory assisted universal structure searcher'', \href{https://doi.org/10.1093/nsr/nwad128}{Natl. Sci. Rev.} 10, nwad128, (2023).
+    
+    \item Kang Xia, Hao Gao, Cong Liu, Jianan Yuan, Jian Sun, Hui-Tian Wang, Dingyu Xing, ``A novel superhard tungsten nitride predicted by machine-learning accelerated crystal structure search'', \href{https://doi.org/10.1016/j.scib.2018.05.027}{Sci. Bull.} 63, 817 (2018).
+    
+    \item Hao Gao, Junjie Wang, Yu Han, Jian Sun, ``Enhancing Crystal Structure Prediction by Decomposition and Evolution Schemes Based on Graph Theory'', \href{https://doi.org/10.1016/j.fmre.2021.06.005}{Fundamental Research} 1, 466 (2021).
+    
+    \item Hao Gao, Junjie Wang, Zhaopeng Guo, Jian Sun, ``Determining dimensionalities and multiplicities of crystal nets'' \href{https://doi.org/10.1038/s41524-020-00409-0}{npj Comput. Mater.} 6, 143 (2020).
+    
+    \item Yu Han, Junjie Wang, Chi Ding, Hao Gao, Shuning Pan, Qiuhan Jia, and Jian Sun, ``Prediction of surface reconstructions using MAGUS'', \href{https://doi.org/10.1063/5.0142281}{J. Chem. Phys.} 158, 174109 (2023).
+    
+    \item Chi Ding, Junjie Wang, Yu Han, Jianan Yuan, Hao Gao, and Jian Sun, ``High Energy Density Polymeric Nitrogen Nanotubes inside Carbon Nanotubes'', \href{https://doi.org/10.1088/0256-307X/39/3/036101}{Chin. Phys. Lett.} 39, 036101 (2022). (Express Letter)
+\end{enumerate}
+
+\section{Publications Using MAGUS}
+  See the full publication list \href{https://gitlab.com/bigd4/magus/-/wikis/home/Publications}{here}.
+
+
+
+
 \chapter{Installation}
 \section{Dependency}
 MAGUS needs python>=3.6 and gcc>=4.8. You should install pip before using it to install other packages. The following python packages are required:
@@ -146,7 +218,7 @@ The following python packages are optional:
 \fbox{\parbox{10em}{
         beautifulreport\\
         plotly\\
-        dscribe\\
+  QdsadadawfgjghjkqawQ      dscribe\\
         networkx\\
         pymatgen}
 }
@@ -368,26 +440,20 @@ number &  target  \\ \hline
 \item \verb|08--1-graphene|: GAsearch of 2D carbon (graphene) by VASP.
 \end{itemize}
 
-\chapter{Input Files}
-A typical structure search task needs the following input files:
-\begin{itemize}
-    \item input.yaml: the basic input file that defines the main parameters in the task. See section \ref{sec: input.yaml}.
-    \item inputFold: the folder containing the extra needed input files for calculators, such as INCAR for VASP and in.lammps for LAMMPS. See section \ref{sec: inputFold}.
-    \item Seeds: the folder containing seed structures. See section \ref{sec: Seeds}.
-\end{itemize}
-\section{input.yaml}\label{sec: input.yaml}
-\subsection{General Parameters}
 
-\subsection{Calculators}
 
-\section{inputFold}\label{sec: inputFold}
-
-\section{Seeds}\label{sec: Seeds}
-
-\chapter{Input parameters}
+\chapter{Input}
 In magus we use inputs including command lines and parameter input file (in yaml format) to control programs. 
 
 If you are a new user of MAGUS (AND SINCERELY THANKS VERY MUCH FOR USING OUR PROGRAM! ), before you read the full description about all inputs below, we recommand first taking a look at examples which are easier to follow. 
+
+\section{Input Files}
+A typical structure search task needs the following input files:
+\begin{itemize}
+    \item input.yaml: the basic input file that defines the main parameters in the task.
+    \item inputFold: the folder containing the extra needed input files for calculators, such as INCAR for VASP and in.lammps for LAMMPS.
+    \item Seeds: the folder containing seed structures.
+\end{itemize}
 
 \section{Command lines}
 You can simply type
@@ -553,16 +619,17 @@ optional arguments:
                         add pressure (default: None)
     \end{minted}
 \end{tcolorbox}
+
 \subsection{generate}
 \begin{tcolorbox}[breakable, enhanced]
-    \begin{minted}[breaklines, breaksymbolleft={},]{bash}                 
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
 $ magus generate -h
     \end{minted}
     \tcblower
     \begin{minted}[breaklines, breaksymbolleft={},]{text}
-usage: magus generate [-h] [-ll {DEBUG,INFO,WARNING,ERROR}] [-lp LOG_PATH]
-                      [-i INPUT_FILE] [-o OUTPUT_FILE] [-n NUMBER]
-
+usage: magus generate [-h] [-ll {DEBUG,INFO,WARNING,ERROR}] [-lp LOG_PATH] [-i INPUT_FILE]
+                      [-o OUTPUT_FILE] [-n NUMBER]
+                      
 optional arguments:
   -h, --help            show this help message and exit
   -ll {DEBUG,INFO,WARNING,ERROR}, --log-level {DEBUG,INFO,WARNING,ERROR}
@@ -580,6 +647,7 @@ optional arguments:
                         generate number (default: 10)
     \end{minted}
 \end{tcolorbox}
+
 \subsection{checkpack}
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
@@ -692,7 +760,7 @@ optional arguments:
     \end{minted}
 \end{tcolorbox}
 
-\section{Parameter inputs}
+\section{Input Parameters}
 A yaml format parameter file is also necessary. By default is 'input.yaml'. IN THE FUTURE we will add command line to easily export notes and default values by
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}

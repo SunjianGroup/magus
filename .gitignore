@@ -35,8 +35,8 @@ conda/*.sh
 # tex info
 /doc/*
 !/doc/pic
-!/doc/manual.tex
-!/doc/manual.pdf
+!/doc/MAGUS_manual.tex
+!/doc/MAGUS_manual.pdf
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
