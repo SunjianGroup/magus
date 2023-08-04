@@ -14,9 +14,9 @@ log = logging.getLogger(__name__)
 ##################################
 # How to select parents?
 #
-# How Evolutionary Crystal Structure Prediction Works—and Why. 
+# How Evolutionary Crystal Structure Prediction Works—and Why.
 #   Acc. Chem. Res. 44, 227–237 (2011).
-# XtalOpt: An open-source evolutionary algorithm for crystal structure prediction. 
+# XtalOpt: An open-source evolutionary algorithm for crystal structure prediction.
 #   Computer Physics Communications 182, 372–387 (2011).
 # A genetic algorithm for first principles global structure optimization of supported nano structures.
 #   The Journal of Chemical Physics 141, 044711 (2014).
@@ -47,11 +47,11 @@ class GAGenerator:
             elif op.n_input == 2:
                 c += "\n {}: {:>5.2f}%".format(op.__class__.__name__.ljust(20, ' '), prob * 100)
         ret += m + c
-        ret += "\nRandom Ratio         : {:.2%}".format(self.rand_ratio) 
-        ret += "\nNumber of cluster    : {}".format(self.n_cluster) 
-        ret += "\nAdd symmertry        : {}".format(self.add_sym) 
+        ret += "\nRandom Ratio         : {:.2%}".format(self.rand_ratio)
+        ret += "\nNumber of cluster    : {}".format(self.n_cluster)
+        ret += "\nAdd symmertry        : {}".format(self.add_sym)
         if self.history_punish != 1.0:
-            ret += "\nHistory punishment   : {}".format(self.history_punish) 
+            ret += "\nHistory punishment   : {}".format(self.history_punish)
         ret += "\n-------------------\n"
         return ret
 
@@ -119,7 +119,7 @@ class GAGenerator:
         newpop = pop.__class__([], name='init', gen=self.gen)
         op_choosed_num = [0] * len(self.op_list)
         op_success_num = [0] * len(self.op_list)
-        # Ensure that the operator is selected at least once 
+        # Ensure that the operator is selected at least once
         # for i, op in enumerate(self.op_list):
         #     op_choosed_num[i] += 1
         #     cand = self.get_parents(pop, op.n_input)
@@ -139,7 +139,7 @@ class GAGenerator:
         table = pt.PrettyTable()
         table.field_names = ['Operator', 'Probability ', 'SelectedTimes', 'SuccessNum']
         for i in range(len(self.op_list)):
-            table.add_row([self.op_list[i].descriptor, 
+            table.add_row([self.op_list[i].descriptor,
                            '{:.2%}'.format(self.op_prob[i]),
                            op_choosed_num[i],
                            op_success_num[i]])

@@ -6,14 +6,15 @@ log = logging.getLogger(__name__)
 
 
 class BaseJobManager:
-    control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time']
+    control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time', 'memory']
     def __init__(self, **parameters):
         Requirement = ['queue_name', 'num_core']
         Default={
-            'control_file': None, 
-            'pre_processing': 200, 
-            'verbose': False, 
-            'kill_time': 7200, 
+            'control_file': None,
+            'pre_processing': 200,
+            'verbose': False,
+            'kill_time': 7200,
+            'memory': '1000M',
             }
         check_parameters(self, parameters, Requirement, Default)
         self.jobs = []
@@ -148,7 +149,7 @@ class BaseJobManager:
 #             if self.verbose:
 #                 log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
 #         return allDone
-    
+
 
 class LSFSystemManager(BaseJobManager):
     def kill(self, jobid):
@@ -170,11 +171,11 @@ class LSFSystemManager(BaseJobManager):
                 "#BSUB -W {5}\n"
                 "{6}\n"
                 "{7}\n"
-                "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name, 
-                                                                     self.num_core, 
+                "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name,
+                                                                     self.num_core,
                                                                      out, err, name,
                                                                      time.strftime("%H:%M", time.gmtime(self.kill_time)),
-                                                                     self.pre_processing, 
+                                                                     self.pre_processing,
                                                                      content)
                 )
         command = 'bsub < ' + file
@@ -190,7 +191,7 @@ class LSFSystemManager(BaseJobManager):
         job['out'] = out
         self.jobs.append(job)
         return job
-    
+
     def wait_jobs_done(self, wait_time):
         wait_condition = " && ".join(["ended({})".format(job['id']) for job in self.jobs])
         os.system("bwait -w '{}'".format(wait_condition))
@@ -203,20 +204,34 @@ class SLURMSystemManager(BaseJobManager):
     def sub(self, content, name='job', file='job', out='out', err='err'):
         self.reload()
         with open(file, 'w') as f:
+            #f.write(
+            #    "#!/bin/bash\n\n"
+            #    "#SBATCH --partition={0}\n"
+            #    "#SBATCH --no-requeue\n"
+            #    "#SBATCH --mem=1000M\n"
+            #    "#SBATCH --time={7}\n"
+            #    "#SBATCH --nodes=1\n"
+            #    "#SBATCH --ntasks-per-node={1}\n"
+            #    "#SBATCH --job-name={4}\n"
+            #    "#SBATCH --output={2}\n"
+            #    "{5}\n"
+            #    "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
+            #                 time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
             f.write(
-                "#!/bin/bash\n\n"
-                "#SBATCH --partition={0}\n"
-                "#SBATCH --no-requeue\n"
-                "#SBATCH --mem=1000M\n"
-                "#SBATCH --time={7}\n"
-                "#SBATCH --nodes=1\n"
-                "#SBATCH --ntasks-per-node={1}\n"
-                "#SBATCH --job-name={4}\n"
-                "#SBATCH --output={2}\n"
-                "{5}\n"
-                "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
-                             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
-                )
+                f"#!/bin/bash\n"
+                f"#SBATCH --partition={self.queue_name}\n"
+                f"#SBATCH --no-requeue\n"
+                f"#SBATCH --mem={self.memory}\n"
+                f'#SBATCH --time={time.strftime("%H:%M:%S", time.gmtime(self.kill_time))}\n'
+                f"#SBATCH --nodes=1\n"
+                f"#SBATCH --ntasks-per-node={self.num_core}\n"
+                f"#SBATCH --job-name={name}\n"
+                f"#SBATCH --output={out}\n"
+                f"{self.pre_processing}\n"
+                f"{content}\n")
+                #.format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
+                #             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
+
         command = 'sbatch ' + file
         job = dict()
         jobid = subprocess.check_output(command, shell=True).split()[-1]
@@ -298,7 +313,7 @@ class PBSSystemManager(BaseJobManager):
         self.jobs.append(job)
         time.sleep(3)
         return job
-    
+
     def check_jobs(self):
         log.debug("Checking jobs...")
         nowtime = datetime.datetime.now()
