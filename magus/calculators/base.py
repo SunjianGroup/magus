@@ -33,7 +33,7 @@ class Calculator(abc.ABC):
         Requirement = ['work_dir', 'job_prefix']
         Default={'pressure': 0.}
         check_parameters(self, parameters, Requirement, Default)
-        self.input_dir = '{}/inputFold/{}'.format(self.work_dir, self.job_prefix) 
+        self.input_dir = '{}/inputFold/{}'.format(self.work_dir, self.job_prefix)
         self.calc_dir = "{}/calcFold/{}".format(self.work_dir, self.job_prefix)
         os.makedirs(self.calc_dir, exist_ok=True)
         self.main_info = ['job_prefix', 'pressure', 'input_dir', 'calc_dir']  # main information to print
@@ -52,7 +52,7 @@ class Calculator(abc.ABC):
 
     def cp_input_to(self, path='.'):
         for filename in os.listdir(self.input_dir):
-            shutil.copy(os.path.join(self.input_dir, filename), 
+            shutil.copy(os.path.join(self.input_dir, filename),
                         os.path.join(path, filename))
 
     def calc_pre_processing(self, calcPop):
@@ -98,11 +98,12 @@ class ClusterCalculator(Calculator, abc.ABC):
         if self.mode == 'parallel':
             Requirement = ['queue_name', 'num_core']
             Default={
-                'pre_processing': '', 
-                'wait_time': 200, 
-                'verbose': False, 
+                'pre_processing': '',
+                'wait_time': 200,
+                'verbose': False,
                 'kill_time': 100000,
                 'num_parallel': 1,
+                'memory': '1000M',
                 }
             check_parameters(self, parameters, Requirement, Default)
 
@@ -112,6 +113,7 @@ class ClusterCalculator(Calculator, abc.ABC):
                 pre_processing=self.pre_processing,
                 verbose=self.verbose,
                 kill_time=self.kill_time,
+                memory=self.memory,
                 control_file="{}/job_controller".format(self.calc_dir))
 
     def paralleljob(self, calcPop, runjob):
@@ -182,7 +184,7 @@ class ClusterCalculator(Calculator, abc.ABC):
 
 class ASECalculator(Calculator):
     optimizer_dict = {
-        'bfgs': BFGS, 
+        'bfgs': BFGS,
         'lbfgs': LBFGS,
         'fire': FIRE,
     }
@@ -190,10 +192,10 @@ class ASECalculator(Calculator):
         super().__init__(**parameters)
         Requirement = []
         Default={
-            'eps': 0.05, 
-            'max_step': 100, 
-            'optimizer': 'bfgs', 
-            'max_move': 0.1, 
+            'eps': 0.05,
+            'max_step': 100,
+            'optimizer': 'bfgs',
+            'max_move': 0.1,
             'relax_lattice': True,
             }
         check_parameters(self, parameters, Requirement, Default)
@@ -267,7 +269,7 @@ class ASECalculator(Calculator):
 class AdjointCalculator(Calculator):
     def __init__(self, calclist):
         self.calclist = calclist
-    
+
     def __repr__(self):
         out  = self.__class__.__name__ + ':\n'
         for i, calc in enumerate(self.calclist):
