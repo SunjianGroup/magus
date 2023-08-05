@@ -14,7 +14,7 @@ MAGUS has been used to study many systems. Several designed new materials have b
 * API for VASP, CASTEP, Quantum ESPRESSO, ORCA, MTP, NEP, DeepMD, gulp, lammps, XTB, ASE, etc. Easy for extension.
 
 # Documentation
-* An overview of code documentation and tutorials for getting started with `MAGUS` can be found [here](https://gitlab.com/bigd4/magus/-/blob/master/doc/manual.pdf)
+* An overview of code documentation and tutorials for getting started with `MAGUS` can be found [here](https://gitlab.com/bigd4/magus/-/blob/master/doc/MAGUS_manual.pdf)
 
 
 # Requirements
