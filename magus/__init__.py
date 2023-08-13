@@ -1,4 +1,4 @@
-__version__ = '1.6.1'
+__version__ = '1.6.2'
 __picture__ = """ 
             ,'  , `.     MAGUS                                           
         ,-+-,.' _ |      (v.{} RELEASE)                                    
@@ -24,4 +24,5 @@ For any work that used MAGUS, please cite the following references:
 2. Kang Xia, Hao Gao, Cong Liu, Jianan Yuan, Jian Sun, Hui-Tian Wang, Dingyu
    Xing, “A novel superhard tungsten nitride predicted by machine-learning 
    accelerated crystal structure search”, Sci. Bull. 63, 817 (2018).
+-------------------------------------------------------------------------------
 """.format(__version__)
