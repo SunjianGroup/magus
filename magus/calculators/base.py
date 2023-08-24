@@ -52,8 +52,13 @@ class Calculator(abc.ABC):
 
     def cp_input_to(self, path='.'):
         for filename in os.listdir(self.input_dir):
-            shutil.copy(os.path.join(self.input_dir, filename),
-                        os.path.join(path, filename))
+            source = os.path.join(self.input_dir, filename)
+            target = os.path.join(path, filename)
+            if not os.path.exists(target):
+                if os.path.isdir(source):
+                    shutil.copytree(source, target)
+                else:
+                    shutil.copy(source, target)
 
     def calc_pre_processing(self, calcPop):
         to_calc = []
