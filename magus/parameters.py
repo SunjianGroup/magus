@@ -6,6 +6,9 @@ from .generators import get_random_generator, get_ga_generator
 try:
     from .reconstruct.rcs_interface import rcs_type_list, rcs_interface
 except:
+    import traceback, warnings
+    warnings.warn("Failed to load module for systems <clusters, surfaces, interfaces>:\n {}".format(traceback.format_exc()) +
+                  "\nThis warning above can be ignored if the mentioned systems are not targets, elsewise should be fixed.\n" )
     rcs_type_list = []
 
 #@Singleton

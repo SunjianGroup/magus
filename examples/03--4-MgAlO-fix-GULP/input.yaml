@@ -4,19 +4,42 @@ structureType: bulk
 pressure: 100
 initSize: 40        # number of structures of 1st generation
 popSize: 40         # number of structures of per generation
-numGen: 60          # number of total generation
-saveGood: 2         # number of good structures kept to the next generation
+numGen: 40          # number of total generation
+saveGood: 4         # number of good structures kept to the next generation
 #structure parameters
 symbols: ['Mg','Al','O']
 formula: [4,8,16]         
 min_n_atoms: 28              # minimum number of atoms per unit cell
 max_n_atoms: 28              # maximum number of atoms per unit cell
 spacegroup: [2-230]
-d_ratio: 0.5
-volume_ratio: 3
+volume_ratio: 1.7
+d_ratio: 0.7
 #GA parameters
 rand_ratio: 0.3               # fraction of random structures per generation (except 1st gen.)
-add_sym: False               # add symmetry to each structure during evolution
+
+choice_func: 'exp'            # The probability of being selected as a parent is related to 
+k: 0.25                       # exp^-(k*its_enthalpy_domination). 
+           
+history_punish: 0.9           # Avoid an identical structure selected as a parent for too many times
+
+autoOpRatio: True             # Auto adjust the probability of GA operations
+auto_random_ratio: True       # Auto adjust rand_ratio since 3rd generation
+
+OffspringCreator:
+ rattle:
+  prob: -1                    # Auto set by 1.0 - Sum(others) = 1.0-0.14*5 = 0.3
+ cutandsplice:
+  prob: 0.14
+ lattice:
+  prob: 0.14
+ perm:
+  prob: 0.14
+ ripple:
+  prob: 0.14
+ slip:
+  prob: 0.14
+
+
 #main calculator settings
 MainCalculator:
  calculator: 'gulp'
@@ -24,7 +47,4 @@ MainCalculator:
  #gulp settings
  exeCmd: gulp < input > output           #command to run gulp in your system
  #parallel settings
- numParallel: 8              # number of parallel jobs
- numCore: 4                # number of cores
- preProcessing: export OMP_NUM_THREADS=4; export MKL_NUM_THREADS=4    
- queueName: e52692v2ib! 
+ mode: 'serial'

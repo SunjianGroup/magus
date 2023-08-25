@@ -39,6 +39,8 @@ class RcsPopulation(Population):
             Ind = Cluster
         elif parameters['structureType'] == 'adclus':
             Ind = AdClus
+        elif parameters['structureType'] == 'interface':
+            Ind = Interface
         Ind.set_parameters(**parameters)
         cls.Ind = Ind
 
@@ -49,7 +51,7 @@ class RcsPopulation(Population):
         if 'Fitness' in parameters:
             for fitness in parameters['Fitness']:
                 fitness_calculator.append(rcs_fit_dict[fitness](parameters))
-        elif parameters['structureType'] == 'surface':
+        elif parameters['structureType'] == 'surface' or 'interface':
             fitness_calculator.append(rcs_fit_dict['Ercs'](parameters))
         elif parameters['structureType'] == 'cluster' or 'adclus':
             fitness_calculator.append(rcs_fit_dict['Enthalpy'](parameters))
@@ -113,6 +115,9 @@ def add_vacuum_layer(atoms, thickness):
 
 
 class Surface(Individual):
+    """'slices_file'= 'Ref/layerslices.traj'
+    in order of bulk, buffer(optional)"""
+
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
@@ -222,6 +227,9 @@ class Surface(Individual):
         newcell=atoms_top.get_cell()
         newcell[2]+=atoms_bottom.get_cell()[2] * add
         atoms_top.set_cell(newcell)
+
+        #for interfaces: what if cell of atoms_top and atoms_bottom slightly dismatch?
+        atoms_bottom.set_cell([*newcell[:2], atoms_bottom.get_cell()[2]], scale_atoms = True)
 
         trans=[atoms_bottom.get_cell()[2]* add]*len(atoms_top)
         atoms_top.translate(trans)
@@ -579,5 +587,89 @@ class AdClus(Cluster):
             self.info['fingerprint'] = self.fp_calc.get_all_fingerprints(atoms)[0]
         return self.info['fingerprint']
     
+class Interface(Surface):
+    """'slices_file'= 'Ref/layerslices.traj'"""
+
+    @classmethod
+    def set_parameters(cls, **parameters):
+        Individual.set_parameters(**parameters)
+        Default = {
+            'refE': None, 
+            'vacuum_thickness': 10,
+            'slices_file': 'Ref/layerslices.traj',
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list],
+            'buffer': True,
+            'fixbulk':True,
+            }
+        check_parameters(cls, parameters, [], Default)
+        cls.slices = read(cls.slices_file, index = ':')
+        
+        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])        
+
+    def __init__(self, *args, **kwargs):
+        """???
+        if 'symbols' in kwargs:
+            if isinstance(kwargs['symbols'], Molfilter):
+                kwargs['symbols'] = kwargs['symbols'].to_atoms()
+        if len(args) > 0:
+            if isinstance(args[0], Molfilter):
+                args = list(args)
+                args[0] = args[0].to_atoms()
+        """
+        self.full_ele = False
+        Individual.__init__(self, *args, **kwargs)
+        if 'check_cell' in self.check_list:
+            self.check_list.remove('check_cell')
+        self.set_pbc([True, True, False])
+        modify_fixatoms()
+
+        #I used 'size' instead of name 'trans' here for convenience or I should also change GA to keep this info. -YH
+        if 'size' not in self.info:
+            self.info['size'] = [0,0]
+        self.bulk_layers = [self.slices[0].copy(), self.slices[1].copy()]
+
+        self.bulk_layers[0].set_scaled_positions(self.bulk_layers[0].get_scaled_positions() - [*self.info['size'],0])
+        self.bulk_layers[0].wrap()
+
+        if self.buffer:
+            self.buffer_layers = [self.slices[2].copy(), self.slices[3].copy()]
+            self.buffer_layers[0].set_scaled_positions(self.buffer_layers[0].get_scaled_positions() - [*self.info['size'],0])
+            self.buffer_layers[0].wrap()
 
         
+    #add substrate in both top and bottom
+    def add_substrate(self, atoms = None):
+        ats = atoms.copy() if not atoms is None else self.copy()
+
+        for i in [0,1]:
+            if self.buffer:
+                self.buffer_layer = self.buffer_layers[i]
+            self.bulk_layer = self.bulk_layers[i]
+            ats = self.add_extra_layer('buffer',add=1, atoms=ats)
+            ats = self.add_extra_layer('bulk',add=1, atoms=ats)
+            sp = ats.get_scaled_positions()
+            sp[:,2] = 1.0-sp[:,2]
+            ats.set_scaled_positions(sp)
+
+        ats = self.add_vacuum(add=1, atoms=ats)
+        return ats
+    
+    #remove substrate in both top and bottom
+    def get_top_layer(self, atoms):
+        ats = atoms.copy() 
+        for i in [0,1]:
+            self.bulk_layer = self.bulk_layers[i]
+            ats = self.set_substrate(ats, self.bulk_layer, add=-1) 
+            if self.buffer:
+                self.buffer_layer = self.buffer_layers[i]
+                ats = self.set_substrate(ats, self.buffer_layer, add=-1) 
+            sp = ats.get_scaled_positions()
+            sp[:,2] = 1.0-sp[:,2]
+            ats.set_scaled_positions(sp)
+            
+        ats = self.set_vacuum(ats, -1 *self.vacuum_thickness)
+        return ats
+    
+    def check(self):
+        return True
+

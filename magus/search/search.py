@@ -84,13 +84,20 @@ class Magus:
 
     def set_good_pop(self):
         log.info('construct goodPop')
-        good_pop = self.cur_pop + self.good_pop + self.keep_pop
+        #good_pop = self.cur_pop + self.good_pop + self.keep_pop
+        good_pop = self.good_pop + self.keep_pop
+        for i, ind in enumerate(self.cur_pop):
+            for ind1 in good_pop:
+                if ind == ind1:
+                    self.cur_pop[i] = ind1
+            else:
+                good_pop.append(ind)
         good_pop.del_duplicate()
         good_pop.calc_dominators()
         good_pop.select(self.parameters['popSize'])
         log.debug("good ind:")
         for ind in good_pop:
-            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}, id: {identity}"\
                 .format(strFrml=ind.get_chemical_formula(), **ind.info))
         self.good_pop = good_pop
 
@@ -100,7 +107,7 @@ class Magus:
         keep_pop = self.Population(keep_frames, 'keep', self.curgen)
         log.debug("keep ind:")
         for ind in keep_pop:
-            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}"\
+            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}, id: {identity}"\
                 .format(strFrml=ind.get_chemical_formula(), **ind.info))
         self.keep_pop = keep_pop
 

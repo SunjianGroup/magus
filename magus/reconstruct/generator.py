@@ -231,7 +231,7 @@ class SurfaceGenerator(SPGGenerator):
         refDir, refSlab = os.path.join(self.all_parameters['workDir'], refDir), os.path.join(self.all_parameters['workDir'], refSlab)
         
         if os.path.exists(refDir) and os.path.exists(refSlab) and os.path.exists(slices_file):
-            log.info("Used layerslices in Ref.")
+            log.info("Used layerslices in {}.".format(refDir))
         else:
             self.__cutcell__(**self.slabinfo, rcs_x = self.rcs_x, rcs_y = self.rcs_y, refDir = refDir, refSlab = refSlab, slices_file = slices_file)
         
@@ -590,3 +590,160 @@ class SurfaceGenerator(SPGGenerator):
     def update(dictA, dictB):
         for key in dictB:
             dictA[key] = dictB[key] if not key in dictA else list(set(list(dictA[key]) + list(dictB[key])))
+
+
+from .utils import InterfaceMatcher, matrix_match
+from ase import Atoms
+
+class InterfaceGenerator(SPGGenerator):
+
+    @staticmethod
+    def __matchcell__(*args, **kwargs):
+        im = InterfaceMatcher(*args, **kwargs)
+        im.match_result(verbose=True, save_intermediate='inter_ml.npy')
+        return
+    
+    def __generate_substrates__(self, refDir):
+        if os.path.exists(self.slices_file):
+            log.info("Used layerslices in {}.".format(self.slices_file))
+            self.input_layers = ase.io.read(self.slices_file, index = ':') 
+            return
+        
+        if os.path.exists(self.slabinfo['traj_file']) and os.path.exists(self.slabinfo['matrix_file']):
+            log.info("Used match result from {}, {}".format(self.slabinfo['traj_file'], self.slabinfo['matrix_file']))
+        else:
+            if not os.path.exists(refDir):
+                os.mkdir(refDir)
+            self.__matchcell__(**self.slabinfo)
+            
+        self.ml = matrix_match.load_match_list(self.slabinfo['matrix_file'])[self.match_order_index]
+        #ml = ['id-A', 'id-B','hkl-A', 'hkl-B', 'matrix-A', 'matrix-B', 'match-fit']
+        id_a, id_b = self.ml[0:2]
+        layers = InterfaceMatcher.get_id_from_slices(id_a, id_b, self.slabinfo['traj_file'], buffer=self.buffer)
+        ma, mb = self.ml[4:6]
+
+        a_b_order = None
+
+        for i,layer in enumerate(layers):
+            m = ma if i%2==0 else mb
+            layers[i] = InterfaceMatcher.matrix_times_cell(layer, m)
+            c = layers[i].cell.cellpar()
+            a_b_order = a_b_order if not a_b_order is None else c
+
+            if np.sum(np.abs([a_b_order[:2] - c[:2]])) >  np.sum(np.abs([a_b_order[:2] - [c[1], c[0]]])):
+                #swap axis a,b of layers[i]
+                sp = layers[i].get_scaled_positions()
+                layers[i].cell[:2] = layers[i].cell[1::-1]
+                sp[:,:2] = sp[:,1::-1]
+                layers[i].set_scaled_positions(sp)
+                
+
+            layers[i] = InterfaceMatcher.rotate_c2z_and_a2x(layers[i])
+
+        ca = layers[0].cell.cellpar()
+        cb = layers[1].cell.cellpar()
+        self.input_layers = layers
+        ase.io.write(self.slices_file, layers)
+
+        s = "Saved matcher {}-th from match_list '{}':\n".format(self.match_order_index, self.slabinfo['matrix_file'])
+        s += "-------------------\n"
+
+        s += "{}: {} @ {}\n".format("id".ljust(15, ' '), *self.ml[:2])
+        s += "{}: {}\n                 {}\n".format("hkl".ljust(15, ' '), self.ml[2], self.ml[3])
+        s += "{}: {}\n                 {}\n".format("matrix".ljust(15, ' '), str(self.ml[4]).replace('\n', ','), str(self.ml[4]).replace('\n', ','))
+        s += "{}: {}\n                 {}\n".format("[a,b,gamma]".ljust(15, ' '), np.around([*ca[0:2], ca[-1]],3), np.around([*cb[0:2], cb[-1]],3))
+        s += "{}: {}\n".format("match fitness".ljust(15, ' '), self.ml[-1])
+        s += "-------------------"
+        log.info(s)
+        return 
+        
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        refDir = 'Ref'
+        Default = {
+            'vacuum_thickness':10, 
+            'buffer': True, 
+            'slices_file': refDir + '/layerslices.traj',
+            'match_order_index': 0,
+            }
+        self.slabinfo = {
+            'bulk_a': None,
+            'bulk_b': None, 
+            'range_hkl': [-5,6],
+            'range_matrix': [-3,4], 
+            'range_area': [0., 100.], 
+            'range_a': [0,13.],
+            'range_ang': [45.,135.],
+            'bulk_layernum': 2, 
+            'buffer_layernum': 1, 
+            'rcs_layernum': 1, 
+            'cutslices': 3,
+            'thread_para': 50,
+            'addH': True,
+            'range_substrate_thickness': [12, 10.], 
+            'traj_file': refDir + '/match_file.traj',
+            'matrix_file': refDir + '/match_file.npy',
+            }
+        
+        self.slabinfo.update(parameters['slabinfo'])
+        self.slabinfo.update({
+            'bulk_a': ase.io.read(self.slabinfo['bulk_a']),
+            'bulk_b': ase.io.read(self.slabinfo['bulk_b']),
+        })
+        check_parameters(self, parameters, [], Default)
+
+        self.__generate_substrates__(refDir)
+
+    @property
+    def formula_pool(self):
+        return np.array([1])
+
+
+    def generate_ind(self, translation = [0,1], vertical_distance = 1.0):
+        #remove most top vacuum
+        for i in [-1, -2]:
+            rcs = self.input_layers[i]
+            old_cell = rcs.get_cell()
+            old_cell[2] *= np.max(rcs.get_scaled_positions()[:,2])
+            self.input_layers[i].set_cell(old_cell)
+
+        rcs_b, rcs_a = self.input_layers[-1], self.input_layers[-2]
+        la, lb, lc, _, _, gamma = (rcs_b.cell.cellpar() + rcs_a.cell.cellpar())/2
+        lc = lc*2 + vertical_distance
+        gamma = gamma / 180 * math.pi
+        new_cell = np.array([[la,0,0],[lb*math.cos(gamma), lb*math.sin(gamma),0],[0,0,lc]])
+
+        sp_b, sp_a = rcs_b.get_scaled_positions(), rcs_a.get_scaled_positions()
+        c_ratio_a = rcs_a.cell.cellpar()[2] / lc
+        c_ratio_dis = vertical_distance / lc
+        sp_a[:,2] = sp_a[:,2]* c_ratio_a
+        sp_a[:, 0:2] -= translation
+
+        sp_b[:,2] =  1- sp_b[:,2] * (1 - c_ratio_a - c_ratio_dis)
+        
+        nums_b, nums_a = rcs_b.get_atomic_numbers(), rcs_a.get_atomic_numbers()
+
+        atoms = Atoms(cell = new_cell, 
+                      scaled_positions = np.concatenate((sp_b, sp_a), axis=0), 
+                      numbers = np.concatenate((nums_b, nums_a), axis=0))   
+        
+        atoms.info['size'] = translation
+        atoms.wrap()
+        return True, atoms
+
+    def generate_pop(self, n_pop, format_filter=None, *args, **kwargs):
+        build_pop = []
+
+        #Source 1. random walk
+        while n_pop > len(build_pop):
+            for _ in range(self.max_n_try):
+                
+                label, ind = self.generate_ind(translation = np.random.uniform(0,1,2), vertical_distance = 1.0)
+                if label:
+                    self.afterprocessing(ind, origin = 'random')
+                    build_pop.append(ind)
+                    break
+            else:
+                break  
+
+        return build_pop

@@ -77,6 +77,9 @@ class Population:
                                         'object'.format(self.__class__.__name__))
                 newpop.pop = [newpop.pop[i] for i in indices]
             return newpop
+        
+    def __setitem__(self, index, ind):
+        self.pop[index] = ind.copy()
 
     def __len__(self):
         return len(self.pop)
