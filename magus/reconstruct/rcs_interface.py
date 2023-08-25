@@ -22,10 +22,12 @@ def rcs_interface(rcs_magus_parameters):
 """**********************************************
 #1. Change init random population generator.
 **********************************************"""
-from .generator import SurfaceGenerator, ClusterSPGGenerator
+from .generator import SurfaceGenerator, ClusterSPGGenerator, InterfaceGenerator
 def rcs_random_generator(p_dict): 
     if p_dict['structureType'] == 'surface':
         return SurfaceGenerator(**p_dict)
+    if p_dict['structureType'] == 'interface':
+        return InterfaceGenerator(**p_dict)
     elif p_dict['structureType'] == 'cluster' or 'adclus':
         return ClusterSPGGenerator(**p_dict)
 

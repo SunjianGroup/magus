@@ -5,6 +5,7 @@ import numpy as np
 from magus.utils import *
 import prettytable as pt
 from collections import defaultdict
+import yaml
 # from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 
 
@@ -24,10 +25,29 @@ log = logging.getLogger(__name__)
 # For now, we use a scheme similar to oganov's, because it just use rank information and can be easily extend to multi-target search.
 ##################################
 
+def f_prob(func_name = 'exp', k = 0.3):
+
+    def exp(dom):
+        return np.exp(-k * dom)
+    def liner(dom):
+        """
+        [https://doi.org/10.1063/1.3097197]
+        p[i] = p1 - (i - 1) p1 / c ; recommand value c: 2/3 population size
+        """
+        return 1 - (dom - 1) / (k * len(dom))
+        
+    if func_name == 'exp':
+        return exp
+    elif func_name == 'liner':
+        return liner
+    else:
+        raise Exception("Unknown function name {}".format(func_name))
+
+
 class GAGenerator:
     def __init__(self, op_list, op_prob, **parameters):
         Requirement = ['pop_size', 'n_cluster']
-        Default={'rand_ratio': 0.3, 'add_sym': True, 'history_punish':1.0}
+        Default={'rand_ratio': 0.3, 'add_sym': True, 'history_punish':1.0, 'k': 0.3, 'choice_func': 'exp'}
         check_parameters(self, parameters, Requirement, Default)
 
         assert len(op_list) == len(op_prob), "number of operations and probabilities not match"
@@ -52,6 +72,7 @@ class GAGenerator:
         ret += "\nAdd symmertry        : {}".format(self.add_sym)
         if self.history_punish != 1.0:
             ret += "\nHistory punishment   : {}".format(self.history_punish)
+        ret += "\nSelection function   {}; k = {}".format(self.choice_func, self.k)
         ret += "\n-------------------\n"
         return ret
 
@@ -65,13 +86,12 @@ class GAGenerator:
         elif n_input == 2:
             return self.get_pair(pop)
 
-    def get_pair(self, pop, k=2, n_try=50):
+    def get_pair(self, pop, n_try=50):
         history_punish = self.history_punish
         assert 0 < history_punish <= 1, "history_punish should between 0 and 1"
-        # k = k / len(pop)
-        k = 0.3
+
         dom = np.array([ind.info['dominators'] for ind in pop])
-        edom = np.exp(-k * dom)
+        edom = (f_prob(k = self.k))(dom)
         used = np.array([ind.info['used'] for ind in pop])
         labels, _ = pop.clustering(self.n_cluster)
         fail = 0
@@ -97,12 +117,11 @@ class GAGenerator:
         pop[j].info['used'] += 1
         return pop[i].copy(), pop[j].copy()
 
-    def get_ind(self, pop, k=2):
+    def get_ind(self, pop):
         history_punish = self.history_punish
-        # k = k / len(pop)
-        k = 0.3
+        
         dom = np.array([ind.info['dominators'] for ind in pop])
-        edom = np.exp(-k * dom)
+        edom = (f_prob(k = self.k))(dom)
         used = np.array([ind.info['used'] for ind in pop])
         prob = edom * history_punish ** used
         prob = prob / sum(prob)
@@ -154,11 +173,31 @@ class GAGenerator:
 
     def get_next_pop(self, pop, n_next=None):
         # calculate dominators before choose structures
+        pop.del_duplicate()
         pop.calc_dominators()
         n_next = n_next or self.n_next
         self.gen += 1
         newpop = self.generate(pop, n_next)
         return self.select(newpop, n_next)
+    
+    def save_all_parm_to_yaml(self):
+        d = {}
+        for op, prob in zip(self.op_list, self.op_prob):
+            d[op.__class__.__name__] = {}
+            d[op.__class__.__name__]['prob'] = float(prob)
+            for k in op.Default.keys():
+                d[op.__class__.__name__][k] = getattr(op, k)
+        
+        d['rand_ratio'] = self.rand_ratio
+        d['n_cluster'] = self.n_cluster
+        d['add_sym'] = self.add_sym
+        d['history_punish'] = self.history_punish
+        d['choice_func'] = self.choice_func
+        d['k'] = self.k
+        
+        with open('gaparm.yaml', 'w') as f:
+            f.write(yaml.dump(d))
+        return 
 
 
 class AutoOPRatio(GAGenerator):
@@ -188,11 +227,11 @@ class AutoOPRatio(GAGenerator):
                            total_nums[op.descriptor],
                            good_nums[op.descriptor],
                            np.round(grade, 3)])
-        if self.auto_random_ratio:
+        if self.auto_random_ratio and self.gen > 2:
             grade = op_grade['random'] if 'random' in op_grade else 0
             table.add_row(['random', total_nums['random'], good_nums['random'], np.round(grade, 3)])
         log.debug("OP grade: \n" + table.__str__())
-        if self.auto_random_ratio:
+        if self.auto_random_ratio and self.gen > 2:
             if 'random' not in op_grade:
                 op_grade['random'] = 0
             self.rand_ratio = 0.5 * (op_grade['random'] / sum(op_grade.values()) + self.rand_ratio)
@@ -202,11 +241,14 @@ class AutoOPRatio(GAGenerator):
                 self.op_prob[i] = 0.5 * (op_grade[op.descriptor] / sum(op_grade.values()) + self.op_prob[i])
             else:
                 self.op_prob[i] = 0.5 * self.op_prob[i]
+        self.op_prob /= np.sum(self.op_prob)
+
 
     def get_next_pop(self, pop, n_next=None):
         pop.calc_dominators()
         if self.gen > 1:
             self.change_op_ratio(pop)
+            #self.save_all_parm_to_yaml()
         n_next = n_next or self.n_next
         newpop = self.generate(pop, n_next)
         self.gen += 1

@@ -7,6 +7,7 @@ from collections import Counter
 import math
 import spglib
 from ase.neighborlist import neighbor_list
+import traceback
 
 log = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ def check_distance(atoms, d_ratio):
     return len(i_indices) == 0
 
 class resetLattice:
-    def __init__(self, atoms=None, expandsize = (8,8,8)):
+    def __init__(self, atoms=None, expandsize = (16,16,16)):
         if atoms:
             #1. build a very large supercell
             supercell = atoms * expandsize
@@ -61,11 +62,12 @@ from math import gcd
 class cutcell:
     def __init__(self,originstruct, layernums, totslices= None, vacuum = 1.0, addH = False, direction=[0,0,1], 
         xy = [1,1], rotate = 0, pcell = True, 
-        matrix = None):
+        matrix = None, 
+        save_file = 'Ref/layerslices.traj', range_length_c = [0.,15.,]):
         """
         @parameters:
         [auto, but be given is strongly suggested] totslices: layer number of originstruct
-        layernums: layer number of [bulk, relaxable, rcs_region]
+        layernums: layer number of [bulk, buffer, rcs_region]
         [*aborted] startpos:  start position of bulk layer, default =0.9 to keep atoms which are very close to z=1(0?)s.
         vacuum: [in Ang] vacuum to add to rcs_layer  
         addH: change the most bottom layer of atoms to hydrogen
@@ -76,18 +78,23 @@ class cutcell:
            pcell: if False, get c(nxn) cell
         + matrix notation:
            matrix: 2x2 matrix. For matrix notations.
+        save_file: save cut slices to save_file
+        range_length_c[1]: (max) sometimes periodic surface cell have very large length c, but we only need the top several layers of it
+        range_length_c[0]: (min) sometimes you want slabs thicker.
         """
         self.atoms = originstruct.copy()
+        self.totslices, self.layernums = totslices, layernums
         #1. if direction is in bravais-miller indices, turn to miller indices
         if len(direction) == 4:
             direction = self.tomillerindex(direction)
             log.debug('changed bravais-miller indices direction to miller index = {}'.format(direction))
         
         #2. get surface of conventional cell
+        self.range_length_c = range_length_c
         newcell = self.get_ccell(direction)
         
         #3. get primitive surface vector and startpos
-        surface_vector = self.get_pcell(self.atoms, newcell, totslices)
+        surface_vector = self.get_pcell(self.atoms, newcell, self.totslices)
 
         #4. get surface cell! if matrix notation/wood's notation exists, expand cell.
         ## matrix notation only or wood's notation only 
@@ -99,7 +106,11 @@ class cutcell:
         self.supercell.expand((1, 1, 0))
 
         #5. cutcell!
-        self.cut(layernums, totslices, surface_vector, vacuum, addH)
+        self.cut_traj = self.cut(self.layernums, self.totslices, surface_vector, vacuum, addH)
+
+        if not save_file is None:
+            log.info("save cutslices into file {}".format(save_file))
+            ase.io.write(save_file, self.cut_traj,format='traj')
     
     def tomillerindex(self, direction):
         """
@@ -133,10 +144,12 @@ class cutcell:
             i+=1
 
         def norm(cell):
+            #normalize to integers
+            #trick: multiply [7,9,11,13,17,19] = 2909907 to avoid cases like cell = [0.33333,1,0]
+
             for i, c in enumerate(cell):
-                cell[i] = np.round(c, 3)
-                cell[i] *= 1000
-            return np.array(cell)/gcd(gcd(int(cell[0]), int(cell[1])), int(cell[-1]))
+                cell[i] *=2909907000
+            return np.array(cell)/gcd(int(np.round(cell[0])), int(np.round(cell[1])), int(np.round(cell[2])))
 
         for i, _ in enumerate(newcell):
             newcell[i] = norm(newcell[i])
@@ -146,14 +159,42 @@ class cutcell:
         #Step B: dot product of direction x cell
         newcell = np.dot(np.array(newcell), self.atoms.get_cell())
         newcell_c = np.cross(*newcell)
-        
-        #TODO: if some direction cannot be simplified and gets too large in c, delete 2Ls below and add the 3rd L.
+
         newc = norm(np.dot(newcell_c, np.linalg.inv(self.atoms.get_cell())))
         newcell = np.array([*newcell, np.dot(newc, self.atoms.get_cell())])
-        #newcell = np.array([*newcell, newcell_c])
+
+        #in case some direction cannot be simplified and gets too large in c
+        if np.linalg.norm( newcell[2]) > self.range_length_c[1]:
+            newcell[2] = newcell[2] /  np.linalg.norm( newcell[2])*self.range_length_c[1]
+            #and thus totslices cannot be larger than sum(layernums of [bulk, buffer, rcs_region])
+            if self.totslices < np.sum(self.layernums):
+                _lm = self.layernums.copy()
+                self.layernums = np.round(self.layernums / np.sum(self.layernums) *self.totslices)
+                for n in [0,1,2]:
+                    if self.layernums[n] ==0 and _lm[n] > 0:
+                        self.layernums[n] = 1
+                while np.sum(self.layernums) > self.totslices:
+                    self.layernums[np.argmax(self.layernums)] -=1
+                log.warning('Cannot get periodic surface cell for its c is larger than max_substrate_thickness, ' +
+                            'thus totslices cannot be larger than sum(layerslices). It has been automatically changed ' +
+                            'from {} to {} (totslices = {})'.format(_lm, self.layernums, self.totslices) )
+
+        else:
+            self.adjust_layernums(np.linalg.norm( newcell[2]))
+
         log.debug("cutcell with conventional surface vector\n{}".format(np.dot(newcell, np.linalg.inv(self.atoms.get_cell()))))
 
         return newcell
+
+    def adjust_layernums(self, lattice_length_c):
+        _lm = self.layernums.copy()
+        if lattice_length_c / self.totslices * np.sum(self.layernums) < self.range_length_c[0]:
+            while lattice_length_c / self.totslices * np.sum(self.layernums) < self.range_length_c[0]:
+                self.layernums[0] +=1
+            log.warning('The given layernums generate a slab thiner than min_substrate_thickness, ' +
+                            'thus has been automatically changed ' +
+                            'from {} to {} (totslices = {})'.format(_lm, self.layernums, self.totslices) )
+        return
     
     def get_pcell(self, atoms, newcell, totslices):
         #TODO: if slab is not complete, expand expandsize. Time cost may increase.
@@ -169,6 +210,7 @@ class cutcell:
                 except:
                     pass
             log.warning("Number of total layers is not given. Used auto-detected value {}.".format(totslices))
+            self.totslices = totslices
         else:
             allayers = LayerIdentifier(newlattice, prec = 0.5/totslices, n_clusters = totslices +1, lprec = 0.4/totslices)
 
@@ -181,14 +223,14 @@ class cutcell:
             onelayer = newlattice[allayers[1]]
             startpos = np.max(newlattice[allayers[-2]].get_scaled_positions()[:,2]) + 0.01
             startpos = startpos - int(startpos)
-        
+
         onelayer.set_cell(onelayer.get_cell()[:] * np.reshape([1]*6 + [2.33]*3, (3,3)))
         #print(startpos)
         self.startpos = startpos
 
         surface_vector = spglib.get_symmetry_dataset(onelayer,symprec = 1e-4)['primitive_lattice']
         abcc, abcp = cell_to_cellpar(onelayer.get_cell()[:])[:3], cell_to_cellpar(surface_vector)[:3]
-        axisc = np.where(abcp == abcc[2])[0]
+        axisc = np.where(np.abs(abcp-abcc[2]) < 1e-4)[0]
         assert len(axisc) ==1, "cannot match primitive lattice with origin cell, primitive abc = {} while origin abc = {}".format(abcp, abcc)
         if not axisc[0] ==2:
             surface_vector[[axisc[0], 2]] = surface_vector[[2, axisc[0]]]
@@ -224,9 +266,9 @@ class cutcell:
         bot, mid, top = layernums[0], layernums[1], layernums[2]
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
         slicepos = slicepos + np.array([self.startpos]*4)
-        log.info("cutslice = {}".format(slicepos)) 
+        #log.info("cutslice = {}".format(slicepos)) 
 
-        #6. build bulk, relaxable, rcs layer slices 
+        #6. build bulk, buffer, rcs layer slices 
         pop= []
         if slicepos[-1]==slicepos[-2]:
             slicepos = slicepos[:-1]
@@ -242,7 +284,7 @@ class cutcell:
             if len(layerslice):
                 layerslice=layerslice[layerslice.numbers.argsort()]
             else:
-                slicename = ['bulk', 'relaxable', 'reconstruct']
+                slicename = ['bulk', 'buffer', 'reconstruct']
                 log.warning("No atom in {} layer!! Please check the layers before next step.".format(slicename[i-1]))
 
             pop.append(layerslice)
@@ -250,7 +292,7 @@ class cutcell:
         #add extravacuum to rcs_layer  
         if len(pop)==3:        
             cell = pop[2].get_cell()
-            cell[2]*= ( 1.0 + vacuum/pop[2].get_cell_lengths_and_angles()[2])
+            cell[2]*= ( 1.0 + vacuum/pop[2].cell.cellpar()[2])
             pop[2].set_cell(cell)
         
         #vasp does not work if the triple product of the basis vectors is negative. Make a check.
@@ -263,15 +305,414 @@ class cutcell:
 
         #7. add hydrogen
         if addH:
-            sps = pop[0].get_scaled_positions(wrap = False)[:, 2]
-            minsps = np.min(sps)
-            bot = [i for i,p in enumerate(sps) if abs(p - minsps)< 1e-4]
-            for i in bot:
-                pop[0][i].symbol = 'H'
-        
-        log.info("save cutslices into file layerslices.traj")
-        ase.io.write("Ref/layerslices.traj",pop,format='traj')
+            nl = ase.neighborlist.NeighborList(np.array(ase.neighborlist.natural_cutoffs(pop[0]))*1.1, self_interaction=False, bothways=True)
+            pop[0].set_pbc([1,1,0])
+            sp = pop[0].get_scaled_positions(wrap = True)
+            sp[:, :2] = np.array(list(map(lambda x: (0 if abs(x-1)<1e-2 else x), sp[:,:2].flatten()))).reshape(-1,2)
+            nl.update(pop[0])
 
+            to_del = []
+            sp_h = []
+
+            for i in range(len(sp)):
+                indexs, offsets = nl.get_neighbors(i)
+
+                not_bottom = np.any([sp[j][2] < sp[i][2] - 0.05 for j in indexs])
+
+                if not_bottom:
+                    continue
+                to_del.append(i)
+                for j, ost in zip(indexs, offsets):
+                    bond_scale =  (covalent_radii[pop[0][j].number] + covalent_radii[1]) \
+                                        / (covalent_radii[pop[0][i].number] + covalent_radii[pop[0][j].number])
+                    sp_h.append( sp[j] - bond_scale * (sp[j] + ost - sp[i] ))
+
+            sp_h = np.unique(sp_h, axis = 0)
+            del pop[0][to_del]
+            pop[0] += Atoms(numbers = [1]*len(sp_h), cell = pop[0].get_cell(), scaled_positions = sp_h)
+        
+        return pop
+
+import prettytable as pt
+import os, time
+import multiprocessing
+import itertools 
+import fcntl
+
+def warpper1(func, queue, setargs):
+    args, kwargs = setargs
+    queue.put(func(*args, **kwargs))
+    return 0
+
+def warpper2(func, queue, setargs):
+    queue.put(func(*setargs))
+    return 0
+
+class matrix_match:
+    """
+    match lattice matrix MA(2x2) with lattice matrix MB(2x2).
+    i.e,              R * A * MA ~ B * MB 
+        R * A * MA * (MB^-1) ~ B 
+        
+    in which A, B are component of integers; R is rotational matrix which means |R|=1
+    """
+    @staticmethod
+    def parallelize(func, args, num_threads):
+
+        indexlist = [[] for _ in range(num_threads)]
+        for i, _ in enumerate(args):
+            indexlist[i%len(indexlist)].append(i)
+        results = []
+
+        if np.any([type(a) is dict for a in args[0]]):
+            warpper = warpper1
+        else:
+            warpper = warpper2
+
+        for ith, arg in enumerate(indexlist[0]):
+            #print(ith, "out of", len(indexlist[0]))
+            process_pool =  []
+            Queue = multiprocessing.Queue()
+            for thread in range(num_threads):
+                if ith < len(indexlist[thread]):
+                    _arg = args[indexlist[thread][ith]]
+                    process = multiprocessing.Process(target=warpper, args=(func, Queue, _arg))
+                    process_pool.append(process)
+
+            for i in range(len(process_pool)):
+                process_pool[i].start()
+
+            #for i in range(len(process_pool)):
+            #    process_pool[i].join()
+
+            #use queue.get for blocking instead of process.join
+            for i in range(len(process_pool)):
+                results.append(Queue.get())
+
+        return results
+    
+    @staticmethod
+    def cell_to_cellpar_d2(cell):
+        """
+        cell matrix(2x2) to (a, b, gamma)
+        """
+        a, b = np.linalg.norm(cell, axis=1)
+        _acos = np.dot(*cell)/a/b
+        #avoid sometimes 1.00000001 
+        gamma = math.acos(np.round(_acos, 4))        #/math.pi*180
+        return max(a,b), min(a, b), gamma
+    
+    @staticmethod
+    def cellpar_to_cell_d2(a, b, theta):
+        """
+        (a, b, theta) to [[a,0],[bx,by]]
+        """
+        ux = a
+        vx = b * math.cos(theta)
+        vy = b * math.sin(theta)
+        return ux, vx, vy
+    
+    def good_transMatrixes(self, cellname, cellm, r = [-3,4], range_a = [0, 25.], range_ang = [45., 135.], range_area = [0., 100.]):
+        listA = getattr(self, "list{}".format(cellname))
+
+        for c in itertools.product(*[sorted(range(*r), key=lambda x:abs(x))]*4):
+            A = np.array(c).reshape(2,2)
+            if np.linalg.det(A) ==0:
+                continue
+
+            a, b, ang = matrix_match.cell_to_cellpar_d2(np.dot(A, cellm))
+            uax, vax, vay = matrix_match.cellpar_to_cell_d2(a, b, ang)
+            if range_a[0] < a < range_a[1] and range_ang[0] < ang < range_ang[1] and  range_area[0] < uax*vay < range_area[1]:
+                listA.append([A, uax, vax, vay])
+
+    def fitness(self, LA, LB):
+        A, uax, vax, vay = LA
+        B, ubx, vbx, vby = LB
+
+        _exx = (ubx-uax)/uax
+        _eyy = (vby-vay)/vay
+        _2_exy = vbx/vay - ubx*vax/uax/vay
+        fitness = np.round(abs(_exx) + abs(_eyy) + abs(_2_exy), 5)
+        return [A, B, fitness]
+    
+    def match(self, ma, mb, r = [-3,4], range_a = [0, 25.], range_ang = [45., 135.], range_area = [0., 100.], 
+              num_threads = 1, verbose = False,  save_intermediate = None, **info):
+
+        best_fit = [np.eye(2), np.eye(2),1e+5]
+        #second_best_fit = [np.eye(2), np.eye(2),1e+5]
+        range_ang = np.array(range_ang) /180 * math.pi
+
+        self.listA, self.listB = [], []
+        self.good_transMatrixes('A', ma, r = r, range_a = range_a, range_ang = range_ang, range_area = range_area)
+        self.good_transMatrixes('B', mb, r = r, range_a = range_a, range_ang = range_ang, range_area = range_area)
+
+        args = list(itertools.product(self.listA, self.listB))
+        if len(args):
+            fits = self.parallelize(self.fitness, args, min(num_threads, len(self.listA)*len(self.listB)))
+        else:
+            fits = []
+
+        for f in fits:
+            if f[-1] < best_fit[-1]:
+                #second_best_fit = best_fit
+                best_fit = f
+                
+        res = [info['id_a'], info['id_b'], info['hkl_a'], info['hkl_b'], *best_fit]
+        if not save_intermediate is None:
+            self.save_match_list([res], save_intermediate)
+
+        if verbose:
+            print("{}\tdone match A{} and B{}".format(time.asctime(time.localtime()), info['hkl_a'], info['hkl_b']))
+        return res
+    
+    #match_list = ['id-A', 'id-B','hkl-A', 'hkl-B', 'matrix-A', 'matrix-B', 'match-fit']
+    @staticmethod
+    def save_match_list(match_list, file_name):
+        array = []
+        for ml in match_list:
+            array.append(np.array([ml[0], ml[1], *ml[2], *ml[3], *ml[4].flatten(),*ml[5].flatten(),ml[6]]))
+        with open(file_name, 'ab') as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            np.save(f, np.array(array))
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+    @staticmethod
+    def load_intermediate(file_name):
+        match_list = []
+        with open(file_name, 'rb') as f:
+            while True:
+                try:
+                    a = np.load(f)[0]
+                    match_list.append([int(a[0]), int(a[1]), a[2:5], a[5:8], np.array(a[8:12]).reshape(2,2), np.array(a[12:16]).reshape(2,2), a[16]])
+                except ValueError:         #npyio.py"Cannot load file containing pickled data when allow_pickle=False"
+                    break
+        return match_list
+    
+    @staticmethod
+    def load_match_list(file_name):
+        match_list = []
+        array = np.load(file_name)
+        for a in array:
+            match_list.append([int(a[0]), int(a[1]), a[2:5], a[5:8], np.array(a[8:12]).reshape(2,2), np.array(a[12:16]).reshape(2,2), a[16]])
+        return match_list
+
+class InterfaceMatcher:
+    def __init__(self, bulk_a, bulk_b, range_hkl = [-5,6], range_matrix = [-4,5], 
+                 range_a = [0., 15.], range_ang = [45., 135.], range_area = [0., 100.],
+                 range_substrate_thickness = 15., 
+                 bulk_layernum = 3, buffer_layernum= 1, rcs_layernum =1, cutslices = None, addH =True,
+                 tol = 1000, traj_file = 'match_file.traj', matrix_file = 'match_file.npy', thread_para = 1, verbose = False):
+        
+        self.lattice_a, self.lattice_b = bulk_a, bulk_b
+        self.range_hkl, self.range_matrix = range_hkl, range_matrix
+        self.range_a, self.range_ang, self.range_area = range_a, range_ang, range_area
+        self.range_substrate_thickness =  range_substrate_thickness 
+        self.layer_nums, self.cutslices = [bulk_layernum , buffer_layernum, rcs_layernum], cutslices
+        self.tol, self.addH = tol, addH
+        self.traj_file, self.matrix_file = traj_file, matrix_file
+        self.thread_para = thread_para
+        self.verbose = verbose
+
+    @staticmethod
+    def rotate_c2z_and_a2x(cell):
+        """
+        rotate lattice so that direction of cell_c is along z axis and cell_a is along a axis.
+        """
+        cell = cell.copy()
+        a,b,c, _, _, gamma = cell.cell.cellpar()
+        gamma = gamma/180*math.pi
+        new_cell = np.array([[a,0,0],[b*math.cos(gamma), b*math.sin(gamma), 0],[0,0,c]])
+        cell.set_cell(new_cell, scale_atoms = True)
+        return cell
+    
+    @staticmethod
+    def is_miller_index(h,k,l):
+
+        direction = []
+        for index in [h,k,l]:
+            if not index == 0:
+                direction.append(index)
+        direction = np.array(direction)
+        if len(direction) == 0:  #hkl = (0,0,0)
+            return False
+        if np.sum(direction < 0) >1 or (len(direction)==1 and direction[0]< 0):     #hkl=(-1,0,0)
+            return False
+        if not math.gcd(*[x for x in direction]) == 1:    #hkl=(2,2,2)
+            return False
+        """
+        d = direction / math.lcm(np.abs(direction))
+        for xd in d:                                                    
+            if not abs(1/xd - int(1/xd)) < 1e-2:
+                return False
+        """
+        return True
+    
+    def in_miller_list(self, cell_name, hkl_1, miller_list):
+        if not hasattr(self, "sym_{}".format(cell_name)):
+            lattice = getattr(self, "lattice_{}".format(cell_name))
+            sym = spglib.get_symmetry_dataset(lattice,1e-4)['rotations']
+            setattr(self, "sym_{}".format(cell_name), sym)
+        
+        for ml in miller_list:
+            if cell_name == ml[0][0]:
+                hkl_2 = ml[0][1:]
+                for r in getattr(self, "sym_{}".format(cell_name)):
+                    if np.all(np.dot(r, hkl_2) == hkl_1):
+                        return True
+            
+        return False
+    
+    @staticmethod
+    def matrix_times_cell(atoms, matrix):
+        """matrix: (2x2)
+        """
+        m = np.eye(3)
+        m[0:2,0:2] = matrix
+        new_lattice = np.dot(m, atoms.get_cell())
+        new_atoms = resetLattice(atoms).get(new_lattice)
+        return new_atoms
+    
+    @staticmethod
+    def get_id_from_slices(id_a, id_b, traj_file, buffer = True):
+        ids = [id_a, id_b]
+        layers = [ase.io.read(traj_file, index = ids[0]), ase.io.read(traj_file, index = ids[1])]
+        if buffer:
+            new_layers = [1,2]            #add buffer, rcs
+        else:
+            new_layers = [1]                #add rcs
+
+        for x in new_layers:
+            buffer_layers = [ase.io.read(traj_file, index = ids[0] + x), ase.io.read(traj_file, index = ids[1] + x)]
+            for i,b in enumerate(buffer_layers):
+                for k in ['name', 'h','k','l']:
+                    assert b.info[k] == layers[i].info[k], "id {} of traj_file isnot buffer of bulk (id {}) : {}, {}".format(    
+                                                                                                ids[i], ids[i+1], b.info, layers[i].info ) 
+            layers.extend(buffer_layers)
+    
+        return layers
+
+    
+    def generate_cutcell(self, cell_name, h,k,l, verbose = False, **kwargs):
+        lattice = getattr(self, "lattice_{}".format(cell_name))
+        if verbose:
+            print("cutcell for cell {}({})".format(cell_name, [h,k,l]))
+
+        cell_a = []
+        try:
+            c = cutcell(lattice, self.layer_nums, direction=[h,k,l], **kwargs).cut_traj
+            traj_info = {'name': cell_name, 'h':h, 'k':k, 'l':l}
+            types = ['bulk', 'buffer', 'rcs']
+            for i in range(len(c)):
+                ci = Atoms(numbers = c[i].get_atomic_numbers(), positions = c[i].get_positions(), cell = c[i].get_cell())
+                ci = self.rotate_c2z_and_a2x(ci)
+                for k in traj_info:
+                    ci.info[k] = traj_info[k]
+                ci.info['type'] = types[i]
+                cell_a.append(ci)
+        except Exception:
+            log.warning("failed cutcell for cell {} ({}, {}):\n{}".format(cell_name, (h,k,l), kwargs, traceback.format_exc()))
+        
+        return cell_a
+
+    def cut_cell(self, verbose = False):
+        if os.path.exists(self.traj_file):
+            self.traj_pop = ase.io.read(self.traj_file, index = ':')
+        else:
+            self.traj_pop, miller_list = [], []
+            cut_cell_kwargs =  {"totslices": self.cutslices, "vacuum":10., "save_file":None, 
+                                "range_length_c":self.range_substrate_thickness, "verbose": verbose, "addH": self.addH}
+            '''
+            for hkl in itertools.product(*[range(*self.range_hkl)]*3):
+                h, k, l = hkl
+                #remove unreasonable miller indexes
+                if not self.is_miller_index(h,k,l):
+                    continue
+                else:
+                    if not self.in_miller_list('a', [h,k,l], miller_list):
+                        miller_list.append([("a",h,k,l), cut_cell_kwargs])
+                    if not self.in_miller_list('b', [h,k,l], miller_list):
+                        miller_list.append([("b",h,k,l), cut_cell_kwargs])
+            '''
+            miller_list.append([("a",1,0,0), cut_cell_kwargs])
+            miller_list.append([("b",1,1,1), cut_cell_kwargs])
+
+            if len(miller_list):
+                for p in matrix_match.parallelize(self.generate_cutcell, miller_list, min(self.thread_para, len(miller_list))):
+                    self.traj_pop.extend(p)
+            
+            ase.io.write(self.traj_file, self.traj_pop)
+
+    def best_match(self, *args, **kwargs):
+        return matrix_match().match(*args, **kwargs)
+
+    def match_result(self, verbose = False, save_intermediate = None):
+        self.cut_cell(verbose=verbose)
+        self.match_list, pop_list = [], []
+
+        if os.path.exists(save_intermediate):
+            self.match_list = matrix_match.load_intermediate(save_intermediate)
+            matched_id_list = [ml[0:2] for ml in self.match_list]
+            log.warning("Used stored matrix match file {}. \n".format(save_intermediate))
+        else:
+            matched_id_list = []
+
+        for i in range(0, len(self.traj_pop)):
+            if not self.traj_pop[i].info['type'] == "bulk":
+                continue 
+            if self.traj_pop[i].info['name'] == 'b':
+                continue
+            cell_a = self.traj_pop[i].get_cell()
+            
+            for j in range(0, len(self.traj_pop)):
+                if not self.traj_pop[j].info['type'] == "bulk":
+                    continue
+                if self.traj_pop[j].info['name'] == 'a':
+                    continue
+                cell_b = self.traj_pop[j].get_cell()
+                if [i,j] in matched_id_list:
+                    continue
+
+                pop_list.append([(cell_a[0:2, 0:2], cell_b[0:2, 0:2]), 
+                                {"r": self.range_matrix, "range_a": self.range_a, "range_ang": self.range_ang, "range_area": self.range_area,
+                                'num_threads': self.thread_para, "verbose": verbose, "save_intermediate": save_intermediate,
+                                'id_a':i, 'id_b':j, 
+                                'hkl_a':np.array([self.traj_pop[i].info["h"], self.traj_pop[i].info["k"],self.traj_pop[i].info["l"]]), 
+                                'hkl_b':np.array([self.traj_pop[j].info["h"], self.traj_pop[j].info["k"],self.traj_pop[j].info["l"]])}
+                                ])
+        if len(pop_list):        
+            self.match_list = matrix_match.parallelize(self.best_match, pop_list, self.thread_para)
+
+        self.match_list.sort(key=lambda a:a[-1])
+
+        if self.matrix_file:
+            if os.path.exists(self.matrix_file):
+                os.remove(self.matrix_file)
+            matrix_match.save_match_list(self.match_list, self.matrix_file)
+        if log.level <=20:
+            s = self.ml_to_string(self.match_list, self.traj_pop)
+            log.warning(s)
+
+
+    @staticmethod
+    def ml_to_string(match_list, traj_pop):
+        table = pt.PrettyTable()
+        table.field_names = ['id-A', 'id-B','hkl-A', 'hkl-B', 'matrix-A', 'matrix-B', 'match-fit', 'cell-A', 'cell-B']
+        for i in range(len(match_list)):
+            cell_a = np.array(matrix_match.cell_to_cellpar_d2(np.dot(match_list[i][4], 
+                                                            traj_pop[match_list[i][0]].get_cell()[0:2,0:2])))
+            cell_a[-1] = cell_a[-1] / math.pi * 180
+
+            cell_b = np.array(matrix_match.cell_to_cellpar_d2(np.dot(match_list[i][5], 
+                                                            traj_pop[match_list[i][1]].get_cell()[0:2,0:2])))
+            cell_b[-1] = cell_b[-1] / math.pi * 180
+            
+            table.add_row([*(match_list[i][:6]),
+                        np.round(match_list[i][6],3),
+                        np.round(cell_a,3),
+                        np.round(cell_b,3)
+                        ])
+            
+        return table.__str__()
 
 from scipy.spatial import ConvexHull
 class RCSPhaseDiagram:
@@ -373,7 +814,7 @@ def LayerIdentifier(ind, prec = 0.2, n_clusters = 4, lprec = 0.05):
         #print("n = {}".format(n))
         try:
             #I put a try-exception here because of situations of thin layers (4-)
-            kmeans = cluster.KMeans(n_clusters=n).fit(pos)
+            kmeans = cluster.KMeans(n_clusters=n, n_init='auto').fit(pos)
         except:
             continue
         centers = kmeans.cluster_centers_.copy()[:,0]
@@ -840,7 +1281,7 @@ class OganovComparator(ClusComparator):
     def looks_like(self,aInd,bInd):
         return super().looks_like(aInd, bInd)
 
-from ..generators.gensym import wyckoff_positions_3d
+#from ..generators.gensym import wyckoff_positions_3d
 
 class sym_rattle:
 
@@ -1037,3 +1478,26 @@ class symposmerge:
         
         return positions if len(positions) == self.length else None
         
+
+if __name__ == '__main__':
+    
+    import ase.io
+
+    Si = ase.io.read('Si.cif')
+    Quartz = ase.io.read('Quartz.cif')
+    Cristobalite = ase.io.read("Cristobalite.cif")
+    Tridymite = ase.io.read("Tridymite.cif")
+
+
+    im = InterfaceMatcher(Si, Tridymite, range_hkl = [-5,6], range_matrix = [-3,4], 
+                          range_area=[0., 100.], range_a=[0,13.],range_ang=[45.,135.],
+                          thread_para = 50)
+    matchmodes  = im.match_result(verbose=True, save_intermediate='inter_ml.npy')
+
+
+    #ma = cutcell(Quartz, [1,1,0], direction=[-2,1,0], totslices=1).cut_traj[0]
+    #ase.io.write("100.vasp", ma, vasp5=1)
+    #from ase.build import surface
+    #s1 = surface(Quartz, (-2, 1, 0), 2)
+    #s1.center(vacuum=10, axis=2)
+    #ase.io.write('quartz.vasp', s1, vasp5=1)
