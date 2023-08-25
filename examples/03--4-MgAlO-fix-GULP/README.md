@@ -2,13 +2,12 @@ Example 3.4
 GAsearch of fixed composition MgAlO under high pressure by GULP  
 =====================================================  
 ```shell
-$ ls  
-  
+$ ls
+ inputFold/  input.yaml
 ```  
 Consistent with former examples, "input.yaml" sets all parameters and most of them work similarly.  
 ```shell  
 $ cat input.yaml  
-```
  #GAsearch of fixed composition MgAlO.
  formulaType: fix        
  structureType: bulk
