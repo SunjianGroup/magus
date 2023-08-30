@@ -17,7 +17,6 @@ def dump_cfg(frames, filename, symbol_to_type, mode='w'):
                 pass
             cartes = atoms.positions
             has_forces = False
-            has_forces_weights = False
             has_constraints = False
             try:
                 atoms.info['forces'] = atoms.get_forces()
@@ -28,25 +27,19 @@ def dump_cfg(frames, filename, symbol_to_type, mode='w'):
                 fields.extend(['fx', 'fy', 'fz'])
                 forces = atoms.info['forces']
                 has_forces = True
-            if 'forces_weights' in atoms.info:
-                fields.append('weight_f')
-                forces_weights = atoms.info['forces_weights']
-                has_forces_weights = True
-            
+
             flags = np.array(['T']*len(atoms))
             if atoms.constraints:
                 info.append('mvable')
                 for constr in atoms.constraints:
                     flags[constr.index] = 'F'
                 has_constraints = True
-            
+
             ret += 'AtomData: ' + ' '.join(fields) + '\n'
             for i, atom in enumerate(atoms):
                 atom_info = '{} {} {} {} {} '.format(i + 1, symbol_to_type[atom.symbol], *cartes[i])
                 if has_forces:
                     atom_info += '{} {} {} '.format(*forces[i])
-                if has_forces_weights:
-                    atom_info += str(forces_weights[i])
                 if has_constraints:
                     atom_info += flags[i]
                 ret += atom_info + '\n'
@@ -56,8 +49,6 @@ def dump_cfg(frames, filename, symbol_to_type, mode='w'):
                 pass
             if 'energy' in atoms.info:
                 ret += 'Energy\n{}\n'.format(atoms.info['energy'])
-            if 'energy_weight' in atoms.info:
-                ret += 'EnergyWeight\n{}\n'.format(atoms.info['energy_weight'])
             try:
                 atoms.info['stress'] = atoms.get_stress()
             except:
@@ -111,7 +102,7 @@ def load_cfg(filename, type_to_symbol):
                     positions[i] = [float(fields[d[attr]]) for attr in ['cartes_x', 'cartes_y' ,'cartes_z']]
                     forces[i] = [float(fields[d[attr]]) for attr in ['fx', 'fy' ,'fz']]
                     energies[i] = float(fields[d['site_en']])
-                    
+
                 atoms = Atoms(symbols=symbols, cell=cell, positions=positions, pbc=True)
                 if d['fx'] != 0:
                     atoms.info['forces'] = forces
@@ -127,13 +118,9 @@ def load_cfg(filename, type_to_symbol):
                 plus_stress = np.array(list(map(float, line.split())))
                 atoms.info['stress'] = -plus_stress / atoms.get_volume()
                 atoms.info['pstress'] = atoms.info['stress'] / GPa
-                
+
             if 'END_CFG' in line:
                 frames.append(atoms)
-            
-            if 'EnergyWeight' in line:
-                line = f.readline()
-                atoms.info['energy_weight'] = float(line.split()[0])
 
             if 'identification' in line:
                 atoms.info['identification'] = int(line.split()[2])
