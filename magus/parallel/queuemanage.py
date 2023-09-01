@@ -221,7 +221,7 @@ class SLURMSystemManager(BaseJobManager):
                 f"#!/bin/bash\n"
                 f"#SBATCH --partition={self.queue_name}\n"
                 f"#SBATCH --no-requeue\n"
-                f"#SBATCH --mem={self.memory}\n"
+                f"#SBATCH --mem-per-cpu={self.memory}\n"
                 f'#SBATCH --time={time.strftime("%H:%M:%S", time.gmtime(self.kill_time))}\n'
                 f"#SBATCH --nodes=1\n"
                 f"#SBATCH --ntasks-per-node={self.num_core}\n"
