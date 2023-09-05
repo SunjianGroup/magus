@@ -10,8 +10,8 @@ from ase.io.lammpsrun import read_lammps_dump_text
 from magus.calculators.lammps import calc_lammps_once
 from magus.utils import CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN, check_parameters
 from magus.populations.populations import Population
-if len(os.popen('which mlp').readlines()) == 0:
-    raise ImportError("No 'mlp' detected")
+#if len(os.popen('which mlp').readlines()) == 0:
+#    raise ImportError("No 'mlp' detected")
 
 
 log = logging.getLogger(__name__)
@@ -28,6 +28,8 @@ class MTPNoSelectCalculator(ClusterCalculator):
             'min_dist': 0.5,
             'n_epoch': 200,
             'job_prefix': 'MTP',
+            'mtp_exe': 'mlp',
+            'mtp_runner': 'mpirun',
             }
         check_parameters(self, parameters, Requirement, Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.symbols)}
@@ -36,14 +38,20 @@ class MTPNoSelectCalculator(ClusterCalculator):
         self.main_info.extend(['force_tolerance', 'stress_tolerance'])
 
     def relax_with_mtp(self):
-        content = "mpirun -np {0} mlp relax mlip.ini "\
-                  "--pressure={1} --cfg-filename=to_relax.cfg "\
-                  "--force-tolerance={2} --stress-tolerance={3} "\
-                  "--min-dist={4} --log=mtp_relax.log "\
-                  "--save-relaxed=relaxed.cfg\n"\
-                  "cat relaxed.cfg* > relaxed.cfg\n"\
-                  "".format(self.num_core, self.pressure, self.force_tolerance, 
-                            self.stress_tolerance, self.min_dist)
+        #content = "mpirun -np {0} mlp relax mlip.ini "\
+        #          "--pressure={1} --cfg-filename=to_relax.cfg "\
+        #          "--force-tolerance={2} --stress-tolerance={3} "\
+        #          "--min-dist={4} --log=mtp_relax.log "\
+        #          "--save-relaxed=relaxed.cfg\n"\
+        #          "cat relaxed.cfg* > relaxed.cfg\n"\
+        #          "".format(self.num_core, self.pressure, self.force_tolerance,
+        #                    self.stress_tolerance, self.min_dist)
+        content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} relax mlip.ini "\
+                  f"--pressure={self.pressure} --cfg-filename=to_relax.cfg "\
+                  f"--force-tolerance={self.force_tolerance} --stress-tolerance={self.stress_tolerance} "\
+                  f"--min-dist={self.min_dist} --log=mtp_relax.log "\
+                  f"--save-relaxed=relaxed.cfg\n"\
+                  f"cat relaxed.cfg* > relaxed.cfg\n"
         self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
@@ -80,7 +88,7 @@ class MTPNoSelectCalculator(ClusterCalculator):
         shutil.copy("{}/mlip.ini".format(self.input_dir), "{}/pot.mtp".format(basedir))
         shutil.copy("{}/pot.mtp".format(self.ml_dir), "{}/pot.mtp".format(basedir))
         dump_cfg(calcPop, "{}/to_scf.cfg".format(basedir), self.symbol_to_type)
-        exeCmd = "mlp calc-efs {0}/pot.mtp {0}/to_scf.cfg {0}/scf_out.cfg".format(basedir)
+        exeCmd = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} calc-efs {basedir}/pot.mtp {basedir}/to_scf.cfg {basedir}/scf_out.cfg"
         exitcode = subprocess.call(exeCmd, shell=True)
         if exitcode != 0:
             raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
@@ -97,16 +105,18 @@ class MTPSelectCalculator(ClusterCalculator):
         super().__init__(**parameters)
         Requirement = ['query_calculator', 'symbols']
         Default={
-            'xc': 'PBE', 
+            'xc': 'PBE',
             'weights': [1., 0.01, 0.001],
             'scaled_by_force': 0.,
             'force_tolerance': 0.05,
             'stress_tolerance': 1.,
-            'min_dist': 0.5, 
-            'n_epoch': 200, 
+            'min_dist': 0.5,
+            'n_epoch': 200,
             'ignore_weights': True,
             'job_prefix': 'MTP',
             'n_fail': 0,
+            'mtp_exe': 'mlp',
+            'mtp_runner': 'mpirun',
             }
         check_parameters(self, parameters, Requirement, Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.symbols)}
@@ -118,10 +128,10 @@ class MTPSelectCalculator(ClusterCalculator):
         if not os.path.exists(self.ml_dir):
             os.makedirs(self.ml_dir)
         if not os.path.exists('{}/pot.mtp'.format(self.ml_dir)):
-            shutil.copy('{}/pot.mtp'.format(self.input_dir), 
+            shutil.copy('{}/pot.mtp'.format(self.input_dir),
                         '{}/pot.mtp'.format(self.ml_dir))
         if not os.path.exists('{}/train.cfg'.format(self.ml_dir)):
-            shutil.copy('{}/train.cfg'.format(self.input_dir), 
+            shutil.copy('{}/train.cfg'.format(self.input_dir),
                         '{}/train.cfg'.format(self.ml_dir))
         if not os.path.exists('{}/datapool.cfg'.format(self.ml_dir)):
             with open('{}/datapool.cfg'.format(self.ml_dir), 'w') as f:
@@ -129,7 +139,7 @@ class MTPSelectCalculator(ClusterCalculator):
         self.scf_num = 0
         self.static_need_update = True
         self.main_info.extend(
-            ['weights', 'scaled_by_force', 'min_dist', 'force_tolerance', 
+            ['weights', 'scaled_by_force', 'min_dist', 'force_tolerance',
              'stress_tolerance', 'n_epoch', 'ignore_weights',
              'ml_dir', 'n_fail'])
 
@@ -146,7 +156,7 @@ class MTPSelectCalculator(ClusterCalculator):
         return self.E_mean_
 
     def update_static(self):
-        enthalpy = [(atoms.info['energy'] + self.pressure * 
+        enthalpy = [(atoms.info['energy'] + self.pressure *
                      atoms.get_volume() * GPa) / len(atoms) for atoms in self.trainset]
         self.E_min_ = np.min(enthalpy)
         self.E_mean_ = np.mean(enthalpy)
@@ -173,14 +183,23 @@ class MTPSelectCalculator(ClusterCalculator):
         os.chdir(self.ml_dir)
         if not self.ignore_weights:
             self.reweighting()
-        content = "mpirun -np {0} mlp train "\
-                  "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter={1} "\
-                  "--energy-weight={2} --force-weight={3} --stress-weight={4} "\
-                  "--scale-by-force={5} "\
-                  "--weighting=structures "\
-                  "--update-mindist "\
-                  "--ignore-weights={6}"\
-                  "".format(self.num_core, epoch, *self.weights, self.scaled_by_force, self.ignore_weights)
+        #content = "mpirun -np {0} mlp train "\
+        #          "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter={1} "\
+        #          "--energy-weight={2} --force-weight={3} --stress-weight={4} "\
+        #          "--scale-by-force={5} "\
+        #          "--weighting=structures "\
+        #          "--update-mindist "\
+        #          "--ignore-weights={6}"\
+        #          "".format(self.num_core, epoch, *self.weights, self.scaled_by_force, self.ignore_weights)
+        content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} train "\
+                  f"pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter={epoch} "\
+                  f"--energy-weight={self.weights[0]} --force-weight={self.weights[1]} --stress-weight={self.weights[2]} "\
+                  f"--scale-by-force={self.scaled_by_force} "\
+                  f"--weighting=structures "\
+                  f"--update-mindist "\
+                  f"--ignore-weights={self.ignore_weights}\n"
+
+
         self.J.sub(content, name='train', file='train.sh', out='train-out', err='train-err')
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
@@ -196,7 +215,7 @@ class MTPSelectCalculator(ClusterCalculator):
         nowpath = os.getcwd()
         os.chdir(self.ml_dir)
         dump_cfg(frames, 'tmp.cfg', self.symbol_to_type)
-        exeCmd = "mlp calc-efs pot.mtp tmp.cfg out.cfg"
+        exeCmd = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} calc-efs pot.mtp tmp.cfg out.cfg"
         exitcode = subprocess.call(exeCmd, shell=True)
         if exitcode != 0:
             raise RuntimeError('MTP calc-efs exited with exit code: {}.'.format(exitcode))
@@ -214,7 +233,7 @@ class MTPSelectCalculator(ClusterCalculator):
         nowpath = os.getcwd()
         os.chdir(self.ml_dir)
         dump_cfg(frames, 'tmp.cfg', self.symbol_to_type)
-        exeCmd = "mlp calc-errors pot.mtp tmp.cfg | grep 'Average absolute difference' | awk {'print $5'}"
+        exeCmd = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} calc-errors pot.mtp tmp.cfg | grep 'Average absolute difference' | awk {{'print $5'}}"
         loss = os.popen(exeCmd).readlines()
         mae_energies, r2_energies = float(loss[1]), 0.
         mae_forces, r2_forces = float(loss[2]), 0.
@@ -226,8 +245,10 @@ class MTPSelectCalculator(ClusterCalculator):
     def calc_grade(self):
         # must have: pot.mtp, train.cfg
         log.info('\tstep 01: calculate grade')
-        exeCmd = "mlp calc-grade pot.mtp train.cfg train.cfg "\
+        exeCmd = f"{self.mtp_runner} -n 1 {self.mtp_exe} calc-grade pot.mtp train.cfg train.cfg "\
                  "temp.cfg --als-filename=A-state.als"
+        #exeCmd = f"mlp calc-grade pot.mtp train.cfg train.cfg "\
+        #         "temp.cfg --als-filename=A-state.als"
         exitcode = subprocess.call(exeCmd, shell=True)
         if exitcode != 0:
             raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
@@ -235,15 +256,22 @@ class MTPSelectCalculator(ClusterCalculator):
     def relax_with_mtp(self):
         # must have: mlip.ini, to_relax.cfg, pot.mtp, A-state.als
         log.info('\tstep 02: do relax with mtp')
-        content = "mpirun -np {0} mlp relax mlip.ini "\
-                  "--pressure={1} --cfg-filename=to_relax.cfg "\
-                  "--force-tolerance={2} --stress-tolerance={3} "\
-                  "--min-dist={4} --log=mtp_relax.log "\
-                  "--save-relaxed=relaxed.cfg\n"\
-                  "cat B-preselected.cfg* > B-preselected.cfg\n"\
-                  "cat relaxed.cfg* > relaxed.cfg\n"\
-                  "".format(self.num_core, self.pressure, self.force_tolerance, 
-                            self.stress_tolerance, self.min_dist)
+        #content = "mpirun -np {0} mlp relax mlip.ini "\
+        #          "--pressure={1} --cfg-filename=to_relax.cfg "\
+        #          "--force-tolerance={2} --stress-tolerance={3} "\
+        #          "--min-dist={4} --log=mtp_relax.log "\
+        #          "--save-relaxed=relaxed.cfg\n"\
+        #          "cat B-preselected.cfg* > B-preselected.cfg\n"\
+        #          "cat relaxed.cfg* > relaxed.cfg\n"\
+        #          "".format(self.num_core, self.pressure, self.force_tolerance,
+        #                    self.stress_tolerance, self.min_dist)
+        content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} relax mlip.ini "\
+                  f"--pressure={self.pressure} --cfg-filename=to_relax.cfg "\
+                  f"--force-tolerance={self.force_tolerance} --stress-tolerance={self.stress_tolerance} "\
+                  f"--min-dist={self.min_dist} --log=mtp_relax.log "\
+                  f"--save-relaxed=relaxed.cfg\n"\
+                  f"cat B-preselected.cfg* > B-preselected.cfg\n"\
+                  f"cat relaxed.cfg* > relaxed.cfg\n"
         self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
@@ -252,10 +280,13 @@ class MTPSelectCalculator(ClusterCalculator):
         nowpath = os.getcwd()
         os.chdir(self.ml_dir)
         dump_cfg(pop, "new.cfg", self.symbol_to_type)
-        content = "mpirun -np {0} mlp select-add "\
-                  "pot.mtp train.cfg new.cfg diff.cfg "\
-                  "--weighting=structures"\
-                  "".format(self.num_core)
+        #content = "mpirun -np {0} mlp select-add "\
+        #          "pot.mtp train.cfg new.cfg diff.cfg "\
+        #          "--weighting=structures"\
+        #          "".format(self.num_core)
+        content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} select-add "\
+                  f"pot.mtp train.cfg new.cfg diff.cfg "\
+                  f"--weighting=structures\n"
         self.J.sub(content, name='select', file='select.sh',
                    out='select-out', err='select-err')
         self.J.wait_jobs_done(self.wait_time)
@@ -356,7 +387,8 @@ class MTPSelectCalculator(ClusterCalculator):
         shutil.copy("{}/train.cfg".format(self.ml_dir), "{}/train.cfg".format(basedir))
         dump_cfg(calcPop, "{}/to_scf.cfg".format(basedir), self.symbol_to_type)
 
-        exeCmd = "mlp calc-efs {0}/pot.mtp {0}/to_scf.cfg {0}/scf_out.cfg".format(basedir)
+        exeCmd = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} calc-efs {basedir}/pot.mtp {basedir}/to_scf.cfg {basedir}/scf_out.cfg"
+        #exeCmd = f"mlp calc-efs {0}/pot.mtp {0}/to_scf.cfg {0}/scf_out.cfg".format(basedir)
         exitcode = subprocess.call(exeCmd, shell=True)
         if exitcode != 0:
             raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
@@ -393,7 +425,7 @@ class TwoShareMTPCalculator(Calculator):
 
     def relax_(self, calcPop):
         relaxpop = self.mtp1.relax(calcPop)
-        shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir), 
+        shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir),
                     '{}/train.cfg'.format(self.mtp2.ml_dir))
         if self.mtp2_train_len != len(self.mtp2.trainset):
             log.info('The share train set update, updating the accurate potential...')
@@ -402,7 +434,7 @@ class TwoShareMTPCalculator(Calculator):
             self.mtp2.static_need_update = True
         selectpop = [atoms for atoms in relaxpop if atoms.info['enthalpy'] < self.mtp2.E_min + 1.5]
         relaxpop = self.mtp2.relax(selectpop)
-        shutil.copy('{}/train.cfg'.format(self.mtp2.ml_dir), 
+        shutil.copy('{}/train.cfg'.format(self.mtp2.ml_dir),
                     '{}/train.cfg'.format(self.mtp1.ml_dir))
         return relaxpop
 
@@ -413,7 +445,7 @@ class TwoShareMTPCalculator(Calculator):
             scfpop = self.mtp2.scf(calcPop)
         return scfpop
 
-    def updatedataset(self, frames):                                                                                        
+    def updatedataset(self, frames):
         self.mtp1.updatedataset(frames)
         self.mtp2.updatedataset(frames)
 
@@ -430,7 +462,7 @@ class TwoShareMTPCalculator(Calculator):
     def train(self):
         log.debug('train robust...')
         self.mtp1.train()
-        shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir), 
+        shutil.copy('{}/train.cfg'.format(self.mtp1.ml_dir),
                     '{}/train.cfg'.format(self.mtp2.ml_dir))
         if self.mtp2_train_len != len(self.mtp2.trainset):
             self.mtp2_train_len = len(self.mtp2.trainset)
@@ -441,7 +473,7 @@ class TwoShareMTPCalculator(Calculator):
     @property
     def trainset(self):
         return self.mtp2.trainset
-    
+
     def calc_efs(self, frames, level='accurate'):
         if level == 'robust':
             return self.mtp1.calc_efs(frames)

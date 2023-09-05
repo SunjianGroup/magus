@@ -207,7 +207,7 @@ class SLURMSystemManager(BaseJobManager):
                 f"#!/bin/bash\n"
                 f"#SBATCH --partition={self.queue_name}\n"
                 f"#SBATCH --no-requeue\n"
-                f"#SBATCH --mem-per-cpu={self.memory}\n"
+                f"#SBATCH --mem={self.memory}\n" # --mem-per-cpu doesn't work for some SLURM systems
                 f'#SBATCH --time={hours}:{minites}:{seconds}\n'
                 f"#SBATCH --nodes=1\n"
                 f"#SBATCH --ntasks-per-node={self.num_core}\n"
@@ -217,6 +217,7 @@ class SLURMSystemManager(BaseJobManager):
                 f"{content}\n")
                 #.format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
                 #             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
+
 
         command = 'sbatch ' + file
         job = dict()
@@ -237,6 +238,7 @@ class SLURMSystemManager(BaseJobManager):
         nowtime = datetime.datetime.now()
         log.debug(nowtime.strftime('%m-%d %H:%M:%S'))
         allDone = True
+        time.sleep(4)
         for job in self.jobs:
             try:
                 stat = subprocess.check_output("sacct --format=jobid,state | grep '%s ' | awk '{print $2}'"% (job['id']), shell=True)
@@ -248,6 +250,7 @@ class SLURMSystemManager(BaseJobManager):
             log.debug("{}\t{}".format(job['id'], stat))
             if stat == 'COMPLETED' or stat == '':
                 job['state'] = 'DONE'
+                allDone = True
             elif stat == 'PENDING':
                 job['state'] = 'PEND'
                 allDone = False
@@ -256,6 +259,7 @@ class SLURMSystemManager(BaseJobManager):
                 allDone = False
             else:
                 job['state'] = 'ERROR'
+                allDone = False
             if self.verbose:
                 log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
         return allDone
