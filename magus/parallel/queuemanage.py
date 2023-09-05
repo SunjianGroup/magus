@@ -162,22 +162,18 @@ class LSFSystemManager(BaseJobManager):
         if os.path.exists('ERROR'):
             os.remove('ERROR')
         with open(file, 'w') as f:
-            f.write(
-                "#BSUB -q {0}\n"
-                "#BSUB -n {1}\n"
-                "#BSUB -o {2}\n"
-                "#BSUB -e {3}\n"
-                "#BSUB -J {4}\n"
-                "#BSUB -W {5}\n"
-                "{6}\n"
-                "{7}\n"
-                "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name,
-                                                                     self.num_core,
-                                                                     out, err, name,
-                                                                     time.strftime("%H:%M", time.gmtime(self.kill_time)),
-                                                                     self.pre_processing,
-                                                                     content)
-                )
+            hours = self.kill_time // 3600
+            minites = (self.kill_time % 3600) // 60
+            f.write(f"#BSUB -q {self.queue_name}\n"
+                    f"#BSUB -n {self.num_core}\n"
+                    f"#BSUB -o {out}\n"
+                    f"#BSUB -e {err}\n"
+                    f"#BSUB -J {name}\n"
+                    f"#BSUB -W {hours}:{minites}\n"
+                    f"{self.pre_processing}\n"
+                    f"{content}\n"
+                    "[[ $? -eq 0 ]] && touch DONE || touch ERROR"
+                    )
         command = 'bsub < ' + file
         job = dict()
         jobid = subprocess.check_output(command, shell=True).split()[1][1: -1]
@@ -204,25 +200,15 @@ class SLURMSystemManager(BaseJobManager):
     def sub(self, content, name='job', file='job', out='out', err='err'):
         self.reload()
         with open(file, 'w') as f:
-            #f.write(
-            #    "#!/bin/bash\n\n"
-            #    "#SBATCH --partition={0}\n"
-            #    "#SBATCH --no-requeue\n"
-            #    "#SBATCH --mem=1000M\n"
-            #    "#SBATCH --time={7}\n"
-            #    "#SBATCH --nodes=1\n"
-            #    "#SBATCH --ntasks-per-node={1}\n"
-            #    "#SBATCH --job-name={4}\n"
-            #    "#SBATCH --output={2}\n"
-            #    "{5}\n"
-            #    "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
-            #                 time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
+            hours = self.kill_time // 3600
+            minites = (self.kill_time % 3600) // 60
+            seconds = int(self.kill_time % 60)
             f.write(
                 f"#!/bin/bash\n"
                 f"#SBATCH --partition={self.queue_name}\n"
                 f"#SBATCH --no-requeue\n"
                 f"#SBATCH --mem-per-cpu={self.memory}\n"
-                f'#SBATCH --time={time.strftime("%H:%M:%S", time.gmtime(self.kill_time))}\n'
+                f'#SBATCH --time={hours}:{minites}:{seconds}\n'
                 f"#SBATCH --nodes=1\n"
                 f"#SBATCH --ntasks-per-node={self.num_core}\n"
                 f"#SBATCH --job-name={name}\n"
