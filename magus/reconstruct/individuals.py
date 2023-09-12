@@ -51,9 +51,9 @@ class RcsPopulation(Population):
         if 'Fitness' in parameters:
             for fitness in parameters['Fitness']:
                 fitness_calculator.append(rcs_fit_dict[fitness](parameters))
-        elif parameters['structureType'] == 'surface' or 'interface':
+        elif parameters['structureType'] == 'surface' or parameters['structureType'] == 'interface':
             fitness_calculator.append(rcs_fit_dict['Ercs'](parameters))
-        elif parameters['structureType'] == 'cluster' or 'adclus':
+        elif parameters['structureType'] == 'cluster' or parameters['structureType'] == 'adclus':
             fitness_calculator.append(rcs_fit_dict['Enthalpy'](parameters))
 
         cls.fit_calcs = fitness_calculator

@@ -28,7 +28,7 @@ def rcs_random_generator(p_dict):
         return SurfaceGenerator(**p_dict)
     if p_dict['structureType'] == 'interface':
         return InterfaceGenerator(**p_dict)
-    elif p_dict['structureType'] == 'cluster' or 'adclus':
+    elif p_dict['structureType'] == 'cluster' or p_dict['structureType'] == 'adclus':
         return ClusterSPGGenerator(**p_dict)
 
 
@@ -130,9 +130,9 @@ def get_rcs_op(p_dict):
         #operators['sym'] = {}
         #operators['shell'] = {}
         
-    if p_dict['structureType'] == 'cluster' or 'adclus':
+    if p_dict['structureType'] == 'cluster' or p_dict['structureType'] == 'adclus':
         del operators['slip']
-        operators['soft'] = {}
+        #operators['soft'] = {}
         
         #operators['shell'], operators['sym'] = {}, {}
         
