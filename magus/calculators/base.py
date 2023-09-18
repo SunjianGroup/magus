@@ -213,7 +213,11 @@ class ASECalculator(Calculator):
         new_frames = []
         error_frames = []
         for i, atoms in enumerate(calcPop):
-            atoms.set_calculator(self.relax_calc)
+            if isinstance(self.relax_calc, dict):
+                # For dftb+ calculator, a 'kpts' dict should be set together with 'atoms'
+                atoms.set_calculator(self.ase_calc_type(atoms=atoms,**self.relax_calc))
+            else:
+                atoms.set_calculator(self.relax_calc)
             if self.relax_lattice:
                 ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa)
             else:
@@ -253,7 +257,11 @@ class ASECalculator(Calculator):
 
     def scf_(self, calcPop):
         for atoms in calcPop:
-            atoms.set_calculator(self.scf_calc)
+            if isinstance(self.scf_calc, dict):
+                # For dftb+ calculator, a 'kpts' dict should be set together with 'atoms'
+                atoms.set_calculator(self.ase_calc_type(atoms=atoms,**self.scf_calc))
+            else:
+                atoms.set_calculator(self.scf_calc)
             try:
                 atoms.info['energy'] = atoms.get_potential_energy()
                 atoms.info['forces'] = atoms.get_forces()
