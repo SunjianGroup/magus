@@ -10,5 +10,5 @@ class TBLiteCalculator(ASECalculator):
         super().__init__(**parameters)
         with open("{}/tblite.yaml".format(self.input_dir)) as f:
             params = yaml.load(f, Loader=yaml.FullLoader)
-            self.relax_calc = TBLite(**params)
-            self.scf_calc = TBLite(**params)
+        self.relax_calc = TBLite(**params)
+        self.scf_calc = TBLite(**params)
