@@ -104,7 +104,7 @@ class GAGenerator:
                 continue
             prob = edom[indices] * history_punish ** used[indices]
             prob = prob / sum(prob)
-            i, j = np.random.choice(indices, 2 , False, p=prob)
+            i, j = np.random.choice(indices, 2 , p=prob)
             pop[i].info['used'] += 1
             pop[j].info['used'] += 1
             return pop[i].copy(), pop[j].copy()
@@ -112,7 +112,7 @@ class GAGenerator:
         indices = np.arange(len(pop))
         prob = edom[indices] * history_punish ** used[indices]
         prob = prob / sum(prob)
-        i, j = np.random.choice(indices, 2 , False, p=prob)
+        i, j = np.random.choice(indices, 2 , p=prob)
         pop[i].info['used'] += 1
         pop[j].info['used'] += 1
         return pop[i].copy(), pop[j].copy()
