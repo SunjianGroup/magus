@@ -7,6 +7,7 @@ from magus.utils import *
 from .molecule import Molfilter
 from ..fingerprints import get_fingerprint
 from ..comparators import get_comparator
+import ase.build
 
 
 log = logging.getLogger(__name__)
@@ -122,8 +123,8 @@ class Individual(Atoms):
         if self.info['origin'] == 'seed' and not self.check_seed:
             self.check_list = []
         else:
-#            self.check_list = ['check_cell', 'check_distance', 'check_formula', 'check_forces', 'check_enthalpy']
-            self.check_list = []
+            self.check_list = ['check_cell', 'check_distance', 'check_formula', 'check_forces', 'check_enthalpy']
+#            self.check_list = ['check_distance']
             if self.full_ele:
                 self.check_list.append('check_full')
         self.info['fitness'] = {}
@@ -374,6 +375,21 @@ class Layer(Individual):
 
 class Chain(Individual):
     @staticmethod
+    def rotate_axis(atoms):
+        new_atoms = atoms.copy()
+        p = atoms.get_scaled_positions()
+        cell = atoms.get_cell()
+        new_p = np.roll(p,-1,axis=1)
+        new_cell = np.roll(cell,-1,axis=0)
+        cell[0] = np.array([20,0.0,0.0])
+        cell[1] = np.array([0.0,20,0.0])
+        cell[2] = np.array([0.0,0.0,new_cell[2][0]])
+        print(cell)
+        new_atoms.set_cell(cell)
+        new_atoms.set_scaled_positions(new_p)
+        return new_atoms
+
+    @staticmethod
     def translate_to_bottom(atoms):
         new_atoms = atoms.copy()
         p = atoms.get_scaled_positions()
@@ -399,14 +415,15 @@ class Chain(Individual):
 
     @staticmethod
     def add_vacuum(atoms, thickness=10):
-        new_atoms = Chain.translate_to_bottom(atoms.copy())
+#        na = Chain.rotate_axis(atoms.copy())
+        new_atoms = Chain.translate_to_bottom(atoms)
         new_cell = new_atoms.get_cell()
         # some old ase version doesn't have cell.area()
         #h = new_atoms.get_volume() / np.linalg.norm(np.cross(new_cell[0], new_cell[1]))
         #new_cell[2] *= thickness / h
         new_cell[0] = np.array([thickness,0.0,0.0])
         new_cell[1] = np.array([0.0,thickness,0.0])
-        new_cell[2] = np.array([0.0,0.0,new_cell[2][2]])
+        new_cell[2] = np.array([0.0,0.0,abs(new_cell[2][2])])
         new_atoms.set_cell(new_cell)
         new_atoms2 = Chain.translate_to_bottom(new_atoms.copy())
         p = new_atoms2.get_scaled_positions()
