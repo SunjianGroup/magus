@@ -1,0 +1,8 @@
+#BSUB -J magus_test
+#BSUB -n 1
+#BSUB -e err
+#BSUB -o out
+#BSUB -q 6230r
+#magus generate -n 20
+magus search
+#magus summary gen.traj -s
