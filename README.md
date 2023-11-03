@@ -61,6 +61,8 @@ $ pip install git+ssh://git@gitlab.com/bigd4/magus.git
 ```
 Your may need to add `--user` if you do not have the root permission. Or use `--force-reinstall` if you already  have `MAGUS` (add `--no-dependencies` if you do not want to reinstall the dependencies).
 
+**Notice**: you should make sure there is gcc in your environment. If you use https protocol, you should also make sure your git version is not too low.
+
 ## From Source
 1. Use git clone to get the source code:
 ```shell
@@ -115,12 +117,10 @@ $ export JOB_SYSTEM=LSF/SLURM/PBS
 ```
 in your `~/.bashrc` according to your job management system (choose one of them).  
 
-*Please note parallel setting does not work on PBS system due to job limitations of PBS.  
-
 ## Auto completion
 Put [`auto_complete.sh`](https://gitlab.com/bigd4/magus/-/blob/master/magus/auto_complete.sh) in your `PATH` like:
 ```shell
-export PATH=$PATH:<your-path-to-auto_complete.sh>
+source <your-path-to>/auto_complete.sh
 ```
 
 # Interface
@@ -153,7 +153,7 @@ $ ln -s <your-path-to-PBE-5.4> mypps/potpaw_PBE
 
 3. Set both environment variables in your `~/.bashrc`:
 ```shell
-$ export VASP_SCRIPT=<your-path-to-run_vasp.py>
+$ export VASP_SCRIPT=<your-path-to>/run_vasp.py
 $ export VASP_PP_PATH=<your-path-to-mypps>
 ```
 More details can be seen [here](https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html#module-ase.calculators.vasp).
