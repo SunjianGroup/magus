@@ -1,4 +1,4 @@
-import os, subprocess, shutil
+import os, subprocess, shutil, time
 import numpy as np
 from magus.calculators.base import Calculator, ClusterCalculator
 from magus.formatting.mtp import load_cfg, dump_cfg
@@ -51,10 +51,11 @@ class MTPNoSelectCalculator(ClusterCalculator):
                   f"--force-tolerance={self.force_tolerance} --stress-tolerance={self.stress_tolerance} "\
                   f"--min-dist={self.min_dist} --log=mtp_relax.log "\
                   f"--save-relaxed=relaxed.cfg\n"\
-                  f"cat relaxed.cfg* > relaxed.cfg\n"
+                  f"cat relaxed.cfg?* > relaxed.cfg\n"
         self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
+        time.sleep(10)
 
     def relax_(self, calcPop, max_epoch=20):
         self.scf_num = 0
@@ -270,8 +271,9 @@ class MTPSelectCalculator(ClusterCalculator):
                   f"--force-tolerance={self.force_tolerance} --stress-tolerance={self.stress_tolerance} "\
                   f"--min-dist={self.min_dist} --log=mtp_relax.log "\
                   f"--save-relaxed=relaxed.cfg\n"\
-                  f"cat B-preselected.cfg* > B-preselected.cfg\n"\
-                  f"cat relaxed.cfg* > relaxed.cfg\n"
+                  f"sleep 10\n"\
+                  f"cat B-preselected.cfg?* > B-preselected.cfg\n"\
+                  f"cat relaxed.cfg?* > relaxed.cfg\n"
         self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
@@ -291,6 +293,7 @@ class MTPSelectCalculator(ClusterCalculator):
                    out='select-out', err='select-err')
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
+        time.sleep(10)
         diff_frames = load_cfg("diff.cfg", self.type_to_symbol)
         os.chdir(nowpath)
         if isinstance(pop, Population):
