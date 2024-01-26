@@ -10,8 +10,8 @@ class XTBCalculator(ASECalculator):
         super().__init__(**parameters)
         with open("{}/xtb.yaml".format(self.input_dir)) as f:
             params = yaml.load(f, Loader=yaml.FullLoader)
-            self.relax_calc = XTB(**params)
-            self.scf_calc = XTB(**params)
+        self.relax_calc = XTB(**params)
+        self.scf_calc = XTB(**params)
 #        with open("{}/xtb_relax.yaml".format(self.input_dir)) as f:
 #            params = yaml.load(f)
 #            self.relax_calc = XTB(**params)

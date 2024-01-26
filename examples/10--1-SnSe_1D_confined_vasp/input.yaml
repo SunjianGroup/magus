@@ -1,0 +1,40 @@
+#GAsearch of 1D confined systems
+formulaType: fix
+structureType: confined_1d
+dimension: 3
+pressure: 0.0
+initSize: 2        # number of structures of 1st generation
+popSize: 2         # number of structures of per generation
+numGen: 2          # number of total generation
+saveGood: 1        # number of good structures kept to the next generation
+#structure parameters
+symbols: ['Sn','Se']  
+formula: [1,1]
+min_n_atoms: 12              # minimum number of atoms per unit cell
+max_n_atoms: 12              # maximum number of atoms per unit cell
+min_lattice: [5,5,3,-1,-1,-1]
+max_lattice: [7,7,9,-1,-1,-1]
+spacegroup: [14-75]
+d_ratio: 0.6
+volume_ratio: 3
+min_volume: 1
+max_volume: 10000
+vacuum_thickness: 20
+#GA parameters
+rand_ratio: 1.0              # fraction of random structures per generation (except 1st gen.)
+add_sym: False               # add symmetry to each structure during evolution
+#main calculator settings
+MainCalculator:
+ calculator: 'confine'
+ jobPrefix: ['Vasp1', 'Vasp2','Vasp3']
+ kill_time: 1000000
+ xc: PBE
+ ppDir: '~/POT/'
+ ppLabel: ['','']
+ LJ_D: [1.831, 1.191]
+ LJ_A: [7.007, 5.821]
+ LJ_W: [11.395,9.953]
+ numParallel: 2              # number of parallel jobs
+ numCore: 12                # number of cores
+ queueName: 9242opa!
+ preProcessing: source activate magusking

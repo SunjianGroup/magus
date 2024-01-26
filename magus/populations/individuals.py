@@ -7,10 +7,11 @@ from magus.utils import *
 from .molecule import Molfilter
 from ..fingerprints import get_fingerprint
 from ..comparators import get_comparator
+import ase.build
 
 
 log = logging.getLogger(__name__)
-__all__ = ['Bulk', 'Layer', 'ConfinedBulk']
+__all__ = ['Bulk', 'Layer', 'Chain','Confined2D','Confined1D']
 
 
 def get_Ind(p_dict):
@@ -18,8 +19,10 @@ def get_Ind(p_dict):
         Ind = Bulk
     elif p_dict['structureType'] == 'layer':
         Ind = Layer
-    elif p_dict['structureType'] == 'confined_bulk':
-        Ind = ConfinedBulk
+    elif p_dict['structureType'] == 'confined_2d':
+        Ind = Confined2D
+    elif p_dict['structureType'] == 'confined_1d':
+        Ind = Confined1D
     Ind.set_parameters(**p_dict)
     return Ind
 
@@ -121,6 +124,7 @@ class Individual(Atoms):
             self.check_list = []
         else:
             self.check_list = ['check_cell', 'check_distance', 'check_formula', 'check_forces', 'check_enthalpy']
+#            self.check_list = ['check_distance']
             if self.full_ele:
                 self.check_list.append('check_full')
         self.info['fitness'] = {}
@@ -311,6 +315,7 @@ class Bulk(Individual):
         return atoms
 
 
+
 class Layer(Individual):
     @staticmethod
     def translate_to_bottom(atoms):
@@ -324,7 +329,7 @@ class Layer(Individual):
         return new_atoms
 
     @staticmethod
-    def remove_vacuum(atoms, thickness=1):
+    def remove_vacuum(atoms, thickness=1.5):
         new_atoms = Layer.translate_to_bottom(atoms)
         new_cell = new_atoms.get_cell()
         ratio = new_atoms.get_scaled_positions()[:, 2].max() + thickness / new_cell.lengths()[2]
@@ -368,8 +373,90 @@ class Layer(Individual):
     def volume_ratio(self):
         return self.remove_vacuum(self).get_volume() / self.ball_volume
 
+class Chain(Individual):
+    @staticmethod
+    def rotate_axis(atoms):
+        new_atoms = atoms.copy()
+        p = atoms.get_scaled_positions()
+        cell = atoms.get_cell()
+        new_p = np.roll(p,-1,axis=1)
+        new_cell = np.roll(cell,-1,axis=0)
+        cell[0] = np.array([20,0.0,0.0])
+        cell[1] = np.array([0.0,20,0.0])
+        cell[2] = np.array([0.0,0.0,new_cell[2][0]])
+        print(cell)
+        new_atoms.set_cell(cell)
+        new_atoms.set_scaled_positions(new_p)
+        return new_atoms
 
-class ConfinedBulk(Individual):
+    @staticmethod
+    def translate_to_bottom(atoms):
+        new_atoms = atoms.copy()
+        p = atoms.get_scaled_positions()
+        x = sorted(p[:, 0])
+        y = sorted(p[:, 1])
+        x.append(x[0] + 1)
+        y.append(y[0] + 1)
+        p[:, 0]=(p[:,0]-x[np.argmax(np.diff(x))] - np.max(np.diff(x)) + 1)%1+1e-8
+        p[:, 1]=(p[:,1]-y[np.argmax(np.diff(y))] - np.max(np.diff(y)) + 1)%1+1e-8
+        new_atoms.set_scaled_positions(p)
+        return new_atoms
+
+    @staticmethod
+    def remove_vacuum(atoms, thickness=1.5):
+        new_atoms = Chain.translate_to_bottom(atoms)
+        new_cell = new_atoms.get_cell()
+        ratiox = new_atoms.get_scaled_positions()[:, 0].max() + thickness / new_cell.lengths()[0]
+        ratioy = new_atoms.get_scaled_positions()[:, 1].max() + thickness / new_cell.lengths()[1]
+        new_cell[0] *= ratiox
+        new_cell[1] *= ratioy
+        new_atoms.set_cell(new_cell)
+        return new_atoms
+
+    @staticmethod
+    def add_vacuum(atoms, thickness=10):
+#        na = Chain.rotate_axis(atoms.copy())
+        new_atoms = Chain.translate_to_bottom(atoms)
+        new_cell = new_atoms.get_cell()
+        # some old ase version doesn't have cell.area()
+        #h = new_atoms.get_volume() / np.linalg.norm(np.cross(new_cell[0], new_cell[1]))
+        #new_cell[2] *= thickness / h
+        new_cell[0] = np.array([thickness,0.0,0.0])
+        new_cell[1] = np.array([0.0,thickness,0.0])
+        new_cell[2] = np.array([0.0,0.0,abs(new_cell[2][2])])
+        new_atoms.set_cell(new_cell)
+        new_atoms2 = Chain.translate_to_bottom(new_atoms.copy())
+        p = new_atoms2.get_scaled_positions()
+        p[:, 0] += 0.5 - (max(p[:, 0]) - min(p[:, 0])) / 2
+        p[:, 1] += 0.5 - (max(p[:, 1]) - min(p[:, 1])) / 2
+        new_atoms2.set_scaled_positions(p)
+        return new_atoms2
+
+    @classmethod
+    def set_parameters(cls, **parameters):
+        super().set_parameters(**parameters)
+        Default = {
+            'vacuum_thickness': 10, 
+            'bond_ratio': 1.1,
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
+        check_parameters(cls, parameters, [], Default)
+        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+
+    def for_heredity(self):
+        atoms = Chain.remove_vacuum(self)
+        # atoms.set_pbc([True, True, False])
+        return atoms
+
+    def for_calculate(self):
+        atoms = Chain.add_vacuum(self, self.vacuum_thickness)
+        return atoms
+
+    @property
+    def volume_ratio(self):
+        return self.remove_vacuum(self).get_volume() / self.ball_volume
+
+
+class Confined2D(Individual):
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
@@ -393,3 +480,28 @@ class ConfinedBulk(Individual):
     @property
     def volume_ratio(self):
         return Layer.remove_vacuum(self).get_volume() / self.ball_volume
+
+class Confined1D(Individual):
+    @classmethod
+    def set_parameters(cls, **parameters):
+        super().set_parameters(**parameters)
+        Default = {
+            'vacuum_thickness': 10, 
+            'bond_ratio': 1.1,
+            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
+        check_parameters(cls, parameters, [], Default)
+        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+
+    def for_heredity(self):
+        atoms = Chain.remove_vacuum(self)
+        if self.mol_detector > 0:
+            atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
+        return atoms
+
+    def for_calculate(self):
+        atoms = Chain.add_vacuum(self, self.vacuum_thickness)
+        return atoms
+
+    @property
+    def volume_ratio(self):
+        return Chain.remove_vacuum(self).get_volume() / self.ball_volume

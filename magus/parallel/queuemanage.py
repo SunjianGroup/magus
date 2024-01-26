@@ -1,12 +1,13 @@
 import subprocess, sys, os, time, logging, datetime, yaml
 from magus.utils import check_parameters
+import re
 
 
 log = logging.getLogger(__name__)
 
 
 class BaseJobManager:
-    control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time', 'memory']
+    control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time', 'mem_per_cpu']
     def __init__(self, **parameters):
         Requirement = ['queue_name', 'num_core']
         Default={
@@ -14,7 +15,7 @@ class BaseJobManager:
             'pre_processing': 200,
             'verbose': False,
             'kill_time': 7200,
-            'memory': '1000M',
+            'mem_per_cpu': '1G'
             }
         check_parameters(self, parameters, Requirement, Default)
         self.jobs = []
@@ -162,22 +163,18 @@ class LSFSystemManager(BaseJobManager):
         if os.path.exists('ERROR'):
             os.remove('ERROR')
         with open(file, 'w') as f:
-            f.write(
-                "#BSUB -q {0}\n"
-                "#BSUB -n {1}\n"
-                "#BSUB -o {2}\n"
-                "#BSUB -e {3}\n"
-                "#BSUB -J {4}\n"
-                "#BSUB -W {5}\n"
-                "{6}\n"
-                "{7}\n"
-                "[[ $? -eq 0 ]] && touch DONE || touch ERROR".format(self.queue_name,
-                                                                     self.num_core,
-                                                                     out, err, name,
-                                                                     time.strftime("%H:%M", time.gmtime(self.kill_time)),
-                                                                     self.pre_processing,
-                                                                     content)
-                )
+            hours = self.kill_time // 3600
+            minites = (self.kill_time % 3600) // 60
+            f.write(f"#BSUB -q {self.queue_name}\n"
+                    f"#BSUB -n {self.num_core}\n"
+                    f"#BSUB -o {out}\n"
+                    f"#BSUB -e {err}\n"
+                    f"#BSUB -J {name}\n"
+                    f"#BSUB -W {hours}:{minites}\n"
+                    f"{self.pre_processing}\n"
+                    f"{content}\n"
+                    "[[ $? -eq 0 ]] && touch DONE || touch ERROR"
+                    )
         command = 'bsub < ' + file
         job = dict()
         jobid = subprocess.check_output(command, shell=True).split()[1][1: -1]
@@ -204,25 +201,18 @@ class SLURMSystemManager(BaseJobManager):
     def sub(self, content, name='job', file='job', out='out', err='err'):
         self.reload()
         with open(file, 'w') as f:
-            #f.write(
-            #    "#!/bin/bash\n\n"
-            #    "#SBATCH --partition={0}\n"
-            #    "#SBATCH --no-requeue\n"
-            #    "#SBATCH --mem=1000M\n"
-            #    "#SBATCH --time={7}\n"
-            #    "#SBATCH --nodes=1\n"
-            #    "#SBATCH --ntasks-per-node={1}\n"
-            #    "#SBATCH --job-name={4}\n"
-            #    "#SBATCH --output={2}\n"
-            #    "{5}\n"
-            #    "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
-            #                 time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
+            hours = self.kill_time // 3600
+            minites = (self.kill_time % 3600) // 60
+            seconds = int(self.kill_time % 60)
+            # In some slurm system, --mem-per-cpu option does not exist, so we manually multiply mem_by_cpu by num_core.
+            memory = str(int(re.findall("^\d+", self.mem_per_cpu)[0]) * self.num_core) \
+                     + (re.findall("[K|M|G|T]$", self.mem_per_cpu) + [''])[0]
             f.write(
                 f"#!/bin/bash\n"
                 f"#SBATCH --partition={self.queue_name}\n"
                 f"#SBATCH --no-requeue\n"
-                f"#SBATCH --mem-per-cpu={self.memory}\n"
-                f'#SBATCH --time={time.strftime("%H:%M:%S", time.gmtime(self.kill_time))}\n'
+                f"#SBATCH --mem={memory}\n" # --mem-per-cpu doesn't work for some SLURM systems
+                f'#SBATCH --time={hours}:{minites}:{seconds}\n'
                 f"#SBATCH --nodes=1\n"
                 f"#SBATCH --ntasks-per-node={self.num_core}\n"
                 f"#SBATCH --job-name={name}\n"
@@ -232,9 +222,18 @@ class SLURMSystemManager(BaseJobManager):
                 #.format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
                 #             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
 
+
         command = 'sbatch ' + file
         job = dict()
-        jobid = subprocess.check_output(command, shell=True).split()[-1]
+        for _ in range(5):
+            try:
+                jobid = subprocess.check_output(command, shell=True).split()[-1]
+                break
+            except:
+                pass
+        else:
+            log.info("Fail to submit job! Error in 'sbatch' command.")
+            return None
         if type(jobid) is bytes:
             jobid = jobid.decode()
         job['id'] = jobid
@@ -251,6 +250,7 @@ class SLURMSystemManager(BaseJobManager):
         nowtime = datetime.datetime.now()
         log.debug(nowtime.strftime('%m-%d %H:%M:%S'))
         allDone = True
+        time.sleep(4)
         for job in self.jobs:
             try:
                 stat = subprocess.check_output("sacct --format=jobid,state | grep '%s ' | awk '{print $2}'"% (job['id']), shell=True)
@@ -262,6 +262,7 @@ class SLURMSystemManager(BaseJobManager):
             log.debug("{}\t{}".format(job['id'], stat))
             if stat == 'COMPLETED' or stat == '':
                 job['state'] = 'DONE'
+                allDone = True
             elif stat == 'PENDING':
                 job['state'] = 'PEND'
                 allDone = False
@@ -270,6 +271,7 @@ class SLURMSystemManager(BaseJobManager):
                 allDone = False
             else:
                 job['state'] = 'ERROR'
+                allDone = False
             if self.verbose:
                 log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
         return allDone
@@ -280,6 +282,7 @@ class PBSSystemManager(BaseJobManager):
         subprocess.call('qdel {}'.format(jobid), shell=True)
 
     def sub(self, content, name='job', file='job', out='out', err='err'):
+        self.current_directory = os.getcwd()
         self.reload()
         if os.path.exists('DONE'):
             os.remove('DONE')
@@ -287,17 +290,18 @@ class PBSSystemManager(BaseJobManager):
             os.remove('ERROR')
         with open(file, 'w') as f:
             f.write(
-                "#!/bin/bash\n\n"
+                "#!/bin/bash\n"
                 "#PBS -q {0}\n"
                 "#PBS -l nodes=1:ppn={1},walltime={7}\n"
                 "#PBS -j oe\n"
                 "#PBS -V\n"
                 "#PBS -N {4}\n"
-                "cd $PBS_O_WORKDIR\n"
+                #"cd $PBS_O_WORKDIR\n"
+                "cd {8}\n"
                 "NP=`cat $PBS_NODEFILE|wc -l`\n"
                 "{5}\n"
                 "{6}".format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
-                             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
+                             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)), self.current_directory)
                 )
         command = 'qsub  ' + file
         job = dict()

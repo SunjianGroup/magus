@@ -235,12 +235,12 @@ MAGUS does VASP calculation based on ASE API. Hence, you need to do the followin
     \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{python}
 import subprocess
-exitcode = subprocess.call("Your_vasp_command", shell=True)
+exitcode = subprocess.call("<Your_vasp_command>", shell=True)
     \end{minted}
     \end{tcolorbox}
-    ``Your\_vasp\_command" is the command to run VASP on your cluster, e.g. ``mpirun vasp\_std".
+    <Your\_vasp\_command> is the command to run VASP on your cluster, e.g. \code{mpirun vasp\_std}.
 
-    \textbf{Notice:} remember to load the corresponding environment, such as ips or openmpi, if you want to run vasp in parallel (run a single vasp job with multiple cores). If you want to use parallel mode (run several vasp jobs at the same time), you also need to load environment in sub jobs by adding control lines after ``preProcessing" option, see details in \ref{sec: preprocessing}.
+    \textbf{Notice:} remember to load the corresponding environment, such as ips or openmpi, if you want to run vasp in parallel (run a single vasp job with multiple cores). If you want to use parallel mode (run several vasp jobs at the same time), you also need to load environment in sub jobs by adding control lines after ``preProcessing" option, see details in Sec. \ref{sec: preprocessing}.
     
     %\href{https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html}{ase manual}.
 \item [2)] 
@@ -253,7 +253,7 @@ exitcode = subprocess.call("Your_vasp_command", shell=True)
     \end{verbatim}
     \begin{tcolorbox}[breakable, enhanced]
         \begin{minted}[breaklines, breaksymbolleft={},]{bash}
-$ ln -s /your/path/PBE-5.4 mypps/potpaw_PBE
+$ ln -s <your-path-to>/PBE-5.4 mypps/potpaw_PBE
         \end{minted}
     \end{tcolorbox}
     Three sub directories correspond to LDA, PW91 and PBE, respectively. It is allowed to leave some of them nonexistent if you do not use these potentials. It is also allowed to add other pseudopotentials.
@@ -261,8 +261,8 @@ $ ln -s /your/path/PBE-5.4 mypps/potpaw_PBE
     Set environment variables:
     \begin{tcolorbox}[breakable, enhanced]
         \begin{minted}[breaklines, breaksymbolleft={},]{bash}
-$ export VASP_SCRIPT=/your/path/run_vasp.py
-$ export VASP_PP_PATH=/your/path/mypps
+$ export VASP_SCRIPT=<your-path-to>/run_vasp.py
+$ export VASP_PP_PATH=<your-path-to>h/mypps
         \end{minted}
     \end{tcolorbox}
     More information in: \textcolor{blue}{\href{https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html\#module-ase.calculators.vasp}{ase manual for vasp calculator}}.\par
@@ -276,14 +276,16 @@ MAGUS is developed under \chref{https://www.ibm.com/docs/en/spectrum-lsf}{LSF} j
 $ export JOB_SYSTEM=<your-job-system>
     \end{minted}
 \end{tcolorbox}
-Add this line into your \file{bashrc} to make the setting work every time you log in.
+<your-job-system> should be one of LSF, SLURM and PBS. Add this line into your \file{bashrc} to make the setting work every time you log in.
+
+\textbf{Notice:} in some PBS job system, ``qsub" commond may not be under system path in compute nodes. See section \ref{sec: pbs qsub} for solution.
 
 \subsection{Machine Learning Package Installation (Optional)}
-MLIP is a software for Machine Learning Interatomic Potentials. It has been developed at Skoltech (Moscow) by Alexander Shapeev, Evgeny Podryabinkin, Konstantin Gubaev, and Ivan Novikov.\footnote{Novikov, Ivan S., et al. ``The MLIP package: moment tensor potentials with MPI and active learning.'' Machine Learning: Science and Technology 2.2 (2020): 025002.} According to the license, MLIP is not allowed to be published and otherwise distributed. You need to register in \url{https://mlip.skoltech.ru/download/} and follow the instructions.
+MLIP is a software for Machine Learning Interatomic Potentials. It has been developed at Skoltech (Moscow) by Alexander Shapeev, Evgeny Podryabinkin, Konstantin Gubaev, and Ivan Novikov.\footnote{Novikov, Ivan S., et al. ``The MLIP package: moment tensor potentials with MPI and active learning.'' Machine Learning: Science and Technology 2.2 (2020): 025002.} You can follow the instructions in \url{https://mlip.skoltech.ru/download/}. 
 
 \subsection{Build a Virtual Environment (Optional)}
-We highly recommend that you use \chref{https://www.anaconda.com}{Anaconda} to build a virtual environment and install MAGUS in an isolated environment to avoid conflicts. After installing anaconda, it will automatically write several lines in your \file{bashrc} which is used to initialize anaconda environment. You should source \file{bashrc} or re-login to make anaconda activated.
-If you do the jobs correctly, your shell prompt should be modified to be started as \code{(base)}, which means you are now in base environment of anaconda. Then, create a new virtual environment with
+We highly recommend that you use \chref{https://www.anaconda.com}{Anaconda} to build a virtual environment and install MAGUS in an isolated environment to avoid conflicts. After installing anaconda, it will automatically write several lines in your \file{bashrc} which are used to initialize anaconda environment. You should source \file{bashrc} or re-login to make anaconda activated.
+If you do the jobs correctly, your shell prompt should be modified to be started as \textbf{(base)}, which means you are now in base environment of anaconda. Then, create a new virtual environment with
 \begin{tcolorbox}[breakable, enhanced]
 \begin{minted}[breaklines, breaksymbolleft={},]{bash}
 $ conda create -n <your-env-name> python=<python-version>
@@ -297,13 +299,13 @@ $ conda activate <your-env-name>
 \end{tcolorbox}
 
 \section{Install with pip}
-It is convenient to install with pip. It will automatically download the source code and install the required python packages.The install command is
+It is convenient to install with pip. It will automatically download the source code and install the required python packages. The install command is
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
 $ pip install git+https://gitlab.com/bigd4/magus.git
     \end{minted}
 \end{tcolorbox}
-You may need to type in your username and password of your gitlab account because the project is not public. If you want to install in a virtual environment, do not forget to activate the environment first. If you work in a cluster and do not have permission to install in the default location, you may add \code{--user} parameter.
+You may need to type in your username and password of your gitlab account because the project is not public. Your git version should not be too low, or https connection may fail. And there should be gcc in your environment. If you want to install in a virtual environment, do not forget to activate the environment first. If you work in a cluster and do not have permission to install in the default location, you may add \code{--user} parameter.
 
 \section{Install with Source Code}
 \subsection{Download Code}
@@ -311,7 +313,7 @@ You may need to type in your username and password of your gitlab account becaus
 Clone the project and submodules to local file system:
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
-$ git clone --recursive https://gitlab.com:bigd4/magus.git
+$ git clone --recursive https://gitlab.com/bigd4/magus.git
     \end{minted}
 \end{tcolorbox}
 \subsubsection{From Website}
@@ -337,20 +339,21 @@ Follow the instructions. It will build an isolated conda environment with all re
 
 \section{Other Settings}
 \subsection{Set up Environment Variables}
-To run MAGUS in your console, you need to add PATH in \file{bashrc}.
+To run MAGUS in your console, you need to add such path variables in \file{bashrc}.
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
-$ export PATH=$PATH:<your_path_to_magus>
-$ export PYTHONPATH=$PYTHONPATH:<your_path_to_magus>
+$ export PATH=<your_path_to_magus>:$PATH
+$ export PYTHONPATH=<your_path_to_magus>:$PYTHONPATH
     \end{minted}
 \end{tcolorbox}
+If you use anaconda to manage your environment, the above actions should be unnecessary for you. When you activate your env, the path variables are automatically set.
 
 
 \subsection{Set up Auto Completion (Optional)}
 We have prepared a shell completion script for MAGUS. Add the following line into \file{bashrc}:
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
-$ source your_path_to_magus/auto_complete.sh
+$ source <your_path_to_magus>/auto_complete.sh
     \end{minted}
 \end{tcolorbox}
 
@@ -361,7 +364,7 @@ If MAGUS is properly installed, you can see the version number by the following 
 $ magus -v
     \end{minted}
 \tcblower
-1.0.5
+1.6.0
 \end{tcolorbox}
 
 If you have installed other optional packages, you can check if they are properly installed using:
@@ -1752,9 +1755,9 @@ pressure       : pressure
 \section{How to Set Environment Variables}\label{sec: preprocessing}
 There are two modes in MAGUS: serial mode and parallel mode, controlled by ``mode" option.
 
-In serial mode (``mode: serial"), only one main job runs. All sub calculations (such as vasp relaxations) will run under the computing resource you apply for the main job. Hence, you can modify environment variables in the main job and they will be effective to all calculations.
+In serial mode (``mode: serial"), only one parent job runs. All sub calculations (such as vasp relaxations) will run under the computing resource you apply for the parent job. Hence, you can modify environment variables in the parent job and they will be effective to all calculations.
 
-In parallel mode (``mode: parallel"), the main job only works for some simple calculations and submitting sub jobs into job system to do more time-consuming calculations, which means sub jobs take different environment variables from the main job. Generally, sub job submission scripts are generated automatically by MAGUS, but you should add some environment variables to make the scripts fit for your system. The most convenient way to do that is to add ``preprocessing" option in \file{input.yaml} under each Calculator category. For example:
+In parallel mode (``mode: parallel"), the parent job only works for some simple calculations and submitting sub jobs into job system to do more time-consuming calculations, which means sub jobs take different environment variables from the parent job. Generally, sub job submission scripts are generated automatically by MAGUS, but you should add some environment variables to make the scripts fit for your system. The most convenient way to do that is to add ``preprocessing" option in \file{input.yaml} under each Calculator category. For example:
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{yaml}
 # general parameters
@@ -1795,4 +1798,20 @@ preProcessing: source activate <your-env-name>
     \end{minted}
 \end{tcolorbox}
 in the \file{input.yaml} under each Calculator category such as MainCalculator.
+
+\section{PBS Job System Parallel Mode ``qsub" Command Not Found}\label{sec: pbs qsub}
+In some PBS system, ``qsub" command can only be found in login nodes but cannot be found in compute nodes. That is because ``qsub" command is not under system path in compute nodes. To fix ``qsub command not found" error, you need to add the path of ``qsub" in your parent batch job. You can use
+\begin{tcolorbox}
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+which qsub
+    \end{minted}
+\end{tcolorbox}
+to get the path. You will get the output <your-pbs-lib-dir>/qsub. Then add such line in you batch file before MAGUS commands:
+\begin{tcolorbox}
+    \begin{minted}[breaklines, breaksymbolleft={},]{bash}
+export PATH=<your-pbs-lib-dir>:$PATH
+    \end{minted}
+\end{tcolorbox}
+
 \end{document}
+
