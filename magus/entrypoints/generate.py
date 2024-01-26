@@ -11,6 +11,5 @@ def generate(*args, input_file='input.yaml', number=10,
     for i, atoms in enumerate(new_frames):
         new_ind = population.Ind(atoms)
         new_frames[i] = new_ind.for_calculate() if hasattr(new_ind, "for_calculate") else new_ind
-
-
-    write(output_file, new_frames)
+    if len(new_frames) > 0:
+        write(output_file, new_frames)

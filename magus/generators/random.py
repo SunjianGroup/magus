@@ -1,5 +1,4 @@
 import itertools, yaml, logging
-from secrets import choice
 import numpy as np
 from sklearn.decomposition import PCA
 from ase import Atoms, build
@@ -8,11 +7,13 @@ from ase.data import atomic_numbers, covalent_radii
 from ase.geometry import cellpar_to_cell
 from magus.utils import *
 from . import gensym
+from collections import Counter
+import math
 
 
 log = logging.getLogger(__name__)
 
-
+'''
 def get_swap_matrix(random_swap_axis):
     M = np.array([
         [[1,0,0],[0,1,0],[0,0,1]],
@@ -25,7 +26,7 @@ def get_swap_matrix(random_swap_axis):
         return M[np.random.randint(6)]
     else:
         return M[0]
-
+'''
 
 def add_atoms(generator, numlist, radius, symbols):
     numbers = []
@@ -36,7 +37,7 @@ def add_atoms(generator, numlist, radius, symbols):
     return numbers
 
 
-def add_moles(generator, numlist, radius, symbols, input_mols, symprec):
+def add_moles(generator, numlist, radius, symbols, input_mols, symprec_in_generator=0.5):
     numbers = []
     radius_dict = dict(zip(symbols, radius))
     for i, num in enumerate(numlist):
@@ -52,7 +53,7 @@ def add_moles(generator, numlist, radius, symbols, input_mols, symprec):
                 numinfo = [symbols.count(s) for s in uni_symbols]
 
                 generator.AppendMoles(int(numlist[i]), mole.get_chemical_formula(),
-                                      radius, positions, numinfo, namearray, symprec)
+                                      radius, positions, numinfo, namearray, symprec_in_generator)
 
                 number = sum([num for num in [[atomic_numbers[s]] * int(n) * numlist[i] 
                                   for s,n in zip(uni_symbols,numinfo)]], [])
@@ -68,8 +69,9 @@ def add_moles(generator, numlist, radius, symbols, input_mols, symprec):
 def spg_generate(spg, threshold_dict, numlist, radius, symbols, 
                  min_volume, max_volume, min_lattice, max_lattice, random_swap_axis=True, 
                  dimension=3, max_attempts=50, GetConventional=True, method=1,
-                 vacuum=None, choice=None, mol_mode=False, input_mols=None, symprec=None,
-                 threshold_mol=1.,
+                 vacuum=None, choice=None, mol_mode=False, input_mols=None, symprec_in_generator=0.5,
+                 threshold_mol=1., generator_max_length_ratio = 100.0, esangle_min = None, esangle_max = None,
+                 wyckoff = None, forceMostGeneralWyckPos = True, thickness_tolerance = 0.0,
                  *args, **kwargs):
     # set generator
     generator = gensym.Info()
@@ -83,32 +85,54 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
         generator.choice = choice
     generator.threshold = 100. # now use threshold_dict instead of threshold
     generator.method = method
-    generator.forceMostGeneralWyckPos = False
+    generator.forceMostGeneralWyckPos = forceMostGeneralWyckPos
     generator.UselocalCellTrans = 'y'
     generator.GetConventional = GetConventional
     generator.minVolume = min_volume
     generator.maxVolume = max_volume
-    # swap axis
-    swap_matrix = get_swap_matrix(random_swap_axis)
-    min_lattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ min_lattice
-    max_lattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ max_lattice
+    print(min_lattice, max_lattice)
+    ## swap axis
+    # This function has been integrated into gensym -YU
+    # swap_matrix = get_swap_matrix(random_swap_axis)
+    # min_lattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ min_lattice
+    # max_lattice = np.kron(np.array([[1,0],[0,1]]), swap_matrix) @ max_lattice
 
     generator.SetLatticeMins(min_lattice[0], min_lattice[1], min_lattice[2], min_lattice[3], min_lattice[4], min_lattice[5])
     generator.SetLatticeMaxes(max_lattice[0], max_lattice[1], max_lattice[2], max_lattice[3], max_lattice[4], max_lattice[5])
+    generator.thickness_tolerance = thickness_tolerance
+    
+    generator.max_length_ratio = generator_max_length_ratio
+    if esangle_min is None:
+        esangle_min = [30 *math.pi/180] * 3
+    if esangle_max is None:
+        esangle_max = [150 *math.pi/180] * 3
+    generator.SetEsangleMins(esangle_min[0],esangle_min[1],esangle_min[2])
+    generator.SetEsangleMaxes(esangle_max[0],esangle_max[1],esangle_max[2])
+    
     if mol_mode:
         generator.threshold_mol = threshold_mol
-        numbers = add_moles(generator, numlist, radius, symbols, input_mols, symprec)
+        numbers = add_moles(generator, numlist, radius, symbols, input_mols, symprec_in_generator)
     else:
         numbers = add_atoms(generator, numlist, radius, symbols)
 
     for s1, s2 in itertools.combinations_with_replacement(symbols, 2):
         generator.SpThreshold(s1, s2, threshold_dict[(s1, s2)])
 
+    if not wyckoff is None:
+        for wyck in wyckoff:
+            _atom_symbol, _wyckoff_label = wyck
+            generator.AppendWyckoff(_atom_symbol, _wyckoff_label)   # eg. ('Si', 'a')
+            if not method == 1:
+                log.warning("Settings detected for specific Wyckoff occupations. " + 
+                            "This feature is only supported by method 1 thus the generator method is set to 1.")
+                generator.method = 1        #only support method 1
+
     label = generator.Generate(np.random.randint(1000))
     if label:
         cell = generator.GetLattice(0)
         cell = np.reshape(cell, (3,3))
-        cell_ = np.linalg.inv(swap_matrix) @ cell
+        #cell_ = np.linalg.inv(swap_matrix) @ cell
+        cell_ = cell
         Q, L = np.linalg.qr(cell_.T)
         scaled_positions = generator.GetPosition(0)
         scaled_positions = np.reshape(scaled_positions, (-1, 3))
@@ -136,7 +160,7 @@ class SPGGenerator:
         Requirement = ['formula_type', 'symbols', 'formula', 'min_n_atoms', 'max_n_atoms']
         Default = {#'threshold': 1.0,
                    'max_attempts': 50,
-                   'method': 1, 
+                   'method': 2, 
                    'p_pri': 0.,           # probability of generate primitive cell
                    'volume_ratio': 1.5,
                    'n_split': [1],
@@ -156,6 +180,11 @@ class SPGGenerator:
                    'spacegroup': np.arange(2, 231),
                    'max_ratio': 1000,    # max ratio in var search, for 10, Zn11(OH) is not allowed
                    'full_ele': True,     # only generate structures with full elements
+                   'wyckoff': None,
+                   'generator_max_length_ratio': 20.0, 
+                   'esangle_min':None,
+                   'esangle_max': None,
+                   'random_swap_axis': False,
                    }
         check_parameters(self, parameters, Requirement, Default)
         if self.ele_size > 0:
@@ -171,6 +200,12 @@ class SPGGenerator:
         if self.formula_type == 'fix':
             self.formula = [self.formula]
         self.main_info = ['formula_type', 'symbols', 'min_n_atoms', 'max_n_atoms']
+
+        self.spg_probabilities = np.ones(len(self.spacegroup)) / len(self.spacegroup)
+        
+
+    def update(self, *args, **kwargs):
+        pass
 
     def __repr__(self):
         ret = self.__class__.__name__
@@ -253,6 +288,7 @@ class SPGGenerator:
 
     def get_min_lattice(self, numlist):
         radius = [r for i, r in enumerate(self.radius) if numlist[i] > 0]
+        print(numlist, self.radius)
         min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
         min_lattice = [b if b > 0 else a for a, b in zip(min_lattice, self.min_lattice)]
         return min_lattice
@@ -277,7 +313,8 @@ class SPGGenerator:
             'max_lattice': max_lattice,
         }
         d['GetConventional'] = True if np.random.rand() > self.p_pri else False
-        for key in ['threshold_dict', 'radius', 'symbols', 'dimension', 'max_attempts', 'method', 'choice']:
+        for key in ['threshold_dict', 'radius', 'symbols', 'dimension', 'max_attempts', 'method', 'choice', 
+                    'generator_max_length_ratio', 'esangle_min', 'esangle_max', 'symprec_in_generator', 'wyckoff', 'random_swap_axis', 'mol_mode']:
             if hasattr(self, key) and key not in d:
                 d[key] = getattr(self, key)
         return d
@@ -312,7 +349,7 @@ class SPGGenerator:
         build_pop = []
         while n_pop > len(build_pop):
             for _ in range(self.max_n_try):
-                spg = np.random.choice(self.spacegroup)
+                spg = np.random.choice(self.spacegroup, p = self.spg_probabilities)
                 n_split = np.random.choice(self.n_split)
                 numlist = self.get_numlist(formula_pool)
                 label, atoms = self.generate_ind(spg, numlist, n_split)
@@ -337,12 +374,13 @@ class SPGGenerator:
         atoms.info['units_formula'] = get_units_formula(atoms, self.units)
         return atoms
 
-
+    
+                
 class MoleculeSPGGenerator(SPGGenerator):
     def __init__(self, **parameters):
         super().__init__(**parameters)
         Requirement = ['input_mols']
-        Default = {'symprec':0.1, 'threshold_mol': 1.0}
+        Default = {'symprec_in_generator':0.1, 'threshold_mol': 1.0}
         check_parameters(self, parameters, Requirement, Default)
         radius_dict = dict(zip(self.symbols, self.radius))
         self.mol_n_atoms, self.mol_radius, self.thickness = [], [], []
@@ -412,7 +450,7 @@ class MoleculeSPGGenerator(SPGGenerator):
         d.update({
             'mol_mode': True,
             'input_mols': self.input_mols,
-            'symprec': self.symprec,
+            'symprec_in_generator': self.symprec_in_generator,
             'threshold_mol': self.threshold_mol,
             })
         return d
@@ -438,7 +476,7 @@ class LayerSPGGenerator(SPGGenerator):
         super().__init__(**parameters)
         Requirement = ['min_thickness', 'max_thickness']
         Default = {
-            'symprec':0.1, 
+            'symprec_in_generator':0.1, 
             'threshold_mol': 1.0, 
             'spg_type': 'layer', 
             'vacuum_thickness': 10,
@@ -450,6 +488,8 @@ class LayerSPGGenerator(SPGGenerator):
         elif self.spg_type == 'layer':
             self.choice = 1
             self.spacegroup = [spg for spg in self.spacegroup if spg <= 80]
+        elif self.spg_type == 'molecule':
+            self.choice = 2
         else:
             raise Exception("Unexcepted spg type '{}', should be 'plane' or 'layer'".format(self.spg_type))
 

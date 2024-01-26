@@ -2,7 +2,8 @@ import numpy as np
 from magus.phasediagram import PhaseDiagram
 import abc
 import magus.xrdutils as xrdutils
-
+import logging
+log = logging.getLogger(__name__)
 
 class FitnessCalculator(abc.ABC):
     def __init__(self, parameters) -> None:    
@@ -57,12 +58,60 @@ class XrdFitness(FitnessCalculator):
         for ind in pop:
             xrd = xrdutils.XrdStructure(ind,self.wave_length,self.two_theta_range)
             ind.info['fitness']['XRD'] = -xrdutils.loss(xrd.getpeakdata().T,self.target_peaks,self.match_tolerence)
+import math, os
 
+class AgeFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None:
+        self.age_scale = parameters['age_scale']
+        self.anti_seeds = parameters['ANTISEED']
+        self.type = parameters['type']
+        self.anti_seeds['structs'] = []
+
+    def refresh(self):
+        try:
+            self.anti_seeds['structs'] = ase.io.read(self.anti_seeds['file'], format='traj', index = ':')
+        except:
+            self.anti_seeds['structs'] = []
+        
+    def calc(self, pop):
+        for ind in pop:
+            cur_n_gen = pop.gen if not pop.gen == '' else 1
+            born_n_gen = int((ind.info['identity'].split('-')[0]) [4:] )
+            if self.type == 'age':
+                ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.age_fit(cur_n_gen - born_n_gen)
+            elif self.type == 'antiseeds':
+                #print('calc antiseed of enthalpy ', ind.info['enthalpy'])
+                ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.calc_anti_seed(ind)
+                ind.info['fitness']['enthalpy'] = -ind.info['enthalpy'] 
+                
+
+    def age_fit(self, age):
+        favor_age, scale_parm = self.age_scale
+        if age < favor_age:
+            return 0.0
+        else:
+            return scale_parm* (age - favor_age)
+
+    def calc_anti_seed(self, ind):
+
+        summary = 0
+        Wa = self.anti_seeds['W']
+        SIGMAa2 = self.anti_seeds['SIGMA']**2
+        #print('Wa', Wa, 'SIGMA2', SIGMAa2)
+
+        for a in self.anti_seeds['structs']:
+            Dia2 = np.average([x**2 for x in a.fingerprint - ind.fingerprint])
+            summary += Wa * math.exp(- Dia2 /2 / SIGMAa2 )
+            #if (Wa * math.exp(- Dia2 /2 / SIGMAa2 ) > 1e-3):
+            #print('dia2', Dia2, 'sum', Wa * math.exp(- Dia2 /2 / SIGMAa2 ), "\t", a.info['enthalpy'], ind.info["enthalpy"])
+        #print('summary', summary)
+        return summary 
 fit_dict = {
     'Enthalpy': EnthalpyFitness,
     'Ehull': EhullFitness,
     'Gap': GapFitness,
     'XRD': XrdFitness,
+    'Age': AgeFitness,
     }
 
 def get_fitness_calculator(p_dict):

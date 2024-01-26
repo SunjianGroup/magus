@@ -9,7 +9,7 @@ from magus.parallel.queuemanage import JobManager
 from magus.utils import CALCULATOR_CONNECT_PLUGIN, check_parameters
 from ase.constraints import ExpCellFilter
 from ase.units import GPa, eV, Ang
-from ase.optimize import BFGS, LBFGS, FIRE
+from ase.optimize import BFGS, LBFGS, FIRE, GPMin, BFGSLineSearch 
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.io import read, write
 
@@ -75,9 +75,9 @@ class Calculator(abc.ABC):
             pop = calcPop.__class__(pop)
         return pop
 
-    def relax(self, calcPop):
+    def relax(self, calcPop, **kwargs):
         to_relax = self.calc_pre_processing(calcPop)
-        pop = self.relax_(to_relax)
+        pop = self.relax_(to_relax, **kwargs)
         return self.calc_post_processing(calcPop, pop)
 
     def scf(self, calcPop):
@@ -86,7 +86,7 @@ class Calculator(abc.ABC):
         return self.calc_post_processing(calcPop, pop)
 
     @abc.abstractmethod
-    def relax_(self, calcPop):
+    def relax_(self, calcPop, *args, **kwargs):
         pass
 
     @abc.abstractmethod
@@ -149,13 +149,21 @@ class ClusterCalculator(Calculator, abc.ABC):
             os.chdir(self.work_dir)
         return scfPop
 
-    def relax_(self, calcPop):
+    def relax_(self, calcPop, *args, **kwargs):
         if self.mode == 'parallel':
             self.paralleljob(calcPop, self.relax_job)
             relaxPop = self.read_parallel_results()
             self.J.clear()
         else:
-            os.chdir(self.calc_dir)
+            # make multiple paths if 'serial' mode is used with pa_magus.
+            # WARNING: PLEASE DO NOT CHANGE LOGFILE NAME IN "search/search_pa.py"!
+            try:
+                _dir = "/" + str(int(kwargs['logfile'][8:-4]))
+            except:
+                _dir = ""
+            
+            os.makedirs(self.calc_dir + _dir, exist_ok=True)
+            os.chdir(self.calc_dir + _dir)
             relaxPop = self.relax_serial(calcPop)
             os.chdir(self.work_dir)
         return relaxPop
@@ -186,12 +194,16 @@ class ClusterCalculator(Calculator, abc.ABC):
     def prepare_for_calc(self):
         pass
 
-
+from ase.spacegroup.symmetrize import FixSymmetry
 class ASECalculator(Calculator):
     optimizer_dict = {
         'bfgs': BFGS,
         'lbfgs': LBFGS,
         'fire': FIRE,
+        'gpmin': GPMin,
+        'bfgsline': BFGSLineSearch, 
+        'scipyfminbfgs': SciPyFminBFGS, 
+        'scipyfmincg': SciPyFminCG,
     }
     def __init__(self, **parameters):
         super().__init__(**parameters)
@@ -202,10 +214,11 @@ class ASECalculator(Calculator):
             'optimizer': 'bfgs',
             'max_move': 0.1,
             'relax_lattice': True,
+            'fix_symmetry': False,
             }
         check_parameters(self, parameters, Requirement, Default)
         self.optimizer = self.optimizer_dict[self.optimizer]
-        self.main_info.extend(['eps', 'max_step', 'optimizer', 'max_move', 'relax_lattice'])
+        self.main_info.extend(list(Default.keys()))
 
     def relax_(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
         log.debug('Using Calculator:\n{}log_path:{}\ntraj_path:{}\n'.format(self, logfile, trajname))
@@ -218,15 +231,16 @@ class ASECalculator(Calculator):
                 atoms.set_calculator(self.ase_calc_type(atoms=atoms,**self.relax_calc))
             else:
                 atoms.set_calculator(self.relax_calc)
+                
+            if self.fix_symmetry:
+                atoms.constraints += [FixSymmetry(atoms)]
             if self.relax_lattice:
                 ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa)
             else:
                 ucf = atoms
-            gopt = self.optimizer(ucf, maxstep=self.max_move, logfile=logfile, trajectory=trajname)
+            gopt = self.optimizer(ucf, logfile=logfile, trajectory=trajname )#, maxstep=self.max_move)
             try:
                 label = gopt.run(fmax=self.eps, steps=self.max_step)
-                traj = read(trajname, ':')
-                log.debug('{} relax steps: {}'.format(self.__class__.__name__, len(traj)))
             except Converged:
                 pass
             except TimeoutError:
@@ -238,6 +252,14 @@ class ASECalculator(Calculator):
                 log.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
                 log.warning("Calculator:{} relax fail".format(self.__class__.__name__))
                 continue
+            try:
+                #traj = read(trajname, ':')
+                traj = []
+                log.debug('{} relax steps: {}'.format(self.__class__.__name__, len(traj)))
+            except:
+                traj = None
+                log.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                pass
             atoms.info['energy'] = atoms.get_potential_energy()
             atoms.info['forces'] = atoms.get_forces()
             try:
@@ -289,9 +311,9 @@ class AdjointCalculator(Calculator):
             out += 'Calculator {}: {}'.format(i + 1, calc.__repr__())
         return out
 
-    def relax_(self, calcPop):
+    def relax_(self, calcPop, *args, **kwargs):
         for calc in self.calclist:
-            calcPop = calc.relax(calcPop)
+            calcPop = calc.relax(calcPop, *args, **kwargs)
         return calcPop
 
     def scf_(self, calcPop):

@@ -8,7 +8,8 @@ from magus.utils import check_parameters, get_units_numlist
 from .individuals import Individual, get_Ind
 from ..fitness import get_fitness_calculator
 from ..generators import get_random_generator
-
+import math
+from collections import Counter
 
 log = logging.getLogger(__name__)
 __all__ = ['FixPopulation', 'VarPopulation']
@@ -203,7 +204,7 @@ class Population:
             return np.arange(len(pop)), pop
 
         fp = np.array([ind.fingerprint for ind in pop])
-        labels = cluster.KMeans(n_clusters=n_clusters).fit_predict(fp)
+        labels = cluster.KMeans(n_clusters=n_clusters, n_init='auto').fit_predict(fp)
         # TODO fix bug: clustering may fail if there are dulplicate structures
         # goodpop = [None] * n_clusters
         goodpop = [None] * len(set(labels))
@@ -215,17 +216,32 @@ class Population:
                     goodpop[label] = ind
         return labels, goodpop
 
-    def select(self, n, delete_highE=False, high=0.6):
+    def select(self, n, remove_highE = 0., remove_p1 = 0.5):
+        """
+        good_pop selection: select first n-th (or less than n) population.
+        Parameters:
+            remove_highE: remove structures that have higher energy than 'remove_highE' * Min(energy).
+            remove_p1: remove 'remove_p1' ratio of structures that have no symmetry.
+        """
+        
         self.calc_dominators()
         self.pop = sorted(self.pop, key=lambda x: x.info['dominators'])
+        
+        if remove_highE > 0:
+            enthalpys = [ind.info['enthalpy'] for ind in self.pop]
+            high = np.min(enthalpys) * remove_highE
+            _oldLength = len(self.pop)
+            self.pop = [ind for ind in self.pop if ind.info['enthalpy'] <= high]
+            logging.debug("select without enthalpy higher than {} eV/atom, pop length from {} to {}".format(high, _oldLength, len(self.pop)))
+
+        if remove_p1 > 0:
+            _oldLength = len(self.pop)
+            self.pop = [ind for ind in self.pop if not (ind.info['spg']==1 and ind.info['dominators'] >= n * (1-remove_p1)) ]
+            logging.debug("select without {:.2%} p1 symmetry structures, pop length from {} to {}".format(remove_p1, _oldLength, len(self.pop)))
+
         if len(self) > n:
             self.pop = self.pop[:n]
-        if delete_highE:
-            enthalpys = [ind.atoms.info['enthalpy'] for ind in self.pop]
-            high *= np.min(enthalpys)
-            logging.debug("select without enthalpy higher than {} eV/atom, pop length before selecting: {}".format(high, len(self.pop)))
-            self.pop = [ind for ind in self.pop if ind.atoms.info['enthalpy'] <= high]
-            logging.debug("select end with pop length: {}".format(len(self.pop)))
+
 
     def bestind(self):
         self.calc_dominators()
@@ -237,17 +253,36 @@ class Population:
 
     def fill_up_with_random(self):
         raise NotImplementedError
-
+    
+    def mine_good_spg(self, good_ratio = 0.1, miner_tracker = Counter({})):
+        self.calc_dominators()
+        spgs = [ind.info['spg'] for ind in sorted(self.pop, key=lambda x: x.info['dominators']) if not ind.info['spg'] == 1]
+        _miner_L = math.ceil(len(spgs) * good_ratio)
+        
+        miner = Counter({})
+        from magus.reconstruct.parentspg import Miner
+    
+        for i,spg in enumerate(spgs):
+            if i > _miner_L:
+                break
+            miner += Miner().mine_spg(spg)
+        
+        miner = miner_tracker.filter(miner)
+        miner_tracker.add_miner_log_to_miner(miner)
+        return miner
+        
 
 class FixPopulation(Population):
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
 
-    def fill_up_with_random(self):
-        n_random = self.pop_size - len(self)
+    def fill_up_with_random(self, targetLen = None):
+        n_random = (targetLen - len(self)) if not targetLen is None else (self.pop_size - len(self)) 
         add_frames = self.atoms_generator.generate_pop(n_random)
-        self.extend(add_frames)
+
+        for ind in add_frames:
+            self.append(self.Ind(ind))
 
 
 class VarPopulation(Population):

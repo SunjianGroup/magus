@@ -41,6 +41,7 @@ class Magus:
             self.keep_pop = self.Population([], 'keep')
             # self.db = connect("results/all_structures.db")
 
+
     def init_parms(self, parameters):
         self.parameters = parameters.p_dict
         self.atoms_generator = parameters.RandomGenerator
@@ -51,12 +52,21 @@ class Magus:
         log.debug('Random Generator information:\n{}'.format(self.atoms_generator))
         log.debug('Offspring Creator information:\n{}'.format(self.pop_generator))
         log.debug('Population information:\n{}'.format(self.Population([])))
+        # For developers and testers only:
+        # if you have the Global Minima structure[spg, enthalpy], write it in 'convergence_condition'
+        # to stop the program and avoid useless further generations.
+        if 'convergence_condition' in self.parameters:
+            self.convergence_condition = self.parameters['convergence_condition']
+        else:
+            self.convergence_condition = [-1, -1e-5]
 
     def read_seeds(self):
         log.info("Reading Seeds ...")
         seed_frames = read_seeds('{}/POSCARS_{}'.format(self.seed_dir, self.curgen))
         seed_frames.extend(read_seeds('{}/seeds_{}.traj'.format(self.seed_dir, self.curgen)))
         seed_pop = self.Population(seed_frames, 'seed', self.curgen)
+        for i in range(len(seed_pop)):
+            seed_pop[i].info['gen'] = self.curgen
         return seed_pop
 
     def get_init_pop(self):
@@ -65,8 +75,15 @@ class Magus:
             random_frames = self.atoms_generator.generate_pop(self.parameters['initSize'])
             init_pop = self.Population(random_frames, 'init', self.curgen)
         else:
-            init_pop = self.pop_generator.get_next_pop(self.cur_pop + self.keep_pop)
+            parent_pop = self.cur_pop + self.keep_pop
+            parent_pop.gen = self.curgen
+            parent_pop.del_duplicate()
+            parent_pop.calc_dominators()
+            init_pop = self.pop_generator.get_next_pop(parent_pop, dominators_calced = True)
             init_pop.gen = self.curgen
+            # mine some good spacegroups in parent_pop
+            spgs = parent_pop.mine_good_spg(good_ratio = self.parameters['mine_ratio'])
+            init_pop.atoms_generator.adjust_spg_selection(spgs, spg_tracker = spg_tracker, max_spg_number = self.parameters['age_spg'])
             init_pop.fill_up_with_random()
         ## read seeds
         seed_pop = self.read_seeds()
@@ -84,26 +101,37 @@ class Magus:
 
     def set_good_pop(self):
         log.info('construct goodPop')
-        #good_pop = self.cur_pop + self.good_pop + self.keep_pop
+        #target: good_pop = self.cur_pop + self.good_pop + self.keep_pop
+        #Sometimes the mutated 'child' is relaxed back to 'parent'. 
+        #The 'for...else' function purposely changes child.info['identity'] back to its parent.info['identity'] to get a correct history punish. 
         good_pop = self.good_pop + self.keep_pop
         for i, ind in enumerate(self.cur_pop):
             for ind1 in good_pop:
                 if ind == ind1:
                     self.cur_pop[i] = ind1
+                    break
             else:
                 good_pop.append(ind)
+        good_pop.gen = self.curgen
         good_pop.del_duplicate()
         good_pop.calc_dominators()
-        good_pop.select(self.parameters['popSize'])
+        good_pop.select(self.parameters['popSize'], remove_p1 = self.parameters['remove_p1'])
         log.debug("good ind:")
         for ind in good_pop:
-            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}, id: {identity}"\
+            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}, id: {identity}, "\
                 .format(strFrml=ind.get_chemical_formula(), **ind.info))
         self.good_pop = good_pop
 
     def set_keep_pop(self):
         log.info('construct keepPop')
         _, keep_frames = self.good_pop.clustering(self.parameters['saveGood'])
+
+        #age_fit = [ind.info['fitness']['age']   for ind in self.good_pop]
+        #b2 = np.argsort(age_fit)[:1]
+        #for b in b2:
+        #    keep_frames.append (self.good_pop[b])
+        
+        
         keep_pop = self.Population(keep_frames, 'keep', self.curgen)
         log.debug("keep ind:")
         for ind in keep_pop:
@@ -115,6 +143,11 @@ class Magus:
         log.info("best ind:")
         bestind = self.good_pop.bestind()
         self.best_pop.extend(bestind)
+        if bestind[0].info['spg'] == self.convergence_condition[0] and bestind[0].info['enthalpy'] <= self.convergence_condition[1]:
+            self.stop_signal = True
+        else:
+            self.stop_signal = False
+
         for ind in bestind:
             log.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}"\
                 .format(strFrml=ind.get_chemical_formula(), **ind.info))
@@ -124,11 +157,15 @@ class Magus:
             log.info(" Generation {} ".format(self.curgen).center(40, "="))
             self.one_step()
             self.curgen += 1
+            if self.stop_signal:
+                log.info("Structure with spacegroup '{}', enthalpy lower than '{}' had appeared, which met the convergence_condition. GA loop break".format(*self.convergence_condition))
+                break
 
     def update_volume_ratio(self):
         if self.curgen > 1:
             log.debug(self.cur_pop)
-            new_volume_ratio = 0.7 * self.cur_pop.volume_ratio + 0.3 * self.atoms_generator.volume_ratio
+            new_volume_ratio = 0.7 * self.good_pop[:5].volume_ratio + 0.3 * self.atoms_generator.volume_ratio
+            #new_volume_ratio = self.atoms_generator.volume_ratio
             self.atoms_generator.set_volume_ratio(new_volume_ratio)
 
     def one_step(self):
@@ -142,7 +179,7 @@ class Magus:
             log.info('DFT relax {} structures with {} scf'.format(len(relax_pop), relax_step))
         except:
             pass
-        # save raw date before checking
+        # save raw data before checking
         relax_pop.save('raw', self.curgen)
         relax_pop.check()
         # find spg before delete duplicate

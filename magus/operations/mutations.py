@@ -149,7 +149,7 @@ class LatticeMutation(Mutation):
 
 
 class SlipMutation(Mutation):
-    Default = {'tryNum':50, 'cut': 0.5, 'randRange': [0.5, 2]}
+    Default = {'tryNum':50, 'cut': 0.5, 'randRange': [0, 1]}
 
     def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
@@ -239,7 +239,7 @@ class RattleMutation(Mutation):
     rattle_range: The maximum distance within witch to rattle the atoms. 
                   Atoms are rattled uniformly within a sphere of this radius.  
     """
-    Default = {'tryNum':50, 'p': 0.25, 'rattle_range': 1.0, 'd_ratio':0.7, 'keep_sym': None, 'symprec': 1e-1}
+    Default = {'tryNum':50, 'p': 0.25, 'rattle_range': 1.0, 'keep_sym': ['None'], 'symprec': 1e-1}
 
     @staticmethod
     def rattle(atoms, indexs, movemodes):
@@ -280,7 +280,7 @@ class RattleMutation(Mutation):
         atoms = ind.add_vacuum(atoms, ind.vacuum_thickness)
         return atoms
 
-    def mutate_sym(self, ind):
+    def mutate_sym(self, ind, method):
         """
         Mutation that keeps symmetry. Three methods are considered in
             Xuecheng Shao, et al, J. Chem. Phys. 156, 014105 (2022),
@@ -295,16 +295,18 @@ class RattleMutation(Mutation):
         
         atoms = ind.for_heredity()
 
-        method = self.keep_sym if self.keep_sym in ['keep_spg', 'keep_comb'] else \
-                                        np.random.choice(['keep_spg', 'keep_comb'])    
-        
         mutate_sym_ = getattr(sym_rattle, method)
         new_atoms = mutate_sym_(atoms, symprec = self.symprec, trynum = self.tryNum,
-                                mutate_rate = self.p, rattle_range = self.rattle_range, d_ratio = self.d_ratio)
-        return ind.__class__(new_atoms)
+                                mutate_rate = self.p, rattle_range = self.rattle_range, distance_dict = ind.distance_dict)
+        c = ind.__class__(new_atoms)
+        return c
 
     def mutate_bulk(self, ind):
-        ind = self.mutate_p1(ind) if (self.keep_sym is None) else self.mutate_sym(ind)
+        keep_sym_method = np.random.choice(self.keep_sym) 
+        if keep_sym_method == 'None':
+            ind = self.mutate_p1(ind) 
+        else:
+            ind = self.mutate_sym(ind, keep_sym_method)
         return ind
 
 

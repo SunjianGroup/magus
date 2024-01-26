@@ -5,6 +5,8 @@ import math
 import numpy as np
 from ase import Atom, Atoms
 import logging
+from itertools import combinations
+import ase.io
 
 log = logging.getLogger(__name__)
 
@@ -17,9 +19,8 @@ def cross_surface_cutandsplice(instance, ind1, ind2):
     axis = np.random.choice([0, 1])
     atoms1 = ind1.for_heredity()
     atoms2 = ind2.for_heredity()
-    
-    atoms1.set_scaled_positions(atoms1.get_scaled_positions() + np.random.rand(3))
-    atoms2.set_scaled_positions(atoms2.get_scaled_positions() + np.random.rand(3))
+    atoms1.set_scaled_positions(np.modf(atoms1.get_scaled_positions() + np.random.rand(3))[0])
+    atoms2.set_scaled_positions(np.modf(atoms2.get_scaled_positions() + np.random.rand(3))[0])
 
     cut_cellpar = atoms1.get_cell()
     
@@ -89,7 +90,7 @@ class ShellMutation(Mutation):
         return ind.__class__(atoms)
 
     def mutate_cluster(self,ind, addatom = True, addfrml = None):
-        return self.mutate_surface(self,ind, addatom = True, addfrml = None)
+        return self.mutate_surface(ind, addatom = addatom, addfrml = addfrml)
 
 #class SlipMutation
 from .utils import LayerIdentifier
@@ -111,18 +112,206 @@ def mutate_surface_slip(self, ind):
     atoms.wrap()
     return ind.__class__(atoms)
 
+import spglib
+from ase.ga.ofp_comparator import OFPComparator
 
 class SymMutation(Mutation):
     Default = {'tryNum':50, 'symprec': 1e-4}
+
+    @staticmethod
+    def __fix_hex_cell_to_tri_form(multiplity, atoms, evats = None):
+        #fix the acquired cell rotated by '3' or '6' symmetry.
+        
+        #WTF '3' cannot be fixed this way, the symmetry will be broken.
+        #'6' is not tested because DDL is close and my testing system luckily have no 6 symmetry. 
+        #My dear fellows if you want to use this function pls test it first! GOOD LUCK ;)
+        
+        fixatoms = Atoms(cell = atoms.get_cell(), pbc = 1)
+        fixevats = []
+
+        #if not multiplity in [3, 6]:
+        #    return fixatoms, fixevats
+
+        return fixatoms, fixevats
+
+        if evats is None:
+            evats = list(range(0, len(atoms)))
+        """
+        the main idea is: I have a cell part, \2/3\ for example, and cellpar gamma is 120
+        I rotated this cell counterclockwise 120 degrees for two times and got a hexagon
+         -----
+        /1\2/3\
+        \4/5\6/
+         -----
+        Then I fix the bottom-right and top-left regions which have no atoms
+        -------                     --------
+        \/1\2/3\        to          \6/1\2/3\
+         \4/5\6/\                     \4/5\6/1\
+          --------                     --------
+        """
+        assert abs(atoms.cell.cellpar()[-1] - 120)<1, 'change to cell with gamma 120 before calling __fix_hex_cell_to_tri_form: {}'.format(atoms.cell.cellpar()[-1])
+        
+        #bottom-right equals P1, top-left equals P6
+        sp = atoms.get_scaled_positions(wrap = True)
+        p1_index = [i for i in range(len(atoms)) if 0.5 <= sp[i][1] < 1 and 0<= sp[i][0]< 0.5]
+        p6_index = [i for i in range(len(atoms)) if 0.5 <= sp[i][0] < 1 and 0<= sp[i][1]< 0.5]
+        new_sp1 = sp[p1_index] + [0.5,-0.5,0]
+        new_sp6 = sp[p6_index] + [-0.5, 0.5,0]
+
+        for p_index, new_sp in zip([p1_index, p6_index], [new_sp1, new_sp6]):
+            fixevats.extend(p_index)
+            new_part = atoms[p_index].copy()
+            new_part.set_scaled_positions(new_sp)
+            fixatoms +=  new_part
+        
+        fixatoms.wrap()  
+
+        #ase.io.write('beforefix.vasp', atoms,vasp5=1)
+        #ase.io.write('afterfix.vasp', atoms+fixatoms,vasp5=1)
+
+        return fixatoms, fixevats
     
-    def mirrorsym(self, atoms, rot):
-        #TODO: remove the self.threshold below
-        #self.threshold = 0.5
+    @staticmethod
+    def __get_an_atom_with_least_local_order__(atoms, multiplity, evats):
+        #atoms with higher local order is favored, which means better energy
+        atoms = atoms.copy()
+        atoms.wrap()
+        
+        local_orders = OFPComparator().get_local_orders(atoms)
+        
+        i = 0
+        while i<len(atoms):            
+            at_with_least_local_order = np.argsort(local_orders)[i]
+
+            i +=1 
+            if at_with_least_local_order >= len(atoms):
+                #sometimes len(local_order) > len(atoms)
+                #it seems like an interesting bug and idk what caused that and i cannot fix it either lmao
+                continue
+
+            if len(np.where(np.array(evats) == evats[at_with_least_local_order])[0]) == multiplity:
+                return at_with_least_local_order
+            
+        return -1
+    
+    def __share_method__(self, atoms, rot, mult, distance_dict = {}, possible_symbols_numlist = None):
+         
         ats = atoms.copy()
+        if ats.cell.cellpar()[-1] < 89.9:
+            ats = resetLattice(atoms=ats,expandsize=(2,2,1)).get(np.dot(np.diag(-1,1,1), atoms.get_cell()[:]))
+
         axis = atoms.get_cell().copy()
         axis_1 = np.linalg.inv(axis)
+
+        ats.translate([-np.sum(ats.get_cell()[:2], axis = 0)/2]*len(ats))
+        sps = np.dot(ats.get_positions(), axis_1)
+
+        func_get_part = getattr(self, 'sym_{}_part'.format(mult))
+        ats = ats[func_get_part(rot, sps)]
+        #ase.io.write('rat1.vasp', ats, format = 'vasp', vasp5=1)
+        multiplity = int(mult) if not mult == 'm' else 2
+
+        rats = ats.copy()
+        for _ in range(0,multiplity-1):
+            rpos = np.array([np.dot(np.dot(rot, p), axis) for p in np.dot(ats.get_positions(), axis_1)])
+            ats.set_positions(rpos)
+            rats += ats
+
+        rats.pbc = 1
+        #ase.io.write('rat2.vasp', rats, format = 'vasp', vasp5=1)
         
-        #1. calculate the mirror line.
+        Trats, evats = self.merge_evats_until_check_distance_is_true(rats, multiplity, distance_dict)
+        #print('rat4', spglib.get_spacegroup(Trats, 0.1))
+        #ase.io.write('rat4.vasp', Trats, vasp5=1)
+
+        Trats = self.remove_evats_until_check_formula_is_true(Trats, evats, multiplity, possible_symbols_numlist)
+        
+
+        if Trats is None:
+            #print('failed check formula')
+            return None
+        #print('rat5', spglib.get_spacegroup(Trats, 0.1))
+        #ase.io.write('rat5.vasp',Trats, vasp5=1)   
+
+        rats = resetLattice(atoms=Trats,expandsize=(4,4,1)).get(atoms.get_cell()[:])    #, neworigin = np.average(atoms.get_cell()[:2], axis = 0) )
+        #print('fin', spglib.get_spacegroup(rats, 0.1))
+        #ase.io.write('rat6.vasp',rats, vasp5=1)
+
+        return rats 
+
+
+    def merge_evats_until_check_distance_is_true(self, rats, multiplity, distance_dict = {}):
+        LratsN = int(len(rats)/multiplity)
+        evats = []
+        for _ in range(0, multiplity):
+            evats += list(range(0,LratsN))
+
+        fixatoms, fixevats = self.__fix_hex_cell_to_tri_form(multiplity, rats, evats=evats)
+        
+
+        to_merge = [] 
+        rats += fixatoms
+        for x in range(0, LratsN):
+            x_prime_with_x = [x + LratsN*ii for ii in range(0, multiplity)] 
+            x_prime_fix = list(np.where(np.array(fixevats) == x)[0] + LratsN * multiplity)
+            if np.any([rats.get_distance(xx,yy,mic=True) < distance_dict[(rats[xx].symbol, rats[yy].symbol)] for xx,yy in combinations(x_prime_with_x + x_prime_fix, 2)]):
+                # merge atoms 
+                rats[x].position = np.average([rats[xx].position for xx in x_prime_with_x], axis=0) 
+                to_merge.extend(x_prime_with_x[1:] + x_prime_fix)
+        
+        #outrats = rats.copy()
+        #ase.io.write('rat3.vasp', outrats, vasp5=1)
+        evats.extend(fixevats)
+
+        check_distance = False
+        while check_distance == False:
+            for x,y in combinations([i for i in range(0,len(rats)) if not i in to_merge], 2):
+                if rats.get_distance(x,y,mic=True) < distance_dict[(rats[x].symbol, rats[y].symbol)]:       # merge atoms 
+                    y_prime_with_y = np.where(np.array(evats) == evats[y])[0]
+                    to_merge.extend(y_prime_with_y)
+
+                    break
+            else:
+                check_distance = True
+            
+        Trats = rats[[x for x in range(len(rats)) if not x in to_merge]]
+        evats = [value for x, value in enumerate(evats) if not x in to_merge]
+        
+        return Trats, evats
+
+
+    def remove_evats_until_check_formula_is_true(self, Trats, evats, multiplity, possible_symbols_numlist = {}):
+
+        for key in Trats.symbols.formula.count().keys() | possible_symbols_numlist.keys():
+            if key not in Trats.symbols.formula.count().keys():
+                return None
+            if Trats.symbols.formula.count()[key] < np.min(possible_symbols_numlist[key]):
+                return None
+            while Trats.symbols.formula.count()[key] not in possible_symbols_numlist[key]:
+                gomul = True
+                if (Trats.symbols.formula.count()[key] - np.min(possible_symbols_numlist[key]) ) > multiplity and gomul:
+
+                    x = self.__get_an_atom_with_least_local_order__(Trats, multiplity, evats)
+                    if not x == -1:
+                        x_prime_with_x = np.where(np.array(evats) ==evats[x])[0]
+                        to_merge = x_prime_with_x
+                    else:
+                        gomul = False
+
+                else:
+                    x = self.__get_an_atom_with_least_local_order__(Trats, 1, evats)
+                    if x == -1:
+                        return None
+                    to_merge = [x]
+                Trats = Trats[[x for x in range(len(Trats)) if not x in to_merge]]
+                evats = [value for x, value in enumerate(evats) if not x in to_merge]
+
+        return Trats
+    
+    
+    def sym_m_part(self, rot, sps):
+        
+        #calculate the mirror line.
         #For the mirror line in x^y plane and goes through (0,0), its k, i.e., y/x must be a fix number.
         #for mirror matrix[[A,B], [C,D]], k =[ C*x0 + (1+D)*y0]/ [ (1+A)*x0 + B*y0 ] independent to x0, y0. 
         A, B, C, D, k = *(1.0*rot[:2, :2].flatten()), 0
@@ -134,107 +323,88 @@ class SymMutation(Mutation):
             #x0, y0 = 1, -(1+A)/B + 1            ...so it is randomly chosen by me...
             k =  (C + (1+D)*( 1 -(1+A)/B ) ) / B if not B==0 else C / (1+A)
 
-        #2. If the mirror line goes through the cell itself, reset it. 
-        #Replicate it to get a huge triangle with mirror line and two of cell vectors.
-        if not ( (k is None) or k <= 0):
-            scell = resetLattice(atoms = ats,expandsize= (4,1,1))
-            slattice = ats.get_cell() * np.reshape([-1]*3 + [1]*6, (3,3))
-            ats = scell.get(slattice)
-
-        cell = ats.get_cell()
-        ats = ats * (2,2,1)
-        ats.set_cell(cell)
-        ats.translate([-np.sum(ats.get_cell()[:2], axis = 0)]*len(ats))
-        index = [i for i, p in enumerate(np.dot(ats.get_positions(), axis_1)) if ((p[1] - k * p[0] >= 0) if not k is None else (p[0] >= 0))]
+        #if np.mean(OFPComparator().get_local_orders(ats[index1])) > np.mean(OFPComparator().get_local_orders(ats[index2])):
+        #maybe choosing the part with more atoms is better? ##HIGHER LOCAL ORDER?
         
-        ats = ats[index]
-        rats = ats.copy()
-        """
-        outats = rats.copy()
-        outats.set_cell(ats.get_cell()[:]*np.reshape([2]*6+[1]*3, (3,3)))
-        outats.translate([np.sum(ats.get_cell()[:2], axis = 0)]*len(outats))
-        ase.io.write('rats1.vasp', outats, format = 'vasp', vasp5=1)
-        """
-        cpos = np.array([np.dot(np.dot(rot, p), axis) for p in np.dot(ats.get_positions(), axis_1)])
-        index = [i for i, p in enumerate(cpos) if math.sqrt(np.sum([x**2 for x in p - ats[i].position])) >= 2*self.threshold* covalent_radii[ats[i].number] ]
-        ats = ats[index] 
-        ats.set_positions(cpos[index])
+        indexes = [
+            [i for i, p in enumerate(sps) if ((p[1] - k * p[0] >= 0) if not k is None else (p[0] >= 0))],
+            [i for i, p in enumerate(sps) if ((p[1] - k * p[0] <= 0) if not k is None else (p[0] <= 0))]
+        ]
         
-        rats += ats
-        """
-        outats = rats.copy()
-        outats.set_cell(rats.get_cell()[:]*np.reshape([2]*6+[1]*3, (3,3)))
-        outats.translate([np.sum(ats.get_cell()[:2], axis = 0)]*len(outats))
-        ase.io.write('rats2.vasp', outats, format = 'vasp', vasp5=1)
-        """
-        return resetLattice(atoms=rats, expandsize=(1,1,1)).get(atoms.get_cell()[:], neworigin = -np.mean(atoms.get_cell()[:2], axis = 0) )
-
-    def axisrotatesym(self, atoms, rot, mult):
-        #TODO: remove the self.threshold below
-        #self.threshold = 0.5
-        ats = atoms.copy()
-        axis = atoms.get_cell().copy()
-        axis_1 = np.linalg.inv(axis)
+        return indexes[np.argmax([len(index) for index in indexes])]
         
-        _, _, c, _, _, gamma = ats.get_cell_lengths_and_angles()
-        if not np.round(gamma*mult) == 360:
-            if mult == 2:
-                ats = ats * (2,1,1)
-                ats.set_cell(axis)
-                ats.translate([-ats.get_cell()[0]]*len(ats))
-            else:
-                scell = resetLattice(atoms = ats,expandsize= (4,4,1))
-                slattice = (ats.get_cell()[:]).copy()
+        
+    def sym_2_part(self, rot, sps):
 
-                #here we rotate slattice_a @mult degrees to get a new slattice_b. For sym '3', '4', '6', lattice_a must equals lattice_b.
-                #The rotate matrix is borrowed from <cluster.cpp> and now I forget how to calculate it. 
-                r1, r2, r3, x, y, z  = *slattice[2]/c, *slattice[0]
-                cosOmega, sinOmega=math.cos(2*math.pi/mult), math.sin(2*math.pi/mult)
-                slattice[1] = [x*(r1*r1*(1-cosOmega)+cosOmega)+y*(r1*r2*(1-cosOmega)-r3*sinOmega)+z*(r1*r3*(1-cosOmega)+r2*sinOmega), 
-                    x*(r1*r2*(1-cosOmega)+r3*sinOmega)+y*(r2*r2*(1-cosOmega)+cosOmega)+z*(r2*r3*(1-cosOmega)-r1*sinOmega), 
-                    x*(r1*r3*(1-cosOmega)-r2*sinOmega)+y*(r2*r3*(1-cosOmega)+r1*sinOmega)+z*(r3*r3*(1-cosOmega)+cosOmega) ]
+        indexes = [
+            [i for i, p in enumerate(sps) if p[1]>= 0],
+            [i for i, p in enumerate(sps) if p[1]<= 0],
+            [i for i, p in enumerate(sps) if p[0]<= 0],
+            [i for i, p in enumerate(sps) if p[0]<= 0]
+        ]
+        return indexes[np.argmax([len(index) for index in indexes])]
+    
+    def sym_4_part(self, rot, sps):
 
-                ats = scell.get(slattice)
-                
-                #print(ats.get_cell_lengths_and_angles())
-        rats = ats.copy()
-        #ase.io.write('rats.vasp', rats, format = 'vasp', vasp5=1)
-        index = [i for i in range(len(ats)) if math.sqrt(np.sum([x**2 for x in ats[i].position])) < 2* self.threshold* covalent_radii[ats[i].number]]
-        if len(index):
-            del ats[index]
-
-        for i in range(mult-1):
-            newats = ats.copy()
-            newats.set_positions([np.dot(np.dot(rot, p), axis) for p in np.dot(newats.get_positions(), axis_1)])
-            rats += newats
-            ats = newats.copy()
-            """
-            outatoms = rats.copy()
-            outatoms.set_cell(outatoms.get_cell()[:]*3)
-            outatoms.translate(-np.mean(outatoms.get_cell()[:], axis = 0))
-            ase.io.write('rats{}.vasp'.format(i), outatoms, format = 'vasp', vasp5=1)
-            """
-        return resetLattice(atoms=rats, expandsize=(1,1,1)).get(atoms.get_cell()[:], neworigin = -np.mean(atoms.get_cell()[:2], axis = 0) )
+        indexes = [
+            [i for i, p in enumerate(sps) if p[0]>= 0 and p[1]>=0],
+            [i for i, p in enumerate(sps) if p[0]>= 0 and p[1]<=0],
+            [i for i, p in enumerate(sps) if p[0]<= 0 and p[1]>=0],
+            [i for i, p in enumerate(sps) if p[0]<= 0 and p[1]<=0]
+        ]
+        return indexes[np.argmax([len(index) for index in indexes])]
 
 
+    def sym_3_part(self, rot, sps):
+        indexes = [
+            [i for i, p in enumerate(sps) if p[0]>= 0 and p[1]>=0],
+            [i for i, p in enumerate(sps) if p[0]<= 0 and p[0]<=p[1]<=p[0]+0.5],
+            [i for i, p in enumerate(sps) if p[1]<= 0 and p[0]-0.5<=p[1]<=p[0]],
+        ]
+        return indexes[np.argmax([len(index) for index in indexes])]
+    
+    def sym_6_part(self, rot, sps):
+        indexes = [
+            [i for i, p in enumerate(sps) if 0<=p[1]<=p[0]],
+            [i for i, p in enumerate(sps) if 0<=p[0]<=p[1]],
+            [i for i, p in enumerate(sps) if p[1]>=0 and p[0]<= 0 and p[0]<=p[1]<=p[0]+0.5],
+            [i for i, p in enumerate(sps) if p[1]<=0 and p[0]<= 0 and p[0]<=p[1]<=p[0]+0.5],
+            [i for i, p in enumerate(sps) if p[0]<=0 and p[1]<= 0 and p[0]-0.5<=p[1]<=p[0]],
+            [i for i, p in enumerate(sps) if p[0]>=0 and p[1]<= 0 and p[0]-0.5<=p[1]<=p[0]]
+        ]
+        return indexes[np.argmax([len(index) for index in indexes])]
+           
     def mutate_bulk(self, ind):
-        self.threshold = ind.d_ratio
+
         """
         re_shape the layer according to its substrate symmetry. 
         For z_axis independent '2', 'm', '4', '3', '6' symmetry only.
         """
         substrate_sym = ind.substrate_sym(symprec = self.symprec)
+        #substrate_sym = [ss for ss in substrate_sym if ss[-1] == 3]
         r, trans, mult = substrate_sym[np.random.choice(len(substrate_sym))]
+
+        trans[2] = 0.0
         atoms = ind.for_heredity()
+        atoms.pbc = [True, True, False]
+    
+        #ase.io.write('for_heredity.vasp', atoms, vasp5=1)
+        #print(r, trans, mult)
         atoms.translate([-np.dot(trans, atoms.get_cell())] * len(atoms))
         atoms.wrap()
+        try:
+            possible_symbols_numlist = dict(zip(ind.symbol_list, ind.symbol_numlist_pool["{},{}".format(*ind.info['size'])].T))
+        except:
+            possible_symbols_numlist = {s:[value] for s,value in atoms.symbols.formula.count().items()}
 
-        if mult == 'm':
-            atoms = self.mirrorsym(atoms, r)
-        else:
-            atoms = self.axisrotatesym(atoms, r, mult)
+        atoms = self.__share_method__(atoms, r, mult, ind.distance_dict, possible_symbols_numlist)
+                
+        if atoms is None:
+            return None
         
         atoms.translate([np.dot(trans, atoms.get_cell())] * len(atoms))
+        #ase.io.write('get_heredity.vasp', atoms, vasp5=1)
+
         return ind.__class__(atoms)
 
 

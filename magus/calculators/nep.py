@@ -6,7 +6,7 @@ import numpy as np
 from pynep.calculate import NEP
 from pynep.io import load_nep, dump_nep
 from pynep.select import FarthestPointSample
-
+import yaml
 
 from magus.calculators.base import ASECalculator, ClusterCalculator
 from magus.utils import CALCULATOR_PLUGIN, check_parameters
@@ -16,12 +16,35 @@ log = logging.getLogger(__name__)
 
 
 @CALCULATOR_PLUGIN.register('nep-noselect')
-class PyNEPCalculator(ASECalculator):
+class NoselectNEPCalculator(ASECalculator):
     def __init__(self, **parameters):
         super().__init__(**parameters)
-        self.relax_calc = NEP("{}/nep.txt".format(self.input_dir))
-        self.scf_calc = NEP("{}/nep.txt".format(self.input_dir))
+        Default = {
+            'pot_file': 'nep.txt',
+        }
+        check_parameters(self, parameters, [], Default)
+        self._relax_calc = None
+        self._scf_calc = None
 
+    @property
+    def relax_calc(self):
+        if self._relax_calc is None:
+            self._relax_calc = NEP("{}/{}".format(self.input_dir, self.pot_file))
+        return self._relax_calc
+    
+    @property
+    def scf_calc(self):
+        if self._scf_calc is None:
+            self._scf_calc = NEP("{}/{}".format(self.input_dir, self.pot_file))
+        return self._scf_calc
+    
+    @relax_calc.setter
+    def relax_calc(self, calc):
+        self._relax_calc = calc
+
+    @scf_calc.setter
+    def scf_calc(self, calc):
+        self._scf_calc = calc
 
 @CALCULATOR_PLUGIN.register('nep')
 class PyNEPCalculator(ASECalculator, ClusterCalculator):
