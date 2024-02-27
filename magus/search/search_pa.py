@@ -1,5 +1,6 @@
 #Parallel Magus with parallel structure generation (random and GA) and relaxation
-#(*only supports ASE-based local relaxation calculator and GULP calculator)
+#(*For cluster-based ab-init calculator in mode parallel, the effect of parallelized genertion process 
+# in saving time is limited THUS IT IS NOT SUPPORTED!)
 
 from magus.search.search import Magus
 import multiprocessing as mp
@@ -11,52 +12,6 @@ import numpy as np
 import traceback
 import os
 import prettytable as pt
-import ase.io
-from magus.reconstruct.local_decompose import DECOMPOSE, CrystalGraph, CGIO_read, CG_ISOLATE_ATOM, CGIO_write
-from magus.reconstruct.parentspg import MinerTracker
-from ase import Atoms
-
-_distance_dict =  {
-   
-    ('O', 'Mg'): 2.2769999999999997,
-    ('Mg', 'O'): 2.2769999999999997,
-    ('O', 'Si'): 1.9469999999999998,
-    ('Si', 'O'): 1.9469999999999998,
-    ('O', 'Al'): 2.057,
-    ('Al', 'O'): 2.057,
-    ('O', 'O'): 0.1,
-    ('Mg', 'Mg'): 0.1,
-    ('Mg', 'Si'): 0.1,
-    ('Si', 'Mg'): 0.1,
-    ('Mg', 'Al'): 0.1,
-    ('Al', 'Mg'): 0.1,
-    ('Si', 'Si'): 0.1,
-    ('Si', 'Al'): 0.1,
-    ('Al', 'Si'): 0.1,
-    ('Al', 'Al'): 0.1,
-
-   ('B', 'B'): 1.848,
-   ('C', 'C'):1.6
-   }
-
-
-def is_same_frag(a,b):
-    if isinstance(a, Atoms):
-        acg = CrystalGraph()
-        acg.input_atoms(a)
-    else:
-        acg = a
-    if isinstance(b, Atoms):
-
-        bcg = CrystalGraph()
-        bcg.input_atoms(b)
-    else:
-        bcg = b
-
-    if acg==bcg:
-        return True
-    else:
-        return False
 
 log = logging.getLogger(__name__)
 
@@ -78,30 +33,15 @@ class PaMagus(Magus):
         self.numParallelCalc = self.parameters['num_para_calc'] if 'num_para_calc' in self.parameters else 10
         self.kill_time = self.parameters['kill_time']  if 'kill_time' in self.parameters else 3600  # 1 hour
 
-        log.info("\nMAGUS ver. parallel: \nResources for {} parallel <generator processes>".format(self.numParallelGen) + 
-                " and {} parallel <calculator processes> are required.\n".format(self.numParallelCalc))
-        #log.info("Parallelized functions only include <structure generation (random and GA), " + 
-        #         "structure relaxation (ASE-based local relaxation calculator and GULP calculator)>. \n" + 
-        #         "Attemptions in other systems may lead to unknown errors. ")
-        self.on_the_fly_spg_miner = self.parameters.get("on_the_fly_spg_miner", False)
-        self.on_the_fly_frager = self.parameters.get("on_the_fly_frager", False)
-        if self.on_the_fly_spg_miner:
-            self.miner_tracker = MinerTracker(max_limit_per_spg = self.parameters.get("max_limit_per_spg", 1000), scale_num_spg = self.parameters.get("scale_num_spg",1000))  
-            if restart:
-                self.miner_tracker.read()
-        if self.on_the_fly_frager and restart:
-            try:
-                self.frags = CGIO_read('fragments_pool.xyz',':')
-            except:
-                pass
-        if not hasattr(self, 'frags'):
-            self.frags = CG_ISOLATE_ATOM( self.parameters['symbols'])
+        log.warning("\nMAGUS ver. parallel: \nResources for {} parallel <generator processes>".format(self.numParallelGen) + 
+                " and {} parallel <calculator processes> are required.\n".format(self.numParallelCalc) + 
+                "PLEASE NOTE THAT CLUSTER CALCULATOR IN PARALLEL MODE IS NOT SUPPORTED\n.")
         
-        
+
         if not restart:
             self.cur_pop = self.Population([])
     
-        self.pop_generator.save_all_parm_to_yaml()
+        #self.pop_generator.save_all_parm_to_yaml()
 
 
     def relax_serial(self, init_pop, thread_num = 0):
@@ -117,11 +57,7 @@ class PaMagus(Magus):
         log.debug("'{}'th process find spg...".format(thread_num))
         relax_pop.find_spg()
         relax_pop.del_duplicate()
-        if self.on_the_fly_frager:
-            decomposed_pop = DECOMPOSE(relax_pop, _distance_dict, neighbor_dis=5, path_length_cut = 4, minimal_n_community=3)
-        else:
-            decomposed_pop = []
-        return raw_pop, relax_pop, decomposed_pop
+        return raw_pop, relax_pop, []
         
 
     def relax(self, calcPop):
@@ -207,11 +143,7 @@ class PaMagus(Magus):
         rand_ratio_ = self.parameters['rand_ratio']
 
         if self.curgen > 1:
-            self.parent_pop = self.cur_pop + self.keep_pop
-            self.parent_pop.select(len(self.parent_pop), remove_p1 = self.parameters['remove_p1'])
-            self.parent_pop.gen = self.curgen
-            self.parent_pop.del_duplicate()
-            self.parent_pop.calc_dominators()
+            self.parent_pop = self.pop_for_heredity()
 
         # For AutoOPRatio GAGenerators, update its operation ratios before multiplying processes.
         if self.parameters['autoOpRatio'] and self.curgen > 1:
@@ -230,11 +162,7 @@ class PaMagus(Magus):
                 break
         
         # For Auto spg miner SPGGenerator, update its spg probabilities before multiplying processes.
-        if self.on_the_fly_spg_miner:
-            if self.curgen > 1:
-                spgs = self.parent_pop.mine_good_spg(self.parameters['mine_ratio'], miner_tracker = self.miner_tracker)
-                self.atoms_generator.update(miner_spgs = spgs)
-
+        
         runjob = partial(abortable_worker, self.get_init_pop_serial, timeout = self.kill_time)
 
         init_pop, table = None, None
@@ -300,106 +228,18 @@ class PaMagus(Magus):
             log.info("  {}: {}".format(origin, origins.count(origin)))
         # del dulplicate?
         return init_pop
-    """
-    def update_anti_seeds(self):
-        age_old = self.parameters['age_old']
-        cur_n_gen = self.curgen
-        
-        for ind in self.good_pop:
-
-            born_n_gen = int((ind.info['identity'].split('-')[0]) [4:] )
-            age =  cur_n_gen - born_n_gen 
-
-            if age >= age_old:
-                for i in self.anti_seeds:
-                    if i.info['identity'] == ind.info['identity']:
-                        break
-                else:
-                    self.anti_seeds.append(ind)
-                    log.debug("add anti_seeds: identity {} ".format(ind.info['identity']))
-        
-        '''
-        if cur_n_gen > age_old:
-            searched_space = ase.io.read('results/gen{}.traj'.format(cur_n_gen - age_old), index=':')
-            for ind in searched_space:
-                for i in self.anti_seeds:
-                    if i.info['identity'] == ind.info['identity']:
-                        break
-                else:
-                    self.anti_seeds.append(ind)
-
-        n = len(self.anti_seeds)
-        
-        self.anti_seeds.del_duplicate()
-        log.info("update antiseeds... from length {} to {}", n, len(self.anti_seeds))
-        '''
-        if len(self.anti_seeds):
-            ase.io.write('antiseeds.traj', self.anti_seeds)
-    """    
-
-    def one_step(self):
-        self.update_volume_ratio()
-        init_pop = self.get_init_pop()
-        init_pop.save('init', self.curgen)
-        #######  relax  #######
+    
+    def get_relax_pop(self, init_pop):
         raw, relax_pop, frags = self.relax(init_pop)
-        # __
-        # \!/   sum relax_step not implied yet 
-        """
-        try:
-            relax_step = sum([sum(atoms.info['relax_step']) for atoms in relax_pop])
-            log.info('DFT relax {} structures with {} scf'.format(len(relax_pop), relax_step))
-        except:
-            pass
-        """
+        
         #save raw data
         raw.save('raw', self.curgen)
-        if self.on_the_fly_spg_miner:
-            self.miner_tracker.add_generation_to_analyzer(self.curgen)
-            self.miner_tracker.write()
-            self.miner_tracker.max_limit_per_spg = self.curgen * self.parameters['popSize']/15
-
-
+        
         log.debug("delete duplicate structures...")
         relax_pop.del_duplicate()
         relax_pop.save('gen', self.curgen)
-        self.cur_pop = relax_pop
-        log.debug("set good population..")
-        self.set_good_pop()
-        self.good_pop.save('good', '')
-        self.good_pop.save('good', self.curgen)
+        if len(frags):
+            self.frags = frags
 
-        CGIO_write('results/frag{}.xyz'.format(self.curgen), frags)
-        if self.on_the_fly_frager:
-            _frags = self.frags.copy()
-            _frags.extend(frags)   
+        return relax_pop
 
-            self.frags = []
-            n = 0
-            for f in _frags:
-                if f.info['config_type'] == "isolate_atom":
-                    self.frags.append(f)
-                    n+=1
-                else:
-                    origin = f.info['origin']
-                    origin = origin[:origin.find(":")]
-                    if origin in [ind.info['identity'] for ind in self.good_pop[:10]]:
-                        for ff in self.frags:
-                            if is_same_frag(f, ff):
-                                break
-                        else:
-                            self.frags.append(f)
-            self.frags[n:] = sorted(self.frags[n:], key = lambda x: (x.info['ubc'], x.info['dof'], 1/len(x)))
-            self.frags = self.frags[:6]
-            print('frags', self.frags)
-            CGIO_write('fragments_pool.xyz', self.frags)
-            self.atoms_generator.update(frags = list(map(lambda x:x.output_atoms(), self.frags)))
-
-        log.debug("set keep population..")
-        self.set_keep_pop()
-        self.keep_pop.save('keep', self.curgen)
-        self.update_best_pop()
-        self.best_pop.save('best', '')
-        #self.update_anti_seeds()
-        #if len(self.anti_seeds):
-        #    self.anti_seeds.save('antiseeds', self.curgen)

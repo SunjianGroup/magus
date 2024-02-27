@@ -14,6 +14,8 @@ from magus.populations.populations import Population
 
 log = logging.getLogger(__name__)
 
+#Changelog Jan 2024, YU: I changed the name of PyNEPCalculator to NoselectNEPCalculator, and moved _relax/scf_calc
+#out of __init__(). The old way does not work in parallel mode for ASE calculator in pa_magus mode. 
 
 @CALCULATOR_PLUGIN.register('nep-noselect')
 class NoselectNEPCalculator(ASECalculator):

@@ -238,7 +238,8 @@ class ASECalculator(Calculator):
                 ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa)
             else:
                 ucf = atoms
-            gopt = self.optimizer(ucf, logfile=logfile, trajectory=trajname )#, maxstep=self.max_move)
+            gopt = self.optimizer(ucf, logfile=logfile, trajectory=trajname, maxstep=self.max_move)
+            #comment the maxstep parameter if SciPyFminCG is used, or it raises error
             try:
                 label = gopt.run(fmax=self.eps, steps=self.max_step)
             except Converged:
@@ -253,13 +254,11 @@ class ASECalculator(Calculator):
                 log.warning("Calculator:{} relax fail".format(self.__class__.__name__))
                 continue
             try:
-                #traj = read(trajname, ':')
-                traj = []
+                traj = read(trajname, ':')
                 log.debug('{} relax steps: {}'.format(self.__class__.__name__, len(traj)))
             except:
-                traj = None
-                log.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
-                pass
+                traj = []
+                log.warning("ERROR in reading relaxation traj, traceback.format_exc():\n{}".format(traceback.format_exc()))
             atoms.info['energy'] = atoms.get_potential_energy()
             atoms.info['forces'] = atoms.get_forces()
             try:

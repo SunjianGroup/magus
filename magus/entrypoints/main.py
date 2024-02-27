@@ -68,6 +68,12 @@ def parse_args():
         action="store_true",
         help="Restart the searching.",
     )
+    parser_search.add_argument(
+        "-smfr",
+        "--use-smfr",
+        action="store_true",
+        help="with spg miner and frag reorganizer.",
+    )
     # summary
     parser_sum = subparsers.add_parser(
         "summary",

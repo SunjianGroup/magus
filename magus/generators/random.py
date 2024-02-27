@@ -4,10 +4,8 @@ from sklearn.decomposition import PCA
 from ase import Atoms, build
 from ase.io import read, write
 from ase.data import atomic_numbers, covalent_radii
-from ase.geometry import cellpar_to_cell
 from magus.utils import *
 from . import gensym
-from collections import Counter
 import math
 
 
@@ -67,12 +65,12 @@ def add_moles(generator, numlist, radius, symbols, input_mols, symprec_in_genera
 
 
 def spg_generate(spg, threshold_dict, numlist, radius, symbols, 
-                 min_volume, max_volume, min_lattice, max_lattice, random_swap_axis=True, 
-                 dimension=3, max_attempts=50, GetConventional=True, method=1,
-                 vacuum=None, choice=None, mol_mode=False, input_mols=None, symprec_in_generator=0.5,
-                 threshold_mol=1., generator_max_length_ratio = 100.0, esangle_min = None, esangle_max = None,
-                 wyckoff = None, forceMostGeneralWyckPos = True, thickness_tolerance = 0.0,
-                 *args, **kwargs):
+                min_volume, max_volume, min_lattice, max_lattice, 
+                dimension=3, max_attempts=50, GetConventional=True, method=1,
+                vacuum=None, choice=None, mol_mode=False, input_mols=None, symprec_in_generator=0.5,
+                threshold_mol=1., generator_max_length_ratio = 100.0, esangle_min = None, esangle_max = None,
+                wyckoff = None, forceMostGeneralWyckPos = True, thickness_tolerance = 0.0,
+                *args, **kwargs):
     # set generator
     generator = gensym.Info()
     generator.spg = int(spg)
@@ -90,7 +88,6 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
     generator.GetConventional = GetConventional
     generator.minVolume = min_volume
     generator.maxVolume = max_volume
-    print(min_lattice, max_lattice)
     ## swap axis
     # This function has been integrated into gensym -YU
     # swap_matrix = get_swap_matrix(random_swap_axis)
@@ -288,7 +285,6 @@ class SPGGenerator:
 
     def get_min_lattice(self, numlist):
         radius = [r for i, r in enumerate(self.radius) if numlist[i] > 0]
-        print(numlist, self.radius)
         min_lattice = [2 * np.max(radius)] * 3 + [45.] * 3
         min_lattice = [b if b > 0 else a for a, b in zip(min_lattice, self.min_lattice)]
         return min_lattice
@@ -488,8 +484,6 @@ class LayerSPGGenerator(SPGGenerator):
         elif self.spg_type == 'layer':
             self.choice = 1
             self.spacegroup = [spg for spg in self.spacegroup if spg <= 80]
-        elif self.spg_type == 'molecule':
-            self.choice = 2
         else:
             raise Exception("Unexcepted spg type '{}', should be 'plane' or 'layer'".format(self.spg_type))
 

@@ -1,15 +1,10 @@
-from magus.generators.random import MoleculeSPGGenerator, SPGGenerator
+from magus.generators.random import SPGGenerator
 import numpy as np
-import math, os, ase.io
-from ..utils import check_parameters
+import  os, ase.io
 import logging
-from ase.geometry import cell_to_cellpar,cellpar_to_cell
-import spglib
-import itertools
-from ase.neighborlist import neighbor_list
+
 from collections import Counter
 from ase import Atoms
-
 
 log = logging.getLogger(__name__)
 
@@ -184,9 +179,9 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
 
                 while not (FMLfilter(f.symbols.formula.count())*max_n_frag[i] <= self.target_formula):
                     max_n_frag[i] -= 1
-            print("max_n_frag", max_n_frag)
+            #print("max_n_frag", max_n_frag)
             while len(formula_pool) < 10:
-                print("recommand", recommand_multiplicity(spg, self.dimension))
+                #print("recommand", recommand_multiplicity(spg, self.dimension))
                 rand_formula = [np.random.choice([a for a in range(0, i+1) if a in recommand_multiplicity(spg, self.dimension)]+[0]) for i in max_n_frag]
                 rand_formula = [i if np.random.uniform(0,1)< 2/len(rand_formula) else 0 for i in rand_formula]
                 now_formula = FMLfilter({})
@@ -267,7 +262,6 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
                 for m in self.input_mols:
                     self.symbols += list(m.symbols.species())
                 if np.any(np.array(numlist)>0):
-                    print(numlist)
                     return super().generate_ind(spg, numlist, np.random.choice(self.n_split))
             else:
                 return False, None
@@ -281,3 +275,178 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
             'threshold_mol': getattr(self, 'threshold_mol') if hasattr(self, 'threshold_mol') else 0.1,
             })
         return d
+    
+import copy, math
+import numpy as np
+# Spacegroup miner based on supergroup-subgroup relations.
+# For example, spacegroup no.2, P-1 could mine into its supergroup no.10, P2/m.
+from collections import Counter
+import logging
+from .supergroupdb import supergroup, _super_group_relation
+
+def super_group_relation(spacegroup = -1, pointgroup = ""):
+    if spacegroup > 0:
+        for key in _super_group_relation:
+            if spacegroup in list(range(key[0], key[1])):
+                return {**_super_group_relation[key], 
+                        "share_pointgroup": list(range(key[0], key[1])),
+                        "name": key[2]}
+    else:
+        for key in _super_group_relation:
+            if pointgroup == key[-1]:
+                return {**_super_group_relation[key], 
+                        "share_pointgroup": list(range(key[0], key[1])),
+                        "name": key[2]}
+
+
+class Miner:
+    def __init__(self):
+        pass
+    
+    @staticmethod
+    def get_supergroup(supergroup_list, spacegroup = -1, pointgroup = ""):
+        x = super_group_relation(supergroup_list, spacegroup=spacegroup, pointgroup=pointgroup)
+        supergroup_list.extend([s for s in x['share_pointgroup'] if not s in supergroup_list])
+        for name in x['super']:
+            Miner.get_supergroup(supergroup_list, spacegroup=-1, pointgroup=name)
+    
+    def mine_spg(self, spg):
+        x = super_group_relation(spacegroup = spg)
+        log.debug("Mine into '{}' (pointgroup: {}; order: {})".format(spg, x['name'], x['order']))
+
+        miner = {}
+        isHighOrder = (x['order'] >7)
+        isVeryHighOrder = (x['order'] >40)
+
+        for s in supergroup[spg]['supergroups'].keys():
+            if supergroup[spg]['supergroups'][s][0] <=(4 if isHighOrder else 8):
+                miner[s] = 2
+            else:
+                miner[s] = 1
+
+        if isHighOrder:
+            miner[spg] = 50
+
+        have_very_high_order = np.max([miner.get(s, 0) for s in range(221,231)])
+        for s in range(221,231):
+            # add all m-3m, things is weird when dealing with very high order
+            miner[s] = have_very_high_order
+
+        
+        return miner
+
+from collections import Counter
+import yaml
+import ase.io
+import spglib
+
+# miner_tracker: which spacegroups we mined into
+# spg_trakcer:   spacegroups used to generate randoms
+# analyzer:      some spacegroup just cannot generate useful structures.
+#                the 'score' reflects this ability 
+
+class MinerTracker:
+    def __init__(self, trackfile = 'tracker.yaml', max_limit_per_spg = 10000, scale_num_spg=500):
+        self.trackfile = trackfile
+        self.analyzer = {}
+        self.miner_tracker = Counter({})
+        self.max_limit_per_spg = max_limit_per_spg
+        self.scale_num_spg = scale_num_spg
+
+    def read(self):
+        with open(self.trackfile, 'r') as f:
+            d = dict(yaml.load(f, Loader=yaml.FullLoader))
+            self.analyzer = d['analyzer']
+            self.miner_tracker = Counter(d['miner_tracker'])
+
+    def write(self):
+        with open(self.trackfile, 'w') as f:
+            info = {'analyzer': dict(self.analyzer), 'miner_tracker':dict(self.miner_tracker)}
+            yaml.dump(info, f)
+
+    def add_to_analyzer(self, initspg, finspg, dominator):
+        if initspg in self.analyzer:
+            self.analyzer[initspg].append([finspg, dominator])
+        else:
+            self.analyzer[initspg] = [[finspg, dominator]]
+
+    def add_generation_to_analyzer(self, gen):
+        rawpop = ase.io.read('results/raw{}.traj'.format(gen), ':')
+        rawpop = sorted([atom for atom in rawpop if atom.info['origin'] == 'random'], key = lambda x: x.info['enthalpy'])
+        initpop = ase.io.read('results/init{}.traj'.format(gen), ':')
+        initids = [x.info['identity'] for x in initpop]
+        for i,atom in enumerate(rawpop):
+            initatom = initpop[initids.index(atom.info['identity'])]
+            initspg = spglib.get_symmetry_dataset(initatom, 0.1)['number']
+            try:
+                finspg = spglib.get_symmetry_dataset(atom, 0.1)['number']
+            except:
+                finspg = 1
+            self.add_to_analyzer(initspg, finspg, i/len(rawpop))
+    
+    def add_miner_log_to_miner(self,miner):
+        self.miner_tracker += miner
+
+    def filter(self, miner):
+        for initspg in miner:
+            if not initspg in self.analyzer:
+                # have no idea about initspg
+                continue
+            if len(self.analyzer[initspg]) < self.scale_num_spg:
+                # have less idea about initspg
+                continue
+            elif len(self.analyzer[initspg]) > self.max_limit_per_spg:
+                # used initspg too many times
+                miner[initspg] = 0
+            if not initspg in np.array(self.analyzer[initspg])[:,0]:
+                # not stable
+                miner[initspg] = 0
+            if np.mean(np.array(self.analyzer[initspg])[:,1])>0.5:
+                # unfavor
+                miner[initspg] /= 2
+        return miner
+
+
+
+def pop_mine_good_spg(inst, good_ratio = 0.1, miner_tracker = Counter({})):
+    inst.calc_dominators()
+    spgs = [ind.info['spg'] for ind in sorted(inst.pop, key=lambda x: x.info['dominators']) if not ind.info['spg'] == 1]
+    _miner_L = math.ceil(len(spgs) * good_ratio)
+    
+    miner = Counter({})
+    
+
+    for i,spg in enumerate(spgs):
+        if i > _miner_L:
+            break
+        miner += Miner().mine_spg(spg)
+    
+    miner = miner_tracker.filter(miner)
+    miner_tracker.add_miner_log_to_miner(miner)
+    return miner
+
+def pop_select(inst, n, remove_highE = 0., remove_p1 = 0.5):
+    """
+    good_pop selection: select first n-th (or less than n) population.
+    Parameters:
+        remove_highE: remove structures that have higher energy than 'remove_highE' * Min(energy).
+        remove_p1: remove 'remove_p1' ratio of structures that have no symmetry.
+    """
+    
+    inst.calc_dominators()
+    inst.pop = sorted(inst.pop, key=lambda x: x.info['dominators'])
+    
+    if remove_highE > 0:
+        enthalpys = [ind.info['enthalpy'] for ind in inst.pop]
+        high = np.min(enthalpys) * remove_highE
+        _oldLength = len(inst.pop)
+        inst.pop = [ind for ind in inst.pop if ind.info['enthalpy'] <= high]
+        logging.debug("select without enthalpy higher than {} eV/atom, pop length from {} to {}".format(high, _oldLength, len(inst.pop)))
+
+    if remove_p1 > 0:
+        _oldLength = len(inst.pop)
+        inst.pop = [ind for ind in inst.pop if not (ind.info['spg']==1 and ind.info['dominators'] >= n * (1-remove_p1)) ]
+        logging.debug("select without {:.2%} p1 symmetry structures, pop length from {} to {}".format(remove_p1, _oldLength, len(self.pop)))
+
+    if len(inst) > n:
+        inst.pop = inst.pop[:n]

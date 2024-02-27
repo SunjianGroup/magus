@@ -1,5 +1,4 @@
-#from .random import SPGGenerator, MoleculeSPGGenerator, LayerSPGGenerator
-from magus.reconstruct.mol_generator import OntheFlyFragSPGGenerator
+from .random import SPGGenerator, MoleculeSPGGenerator, LayerSPGGenerator
 from .ga import GAGenerator, AutoOPRatio
 from ..operations import op_dict, get_default_op
 import logging
@@ -15,7 +14,7 @@ def get_random_generator(p_dict):
     elif p_dict['structureType'] == 'layer':
         return LayerSPGGenerator(**p_dict)
     else:
-        return OntheFlyFragSPGGenerator(**p_dict)
+        return SPGGenerator(**p_dict)
 
 
 def get_ga_generator(p_dict):

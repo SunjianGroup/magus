@@ -71,7 +71,6 @@ class ErcsFitness(FitnessCalculator):
 
     def Eform(self, pop):
     #define E_form = E_total - E_ideal - sum_x (nxux)
-    #Lu et al, Carbon 159 (2020) 9-15, https://doi.org/10.1016/j.carbon.2019.12.003
         uxdict = pop.Ind.refE['adEs']
         E_substrate = pop.Ind.refE['substrateE']
         substrate = pop.Ind.refE['substrate']
@@ -113,10 +112,26 @@ class ErcsFitness(FitnessCalculator):
 import math, os
 
 class AgeFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None: 
+        self.age_scale = parameters['age_scale'] 
+        #eg. [5,0.1], means fit = {enthalpy, age<5; enthalpy - 0.1*(age -5), age >=5}
+ 
+    def calc(self, pop):
+        for ind in pop:
+            cur_n_gen = int(ind.info['gen'])
+            born_n_gen = int((ind.info['identity'].split('-')[0]) [4:] )
+            ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.age_fit(born_n_gen - cur_n_gen)
+            
+    def age_fit(self, age):
+        favor_age, scale_parm = self.age_scale
+        if age < favor_age:
+            return 0.0
+        else:
+            return scale_parm* (age - favor_age)
+
+class AntiSeedFitness(FitnessCalculator):
     def __init__(self, parameters) -> None:
-        self.age_scale = parameters['age_scale']
         self.anti_seeds = parameters['ANTISEED']
-        self.type = parameters['type']
         self.anti_seeds['structs'] = []
 
     def refresh(self):
@@ -127,23 +142,10 @@ class AgeFitness(FitnessCalculator):
         
     def calc(self, pop):
         for ind in pop:
-            cur_n_gen = int(ind.info['gen'])
-            born_n_gen = int((ind.info['identity'].split('-')[0]) [4:] )
-            if self.type == 'age':
-                ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.age_fit(born_n_gen - cur_n_gen)
-            elif self.type == 'antiseeds':
-                #print('calc antiseed of enthalpy ', ind.info['enthalpy'])
-                ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.calc_anti_seed(ind)
-                ind.info['fitness']['enthalpy'] = -ind.info['enthalpy'] 
-                
-
-    def age_fit(self, age):
-        favor_age, scale_parm = self.age_scale
-        if age < favor_age:
-            return 0.0
-        else:
-            return scale_parm* (age - favor_age)
-
+            #print('calc antiseed of enthalpy ', ind.info['enthalpy'])
+            ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.calc_anti_seed(ind)
+            ind.info['fitness']['enthalpy'] = -ind.info['enthalpy'] 
+    
     def calc_anti_seed(self, ind):
 
         summary = 0

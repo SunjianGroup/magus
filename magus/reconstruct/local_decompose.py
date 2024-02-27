@@ -38,6 +38,10 @@ class CrystalGraph(nx.Graph):
       self._ubc = None
       self._dof = None
 
+   def __str__(self):
+      return "<frag with {} atoms, ".format(len(self)) + \
+            "".join(["{}: {}; ".format(key, self.info.get(key, "NA")) for key in self.info]) + ">"
+
    @classmethod
    def set_standards(cls, **kwargs):
       cls.minimal_n_community = kwargs.get("minimal_n_community", 3)
@@ -535,7 +539,7 @@ def decompose(origin_struct, center_index, distance_dict, neighbor_dis=5, path_l
    rank_list = []
    special_frag(G_connect, central, minimal_n_community=minimal_n_community, rank_list=rank_list)
    decompose1(G_connect, central, minimal_n_community=minimal_n_community, rank_list=rank_list)
-   print(time.ctime(), ": remove duplicate graph")
+   #print(time.ctime(), ": remove duplicate graph")
 
    rank_list = sorted(rank_list, key = lambda x:x.ubc)
    unique_rl = []
@@ -547,7 +551,7 @@ def decompose(origin_struct, center_index, distance_dict, neighbor_dis=5, path_l
          unique_rl.append(rl)
    
    decomposed_pop = []
-   print(time.ctime(), ": calculate rank info duplicate graph")
+   #print(time.ctime(), ": calculate rank info duplicate graph")
    for j,rl in enumerate(unique_rl):
       rl.origin = origin_struct.info['identity'] + ": " + str(j)
       decomposed_pop.append(rl)
@@ -572,55 +576,45 @@ def DECOMPOSE(pop, distance_dict, **kwargs):
       if len(unique_atoms) == len(atoms):
          continue
       for i in unique_atoms:
-         try:
-            p = decompose(atoms,i, distance_dict, **kwargs)
-            for cg1 in p:
-               for cg2 in decomposed_pop:
-                  if cg1 == cg2:
-                     break
-               else:
-                  decomposed_pop.append(cg1)
-         except Exception as e:
-            print("Exception {} happened. return null set frags".format(e))
-         print(time.ctime(), ": decompose base on '{} (no. {})'".format(atoms[i].symbol, i))
+         #try:
+         p = decompose(atoms,i, distance_dict, **kwargs)
+         for cg1 in p:
+            for cg2 in decomposed_pop:
+               if cg1 == cg2:
+                  break
+            else:
+               decomposed_pop.append(cg1)
+         #except Exception as e:
+         #   print("Exception {} happened. return null set frags".format(e))
+         #print(time.ctime(), ": decompose base on '{} (no. {})'".format(atoms[i].symbol, i))
          
-   print("decomposed", [(ind.ubc, ind.dof, len(ind)) for ind in decomposed_pop])
+   #print("decomposed", [(ind.ubc, ind.dof, len(ind)) for ind in decomposed_pop])
    return decomposed_pop
 
+
+def is_same_frag(a,b):
+   if isinstance(a, Atoms):
+      acg = CrystalGraph()
+      acg.input_atoms(a)
+   else:
+      acg = a
+   if isinstance(b, Atoms):
+
+      bcg = CrystalGraph()
+      bcg.input_atoms(b)
+   else:
+      bcg = b
+
+   if acg==bcg:
+      return True
+   else:
+      return False
+    
+
 if __name__ == '__main__':
-   distance_dict = {
-    ('O', 'Mg'): 2.2769999999999997,
-    ('Mg', 'O'): 2.2769999999999997,
-    ('O', 'Si'): 1.9469999999999998,
-    ('Si', 'O'): 1.9469999999999998,
-    ('O', 'Al'): 2.057,
-    ('Al', 'O'): 2.057,
-    ('O', 'O'): 0.1,
-    ('Mg', 'Mg'): 0.1,
-    ('Mg', 'Si'): 0.1,
-    ('Si', 'Mg'): 0.1,
-    ('Mg', 'Al'): 0.1,
-    ('Al', 'Mg'): 0.1,
-    ('Si', 'Si'): 0.1,
-    ('Si', 'Al'): 0.1,
-    ('Al', 'Si'): 0.1,
-    ('Al', 'Al'): 0.1,
+   distance_dict = {('B', 'B'): 1.848,}
 
-   ('B', 'B'): 1.848,
-   ('C', 'C'):1.6
-   }
-
-   #atoms = [ase.io.read('B.vasp')]
-   #atoms = [ase.io.read('alphaB.vasp')] #60
-   #atoms = [ase.io.read('graphene.cif')] #50
-   #atoms = [ase.io.read('Pnma62_23.395043_Mg4Al8O16.vasp')]
-   #atoms = [ase.io.read('CmCm_23.341588_Mg4Al8O16.vasp')]
-   #atoms = [ase.io.read('DAStop.vasp')]
-   ##atoms = [ase.io.read('DAS7X7top.vasp')]
-   
-   #atoms = ase.io.read('results/good.traj', ':')
    atoms = [ase.io.read('B_Pnnm_58_88.321077.vasp')] 
-   #atoms = ase.io.read('results/good.traj',':')
    decomposed_pop = DECOMPOSE(atoms, distance_dict, neighbor_dis=5, path_length_cut = 4, minimal_n_community=3)
    decomposed_pop = list(map(lambda x: x.output_atoms(), decomposed_pop))
    for i,mol in enumerate(decomposed_pop):

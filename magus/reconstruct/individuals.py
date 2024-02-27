@@ -413,6 +413,67 @@ class Surface(Individual):
     
 
 from ..generators.gensym import symbols_0d
+from ..populations.individuals import check_new_atom
+from ase import Atom
+
+# TODO weighten
+def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10): 
+    symbols = atoms.get_chemical_symbols()
+    toadd, toremove = {}, {}
+    for s in target_formula:
+        if symbols.count(s) < target_formula[s]:
+            toadd[s] = target_formula[s] - symbols.count(s)
+        elif symbols.count(s) > target_formula[s]:
+            toremove[s] = symbols.count(s) - target_formula[s]
+    rep_atoms = atoms.copy()
+
+    #remove before add
+    while toremove:
+
+        del_symbol = np.random.choice(list(toremove.keys()))
+        del_index = np.random.choice([atom.index for atom in rep_atoms if atom.symbol == del_symbol])
+        if toadd:
+            #if some symbols need to add, change symbol directly
+            add_symbol = np.random.choice(list(toadd.keys()))
+            remain_index = [i for i in range(len(rep_atoms)) if i != del_index]
+            pos = rep_atoms.positions[del_index]
+            if check_new_atom(rep_atoms[remain_index], pos, add_symbol, distance_dict):
+                rep_atoms[del_index].symbol = add_symbol
+                toadd[add_symbol] -= 1
+                if toadd[add_symbol] == 0:
+                    toadd.pop(add_symbol)
+            else:
+                del rep_atoms[del_index]
+        else:
+            del rep_atoms[del_index]
+        toremove[del_symbol] -= 1
+        if toremove[del_symbol] == 0:
+            toremove.pop(del_symbol)
+    while toadd:
+        add_symbol = np.random.choice(list(toadd.keys()))
+        for _ in range(max(max_n_try, int(len(rep_atoms)/3))):
+            # select a center atoms
+            mean_p = np.average(rep_atoms.positions, axis=0)
+            d = np.sqrt([np.sum([x**2 for x in p-mean_p]) for p in rep_atoms.positions])
+            index = np.argsort(d)[math.ceil(len(d)/5):]
+            center_atom = rep_atoms[np.random.choice(index)]
+            basic_r = distance_dict[(center_atom.symbol, add_symbol)]
+            radius = basic_r * (1 + np.random.uniform(0, 0.3))
+            theta = np.random.uniform(0, np.pi)
+            phi = np.random.uniform(0, 2*np.pi)
+            new_pos = center_atom.position + radius * np.array([np.sin(theta) * np.cos(phi), 
+                                                                np.sin(theta) * np.sin(phi),
+                                                                np.cos(theta)])
+            if check_new_atom(rep_atoms, new_pos, add_symbol, distance_dict):
+                rep_atoms.append(Atom(symbol=add_symbol, position=new_pos))
+                toadd[add_symbol] -= 1
+                if toadd[add_symbol] == 0:
+                    toadd.pop(add_symbol)
+                break
+        else:
+            return Atoms()
+    return rep_atoms
+
 
 class Cluster(Individual):
     @classmethod
@@ -496,7 +557,19 @@ class Cluster(Individual):
     def repair_atoms(self):
         n_components, component_list = self._connecty_(self)
         if n_components ==1:
-            return super().repair_atoms()   #weighten=self.weighten)
+            self.merge_atoms()         # merge atoms too close before repair it
+
+            if len(self) == 0:
+                log.debug("Empty crystal after merging!")
+                return False
+            for target_formula in self.get_target_formula():
+                rep_atoms = to_target_formula(self, target_formula, self.distance_dict, self.n_repair_try)
+                if len(rep_atoms) > 0:
+                    self.__init__(rep_atoms)
+                    self.sort()
+                    return True
+            else:
+                return False
         else:
             log.debug("By repair_atoms: attempts to make cluster unite again!")
             oldatoms = self.copy()

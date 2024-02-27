@@ -16,12 +16,6 @@ try:
 except:
     pass
 from magus.utils import get_units_formula
-def symbols_and_formula(atoms):
-    L = atoms.get_chemical_symbols()
-    symbols = list(set(L))
-    formula =  np.array([L.count(s) for s in symbols])
-    s =  {s:i for s,i in zip(symbols, formula)}
-    return str(s).replace("'","").replace(":","").replace(",","").replace("{","").replace("}","")
 
 
 pd.set_option('display.max_rows', None)
@@ -60,7 +54,7 @@ def get_frames(filenames):
 
 
 class Summary:
-    show_features = ['symmetry', 'enthalpy', 'formula', 'energy', 'origin']
+    show_features = ['symmetry', 'enthalpy', 'formula', 'priFormula']
 
     def __init__(self, prec=0.1, remove_features=[], add_features=[], formula_type='fix', boundary=[]):
         self.formula_type = formula_type
@@ -88,14 +82,12 @@ class Summary:
         if self.formula_type == 'var':
             ehull = atoms.info['enthalpy'] - self.phase_diagram.decompose(atoms)
             atoms.info['ehull'] = 0 if ehull < 1e-3 else ehull
-        sf = symbols_and_formula(atoms)
-        atoms.info['formula'] = sf
-        #if 'units' not in atoms.info:
-        #    atoms.info['units'] = [Atoms(s) for s in list(set(atoms.get_chemical_symbols()))]
-        #if hasattr(self, 'units'):
-        #    atoms.info['formula'] = get_units_formula(atoms, self.units)
-        #else:
-        #    atoms.info['formula'] = get_units_formula(atoms, atoms.info['units'])
+        if 'units' not in atoms.info:
+            atoms.info['units'] = [Atoms(s) for s in list(set(atoms.get_chemical_symbols()))]
+        if hasattr(self, 'units'):
+            atoms.info['formula'] = get_units_formula(atoms, self.units)
+        else:
+            atoms.info['formula'] = get_units_formula(atoms, atoms.info['units'])
         
     def summary(self, filenames, show_number=20, need_sorted=True, sorted_by='Default', reverse=True, save=False, outdir=None):
         filenames = convert_glob(filenames)
@@ -128,7 +120,6 @@ class Summary:
 
     def show_features_table(self, show_number=20, reverse=True, need_sorted=True, sorted_by='Default'):
         df = pd.DataFrame(self.rows, columns=self.show_features)
-        print(sorted_by)
         if need_sorted and sorted_by != ['None']:
             if sorted_by == 'Default':
                 sorted_by = self.default_sort
@@ -146,6 +137,8 @@ class Summary:
         for i in range(show_number):
             posname = os.path.join(outdir, "POSCAR_{}.vasp".format(i + 1))
             atoms = self.all_frames[i]
+            #Changelog Jan 2024, YU: My VESTA version does not work if too many species in POSCAR like H1S1H1S1H1S1...
+            #Sort by species first. 
             atoms =  atoms[atoms.numbers.argsort()]
             write(posname, atoms, direct = True, vasp5 = True)
 
@@ -166,10 +159,7 @@ class BulkSummary(Summary):
     def set_features(self, atoms):
         super().set_features(atoms)
         atoms.info['symmetry'] = spg.get_spacegroup(atoms, self.prec)
-        if 'enthalpy' in atoms.info:
-            atoms.info['fit'] = atoms.info['enthalpy'] * len(atoms)
         # sometimes spglib cannot find primitive cell.
-        '''
         try:
             lattice, scaled_positions, numbers = spg.find_primitive(atoms, symprec=self.prec)
             pri_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
@@ -188,7 +178,7 @@ class BulkSummary(Summary):
             else:
                 atoms.info['priFormula'] = get_units_formula(pri_atoms, atoms.info['units'])
                 atoms.info['stdFormula'] = get_units_formula(std_atoms, atoms.info['units'])
-        '''
+
 
 class ClusterSummary(Summary):
     show_features = ['symmetry', 'enthalpy', 'formula', 'Eo', 'energy']
