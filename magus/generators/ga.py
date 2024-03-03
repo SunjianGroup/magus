@@ -256,11 +256,23 @@ class AutoOPRatio(GAGenerator):
             table.add_row(['random', total_nums['random'], good_nums['random'], np.round(grade, 3)])
         if output_log:
             log.debug("OP grade: \n" + table.__str__())
+        
+        # Except case 
+        if sum(op_grade.values()) == 0:
+            log.warning("keep OP grade of previous generation")
+            return
+
         if self.auto_random_ratio and self.gen > 2:
             if 'random' not in op_grade:
                 op_grade['random'] = 0
             self.rand_ratio = 0.5 * (op_grade['random'] / sum(op_grade.values()) + self.rand_ratio)
             del op_grade['random']
+        
+        # Except case
+        if sum(op_grade.values()) == 0:
+            log.warning("keep OP grade of previous generation")
+            return
+        
         for i, op in enumerate(self.op_list):
             if op.descriptor in op_grade:
                 self.op_prob[i] = 0.5 * (op_grade[op.descriptor] / sum(op_grade.values()) + self.op_prob[i])

@@ -20,7 +20,7 @@ class FMLfilter:
             
     
     def __str__(self) -> str:
-        return "{}".format(self.formula)
+        return "".join(["{}{}".format(s,self.formula[s]) for s in self.formula])
 
     def __mul__(self, integer):
         return FMLfilter({key: self.formula[key] * integer for key in self.formula})
@@ -232,7 +232,6 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
 
 
     def generate_ind(self, spg, formula, n_split=1):
-        print("self.input_mols", self.input_mols)
            
         self.mol_n_atoms, self.mol_radius = [], []
         radius_dict = dict(zip(self.symbols, self.radius))
@@ -446,7 +445,7 @@ def pop_select(inst, n, remove_highE = 0., remove_p1 = 0.5):
     if remove_p1 > 0:
         _oldLength = len(inst.pop)
         inst.pop = [ind for ind in inst.pop if not (ind.info['spg']==1 and ind.info['dominators'] >= n * (1-remove_p1)) ]
-        logging.debug("select without {:.2%} p1 symmetry structures, pop length from {} to {}".format(remove_p1, _oldLength, len(self.pop)))
+        logging.debug("select without {:.2%} p1 symmetry structures, pop length from {} to {}".format(remove_p1, _oldLength, len(inst.pop)))
 
     if len(inst) > n:
         inst.pop = inst.pop[:n]

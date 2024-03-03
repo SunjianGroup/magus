@@ -2,14 +2,14 @@
 THIS IS INTERFACE FILE TO MAGUS 2.0 of on the fly spacegroup miner and fragment reorganizer. 
 ****************************************************************""" 
 import logging
+from functools import partial
 
 log = logging.getLogger(__name__)
 
 smfr_type_list = ['fly_SMFR']
 
 def Magus_one_step(self):
-    print("Magus_one_step")
-    self.update_random_generator()
+    smfr_patch_to_Magus.update_volume_ratio(self)
     smfr_patch_to_Magus.update_spg(self)
     init_pop = self.get_init_pop()
     init_pop.save('init', self.curgen)
@@ -21,21 +21,19 @@ def Magus_one_step(self):
     frags = smfr_patch_to_Magus.decompose_raw(self, self.cur_pop)
     smfr_patch_to_Magus.update_spg_tracker(self)
     smfr_patch_to_Magus.update_frag(self, frags)
+    smfr_patch_to_Magus.get_pop_for_heredity(self)
 
 
 def interface_smfr(magus_inst, restart = False):
-    print("interface smfr")
     smfr_patch_to_Magus.init__(magus_inst, magus_inst.parameters, restart)
 
     atoms_generator = smfr_random_generator({**magus_inst.parameters, **magus_inst.spg_miner})
     if not atoms_generator == "don't change":
         setattr(magus_inst, "atoms_generator", atoms_generator)
-    
-    
+
     set_smfr_population(magus_inst.Population, magus_inst.parameters.get('Fitness', None))
-    def one_step():
-        return Magus_one_step(magus_inst)
-    setattr(magus_inst, "one_step", one_step)
+    
+    setattr(magus_inst, "one_step", partial(Magus_one_step, magus_inst))
     
 
 """**********************************************
@@ -97,10 +95,16 @@ class smfr_patch_to_Magus:
             except:
                 pass
         if not hasattr(inst, 'frags'):
-            inst.frags = CG_ISOLATE_ATOM(parameters['symbols'])
+            inst.frags = CG_ISOLATE_ATOM(parameters['symbols'])    
+        setattr(inst, "decompose_raw", smfr_patch_to_Magus.decompose_raw)
 
     @staticmethod
     def decompose_raw(inst, raw_pop):
+        if hasattr(inst, "raw_frags"):
+            all_frags = inst.raw_frags
+            delattr(inst, "raw_frags")
+            return all_frags
+        
         if inst.frag_reorg:
             all_frags = DECOMPOSE(raw_pop, inst.frag_reorg.get("distance_dict", None), neighbor_dis = inst.frag_reorg.get("neighbor_dis", 5),
                                        path_length_cut = inst.frag_reorg.get("path_length_cut", 4), minimal_n_community = inst.frag_reorg.get("minimal_n_community",3))
@@ -109,10 +113,26 @@ class smfr_patch_to_Magus:
         return all_frags
     
     @staticmethod
+    def update_volume_ratio(inst):
+        if inst.curgen > 1:
+            log.debug(inst.cur_pop)
+            new_volume_ratio = 0.7 * inst.good_pop[:5].volume_ratio + 0.3 * inst.atoms_generator.volume_ratio
+            inst.atoms_generator.set_volume_ratio(new_volume_ratio)
+
+    @staticmethod
+    def get_pop_for_heredity(inst):
+        inst.parent_pop = inst.cur_pop + inst.keep_pop
+        inst.parent_pop.pop_select(len(inst.parent_pop), remove_p1 = inst.parameters.get('remove_p1', 0.0))
+        inst.parent_pop.gen = inst.curgen
+        inst.parent_pop.del_duplicate()
+        inst.parent_pop.calc_dominators()
+
+
+    @staticmethod
     def update_spg(inst):
         if inst.spg_miner:
             if inst.curgen > 1:
-                spgs = inst.parent_pop.mine_good_spg(inst.spg_miner.get('mine_ratio', 0.5), miner_tracker = inst.miner_tracker)
+                spgs = inst.parent_pop.pop_mine_good_spg(inst.spg_miner.get('mine_ratio', 0.5), miner_tracker = inst.miner_tracker)
                 inst.atoms_generator.update(miner_spgs = spgs)
 
     @staticmethod
@@ -146,7 +166,7 @@ class smfr_patch_to_Magus:
                             inst.frags.append(f)
             inst.frags[n:] = sorted(inst.frags[n:], key = lambda x: (x.info['ubc'], x.info['dof'], 1/len(x)))
             inst.frags = inst.frags[:6]
-            log.debug('resultant frags: [' + ', '.join([f.__str__() for f in inst.frags]) + "]")
+            log.debug('resultant frags: \n' + ',\n'.join([f.__str__() for f in inst.frags]))
             CGIO_write('fragments_pool.xyz', inst.frags)
             inst.atoms_generator.update(frags = list(map(lambda x:x.output_atoms(), inst.frags)))
 

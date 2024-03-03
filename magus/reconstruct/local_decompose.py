@@ -300,7 +300,7 @@ class CrystalGraph(nx.Graph):
       try:
          edges = len(self.edges)
          volume = ConvexHull(self.positions).volume
-         return edges / volume
+         return np.round(edges / volume,4)
       except:
          return 10000
    

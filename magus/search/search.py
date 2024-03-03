@@ -70,8 +70,8 @@ class Magus:
             seed_pop[i].info['gen'] = self.curgen
         return seed_pop
 
-    def pop_for_heredity(self):
-        return self.cur_pop + self.keep_pop
+    def get_pop_for_heredity(self):
+        self.parent_pop = self.cur_pop + self.keep_pop
 
     def get_init_pop(self):
         # mutate and crossover, empty for first generation
@@ -79,7 +79,7 @@ class Magus:
             random_frames = self.atoms_generator.generate_pop(self.parameters['initSize'])
             init_pop = self.Population(random_frames, 'init', self.curgen)
         else:
-            init_pop = self.pop_generator.get_next_pop(self.pop_for_heredity())
+            init_pop = self.pop_generator.get_next_pop(self.parent_pop, n_next=None if len(self.parent_pop) else 0)
             init_pop.gen = self.curgen
             init_pop.fill_up_with_random()
         ## read seeds
@@ -150,8 +150,10 @@ class Magus:
             if self.stop_signal:
                 log.warning("Structure with spacegroup '{}', enthalpy lower than '{}' had appeared, which met the convergence_condition. GA loop break".format(*self.convergence_condition))
                 break
+        else:
+            log.warning("Maximum number of generation reached")
 
-    def update_random_generator(self):
+    def update_volume_ratio(self):
         if self.curgen > 1:
             log.debug(self.cur_pop)
             new_volume_ratio = 0.7 * self.cur_pop.volume_ratio + 0.3 * self.atoms_generator.volume_ratio
@@ -187,7 +189,7 @@ class Magus:
 
 
     def one_step(self):
-        self.update_random_generator()
+        self.update_volume_ratio()
         init_pop = self.get_init_pop()
         init_pop.save('init', self.curgen)
         #######  relax  #######
@@ -195,3 +197,5 @@ class Magus:
         self.cur_pop.save('gen', self.curgen)
         #######  analyze #######
         self.analysis()
+        # prepare parent pop BEFORE next generation starts
+        self.get_pop_for_heredity()

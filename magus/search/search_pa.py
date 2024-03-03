@@ -35,7 +35,7 @@ class PaMagus(Magus):
 
         log.warning("\nMAGUS ver. parallel: \nResources for {} parallel <generator processes>".format(self.numParallelGen) + 
                 " and {} parallel <calculator processes> are required.\n".format(self.numParallelCalc) + 
-                "PLEASE NOTE THAT CLUSTER CALCULATOR IN PARALLEL MODE IS NOT SUPPORTED\n.")
+                "PLEASE NOTE THAT CLUSTER CALCULATOR IN PARALLEL MODE IS NOT SUPPORTED.\n")
         
 
         if not restart:
@@ -57,7 +57,14 @@ class PaMagus(Magus):
         log.debug("'{}'th process find spg...".format(thread_num))
         relax_pop.find_spg()
         relax_pop.del_duplicate()
-        return raw_pop, relax_pop, []
+
+        # decompose if needed
+
+        if hasattr(self, "decompose_raw"):
+            frags = self.decompose_raw(self, relax_pop)
+        else:
+            frags = []
+        return raw_pop, relax_pop, frags
         
 
     def relax(self, calcPop):
@@ -120,7 +127,7 @@ class PaMagus(Magus):
         else:
             self.pop_generator.gen = self.curgen
             log_table = []
-            init_pop = self.pop_generator.get_next_pop(self.parent_pop, math.ceil(popSize*(1-rand_ratio)), 
+            init_pop = self.pop_generator.get_next_pop(self.parent_pop, n_next=math.ceil(popSize*(1-rand_ratio)) if len(self.parent_pop) else 0, 
                                                        log_table = log_table, thread_num = thread_num, need_change_op_ratio = False, dominators_calced = True)
             init_pop.gen = self.curgen
             init_pop.atoms_generator = self.atoms_generator
@@ -141,9 +148,6 @@ class PaMagus(Magus):
         pop_size_per_thread = math.ceil(self.parameters['popSize'] / numParallel)
 
         rand_ratio_ = self.parameters['rand_ratio']
-
-        if self.curgen > 1:
-            self.parent_pop = self.pop_for_heredity()
 
         # For AutoOPRatio GAGenerators, update its operation ratios before multiplying processes.
         if self.parameters['autoOpRatio'] and self.curgen > 1:
@@ -229,7 +233,7 @@ class PaMagus(Magus):
         # del dulplicate?
         return init_pop
     
-    def get_relax_pop(self, init_pop):
+    def set_current_pop(self, init_pop):
         raw, relax_pop, frags = self.relax(init_pop)
         
         #save raw data
@@ -237,9 +241,10 @@ class PaMagus(Magus):
         
         log.debug("delete duplicate structures...")
         relax_pop.del_duplicate()
-        relax_pop.save('gen', self.curgen)
+        self.cur_pop = relax_pop 
+        
         if len(frags):
-            self.frags = frags
+            self.raw_frags = frags
 
         return relax_pop
 

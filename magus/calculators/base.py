@@ -221,7 +221,8 @@ class ASECalculator(Calculator):
         self.main_info.extend(list(Default.keys()))
 
     def relax_(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
-        log.debug('Using Calculator:\n{}log_path:{}\ntraj_path:{}\n'.format(self, logfile, trajname))
+        #Main calculator information is avail in Magus.init_parms(), no need to print again
+        #log.debug('Using Calculator:\n{}log_path:{}\ntraj_path:{}\n'.format(self, logfile, trajname))
         os.chdir(self.calc_dir)
         new_frames = []
         error_frames = []

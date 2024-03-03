@@ -1,6 +1,8 @@
 Example 3.4  
 GAsearch of fixed composition MgAlO under high pressure by GULP  
 =====================================================  
+1. Traditional simple way
+-----------------------------------------------------
 ```shell
 $ ls
  inputFold/  input.yaml
@@ -100,4 +102,35 @@ $ cat POSCAR_1.vasp
   1.0000000000000000  0.1026180000000000  0.0643190000000000
   1.0000000000000000  0.3319010000000000  0.5630200000000000
   0.0000000000000000  0.6002680000000001  0.0630200000000000
+```
+2. Traditional simple way in Parallel mode 
+-------------------------------------------------------------
+
+How to Choose Parallel Strategy:
+
+The calculation cost by MAGUS can be broadly divided into two main parts:
+
+A. Random Structure Generation by symmetry generators or evolution operators. It typically takes less than 30 seconds for a structure with fewer than 100 atoms.
+B. Local Relaxation (or Energy Evaluation). Time cost varies based on the method employed. For ab initio methods like VASP, it may take several hours for a single structure. Methods employing MLP (Machine Learning Potential) or experimental potentials usually take a few minutes per structure.
+
+The recommended choice of strategy depends on the nature of your problem. 
+
+A. If you are using computationally expensive local relaxation methods, set the 'parallel' mode for MainCalculator. MAGUS will submit multiple local relaxation jobs simultaneously to parallelize the process. However, the time savings from parallelizing structure generation are limited compared to the cost of local relaxation.
+
+B. If employing faster local relaxation methods, it is highly recommended to parallelize both structure generation and local relaxation. Set 'num_para_calc' and 'num_para_generator' as N (N being the number of cores employed by your job) to parallelize both processes from most top level. Specify please NOTE to set "mode: 'serial'" in MainCalculator to prevent undefined behavior when parallelizing an already parallelized function.
+
+Submit search job for parallel mode by adding "-p".
+```shell
+$ magus search -i input_pa.yaml -ll DEBUG -p
+```
+
+3. With generator 2.0
+-------------------------------------------------------------
+Submit search job by adding "-smfr".
+```shell
+$ magus search -i input_smfr.yaml -ll DEBUG -smfr
+```
+parallel mode is also supported:
+```shell
+$ magus search -i input_smfr.yaml -ll DEBUG -smfr -p
 ```

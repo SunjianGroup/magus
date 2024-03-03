@@ -16,6 +16,10 @@ def set_logger(name=None, level="INFO", log_path="log.txt", formatter_para = Fal
     level = log_level[level]
     log = logging.getLogger(name)
     log.setLevel(logging.DEBUG)
+
+    #disable log in pymatgen
+    log_pymatgen = logging.getLogger('pymatgen')
+    log_pymatgen.setLevel(50)
     ch = logging.StreamHandler()
     formatter = logging.Formatter("%(message)s")
     ch.setFormatter(c_formatter)

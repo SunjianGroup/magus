@@ -1,0 +1,74 @@
+#GAsearch of fixed composition Mg4 Al8 O16 [28at].
+convergence_condition: [62, -23.39]  # [DEV] break GA loop if structure satisfied condition appeared.  
+
+formulaType: fix        
+structureType: bulk
+pressure: 100
+initSize:  4        # number of structures of 1st generation
+popSize:  4         # number of structures of per generation
+numGen: 80          # number of total generation
+saveGood: 4         # number of good structures kept to the next generation
+#structure parameters
+symbols: ['O','Al','Mg']
+formula: [16,8,4]         
+min_n_atoms: 28              # minimum number of atoms per unit cell
+max_n_atoms: 28              # maximum number of atoms per unit cell
+dratio: 0.8
+volume_ratio: 2.0
+max_length_ratio: 5.0
+generator_max_length_ratio: 3.0
+
+#symmetry settings
+spacegroup: [2-230]
+
+#on the fly spacegroup miner and fragment reorganizer
+spg_miner:
+ mine_ratio: 0.1            # mine in spg of top 10% population
+ mine_probabilities: 1.0    # change prob of 100% of next generation 
+frag_gen:
+ distance_dict: 
+  !!python/tuple ['O','Mg']: 2.277
+  !!python/tuple ['Mg', 'O']: 2.277
+  !!python/tuple ['O', 'Al']: 2.057
+  !!python/tuple ['Al', 'O']: 2.057
+  !!python/tuple ['O', 'O']: 0.1
+  !!python/tuple ['Mg', 'Mg']: 0.1
+  !!python/tuple ['Mg', 'Al']: 0.1
+  !!python/tuple ['Al', 'Mg']: 0.1
+  !!python/tuple ['Al', 'Al']: 0.1
+ neighbor_dis: 5                  
+ path_length_cut: 4
+ minimal_n_community: 3          # Minimal number of atoms per frag
+
+remove_p1: 1.0
+#GA parameters
+rand_ratio: 0.7               # fraction of random structures per generation (except 1st gen.)
+add_sym: True
+choice_func: 'exp'
+k: 0.6
+
+Fitness:
+ Age: 
+  age_scale: [5,0.1]
+
+OffspringCreator:
+ rattle:
+  keep_sym: ['keep_comb']  
+  prob: 1.000
+  p: 0.125
+  rattle_range: 0.9
+
+#parallel settings
+kill_time: 10800
+num_para_calc: 2
+num_para_generator: 2
+
+#main calculator settings
+MainCalculator:
+ calculator: 'gulp'
+ jobPrefix: ['Gulp1'] # , 'Gulp2', 'Gulp3', 'Gulp4']
+ #gulp settings
+ exeCmd: gulp < input > output           #command to run gulp in your system
+ #parallel settings
+ mode: 'serial'
+ use_spg_init: False
