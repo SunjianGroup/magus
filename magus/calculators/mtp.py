@@ -38,24 +38,21 @@ class MTPNoSelectCalculator(ClusterCalculator):
         self.main_info.extend(['force_tolerance', 'stress_tolerance'])
 
     def relax_with_mtp(self):
-        #content = "mpirun -np {0} mlp relax mlip.ini "\
-        #          "--pressure={1} --cfg-filename=to_relax.cfg "\
-        #          "--force-tolerance={2} --stress-tolerance={3} "\
-        #          "--min-dist={4} --log=mtp_relax.log "\
-        #          "--save-relaxed=relaxed.cfg\n"\
-        #          "cat relaxed.cfg* > relaxed.cfg\n"\
-        #          "".format(self.num_core, self.pressure, self.force_tolerance,
-        #                    self.stress_tolerance, self.min_dist)
         content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} relax mlip.ini "\
                   f"--pressure={self.pressure} --cfg-filename=to_relax.cfg "\
                   f"--force-tolerance={self.force_tolerance} --stress-tolerance={self.stress_tolerance} "\
                   f"--min-dist={self.min_dist} --log=mtp_relax.log "\
                   f"--save-relaxed=relaxed.cfg\n"\
                   f"cat relaxed.cfg?* > relaxed.cfg\n"
-        self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
-        self.J.wait_jobs_done(self.wait_time)
-        self.J.clear()
-        time.sleep(10)
+        if self.mode == 'parallel':
+            self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
+            self.J.wait_jobs_done(self.wait_time)
+            self.J.clear()
+            time.sleep(10)
+        elif self.mode == 'serial':
+            exitcode = subprocess.call(content, shell=True)
+            if exitcode != 0:
+                raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
 
     def relax_(self, calcPop, max_epoch=20):
         self.scf_num = 0
@@ -184,14 +181,6 @@ class MTPSelectCalculator(ClusterCalculator):
         os.chdir(self.ml_dir)
         if not self.ignore_weights:
             self.reweighting()
-        #content = "mpirun -np {0} mlp train "\
-        #          "pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter={1} "\
-        #          "--energy-weight={2} --force-weight={3} --stress-weight={4} "\
-        #          "--scale-by-force={5} "\
-        #          "--weighting=structures "\
-        #          "--update-mindist "\
-        #          "--ignore-weights={6}"\
-        #          "".format(self.num_core, epoch, *self.weights, self.scaled_by_force, self.ignore_weights)
         content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} train "\
                   f"pot.mtp train.cfg --trained-pot-name=pot.mtp --max-iter={epoch} "\
                   f"--energy-weight={self.weights[0]} --force-weight={self.weights[1]} --stress-weight={self.weights[2]} "\
@@ -200,10 +189,14 @@ class MTPSelectCalculator(ClusterCalculator):
                   f"--update-mindist "\
                   f"--ignore-weights={self.ignore_weights}\n"
 
-
-        self.J.sub(content, name='train', file='train.sh', out='train-out', err='train-err')
-        self.J.wait_jobs_done(self.wait_time)
-        self.J.clear()
+        if self.mode == 'parallel':
+            self.J.sub(content, name='train', file='train.sh', out='train-out', err='train-err')
+            self.J.wait_jobs_done(self.wait_time)
+            self.J.clear()
+        elif self.mode == 'serial':
+            exitcode = subprocess.call(content, shell=True)
+            if exitcode != 0:
+                raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
         os.chdir(nowpath)
 
     @property
@@ -257,43 +250,39 @@ class MTPSelectCalculator(ClusterCalculator):
     def relax_with_mtp(self):
         # must have: mlip.ini, to_relax.cfg, pot.mtp, A-state.als
         log.info('\tstep 02: do relax with mtp')
-        #content = "mpirun -np {0} mlp relax mlip.ini "\
-        #          "--pressure={1} --cfg-filename=to_relax.cfg "\
-        #          "--force-tolerance={2} --stress-tolerance={3} "\
-        #          "--min-dist={4} --log=mtp_relax.log "\
-        #          "--save-relaxed=relaxed.cfg\n"\
-        #          "cat B-preselected.cfg* > B-preselected.cfg\n"\
-        #          "cat relaxed.cfg* > relaxed.cfg\n"\
-        #          "".format(self.num_core, self.pressure, self.force_tolerance,
-        #                    self.stress_tolerance, self.min_dist)
         content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} relax mlip.ini "\
-                  f"--pressure={self.pressure} --cfg-filename=to_relax.cfg "\
-                  f"--force-tolerance={self.force_tolerance} --stress-tolerance={self.stress_tolerance} "\
-                  f"--min-dist={self.min_dist} --log=mtp_relax.log "\
-                  f"--save-relaxed=relaxed.cfg\n"\
-                  f"sleep 10\n"\
-                  f"cat B-preselected.cfg?* > B-preselected.cfg\n"\
-                  f"cat relaxed.cfg?* > relaxed.cfg\n"
-        self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
-        self.J.wait_jobs_done(self.wait_time)
-        self.J.clear()
+                    f"--pressure={self.pressure} --cfg-filename=to_relax.cfg "\
+                    f"--force-tolerance={self.force_tolerance} --stress-tolerance={self.stress_tolerance} "\
+                    f"--min-dist={self.min_dist} --log=mtp_relax.log "\
+                    f"--save-relaxed=relaxed.cfg\n"\
+                    f"sleep 10\n"\
+                    f"cat B-preselected.cfg?* > B-preselected.cfg\n"\
+                    f"cat relaxed.cfg?* > relaxed.cfg\n"
+        if self.mode == 'parallel':
+            self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
+            self.J.wait_jobs_done(self.wait_time)
+            self.J.clear()
+        elif self.mode == 'serial':
+            exitcode = subprocess.call(content, shell=True)
+            if exitcode != 0:
+                raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
 
     def select(self, pop):
         nowpath = os.getcwd()
         os.chdir(self.ml_dir)
         dump_cfg(pop, "new.cfg", self.symbol_to_type)
-        #content = "mpirun -np {0} mlp select-add "\
-        #          "pot.mtp train.cfg new.cfg diff.cfg "\
-        #          "--weighting=structures"\
-        #          "".format(self.num_core)
-        content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} select-add "\
+        content = f"{self.mtp_runner} -n 1 {self.mtp_exe} select-add "\
                   f"pot.mtp train.cfg new.cfg diff.cfg "\
                   f"--weighting=structures\n"
-        self.J.sub(content, name='select', file='select.sh',
-                   out='select-out', err='select-err')
-        self.J.wait_jobs_done(self.wait_time)
-        self.J.clear()
-        time.sleep(10)
+        if self.mode == 'parallel':
+            self.J.sub(content, name='select', file='select.sh', out='select-out', err='select-err')
+            self.J.wait_jobs_done(self.wait_time)
+            self.J.clear()
+            time.sleep(10)
+        elif self.mode == 'serial':
+            exitcode = subprocess.call(content, shell=True)
+            if exitcode != 0:
+                raise RuntimeError('MTP exited with exit code: %d.  ' % exitcode)
         diff_frames = load_cfg("diff.cfg", self.type_to_symbol)
         os.chdir(nowpath)
         if isinstance(pop, Population):
@@ -323,7 +312,7 @@ class MTPSelectCalculator(ClusterCalculator):
                  "cp E-train.cfg {0}/train.cfg".format(self.ml_dir)
         subprocess.call(exeCmd, shell=True)
         self.train(epoch=self.n_epoch)
-        shutil.copy("{}/train-out".format(self.ml_dir), "train-out")
+        # shutil.copy("{}/train-out".format(self.ml_dir), "train-out")
 
     def relax_(self, calcPop, max_epoch=20):
         self.scf_num = 0

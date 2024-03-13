@@ -120,6 +120,8 @@ class ClusterCalculator(Calculator, abc.ABC):
                 kill_time=self.kill_time,
                 memory=self.memory,
                 control_file="{}/job_controller".format(self.calc_dir))
+        elif self.mode == 'serial':
+            check_parameters(self, parameters, Requirement=[], Default={'num_core': 1})
 
     def paralleljob(self, calcPop, runjob):
         job_queues = split1(len(calcPop), self.num_parallel)
