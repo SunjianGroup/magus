@@ -573,7 +573,7 @@ class Cluster(Individual):
         else:
             log.debug("By repair_atoms: attempts to make cluster unite again!")
             oldatoms = self.copy()
-            for _ in range(self.max_attempts):
+            for _ in range(3):
                 a = self
                 originpos = a.get_positions().copy()
                 originc = np.mean(originpos, axis = 0)

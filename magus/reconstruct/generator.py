@@ -302,8 +302,6 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
     def match_symmetry_plane(extraind, bottomind): 
         rots = []
         trs = []
-        ase.io.write('bottom.vasp', bottomind)
-        ase.io.write('extra.vasp', extraind)
         for ind in list([bottomind, extraind]):
             sym = spglib.get_symmetry_dataset(ind,symprec=0.1)
             if not sym:
