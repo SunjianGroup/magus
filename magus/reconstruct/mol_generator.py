@@ -61,15 +61,12 @@ class FMLfilter:
         return True
     
 
-def map_lyr_spg(spacegroup):
-    mapper = {77: 183, 80:191}
-    assert spacegroup in mapper, "map_lyr_spg err {}".format(spacegroup)
-    return mapper[spacegroup]
-
+from .supergroupdb import spg_to_layer
 from ase.spacegroup import Spacegroup
 def recommand_multiplicity(spacegroup, dimention):
     if dimention == 2:
-        spacegroup = map_lyr_spg(spacegroup)
+        sl = spg_to_layer()
+        spacegroup = sl.layer_to_spg(spacegroup)
     sg = Spacegroup(int(spacegroup))
     if spacegroup in list(range(123,143)) +  list( range(162,168)) + list(range(175,231)):
         return [0]
@@ -93,18 +90,35 @@ class SPGMinerGenerator(SPGGenerator):
     def __init__(self, **parameters):
         super().__init__(**parameters)
         self.mine_probabilities = parameters.get("mine_probabilities", 0.4)
+        self.adjust_spg_selection({})
 
     def update(self, *args, **kwargs):
         if self.mine_probabilities > 0:
             if not kwargs.get('miner_spgs', None) is None:
                 self.adjust_spg_selection(kwargs['miner_spgs'])
 
+        
     def adjust_spg_selection(self, miner_spgs):
+        if self.dimension == 2:
+            s = spg_to_layer()
+            miner_layers = {s.spg_to_layer(key): miner_spgs[key] for key in miner_spgs}
+            if 1 in miner_layers:
+                del miner_layers[1]
+            miner_spgs = miner_layers
+
         _sum = sum(miner_spgs.values())
         miner_spgs = {s:miner_spgs[s]/ _sum *self.mine_probabilities for s in miner_spgs}
         normal_spgs = {s:(1.0 - self.mine_probabilities)/len(self.spacegroup) for s in self.spacegroup}
+        mixed_ratio = Counter(miner_spgs) + Counter(normal_spgs) 
 
-        mixed_ratio = Counter(miner_spgs) + Counter(normal_spgs)
+        if self.preset_spg_prob:
+            _sum = np.sum(list(mixed_ratio.values()))
+            mixed_ratio = {s: mixed_ratio[s] / _sum for s in mixed_ratio}
+            _sum = np.sum(list(self.preset_spg_prob.values()))
+            assert(_sum<=1.0), "the sum of set spg probabilities larger than 100%."
+            mixed_ratio  = {s: mixed_ratio[s] * (1-_sum) for s in mixed_ratio}       
+            mixed_ratio  = Counter(mixed_ratio) + Counter(self.preset_spg_prob)
+
         
         # exclude spg not in self.spacegroup
         mixed_ratio = {s: mixed_ratio[s] for s in self.spacegroup}
@@ -226,7 +240,7 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
             if not _f in f:
                 f.append(_f)
 
-        log.debug("OntheFlyFragSPGGenerator: spg = {}\ninput fragments: {}\nfragment formula{}".format(spg, [str(FMLfilter(f.symbols.formula.count())) for f in self.input_mols], f))
+        log.debug("SMFRGen: spg = {}; frags: {}; formula{}".format(spg, [str(FMLfilter(f.symbols.formula.count())) for f in self.input_mols], f))
 
         return f
 
@@ -326,7 +340,7 @@ class Miner:
         if isHighOrder:
             miner[spg] = 50
 
-        have_very_high_order = np.max([miner.get(s, 0) for s in range(221,231)])
+        have_very_high_order = max([miner.get(s, 0) for s in range(221,231)])
         for s in range(221,231):
             # add all m-3m, things is weird when dealing with very high order
             miner[s] = have_very_high_order

@@ -44,7 +44,7 @@ class CrystalGraph(nx.Graph):
 
    @classmethod
    def set_standards(cls, **kwargs):
-      cls.minimal_n_community = kwargs.get("minimal_n_community", 3)
+      cls.n_community = kwargs.get("n_community", [3,12])
       cls.prefered_ubc = kwargs.get("prefered_ubc", 2)
       cls.prefered_dof = kwargs.get("prefered_dof", 3)
       cls.prefer_special = kwargs.get("prefer_special", True)
@@ -305,7 +305,7 @@ class CrystalGraph(nx.Graph):
          return 10000
    
    def acceptable(self):
-      if len(self) < self.minimal_n_community:
+      if len(self) < self.n_community[0] or len(self) > self.n_community[1]:
          return False
       if self.dimension <2:
          return False
@@ -520,13 +520,13 @@ def is_same_graph(CG1, CG2):
     
 
 def decompose(origin_struct, center_index, distance_dict, neighbor_dis=5, path_length_cut = 3, cycle_length_cut = 7,
-               minimal_n_community=3, prefered_ubc = 2, prefered_dof = 3, prefered_bs = 4):
+               n_community=[3, 12], prefered_ubc = 2, prefered_dof = 3, prefered_bs = 4):
 
    atoms, central = build_neighbor_struct(origin_struct, center_index, neighbor_dis)
    G = CrystalGraph()
    G.input_atoms(atoms, distance_dict)
 
-   G.set_standards(minimal_n_community = minimal_n_community, prefered_ubc = prefered_ubc, prefered_dof = prefered_dof,
+   G.set_standards(n_community = n_community, prefered_ubc = prefered_ubc, prefered_dof = prefered_dof,
                    prefer_special = True, minimal_density = 0)
    G_connect = G.exclude_disconnected(central, path_length_cut)
    #G_connect = G_connect.exclude_long_cycle(central, cycle_length_cut)
@@ -537,8 +537,8 @@ def decompose(origin_struct, center_index, distance_dict, neighbor_dis=5, path_l
 
    #rank_list: graph, uniqueness, mean_centrality 
    rank_list = []
-   special_frag(G_connect, central, minimal_n_community=minimal_n_community, rank_list=rank_list)
-   decompose1(G_connect, central, minimal_n_community=minimal_n_community, rank_list=rank_list)
+   special_frag(G_connect, central, minimal_n_community=n_community[0], rank_list=rank_list)
+   decompose1(G_connect, central, minimal_n_community=n_community[0], rank_list=rank_list)
    #print(time.ctime(), ": remove duplicate graph")
 
    rank_list = sorted(rank_list, key = lambda x:x.ubc)

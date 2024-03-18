@@ -883,10 +883,10 @@ class match_symmetry:
         sym1, sym2 = self.removetransym(sym1), self.removetransym(sym2)
         self.r1, self.t1 = sym1
         self.r2, self.t2 = sym2
-        #print("self.r1 = {}".format(self.r1))
-        #print("self.r2 = {}".format(self.r2))
-        #print("self.t1 = {}".format(self.t1))
-        #print("self.t2 = {}".format(self.t2))
+        #print("self.r1 = {}".format(np.round(self.r1, 3)))
+        #print("self.r2 = {}".format(np.round(self.r2, 3)))
+        #print("self.t1 = {}".format(np.round(self.t1, 3)))
+        #print("self.t2 = {}".format(np.round(self.t2, 3)))
                     
         for i, r1 in enumerate(self.r1):
             for j, r2 in enumerate(self.r2):
@@ -1292,8 +1292,13 @@ class OganovComparator(ClusComparator):
 
     def looks_like(self,aInd,bInd):
         return super().looks_like(aInd, bInd)
-
-from magus.generators.gensym import wyckoff_positions_3d
+try:
+    from magus.generators.gensym import wyckoff_positions_3d
+except:
+    import traceback, warnings
+    warnings.warn("Failed to load module for symmetric-rattle-mutation:\n {}".format(traceback.format_exc()) +
+                  "\nThis warning above can be ignored if the mentioned function is not employed, elsewise should be fixed.\n" )
+    rcs_type_list = []
 
 class sym_rattle:
 
@@ -1519,7 +1524,54 @@ class symposmerge:
             self.dmupdate()
         
         return self.atoms.positions if len(self.atoms) == self.length else None
-        
+
+
+import spglib
+import numpy as np
+
+class find_eq_positions_on_surface:
+    def __init__(self, surface_slab, array_size = (6,6)):
+        '''
+        @surface_slab: surface slab to find eq positions.
+        @array_size:   the size of the eq -matrix. The larger the size, the higher the cost, 
+                        but the more precise the division. 
+                        Recommended values are integral multiples of 3 and 2. Default: 12
+        '''
+        self.surface_slab = surface_slab
+        self.array_size = array_size
+
+    def get_eqm(self):
+        ds = spglib.get_symmetry_dataset(self.surface_slab,0.1)
+        r, t = ds['rotations'], ds['translations']
+
+        eqm = np.zeros(self.array_size)
+        for i in range(0,self.array_size[0]):
+            for j in range(0,self.array_size[1]):
+                if eqm[i][j] == 0:
+                    s = np.max(eqm) +1
+                    eqm[i][j] = s
+                    p_ij = [i/self.array_size[0],j/self.array_size[1],0]
+                    eqs =  np.mod(np.round(np.dot(r, p_ij) + t,6),1)
+                    for ep in eqs:
+                        # remove z symmetry
+                        if ep[2] != 0:
+                            continue
+                        eqm[int(np.round(ep[0] * self.array_size[0]))][int(np.round(ep[1] * self.array_size[1]))] = s
+        self.eqm = eqm   
+    
+    def get_position(self):
+        self.get_eqm()
+        x = Counter(self.eqm.flatten())
+        group_by = {key: [] for key in np.unique(list(x.values()))}
+
+        for item in x.items():
+            group_by[item[1]].append(item[0])
+        _L_ = np.array(sorted(list(group_by.keys())))[1:2]
+        rand_N_eq = np.random.choice(_L_, p=1/_L_/np.sum(1/_L_))
+        index = np.random.choice(group_by[rand_N_eq])
+
+        return np.array(np.where(self.eqm==index))[:,0] / self.array_size
+
 
 if __name__ == '__main__':
     

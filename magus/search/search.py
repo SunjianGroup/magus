@@ -2,7 +2,7 @@ import logging, os, shutil, subprocess
 from magus.utils import read_seeds
 from ase.io import read
 # from ase.db import connect
-
+import prettytable as pt
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class Magus:
             self.good_pop = self.Population(good_frames, 'good')
             self.keep_pop = self.Population(keep_frames, 'keep', self.curgen - 1)
             self.cur_pop = self.Population(cur_frames, 'cur', self.curgen - 1)
+            self.get_pop_for_heredity()
             log.warning("RESTART HERE!".center(40, "="))
         else:
             self.curgen = 1
@@ -95,6 +96,31 @@ class Magus:
             log.info("  {}: {}".format(origin, origins.count(origin)))
         # del dulplicate?
         return init_pop
+    
+    @staticmethod
+    def show_pop_info(population, log_level = logging.DEBUG, show_pop_name = ''):
+        if len(population) == 0:
+            log.debug("no ind in {} pop.".format(population.name))
+            return
+        
+        table = pt.PrettyTable()
+        table.field_names = ['Dominator', 'Formula', 'Identity', 'Enthalpy'] + ['Fit-' + key for key in population[0].info.get('fitness', {}).keys()] 
+        
+        for ind in population:
+            table.add_row([ind.info.get('dominators', None),
+                           ind.get_chemical_formula(),
+                           ind.info.get('identity', None), 
+                           '{:.6f}'.format(ind.info.get('enthalpy', None)),
+                           ] + ['{:.6f}'.format(ind.info.get('fitness', {})[key]) for key in ind.info.get('fitness', {})]    
+                         )
+        if hasattr(population, 'name'):
+            name = population.name + " pop"
+        else:
+            name = 'Pop'
+        
+        name = show_pop_name or name
+        log.debug(name + " : \n" + table.__str__())
+
 
     def set_good_pop(self):
         log.info('construct goodPop')
@@ -113,21 +139,15 @@ class Magus:
         good_pop.del_duplicate()
         good_pop.calc_dominators()
         good_pop.select(self.parameters['popSize'])
-        log.debug("good ind:")
-        for ind in good_pop:
-            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}, id: {identity}"\
-                .format(strFrml=ind.get_chemical_formula(), **ind.info))
         self.good_pop = good_pop
+        self.show_pop_info(good_pop)        
 
     def set_keep_pop(self):
         log.info('construct keepPop')
         _, keep_frames = self.good_pop.clustering(self.parameters['saveGood'])
         keep_pop = self.Population(keep_frames, 'keep', self.curgen)
-        log.debug("keep ind:")
-        for ind in keep_pop:
-            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}, id: {identity}"\
-                .format(strFrml=ind.get_chemical_formula(), **ind.info))
         self.keep_pop = keep_pop
+        self.show_pop_info(keep_pop)
 
     def update_best_pop(self):
         log.info("best ind:")
@@ -138,10 +158,8 @@ class Magus:
         else:
             self.stop_signal = False
 
-        for ind in bestind:
-            log.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}"\
-                .format(strFrml=ind.get_chemical_formula(), **ind.info))
-
+        self.show_pop_info(bestind, log_level=logging.INFO, show_pop_name = "BEST INDIVIDUALS")
+        
     def run(self):
         while self.curgen <= self.parameters['numGen']:
             log.info(" Generation {} ".format(self.curgen).center(40, "="))

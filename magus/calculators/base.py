@@ -234,13 +234,19 @@ class ASECalculator(Calculator):
                 atoms.set_calculator(self.relax_calc)
                 
             if self.fix_symmetry:
-                atoms.constraints += [FixSymmetry(atoms)]
+                atoms.constraints += [FixSymmetry(atoms,symprec=0.1)]
             if self.relax_lattice:
                 ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa)
             else:
                 ucf = atoms
-            gopt = self.optimizer(ucf, logfile=logfile, trajectory=trajname, maxstep=self.max_move)
-            #comment the maxstep parameter if SciPyFminCG is used, or it raises error
+            
+            kwargs = {'logfile':logfile, 'trajectory': trajname}
+            if not self.optimizer.__name__ == 'SciPyFminCG':
+                kwargs['maxstep'] = self.max_move
+
+            gopt = self.optimizer(ucf, **kwargs)
+            # SciPyFminCG raises error if maxstep parameter is used
+
             try:
                 label = gopt.run(fmax=self.eps, steps=self.max_step)
             except Converged:

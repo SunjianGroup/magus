@@ -182,6 +182,8 @@ class SPGGenerator:
                    'esangle_min':None,
                    'esangle_max': None,
                    'random_swap_axis': False,
+                   'preset_spg_prob': {},      # dict {spg:prob}; eg. {230:0.2}
+                   'forceMostGeneralWyckPos': False, 
                    }
         check_parameters(self, parameters, Requirement, Default)
         if self.ele_size > 0:
@@ -309,7 +311,7 @@ class SPGGenerator:
             'max_lattice': max_lattice,
         }
         d['GetConventional'] = True if np.random.rand() > self.p_pri else False
-        for key in ['threshold_dict', 'radius', 'symbols', 'dimension', 'max_attempts', 'method', 'choice', 
+        for key in ['threshold_dict', 'radius', 'symbols', 'dimension', 'max_attempts', 'method', 'choice', 'forceMostGeneralWyckPos',
                     'generator_max_length_ratio', 'esangle_min', 'esangle_max', 'symprec_in_generator', 'wyckoff', 'random_swap_axis', 'mol_mode']:
             if hasattr(self, key) and key not in d:
                 d[key] = getattr(self, key)

@@ -141,7 +141,8 @@ def calc_siesta(calc, frames, savetraj=False):
 
 
 def get_calc(siesta_setup):
-    calc = Relaxsiesta(restart = siesta_setup.get('restart', None), label = 'struct')
+    calc = Relaxsiesta(restart = siesta_setup.get('restart', None), label = 'struct', 
+                       fdf_arguments = {'SCFMustConverge': False})
     calc.set(append_fdf = siesta_setup.get('append_fdf', None), \
             xc=siesta_setup['xc'], \
             atomic_coord_format = siesta_setup['atomic_coord_format'])

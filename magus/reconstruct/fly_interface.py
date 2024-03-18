@@ -3,6 +3,7 @@ THIS IS INTERFACE FILE TO MAGUS 2.0 of on the fly spacegroup miner and fragment 
 ****************************************************************""" 
 import logging
 from functools import partial
+import prettytable as pt
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +35,8 @@ def interface_smfr(magus_inst, restart = False):
     set_smfr_population(magus_inst.Population, magus_inst.parameters.get('Fitness', None))
     
     setattr(magus_inst, "one_step", partial(Magus_one_step, magus_inst))
-    
+    if restart:
+        smfr_patch_to_Magus.get_pop_for_heredity(magus_inst)
 
 """**********************************************
 #1. Change init random population generator.
@@ -104,10 +106,10 @@ class smfr_patch_to_Magus:
             all_frags = inst.raw_frags
             delattr(inst, "raw_frags")
             return all_frags
-        
+        for_decompose = list(map(lambda x:x.for_heredity(), raw_pop))
         if inst.frag_reorg:
-            all_frags = DECOMPOSE(raw_pop, inst.frag_reorg.get("distance_dict", None), neighbor_dis = inst.frag_reorg.get("neighbor_dis", 5),
-                                       path_length_cut = inst.frag_reorg.get("path_length_cut", 4), minimal_n_community = inst.frag_reorg.get("minimal_n_community",3))
+            all_frags = DECOMPOSE(for_decompose, inst.frag_reorg.get("distance_dict", None), neighbor_dis = inst.frag_reorg.get("neighbor_dis", 5),
+                                       path_length_cut = inst.frag_reorg.get("path_length_cut", 4), n_community = inst.frag_reorg.get("n_community",3))
         else:
             all_frags = []
         return all_frags
@@ -166,7 +168,13 @@ class smfr_patch_to_Magus:
                             inst.frags.append(f)
             inst.frags[n:] = sorted(inst.frags[n:], key = lambda x: (x.info['ubc'], x.info['dof'], 1/len(x)))
             inst.frags = inst.frags[:6]
-            log.debug('resultant frags: \n' + ',\n'.join([f.__str__() for f in inst.frags]))
+
+            table = pt.PrettyTable()
+            table.field_names = ['Natoms', 'ubc', 'dof', 'origin', 'config_type','dimension', 'density'] 
+            for f in inst.frags:
+                table.add_row([len(f)] + [f.info.get(key, None) for key in table.field_names[1:]])
+            log.debug('resultant frags: \n'  + table.__str__())
+
             CGIO_write('fragments_pool.xyz', inst.frags)
             inst.atoms_generator.update(frags = list(map(lambda x:x.output_atoms(), inst.frags)))
 

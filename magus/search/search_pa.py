@@ -33,7 +33,7 @@ class PaMagus(Magus):
         self.numParallelCalc = self.parameters['num_para_calc'] if 'num_para_calc' in self.parameters else 10
         self.kill_time = self.parameters['kill_time']  if 'kill_time' in self.parameters else 3600  # 1 hour
 
-        log.warning("\nMAGUS ver. parallel: \nResources for {} parallel <generator processes>".format(self.numParallelGen) + 
+        log.warning("\n\nMAGUS ver. parallel: \nResources for {} parallel <generator processes>".format(self.numParallelGen) + 
                 " and {} parallel <calculator processes> are required.\n".format(self.numParallelCalc) + 
                 "PLEASE NOTE THAT CLUSTER CALCULATOR IN PARALLEL MODE IS NOT SUPPORTED.\n")
         
@@ -61,7 +61,8 @@ class PaMagus(Magus):
         # decompose if needed
 
         if hasattr(self, "decompose_raw"):
-            frags = self.decompose_raw(self, relax_pop)
+            for_decompose = list(map(lambda x:x.for_heredity(), relax_pop))
+            frags = self.decompose_raw(self, for_decompose)
         else:
             frags = []
         return raw_pop, relax_pop, frags

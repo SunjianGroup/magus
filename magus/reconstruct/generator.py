@@ -1,8 +1,8 @@
-from ..generators.random import SPGGenerator, MoleculeSPGGenerator
-from .mol_generator import OntheFlyFragSPGGenerator
+from ..generators.random import SPGGenerator
+from .mol_generator import OntheFlyFragSPGGenerator, FMLfilter, spg_to_layer, supergroup
 import numpy as np
 import math, os, ase.io
-from .utils import check_distance, cutcell, match_symmetry, resetLattice
+from .utils import check_distance, cutcell, match_symmetry, resetLattice, find_eq_positions_on_surface
 from ..utils import check_parameters
 import logging
 from .individuals import Surface
@@ -13,7 +13,7 @@ from ase.neighborlist import neighbor_list
 
 log = logging.getLogger(__name__)
 
-class ClusterSPGGenerator(SPGGenerator):
+class ClusterSPGGenerator(OntheFlyFragSPGGenerator):
     def __init__(self, **parameters):
         super().__init__(**parameters)
         Default = {'vacuum_thickness':10}
@@ -121,7 +121,7 @@ def formula_minus(fA0, fB):
             del fA[_s_]
 
     return fA
-
+from ase.spacegroup import Spacegroup
 class SurfaceGenerator(OntheFlyFragSPGGenerator):
     """
     Main features of a reconstruct generator:
@@ -158,7 +158,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
         
         #2. get refslab to calculate refE
         ase.io.write(refSlab, ase.io.read(bulk_file), format = 'traj')
-        
+
         return
 
     def _init_lattice_(self):
@@ -203,10 +203,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
             'buffer': True,
             'rcs_formula': None,
             'spg_type': 'plane',
-            'mol_mode':False,
-            'mol_formula': [],
             'symprec_in_generator': 0.1,
-            'threshold_mol':1.0,
             'thickness_tolerance': 2.5,
             'presetLattice': None,
             }
@@ -279,12 +276,34 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
         label, atoms = randwalk(r = self.randwalk_range, dratio = self.d_ratio, attempts = self.max_attempts).generate(ind)
 
         return label, atoms
-        
+    
+    @staticmethod
+    def get_adsorb_site(bottomind):
+        fs = find_eq_positions_on_surface(bottomind, array_size = (6,6))
+        return fs.get_position()
+    
+    @staticmethod
+    def mine_substrate_spg(bottomind):
+        #Projection spacegroup of substrate and mine into it.
+        spg = spglib.get_symmetry_dataset(bottomind, 0.1)['number']
+        s = spg_to_layer()
+        spg_prime = s.project_onto_z(spg)
+        supergroups = supergroup[spg_prime]['supergroups'].keys()
+        supergroups_layerid = [s.spg_to_layer(spg) for spg in supergroups]
+        supergroups_layerid = sorted([l for l in supergroups_layerid if not l==1])
+        log.debug("\n===================================\n" +
+                  "Spacegroup of substrate   : {} ({})\n".format(str(spg).rjust(3), Spacegroup(spg).symbol.replace(' ', '')) +
+                  "Projection along [001]    : {} ({})\n".format(str(spg_prime).rjust(3), Spacegroup(spg_prime).symbol.replace(' ', '')) +
+                  "Supergroup (space group)  : " + ', '.join(['{} ({})'.format(s, Spacegroup(s).symbol.replace(' ', '')) for s in supergroups]) + '\n' +
+                  "Corresponding layer group : " + str(supergroups_layerid)[1:-1]  + '\n'+
+                  "===================================")
 
     @staticmethod
     def match_symmetry_plane(extraind, bottomind): 
         rots = []
         trs = []
+        ase.io.write('bottom.vasp', bottomind)
+        ase.io.write('extra.vasp', extraind)
         for ind in list([bottomind, extraind]):
             sym = spglib.get_symmetry_dataset(ind,symprec=0.1)
             if not sym:
@@ -417,7 +436,8 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
                 
 
         #dz = get_dz(atoms, layersub)         #dz = 1.5 Ang from bottom to substrate top, more flexible later 
-        dz = 1.5
+        dz = np.random.choice([1.3,1.4,1.5,1.6,1.7,1.8,1.9])
+        atoms.info['dz'] = dz
         atoms.translate([ dz/refcell[2]* atoms.get_cell()[2]]* len(atoms))
         #atoms.translate([-0.09524*atoms.cell[0] - 0.95238*atoms.cell[1]]*len(atoms))
         
@@ -517,7 +537,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
         while n_pop > len(build_pop):
             for _ in range(self.max_n_try):
             
-                spg = np.random.choice(self.spacegroup)
+                spg = np.random.choice(self.spacegroup, p=self.spg_probabilities)
                 _x = np.random.choice(self.rcs_x)
                 _y = np.random.choice(self.rcs_y)
 
@@ -528,18 +548,16 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
                 self.reset_generator_lattice(_x,_y, spg)
 
                 #log.debug("random layer of formula {} with chosen spg = {}".format(rand_formula,spg))
-                
-                if not self.mol_mode:
-                    label,ind = self.generate_ind(spg, dict(zip(self.symbol_list, rand_formula)))
-                else:
-                    label,ind = self.generate_ind(spg, dict(zip(self.symbol_list, self.mol_formula)))
+                self.target_formula = FMLfilter(dict(zip(self.symbol_list, rand_formula)))
+                label,ind = self.generate_ind(spg, dict(zip(self.symbol_list, rand_formula)))
                 #print(ind.get_all_distances(mic=True))
                 if label:
                     label, ind = self.reset_rind_lattice(ind, _x, _y)
-
-                #if label:
-                #    label, ind = self.match_symmetry_plane(ind, Surface.set_vacuum(Surface.set_substrate(ind, self.input_layers[0]* (_x, _y, 1)), 10))
-
+                if label:
+                    #label, ind = self.match_symmetry_plane(ind, Surface.set_vacuum(Surface.set_substrate(self.input_layers[1]* (_x, _y, 1), self.input_layers[0]* (_x, _y, 1)), 10))
+                    p = self.get_adsorb_site(self.input_layers[0]) 
+                    log.debug("translation match {}".format(np.round(p, 3)))
+                    ind.set_scaled_positions(ind.get_scaled_positions() +[p[0]/_x, p[1] / _y,0])
                 if label:
                     self.afterprocessing(ind, origin='rand.symmgen', size=[_x, _y])
                     build_pop.append(ind)
@@ -631,7 +649,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
             for y in self.rcs_y:
                 self.formula_pool_["{},{}".format(x,y)] = formula_pool
                 differ = formula_add({s:-1*np.array(f) for s,f in zip(self.symbol_list, self.rcs_formula)}, {s: self.ref_formula[s]*x*y for s in self.ref_formula.keys()})
-                self.update(self.modification['adsorb'], differ)
+                self.update_formula_dict(self.modification['adsorb'], differ)
                 
         self.refine_modification_list() 
         return self.formula_pool_
@@ -646,11 +664,11 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
 
                 f = {}
                 if keep:
-                    self.update(f, formula_add(fxy, keep))
+                    self.update_formula_dict(f, formula_add(fxy, keep))
                 if add:
-                    self.update(f, formula_add(fxy, add))
+                    self.update_formula_dict(f, formula_add(fxy, add))
                 if rm:
-                    self.update(f, formula_minus(fxy, rm))
+                    self.update_formula_dict(f, formula_minus(fxy, rm))
                 
                 self.rcs_formula = []
                 for s in self.symbol_list:
@@ -660,7 +678,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
                 self.formula_pool_["{},{}".format(x,y)] = self.combination_in_rcs_formula(self.rcs_formula)
 
     @staticmethod
-    def update(dictA, dictB):
+    def update_formula_dict(dictA, dictB):
         for key in dictB:
             dictA[key] = dictB[key] if not key in dictA else list(set(list(dictA[key]) + list(dictB[key])))
 

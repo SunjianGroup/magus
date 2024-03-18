@@ -2,8 +2,8 @@ import argparse
 
 def rcs_interface(subparsers):
     parser_tool = subparsers.add_parser(
-        "rcstool",
-        help="tools used in rcs-magus",
+        "tool",
+        help="tools for magus",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -12,7 +12,7 @@ def rcs_interface(subparsers):
         "--getslab",
         "-g",
         action="store_true",
-        help="get the slab model used in rcs-magus",
+        help="get the slab model used in surface reconstruction",
     )
     parser_tool.add_argument(
         "-f",
@@ -29,12 +29,13 @@ def rcs_interface(subparsers):
         help="slab file",
     )
 
-    #generation energy analizer, a quick version of summary
+    #generation energy analizer, a quick version of summary #?
     parser_tool.add_argument(
         "--analyze",
         "-a",
         action="store_true",
-        help="get energy tendency of evolution",
+        #help="get energy tendency of evolution",
+        help="get delta E for each heredity operation",
     )
     
     parser_tool.add_argument(
@@ -50,6 +51,13 @@ def rcs_interface(subparsers):
         type=str,
         default= None,
         help="output to plot",
+    )
+
+    parser_tool.add_argument(
+        "--mine-substrate",
+        "-m",
+        action="store_true",
+        help="get recommand layergroup according to substrate symmetry for surface reconstruction",
     )
 
     return 
