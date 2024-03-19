@@ -38,7 +38,7 @@ frag_gen:
   !!python/tuple ['Al', 'Al']: 0.1
  neighbor_dis: 5                  
  path_length_cut: 4
- minimal_n_community: 3          # Minimal number of atoms per frag
+ n_community: [3,12]          # Range of number of atoms per frag
 
 remove_p1: 1.0
 #GA parameters

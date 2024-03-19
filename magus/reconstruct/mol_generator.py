@@ -68,7 +68,7 @@ def recommand_multiplicity(spacegroup, dimention):
         sl = spg_to_layer()
         spacegroup = sl.layer_to_spg(spacegroup)
     sg = Spacegroup(int(spacegroup))
-    if spacegroup in list(range(123,143)) +  list( range(162,168)) + list(range(175,231)):
+    if spacegroup in list(range(123,143)) +  list( range(162,168)) +list(range(187,231)): #list(range(175,231)):
         return [0]
     
     multiplicity = len(sg.get_symop())
