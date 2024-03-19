@@ -119,7 +119,7 @@ class Magus:
             name = 'Pop'
         
         name = show_pop_name or name
-        log.debug(name + " : \n" + table.__str__())
+        log.log(log_level, name + " : \n" + table.__str__())
 
 
     def set_good_pop(self):

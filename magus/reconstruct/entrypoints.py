@@ -52,6 +52,13 @@ def rcs_interface(subparsers):
         default= None,
         help="output to plot",
     )
+    parser_tool.add_argument(
+        "--add_label",
+        type=str,
+        nargs="+",
+        default=[],
+        help="label to plot",
+    )
 
     parser_tool.add_argument(
         "--mine-substrate",

@@ -29,8 +29,12 @@ def interface_smfr(magus_inst, restart = False):
     smfr_patch_to_Magus.init__(magus_inst, magus_inst.parameters, restart)
 
     atoms_generator = smfr_random_generator({**magus_inst.parameters, **magus_inst.spg_miner})
-    if not atoms_generator == "don't change":
+    if atoms_generator == 'ukn':
+        magus_inst.spg_miner = {}
+        magus_inst.frag_reorg = {}
+    elif not atoms_generator == "don't change":
         setattr(magus_inst, "atoms_generator", atoms_generator)
+    
 
     set_smfr_population(magus_inst.Population, magus_inst.parameters.get('Fitness', None))
     
@@ -49,7 +53,8 @@ def smfr_random_generator(p_dict):
     elif p_dict['structureType'] == 'surface':
         return "don't change"
     else:
-        raise NotImplementedError
+        log.warning("fly_SMFR function doesnot support {}.".format(p_dict['structureType']))
+        return 'ukn'
 
 
 """**********************************************
@@ -109,7 +114,7 @@ class smfr_patch_to_Magus:
         for_decompose = list(map(lambda x:x.for_heredity(), raw_pop))
         if inst.frag_reorg:
             all_frags = DECOMPOSE(for_decompose, inst.frag_reorg.get("distance_dict", None), neighbor_dis = inst.frag_reorg.get("neighbor_dis", 5),
-                                       path_length_cut = inst.frag_reorg.get("path_length_cut", 4), n_community = inst.frag_reorg.get("n_community",3))
+                                       path_length_cut = inst.frag_reorg.get("path_length_cut", 4), n_community = inst.frag_reorg.get("n_community",[3,12]))
         else:
             all_frags = []
         return all_frags
