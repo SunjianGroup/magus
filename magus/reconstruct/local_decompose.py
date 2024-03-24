@@ -563,12 +563,12 @@ def DECOMPOSE(pop, distance_dict, **kwargs):
    decomposed_pop = []
    for atoms in pop:
       identity = atoms.info.get("identity", 'unknown')
-      std_para = spglib.standardize_cell(atoms, symprec=0.1, to_primitive=False)
+      std_para = spglib.standardize_cell((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec=0.1, to_primitive=False)
       atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2], pbc = True)
       atoms.info['identity'] =  identity
       #ase.io.write('std.vasp', atoms, vasp5=1)
       
-      unique_atoms = list(set(spglib.get_symmetry_dataset(atoms,0.1)['equivalent_atoms']))
+      unique_atoms = list(set(spglib.get_symmetry_dataset((atoms.cell, atoms.get_scaled_positions(), atoms.numbers),0.1)['equivalent_atoms']))
       #print("unique atoms", unique_atoms)
       #print(time.ctime(), ": decompose structure")
       if len(unique_atoms) > len(atoms) / 10:

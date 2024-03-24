@@ -164,7 +164,7 @@ def analyze(filename, to_excel = None, to_plt = None, fit_key = 'enthalpy', add_
     minE = np.min(energy)
     index = np.where(minE ==energy)[0][0]
     print('============================================================')
-    print('AllBest E = {}, origin = {}, symmetry = {}'.format(np.round(minE,6), best[index].info['origin'], spglib.get_spacegroup(best[index], 0.2)))
+    print('AllBest E = {}, origin = {}, symmetry = {}'.format(np.round(minE,6), best[index].info['origin'], spglib.get_spacegroup((best[index].cell, best[index].get_scaled_positions(), best[index].numbers), 0.2)))
     print('============================================================')
 
 from magus.reconstruct.generator import SurfaceGenerator

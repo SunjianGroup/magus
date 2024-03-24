@@ -19,14 +19,14 @@ from ..utils import multiply_cell
 def dump_gulp(atoms0, filename, shell=None, mode='w', use_spg_init=False):
     atoms = atoms0.copy()
     if use_spg_init:
-        symmetry_dataset = spglib.get_symmetry_dataset(atoms,0.1)
+        symmetry_dataset = spglib.get_symmetry_dataset((atoms.cell, atoms.get_scaled_positions(), atoms.numbers),0.1)
         spg = symmetry_dataset['number']
         # sometimes structures is like cell *(2,1,1), and cannot get it back just by crystal(Spacegroup, basis),
         # in which case the number of atoms is scaled by 2.
         # Method I: just put it in with 'space 1'.
         # Method II: relax it with the small cell and *(2,1,1) after relaxation. *
             
-        std_para = spglib.standardize_cell(atoms, symprec=0.1, to_primitive=False)
+        std_para = spglib.standardize_cell((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec=0.1, to_primitive=False)
         std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2])
 
         # idk how to map indexes from atoms to std_atoms. In our program <1.7.0>, I use a temp way to load lower (for surface) and upper (for interfaces)
@@ -49,7 +49,7 @@ def dump_gulp(atoms0, filename, shell=None, mode='w', use_spg_init=False):
             upper_limit = 1.0
             lower_limit = 0.0
 
-        std_symmetry_dataset = spglib.get_symmetry_dataset(std_atoms,0.1)
+        std_symmetry_dataset = spglib.get_symmetry_dataset((std_atoms.cell, std_atoms.get_scaled_positions(), std_atoms.numbers),0.1)
     
         unique = np.unique(std_symmetry_dataset['equivalent_atoms'])
 
@@ -259,7 +259,7 @@ def load_gulp(filename):
             #Not primitive
             atoms = crystal(symbols = symbols, basis=positions,spacegroup = spg, cellpar = cellpar, primitive_cell = False)
             energy = Non_primitive_energy
-            if spglib.get_symmetry_dataset(atoms, 0.1)['number'] > 1:
+            if spglib.get_symmetry_dataset((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), 0.1)['number'] > 1:
                 issuccess = True
         if not issuccess:
             new_cell = np.dot(Spacegroup(spg).reciprocal_cell, cellpar_to_cell(cellpar))
@@ -267,14 +267,14 @@ def load_gulp(filename):
             cellpar = cell_to_cellpar(new_cell)
             energy = Primitive_energy * np.linalg.det(Spacegroup(spg).reciprocal_cell)
             atoms = crystal(symbols = symbols, basis=positions,spacegroup = spg, cellpar = cellpar, primitive_cell = False)
-        assert spglib.get_symmetry_dataset(atoms, 0.1)['number'] > 1, "cannot get cell to target spacegroup '{}'".format(spg) 
+        assert spglib.get_symmetry_dataset((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), 0.1)['number'] > 1, "cannot get cell to target spacegroup '{}'".format(spg) 
     else:
         atoms = Atoms(symbols = symbols, scaled_positions = positions, cell = cell)
         
 
     if not len(atoms) == atoms_number:
         _Len_atoms = len(atoms)
-        pri_para = spglib.find_primitive(atoms, 0.2)
+        pri_para = spglib.find_primitive((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), 0.2)
         pri_cell = Atoms(cell=pri_para[0], scaled_positions=pri_para[1], numbers=pri_para[2], pbc = 1)
         atoms = multiply_cell(pri_cell, atoms_number // len(pri_cell))
         energy = energy / _Len_atoms * len(atoms)
@@ -295,7 +295,7 @@ def load_gulp(filename):
         # atoms = make_supercell(atoms, minkowski_reduce(atoms.get_cell()[:])[1])
 
         def add_symmetry(atoms0, keep_n_atoms=True, to_primitive=False):
-            std_para = spglib.standardize_cell(atoms0, symprec=0.1, to_primitive=to_primitive)
+            std_para = spglib.standardize_cell((atoms0.cell, atoms0.get_scaled_positions(), atoms0.numbers), symprec=0.1, to_primitive=to_primitive)
             if std_para is None:
                 return False
             std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2])

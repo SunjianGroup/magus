@@ -9,7 +9,6 @@ import logging
 
 log = logging.getLogger(__name__)
 
-rcs_type_list = ['surface', 'cluster', 'adclus', 'interface']
 
 def rcs_interface(rcs_magus_parameters):
 
@@ -22,7 +21,7 @@ def rcs_interface(rcs_magus_parameters):
 """**********************************************
 #1. Change init random population generator.
 **********************************************"""
-from .generator import SurfaceGenerator, ClusterSPGGenerator, InterfaceGenerator
+from magus.reconstruct.generator import SurfaceGenerator, ClusterSPGGenerator, InterfaceGenerator
 def rcs_random_generator(p_dict): 
     if p_dict['structureType'] == 'surface':
         return SurfaceGenerator(**p_dict)
@@ -35,8 +34,8 @@ def rcs_random_generator(p_dict):
 """**********************************************
 #2. Change GA population generator. Operators are changed.
 **********************************************"""
-from ..generators import  _cal_op_prob_,op_dict, GAGenerator, AutoOPRatio
-from .ga import rcs_op_dict, rcs_op_list, GA_interface
+from magus.generators import  _cal_op_prob_,op_dict, GAGenerator, AutoOPRatio
+from magus.reconstruct.ga import rcs_op_dict, rcs_op_list, GA_interface
 
 
 def rcs_cross(cls, ind1, ind2):
@@ -115,7 +114,7 @@ def rcs_ga_generator(p_dict):
     return generator
 
 
-from ..operations import get_default_op
+from magus.operations import get_default_op
 def get_rcs_op(p_dict):
     #DONE 'cutandsplice', 'slip', 'lattice', 'ripple', 'rattle'
     operators = get_default_op(p_dict)
@@ -143,7 +142,7 @@ def get_rcs_op(p_dict):
 #3. Change Population type, including individual type and fitness_calculator.
 **********************************************"""
 
-from .individuals import RcsPopulation
+from magus.reconstruct.individuals import RcsPopulation
 import copy
 def set_rcs_population(parameters):
     p_dict = copy.deepcopy(parameters.p_dict)

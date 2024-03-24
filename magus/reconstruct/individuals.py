@@ -208,7 +208,7 @@ class Surface(Individual):
             else:
                 substrate = self.bulk_layer
             
-            symdataset = spglib.get_symmetry_dataset(substrate, symprec= symprec)
+            symdataset = spglib.get_symmetry_dataset((substrate.cell, substrate.get_scaled_positions(), substrate.numbers), symprec= symprec)
             self.substrate_symmetry = list(zip(symdataset['rotations'], symdataset['translations']))
             self.substrate_symmetry = [s for s in self.substrate_symmetry if ( (s[0]==s[0]*np.reshape([1,1,0]*2+[0]*3, (3,3))+ np.reshape([0]*8+[1], (3,3))).all()  and not (s[0]==np.eye(3)).all())]
             cell = substrate.get_cell()[:]
@@ -241,7 +241,7 @@ class Surface(Individual):
 
     def for_calculate(self):
         """
-        std_para = spglib.standardize_cell(self, symprec=0.1, to_primitive=False)
+        std_para = spglib.standardize_cell((self.cell, self.get_scaled_positions(), self.numbers), symprec=0.1, to_primitive=False)
         std_cell = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2], pbc = True)
         std_cell.info['size'] = self.info['size']
         std_cell = self.__class__(std_cell)
@@ -372,7 +372,7 @@ class Surface(Individual):
     def check_sym(self, atoms =None, p = 0.7):
         """
         a = atoms or self
-        if spglib.get_spacegroup(a, self.symprec) == 'P1 (1)':
+        if spglib.get_spacegroup((a.cell, a.get_scaled_positions(), a.numbers), self.symprec) == 'P1 (1)':
             if np.random.rand() < p:
                 return False
         """

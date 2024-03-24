@@ -221,7 +221,7 @@ class SymMutation(Mutation):
         #ase.io.write('rat2.vasp', rats, format = 'vasp', vasp5=1)
         
         Trats, evats = self.merge_evats_until_check_distance_is_true(rats, multiplity, distance_dict)
-        #print('rat4', spglib.get_spacegroup(Trats, 0.1))
+        #print('rat4', spglib.get_spacegroup((Trats.cell, Trats.get_scaled_positions(), Trats.numbers), 0.1))
         #ase.io.write('rat4.vasp', Trats, vasp5=1)
 
         Trats = self.remove_evats_until_check_formula_is_true(Trats, evats, multiplity, possible_symbols_numlist)
@@ -230,11 +230,11 @@ class SymMutation(Mutation):
         if Trats is None:
             #print('failed check formula')
             return None
-        #print('rat5', spglib.get_spacegroup(Trats, 0.1))
+        #print('rat5', spglib.get_spacegroup((Trats.cell, Trats.get_scaled_positions(), Trats.numbers), 0.1))
         #ase.io.write('rat5.vasp',Trats, vasp5=1)   
 
         rats = resetLattice(atoms=Trats,expandsize=(4,4,1)).get(atoms.get_cell()[:])    #, neworigin = np.average(atoms.get_cell()[:2], axis = 0) )
-        #print('fin', spglib.get_spacegroup(rats, 0.1))
+        #print('fin', spglib.get_spacegroup((rats.cell, rats.get_scaled_positions(), rats.numbers), 0.1))
         #ase.io.write('rat6.vasp',rats, vasp5=1)
 
         return rats 

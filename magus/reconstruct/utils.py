@@ -228,7 +228,7 @@ class cutcell:
         #print(startpos)
         self.startpos = startpos
 
-        surface_vector = spglib.get_symmetry_dataset(onelayer,symprec = 1e-4)['primitive_lattice']
+        surface_vector = spglib.get_symmetry_dataset((onelayer.cell, onelayer.get_scaled_positions(), onelayer.numbers),symprec = 1e-4)['primitive_lattice']
         abcc, abcp = cell_to_cellpar(onelayer.get_cell()[:])[:3], cell_to_cellpar(surface_vector)[:3]
         axisc = np.where(np.abs(abcp-abcc[2]) < 1e-4)[0]
         assert len(axisc) ==1, "cannot match primitive lattice with origin cell, primitive abc = {} while origin abc = {}".format(abcp, abcc)
@@ -551,7 +551,7 @@ class InterfaceMatcher:
     def in_miller_list(self, cell_name, hkl_1, miller_list):
         if not hasattr(self, "sym_{}".format(cell_name)):
             lattice = getattr(self, "lattice_{}".format(cell_name))
-            sym = spglib.get_symmetry_dataset(lattice,1e-4)['rotations']
+            sym = spglib.get_symmetry_dataset((lattice.cell, lattice.get_scaled_positions(), lattice.numbers),1e-4)['rotations']
             setattr(self, "sym_{}".format(cell_name), sym)
         
         for ml in miller_list:
@@ -1329,7 +1329,7 @@ class sym_rattle:
         np.random.shuffle(shuffledindex)
         atoms = atoms[shuffledindex]
 
-        sym_ds = spglib.get_symmetry_dataset(atoms, symprec)
+        sym_ds = spglib.get_symmetry_dataset((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec)
 
         equivalent_atoms = sym_ds['equivalent_atoms']
         rotations, translations = sym_ds['rotations'], sym_ds['translations']
@@ -1375,8 +1375,8 @@ class sym_rattle:
 
 
                     #if check_distance(newatoms, distance_dict) and \
-                    #                (not spglib.get_spacegroup(newatoms, symprec) == 'P1 (1)'):
-                    #    #print("new_spg", spglib.get_spacegroup(newatoms, symprec))
+                    #                (not spglib.get_spacegroup((newatoms.cell, newatoms.get_scaled_positions(), newatoms.numbers), symprec) == 'P1 (1)'):
+                    #    #print("new_spg", spglib.get_spacegroup((newatoms.cell, newatoms.get_scaled_positions(), newatoms.numbers), symprec))
                     #    atoms = newatoms.copy()
                     #    break
                     if check_distance(newatoms, distance_dict):
@@ -1541,7 +1541,7 @@ class find_eq_positions_on_surface:
         self.array_size = array_size
 
     def get_eqm(self):
-        ds = spglib.get_symmetry_dataset(self.surface_slab,0.1)
+        ds = spglib.get_symmetry_dataset((self.surface_slab.cell, self.surface_slab.get_scaled_positions(), self.surface_slab.numbers),0.1)
         r, t = ds['rotations'], ds['translations']
 
         eqm = np.zeros(self.array_size)

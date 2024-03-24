@@ -4,7 +4,7 @@ ase>=3.18
 pyyaml>=6.0
 networkx
 scipy
-spglib==2.0.2
+spglib
 pandas
 prettytable
 packaging

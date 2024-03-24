@@ -17,7 +17,7 @@ class TestSPGGenerator(unittest.TestCase):
             os.remove('formula_pool')
 
     def get_spg(self, atoms):
-        spg = spglib.get_spacegroup(atoms, self.symprec)
+        spg = spglib.get_spacegroup((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), self.symprec)
         pattern = re.compile(r'\(.*\)')
         spg = pattern.search(spg).group()
         spg = int(spg[1:-1])

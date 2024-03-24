@@ -390,9 +390,9 @@ class MinerTracker:
         initids = [x.info['identity'] for x in initpop]
         for i,atom in enumerate(rawpop):
             initatom = initpop[initids.index(atom.info['identity'])]
-            initspg = spglib.get_symmetry_dataset(initatom, 0.1)['number']
+            initspg = spglib.get_symmetry_dataset((initatom.cell, initatom.get_scaled_positions(), initatom.numbers), 0.1)['number']
             try:
-                finspg = spglib.get_symmetry_dataset(atom, 0.1)['number']
+                finspg = spglib.get_symmetry_dataset((atom.cell, atom.get_scaled_positions(), atom.numbers), 0.1)['number']
             except:
                 finspg = 1
             self.add_to_analyzer(initspg, finspg, i/len(rawpop))

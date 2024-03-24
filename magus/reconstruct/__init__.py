@@ -1,0 +1,1 @@
+rcs_type_list = ['surface', 'cluster', 'adclus', 'interface']

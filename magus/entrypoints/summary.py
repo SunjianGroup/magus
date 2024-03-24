@@ -1,20 +1,15 @@
-import os, re
+import os             #,  re
 from pathlib import Path
-from ase.atoms import default
-from math import gcd
-from functools import reduce
+#from ase.atoms import default
+#from math import gcd
+#from functools import reduce
 from matplotlib import pyplot as plt
 import pandas as pd
-from ase.io import iread, write, read
+from ase.io import write, read    #, iread
 from ase import Atoms
 import numpy as np
-import spglib as spg
+import spglib 
 from magus.phasediagram import PhaseDiagram, get_units
-try:
-    from pymatgen.core import Molecule
-    from pymatgen.symmetry.analyzer import PointGroupAnalyzer
-except:
-    pass
 from magus.utils import get_units_formula
 
 
@@ -158,12 +153,12 @@ class Summary:
 class BulkSummary(Summary):
     def set_features(self, atoms):
         super().set_features(atoms)
-        atoms.info['symmetry'] = spg.get_spacegroup(atoms, self.prec)
+        atoms.info['symmetry'] = spglib.get_spacegroup((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), self.prec)
         # sometimes spglib cannot find primitive cell.
         try:
-            lattice, scaled_positions, numbers = spg.find_primitive(atoms, symprec=self.prec)
+            lattice, scaled_positions, numbers = spglib.find_primitive((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec=self.prec)
             pri_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
-            lattice, scaled_positions, numbers = spg.standardize_cell(atoms, symprec=self.prec)
+            lattice, scaled_positions, numbers = spglib.standardize_cell((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec=self.prec)
             std_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
         except:
             # if fail to find prim, set prim to raw
@@ -183,6 +178,8 @@ class BulkSummary(Summary):
 class ClusterSummary(Summary):
     show_features = ['symmetry', 'enthalpy', 'formula', 'Eo', 'energy']
     def set_features(self, atoms):
+        from pymatgen.core import Molecule
+        from pymatgen.symmetry.analyzer import PointGroupAnalyzer
         super().set_features(atoms)
         molecule = Molecule(atoms.symbols,atoms.get_positions())
         atoms.info['symmetry'] = PointGroupAnalyzer(molecule, self.prec).sch_symbol

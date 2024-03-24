@@ -285,7 +285,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
     @staticmethod
     def mine_substrate_spg(bottomind):
         #Projection spacegroup of substrate and mine into it.
-        spg = spglib.get_symmetry_dataset(bottomind, 0.1)['number']
+        spg = spglib.get_symmetry_dataset((bottomind.cell, bottomind.get_scaled_positions(), bottomind.numbers), 0.1)['number']
         s = spg_to_layer()
         spg_prime = s.project_onto_z(spg)
         supergroups = supergroup[spg_prime]['supergroups'].keys()
@@ -303,9 +303,9 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
         rots = []
         trs = []
         for ind in list([bottomind, extraind]):
-            sym = spglib.get_symmetry_dataset(ind,symprec=0.1)
+            sym = spglib.get_symmetry_dataset((ind.cell, ind.get_scaled_positions(), ind.numbers),symprec=0.1)
             if not sym:
-                sym = spglib.get_symmetry_dataset(ind)
+                sym = spglib.get_symmetry_dataset((ind.cell, ind.get_scaled_positions(), ind.numbers))
             if not sym:
                 return False, extraind
             rots.append(sym['rotations'])
@@ -480,7 +480,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
         if rm:
             for symbol in rm:
                 while rm[symbol] > 0:
-                    eq_at = dict(zip(range(len(ind)), spglib.get_symmetry_dataset(ind,1e-2)['equivalent_atoms']))
+                    eq_at = dict(zip(range(len(ind)), spglib.get_symmetry_dataset((ind.cell, ind.get_scaled_positions(), ind.numbers),1e-2)['equivalent_atoms']))
                     indices = [atom.index for atom in ind if atom.symbol == symbol]
                     lucky_atom_to_rm = eq_at[np.random.choice(indices)]
                     eq_ats_with_him = np.array([i for i in eq_at if eq_at[i] == lucky_atom_to_rm])
