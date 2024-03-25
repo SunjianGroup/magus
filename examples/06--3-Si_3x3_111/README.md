@@ -9,6 +9,7 @@ $ ls
  inputFold/  input.yaml Si_5.420.vasp
 ```  
 Consistent with former examples, "input.yaml" sets all parameters and most of them work similarly. 
+
 STEP 2. build the slab and check
 ```shell  
 $ magus tool --getslab 
@@ -46,6 +47,7 @@ $ magus summary results/good.traj -s
 2. With spacegroup miner and fragment reorganizer
 -------------------------------------------------------------
 STEP 1 and 2 and same with before. 
+
 STEP 3. After the slab is built, get the layergroup recommendation:
 ```shell
 $ magus tool --mine-substrate
@@ -65,7 +67,8 @@ $ vim input.yaml
   80: 0.2                   # 20% for 80(p6/mmm)
 
 ```
-STEP 5. (optional) add a preferred fragment to fragment reorganizer
+STEP 5. (optional) add a preferred fragment to fragment reorganizer 
+
 The 'fragments_pool.xyz' stores all the fragments for fragment reorganizer. 
 MAGUS update it automantically if 'frag_gen' is set. 
 However, user can also set fragments-pool for fragment reorganizer, and tell MAGUS not to change it by setting 'frag_gen' to {} (an empty dictionary)

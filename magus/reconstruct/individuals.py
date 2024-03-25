@@ -456,6 +456,8 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10):
             mean_p = np.average(rep_atoms.positions, axis=0)
             d = np.sqrt([np.sum([x**2 for x in p-mean_p]) for p in rep_atoms.positions])
             index = np.argsort(d)[math.ceil(len(d)/5):]
+            if len(index) < 1:
+                continue
             center_atom = rep_atoms[np.random.choice(index)]
             basic_r = distance_dict[(center_atom.symbol, add_symbol)]
             radius = basic_r * (1 + np.random.uniform(0, 0.3))

@@ -20,6 +20,11 @@ def set_logger(name=None, level="INFO", log_path="log.txt", formatter_para = Fal
     #disable log in pymatgen
     log_pymatgen = logging.getLogger('pymatgen')
     log_pymatgen.setLevel(50)
+    #disable log in matplotlib
+    log_matplotlib = logging.getLogger('matplotlib')
+    log_matplotlib.setLevel(50)
+    #TODO: or just keep log of magus?? Risks of log missing from other packages ?
+
     ch = logging.StreamHandler()
     formatter = logging.Formatter("%(message)s")
     ch.setFormatter(c_formatter)

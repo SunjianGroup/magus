@@ -114,6 +114,7 @@ def calc_vasp(vasp_setup, frames):
             if exitcode != 0:
                 raise RuntimeError('vasp exited with exit code: %d.  ' % exitcode)
             atoms_tmp = read('OUTCAR', format='vasp-out')
+            atoms_tmp.info.update(atoms.info)
             new_atoms = atoms_tmp.copy()
             energy = atoms_tmp.get_potential_energy()
             forces = atoms_tmp.get_forces()

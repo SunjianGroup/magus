@@ -157,7 +157,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
                 xy = xy, rotate = rotate, pcell = pcell ,matrix = matrix)
         
         #2. get refslab to calculate refE
-        ase.io.write(refSlab, ase.io.read(bulk_file), format = 'traj')
+        ase.io.write(refSlab, [ase.io.read(bulk_file)], format = 'traj')
 
         return
 
@@ -576,6 +576,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
             rm[s].extend([-1* n for n in n_list if n < 0])
 
         for s in self.modification['clean']:
+            n_list = split_formula(self.modification['clean'][s])
             keep[s].extend([n for n in n_list if n == 0])
 
         for s in self.modification['defect']:

@@ -21,6 +21,8 @@ randRatio: 0.3               # fraction of random
 randwalk_ratio: 1          # ratio of generation by rand walk
 
 add_sym: False               # GAgenerator: don't add sym! IMPORTANT!
+modification:
+ clean: {'Si': [0]}
  
 Comparator:
  comparator_list: ['naive']
@@ -46,9 +48,10 @@ MainCalculator:
  #vasp settings
  xc: PBE
  ppLabel: ['','','']
-
+ 
  #parallel settings
  numParallel: 8              # number of parallel jobs
  numCore: 8                # number of cores
  queueName: e52692v2ib! 
+ pre_processing: 'source ~/adddev.sh'
 

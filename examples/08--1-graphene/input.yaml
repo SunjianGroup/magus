@@ -14,6 +14,7 @@ max_n_atoms: 12              # maximum number of atoms per unit cell
 spacegroup: [2-17]            # use plane group no. 2-17
 min_thickness: 1                # minimum cell thickness
 max_thickness: 2              # maximum cell thickness
+thickness_tolerance: 2       # plane group generates struct whose thickness is zero
 spg_type: plane
 vacuum_thickness: 15
 d_ratio: 0.6

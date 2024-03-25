@@ -478,6 +478,7 @@ class LayerSPGGenerator(SPGGenerator):
             'threshold_mol': 1.0, 
             'spg_type': 'layer', 
             'vacuum_thickness': 10,
+            'thickness_tolerance': 0,
             }
         check_parameters(self, parameters, Requirement, Default)
         if self.spg_type == 'plane':
@@ -519,6 +520,7 @@ class LayerSPGGenerator(SPGGenerator):
             'dimension': 2,
             'random_swap_axis': False,
             'vacuum': self.vacuum_thickness,
+            'thickness_tolerance': self.thickness_tolerance,
             })
         return d
 
