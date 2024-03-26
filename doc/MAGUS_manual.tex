@@ -158,6 +158,9 @@ MAGUS now supports the following packages to calculate the energy of structures,
     \item \href{https://gulp.curtin.edu.au/gulp/}{gulp}
     \item \href{https://www.lammps.org/}{lammps}
     \item \href{https://xtb-docs.readthedocs.io/en/latest/contents.html}{XTB}
+    \item \href{https://siesta-project.org/siesta/}{siesta}
+    \item \href{https://libatoms.github.io/QUIP/}{QUIP via ASE}
+    \item \href{https://openkim.org/}{OpenKim via ASE}
 \end{itemize}
 You can also write interfaces to connect MAGUS and other codes by add them in the \file{/magus/calculators} directory.
 
@@ -218,7 +221,7 @@ The following python packages are optional:
 \fbox{\parbox{10em}{
         beautifulreport\\
         plotly\\
-  QdsadadawfgjghjkqawQ      dscribe\\
+        dscribe\\
         networkx\\
         pymatgen}
 }
@@ -240,7 +243,7 @@ exitcode = subprocess.call("<Your_vasp_command>", shell=True)
     \end{tcolorbox}
     <Your\_vasp\_command> is the command to run VASP on your cluster, e.g. \code{mpirun vasp\_std}.
 
-    \textbf{Notice:} remember to load the corresponding environment, such as ips or openmpi, if you want to run vasp in parallel (run a single vasp job with multiple cores). If you want to use parallel mode (run several vasp jobs at the same time), you also need to load environment in sub jobs by adding control lines after ``preProcessing" option, see details in Sec. \ref{sec: preprocessing}.
+    \textbf{Notice:} remember to load the corresponding environment, such as ips or openmpi, if you want to run vasp in parallel (run a single vasp job with multiple cores). If you want to use parallel mode (run several vasp jobs at the same time), you also need to load environment in child jobs by adding control lines after ``preProcessing" option, see details in Sec. \ref{sec: preprocessing}.
     
     %\href{https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html}{ase manual}.
 \item [2)] 
@@ -262,7 +265,7 @@ $ ln -s <your-path-to>/PBE-5.4 mypps/potpaw_PBE
     \begin{tcolorbox}[breakable, enhanced]
         \begin{minted}[breaklines, breaksymbolleft={},]{bash}
 $ export VASP_SCRIPT=<your-path-to>/run_vasp.py
-$ export VASP_PP_PATH=<your-path-to>h/mypps
+$ export VASP_PP_PATH=<your-path-to>/mypps
         \end{minted}
     \end{tcolorbox}
     More information in: \textcolor{blue}{\href{https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html\#module-ase.calculators.vasp}{ase manual for vasp calculator}}.\par
@@ -453,9 +456,9 @@ If you are a new user of MAGUS (AND SINCERELY THANKS VERY MUCH FOR USING OUR PRO
 \section{Input Files}
 A typical structure search task needs the following input files:
 \begin{itemize}
-    \item input.yaml: the basic input file that defines the main parameters in the task.
-    \item inputFold: the folder containing the extra needed input files for calculators, such as INCAR for VASP and in.lammps for LAMMPS.
-    \item Seeds: the folder containing seed structures.
+    \item \textbf{input.yaml}: the basic input file that defines the main parameters in the task. It is in standard yaml format. You should especially pay attention to the indent and the space after quotation mark.
+    \item \textbf{inputFold:} the folder containing the extra needed input files for calculators, such as INCAR for VASP and in.lammps for LAMMPS.
+    \item \textbf{Seeds:} the folder containing seed structures. There are two types of seed files. The first one is \file{POSCARS\_<gen>}, which is in VASP format. The second one is \file{seeds\_<gen>.traj}, which is in ASE traj format. <gen> stands for the generation you want to input the seeds. You can add several seed files for several generations. Generally, you need only put \file{POSCARS\_1} or \file{seeds\_1.traj} in the folder to add the seeds in the initial generation.
 \end{itemize}
 
 \section{Command lines}
@@ -469,7 +472,7 @@ to see which commands are supported for magus. You will see
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{text}
 usage: magus [-h] [-v]
-             {search,summary,clean,prepare,calculate, generate,checkpack,test,update,getslabtool,
+             {search,summary,clean,prepare,calculate, generate,checkpack,test,update,tool,
              mutate,parmhelp}
              ...
 
@@ -490,7 +493,7 @@ Valid subcommands:
     checkpack           check full
     test                do unit test of magus
     update              update magus
-    getslabtool         tools to getslab in surface search mode
+    tool                some tools 
     mutate              mutation test
     \end{minted}
 \end{tcolorbox}
@@ -518,6 +521,7 @@ optional arguments:
                         input.yaml)
   -m, --use-ml          use ml to accelerate(?) the search (default: False)
   -r, --restart         Restart the searching. (default: False)
+  -p, --use-parallel    use parallel mode. (default: False)
     \end{minted}
 \end{tcolorbox}
 \subsection{summary}
@@ -707,24 +711,6 @@ optional arguments:
     \end{minted}
 \end{tcolorbox}
 
-\subsection{getslabtool}
-    \begin{tcolorbox}[breakable, enhanced]
-\begin{minted}[breaklines, breaksymbolleft={},]{bash}
-$ magus getslabtool -h
-    \end{minted}
-    \tcblower
-    \begin{minted}[breaklines, breaksymbolleft={},]{text}
-usage: magus getslabtool [-h] [-f FILENAME] [-s SLABFILE]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -f FILENAME, --filename FILENAME
-                        defaults is './Ref/layerslices.traj' of slab model and
-                        'results' for analyze results. (default: )
-  -s SLABFILE, --slabfile SLABFILE
-                        slab file (default: slab.vasp)
-    \end{minted}
-\end{tcolorbox}
 
 \subsection{mutate}
 \begin{tcolorbox}[breakable, enhanced]
@@ -865,9 +851,9 @@ min_lattice    : min lattice
                   default value: [-1, -1, -1, -1, -1, -1]
 max_lattice    : max lattice
                   default value: [-1, -1, -1, -1, -1, -1]
-min_volume     : min volume
+min_volume     : min volume for random symmetric structure generation 
                   default value: -1
-max_volume     : max volume
+max_volume     : max volume for random symmetric structure generation
                   default value: -1
 min_n_formula  : minimum formula
                   default value: None
@@ -921,9 +907,9 @@ min_lattice    : min lattice
                   default value: [-1, -1, -1, -1, -1, -1]
 max_lattice    : max lattice
                   default value: [-1, -1, -1, -1, -1, -1]
-min_volume     : min volume
+min_volume     : min volume for random symmetric structure generation
                   default value: -1
-max_volume     : max volume
+max_volume     : max volume for random symmetric structure generation
                   default value: -1
 min_n_formula  : minimum formula
                   default value: None
@@ -978,9 +964,9 @@ min_lattice    : min lattice
                   default value: [-1, -1, -1, -1, -1, -1]
 max_lattice    : max lattice
                   default value: [-1, -1, -1, -1, -1, -1]
-min_volume     : min volume
+min_volume     : min volume for random symmetric structure generation
                   default value: -1
-max_volume     : max volume
+max_volume     : max volume for random symmetric structure generation
                   default value: -1
 min_n_formula  : minimum formula
                   default value: None
@@ -1757,7 +1743,7 @@ There are two modes in MAGUS: serial mode and parallel mode, controlled by ``mod
 
 In serial mode (``mode: serial"), only one parent job runs. All sub calculations (such as vasp relaxations) will run under the computing resource you apply for the parent job. Hence, you can modify environment variables in the parent job and they will be effective to all calculations.
 
-In parallel mode (``mode: parallel"), the parent job only works for some simple calculations and submitting sub jobs into job system to do more time-consuming calculations, which means sub jobs take different environment variables from the parent job. Generally, sub job submission scripts are generated automatically by MAGUS, but you should add some environment variables to make the scripts fit for your system. The most convenient way to do that is to add ``preprocessing" option in \file{input.yaml} under each Calculator category. For example:
+In parallel mode (``mode: parallel"), the parent job only works for some simple calculations and submitting child jobs into job system to do more time-consuming calculations, which means child jobs take different environment variables from the parent job. Generally, child job submission scripts are generated automatically by MAGUS, but you should add some environment variables to make the scripts fit for your system. The most convenient way to do that is to add ``preprocessing" option in \file{input.yaml} under each Calculator category. For example:
 \begin{tcolorbox}[breakable, enhanced]
     \begin{minted}[breaklines, breaksymbolleft={},]{yaml}
 # general parameters
@@ -1806,12 +1792,12 @@ In some PBS system, ``qsub" command can only be found in login nodes but cannot 
 which qsub
     \end{minted}
 \end{tcolorbox}
-to get the path. You will get the output <your-pbs-lib-dir>/qsub. Then add such line in you batch file before MAGUS commands:
+to get the path. You will get the output <your-pbs-lib-dir>/qsub. Then add such line in your batch file before MAGUS commands:
 \begin{tcolorbox}
     \begin{minted}[breaklines, breaksymbolleft={},]{bash}
 export PATH=<your-pbs-lib-dir>:$PATH
     \end{minted}
 \end{tcolorbox}
-
+\textbf{NOTICE}: only add the directory path. Do not add ``qsub''.
 \end{document}
 
