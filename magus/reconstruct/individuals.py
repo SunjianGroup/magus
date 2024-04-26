@@ -173,7 +173,9 @@ class Surface(Individual):
             else:
                 substrate = self.bulk_layer
             
-            symdataset = spglib.get_symmetry_dataset(substrate, symprec= symprec)
+            symdataset = spglib.get_symmetry_dataset(
+                (substrate.get_cell(), substrate.get_scaled_positions(), substrate.get_atomic_numbers()),
+                symprec= symprec)
             self.substrate_symmetry = list(zip(symdataset['rotations'], symdataset['translations']))
             self.substrate_symmetry = [s for s in self.substrate_symmetry if ( (s[0]==s[0]*np.reshape([1,1,0]*2+[0]*3, (3,3))+ np.reshape([0]*8+[1], (3,3))).all()  and not (s[0]==np.eye(3)).all())]
             cell = substrate.get_cell()[:]

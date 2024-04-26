@@ -151,7 +151,9 @@ class Individual(Atoms):
         return self.info['fingerprint']
 
     def find_spg(self):
-        spg = spglib.get_spacegroup(self, self.symprec)
+        spg = spglib.get_spacegroup(
+            (self.get_cell(), self.get_scaled_positions(), self.get_atomic_numbers()),
+            self.symprec)
         pattern = re.compile(r'\(.*\)')
         try:
             spg = pattern.search(spg).group()
@@ -159,7 +161,9 @@ class Individual(Atoms):
         except:
             spg = 1
         self.info['spg'] = spg
-        pri_atoms = spglib.standardize_cell(self, symprec=self.symprec, to_primitive=True)
+        pri_atoms = spglib.standardize_cell(
+            (self.get_cell(), self.get_scaled_positions(), self.get_atomic_numbers()),
+            symprec=self.symprec, to_primitive=True)
         if pri_atoms:
             cell, positions, numbers = pri_atoms
             self.info['priNum'] = numbers
@@ -169,7 +173,9 @@ class Individual(Atoms):
             self.info['priVol'] = self.get_volume()
 
     def add_symmetry(self, keep_n_atoms=True, to_primitive=False):
-        std_para = spglib.standardize_cell(self, symprec=self.symprec, to_primitive=to_primitive)
+        std_para = spglib.standardize_cell(
+            (self.get_cell(), self.get_scaled_positions(), self.get_atomic_numbers()),
+            symprec=self.symprec, to_primitive=to_primitive)
         if std_para is None:
             return False
         std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2])

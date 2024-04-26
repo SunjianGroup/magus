@@ -28,7 +28,9 @@ class ZurekComparator:
         self.symprec = symprec
 
     def _reduce_to_primitive(self, atoms):
-        cell, scaled_pos, numbers = spglib.standardize_cell(atoms, symprec=self.symprec, to_primitive=True)
+        cell, scaled_pos, numbers = spglib.standardize_cell(
+            (atoms.get_cell(), atoms.get_scaled_positions(), atoms.get_atomic_numbers()), 
+            symprec=self.symprec, to_primitive=True)
         atoms_ = atoms.__class__(scaled_positions=scaled_pos, numbers=numbers, cell=cell, pbc=True)
         atoms_.info = atoms.info
         return atoms_
@@ -350,10 +352,14 @@ class ASEComparator:
             ind2 = [ind2]
         # we cannot control symprec in ase, so we convert atoms here
         if self.to_primitive:
-            lattice, scaled_positions, numbers = spglib.find_primitive(ind1_, symprec=self.symprec)
+            lattice, scaled_positions, numbers = spglib.find_primitive(
+                (ind1_.get_cell(), ind1_.get_scaled_positions(), ind1_.get_atomic_numbers()), 
+                symprec=self.symprec)
             ind1_ = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=ind1.pbc)
             ind2_ = []
             for ind in ind2:
-                lattice, scaled_positions, numbers = spglib.find_primitive(ind, symprec=self.symprec)
+                lattice, scaled_positions, numbers = spglib.find_primitive(
+                    (ind.get_cell(), ind.get_scaled_positions(), ind.get_atomic_numbers()), 
+                    symprec=self.symprec)
                 ind2_.append(Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers, pbc=ind.pbc))
         return self.comparator.compare(ind1_, ind2_)

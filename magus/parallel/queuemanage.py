@@ -262,7 +262,6 @@ class SLURMSystemManager(BaseJobManager):
             log.debug("{}\t{}".format(job['id'], stat))
             if stat == 'COMPLETED' or stat == '':
                 job['state'] = 'DONE'
-                allDone = True
             elif stat == 'PENDING':
                 job['state'] = 'PEND'
                 allDone = False
@@ -271,7 +270,6 @@ class SLURMSystemManager(BaseJobManager):
                 allDone = False
             else:
                 job['state'] = 'ERROR'
-                allDone = False
             if self.verbose:
                 log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
         return allDone

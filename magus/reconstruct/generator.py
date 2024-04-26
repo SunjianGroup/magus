@@ -271,9 +271,13 @@ class SurfaceGenerator(SPGGenerator):
         rots = []
         trs = []
         for ind in list([bottomind, extraind]):
-            sym = spglib.get_symmetry_dataset(ind,symprec=1.0)
+            sym = spglib.get_symmetry_dataset(
+                (ind.get_cell(), ind.get_scaled_positions(), ind.get_atomic_numbers()),
+                symprec=1.0)
             if not sym:
-                sym = spglib.get_symmetry_dataset(ind)
+                sym = spglib.get_symmetry_dataset(
+                    (ind.get_cell(), ind.get_scaled_positions(), ind.get_atomic_numbers())
+                    )
             if not sym:
                 return False, extraind
             rots.append(sym['rotations'])
@@ -400,7 +404,9 @@ class SurfaceGenerator(SPGGenerator):
         if rm:
             for symbol in rm:
                 while rm[symbol] > 0:
-                    eq_at = dict(zip(range(len(ind)), spglib.get_symmetry_dataset(ind,1e-2)['equivalent_atoms']))
+                    eq_at = dict(zip(range(len(ind)), spglib.get_symmetry_dataset(
+                        (ind.get_cell(), ind.get_scaled_positions(), ind.get_atomic_numbers()),
+                        1e-2)['equivalent_atoms']))
                     indices = [atom.index for atom in ind if atom.symbol == symbol]
                     lucky_atom_to_rm = eq_at[np.random.choice(indices)]
                     eq_ats_with_him = np.array([i for i in eq_at if eq_at[i] == lucky_atom_to_rm])
