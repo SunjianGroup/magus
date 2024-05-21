@@ -7,7 +7,7 @@ from magus.utils import *
 from .molecule import Molfilter
 from ..fingerprints import get_fingerprint
 from ..comparators import get_comparator
-import ase.build
+from ase.build import niggli_reduce
 
 
 log = logging.getLogger(__name__)
@@ -313,6 +313,10 @@ class Bulk(Individual):
                 args = list(args)
                 args[0] = args[0].to_atoms()
         super().__init__(*args, **kwargs)
+
+    def merge_atoms(self):
+        niggli_reduce(self)
+        return super().merge_atoms()
 
     def for_heredity(self):
         atoms = self.copy()
