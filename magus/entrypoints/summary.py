@@ -151,7 +151,11 @@ class Summary:
 class BulkSummary(Summary):
     def set_features(self, atoms):
         super().set_features(atoms)
-        atoms.info['symmetry'] = spg.get_spacegroup(atoms, self.prec)
+        lattice = atoms.get_cell()
+        positions = atoms.get_scaled_positions()
+        numbers = atoms.get_atomic_numbers()
+        cell = (lattice, positions, numbers)
+        atoms.info['symmetry'] = spglib.get_spacegroup(cell, self.prec)
         # sometimes spglib cannot find primitive cell.
         try:
             lattice, scaled_positions, numbers = spglib.find_primitive(
