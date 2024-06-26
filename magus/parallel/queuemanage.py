@@ -200,6 +200,10 @@ class SLURMSystemManager(BaseJobManager):
 
     def sub(self, content, name='job', file='job', out='out', err='err'):
         self.reload()
+        if os.path.exists('DONE'):
+            os.remove('DONE')
+        if os.path.exists('ERROR'):
+            os.remove('ERROR')
         with open(file, 'w') as f:
             hours = self.kill_time // 3600
             minites = (self.kill_time % 3600) // 60
@@ -218,7 +222,9 @@ class SLURMSystemManager(BaseJobManager):
                 f"#SBATCH --job-name={name}\n"
                 f"#SBATCH --output={out}\n"
                 f"{self.pre_processing}\n"
-                f"{content}\n")
+                f"{content}\n"
+                "[[ $? -eq 0 ]] && touch DONE || touch ERROR"
+                )
                 #.format(self.queue_name, self.num_core, out, err, name, self.pre_processing, content,
                 #             time.strftime("%H:%M:%S", time.gmtime(self.kill_time)))
 
@@ -245,34 +251,41 @@ class SLURMSystemManager(BaseJobManager):
         time.sleep(3)
         return job
 
-    def check_jobs(self):
-        log.debug("Checking jobs...")
-        nowtime = datetime.datetime.now()
-        log.debug(nowtime.strftime('%m-%d %H:%M:%S'))
-        allDone = True
-        time.sleep(4)
-        for job in self.jobs:
-            try:
-                stat = subprocess.check_output("sacct --format=jobid,state | grep '%s ' | awk '{print $2}'"% (job['id']), shell=True)
-                stat = stat.decode()[:-1]
-            except:
-                s = sys.exc_info()
-                log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
-                stat = ''
-            log.debug("{}\t{}".format(job['id'], stat))
-            if stat == 'COMPLETED' or stat == '':
-                job['state'] = 'DONE'
-            elif stat == 'PENDING':
-                job['state'] = 'PEND'
-                allDone = False
-            elif stat == 'RUNNING':
-                job['state'] = 'RUN'
-                allDone = False
-            else:
-                job['state'] = 'ERROR'
-            if self.verbose:
-                log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
-        return allDone
+    def wait_jobs_done(self, wait_time):
+        wait_condition = "--dependency=afterany:"+':'.join([f"{job['id']}" for job in self.jobs])
+        log.debug(f"Command to wait: salloc {wait_condition} --mem=10M sleep 10; echo 'All jobs finished'")
+        os.system(f"salloc {wait_condition} --mem=10M sleep 10; echo 'All jobs finished'")
+
+    #def check_jobs(self):
+    #    log.debug("Checking jobs...")
+    #    nowtime = datetime.datetime.now()
+    #    log.debug(nowtime.strftime('%m-%d %H:%M:%S'))
+    #    allDone = True
+    #    time.sleep(4)
+    #    for job in self.jobs:
+    #        try:
+    #            stat = subprocess.check_output(f"squeue -j {job['id']} -u $USER  -o '%i %T' | grep {job['id']} | awk '{{print $2}}'", shell=True)
+    #            # The command sacct doesn't work in some clusters, so it is replaced by squeue
+    #            #stat = subprocess.check_output("sacct --format=jobid,state | grep '%s ' | awk '{print $2}'"% (job['id']), shell=True)
+    #            stat = stat.decode()[:-1]
+    #        except:
+    #            s = sys.exc_info()
+    #            log.warning("Error '%s' happened on line %d" % (s[1],s[2].tb_lineno))
+    #            stat = ''
+    #        log.debug("{}\t{}".format(job['id'], stat))
+    #        if stat == 'COMPLETED' or stat == '':
+    #            job['state'] = 'DONE'
+    #        elif stat == 'PENDING':
+    #            job['state'] = 'PEND'
+    #            allDone = False
+    #        elif stat == 'RUNNING':
+    #            job['state'] = 'RUN'
+    #            allDone = False
+    #        else:
+    #            job['state'] = 'ERROR'
+    #        if self.verbose:
+    #            log.debug('job {} id {} : {}'.format(job['name'], job['id'], job['state']))
+    #    return allDone
 
 
 class PBSSystemManager(BaseJobManager):
