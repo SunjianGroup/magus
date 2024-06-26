@@ -153,10 +153,11 @@ class Magus:
         log.info("best ind:")
         bestind = self.good_pop.bestind()
         self.best_pop.extend(bestind)
-        if bestind[0].info['spg'] == self.convergence_condition[0] and bestind[0].info['enthalpy'] <= self.convergence_condition[1]:
-            self.stop_signal = True
-        else:
-            self.stop_signal = False
+        self.stop_signal = False
+
+        if bestind[0].info['enthalpy'] <= self.convergence_condition[1]:
+            if bestind[0].info['spg'] == self.convergence_condition[0] or self.convergence_condition[0] == -1:
+                self.stop_signal = True
 
         self.show_pop_info(bestind, log_level=logging.INFO, show_pop_name = "BEST INDIVIDUALS")
         
@@ -179,6 +180,7 @@ class Magus:
 
     def set_current_pop(self, init_pop):
         relax_pop = self.main_calculator.relax(init_pop)
+        relax_pop.gen = self.curgen
         try:
             relax_step = sum([sum(atoms.info['relax_step']) for atoms in relax_pop])
             log.info('DFT relax {} structures with {} scf'.format(len(relax_pop), relax_step))

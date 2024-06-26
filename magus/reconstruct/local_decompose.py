@@ -520,7 +520,13 @@ def is_same_graph(CG1, CG2):
     
 
 def decompose(origin_struct, center_index, distance_dict, neighbor_dis=5, path_length_cut = 3, cycle_length_cut = 7,
-               n_community=[3, 12], prefered_ubc = 2, prefered_dof = 3, prefered_bs = 4):
+               n_community=[3, 12], prefered_ubc = 5, prefered_dof = 5, prefered_bs = 4):
+   
+   # translate center index into cell center
+   origin_struct = origin_struct.copy()
+   sp = origin_struct.get_scaled_positions()
+   origin_struct.set_scaled_positions(sp - sp[center_index] + np.array([0.5]*3))
+   origin_struct.wrap()
 
    atoms, central = build_neighbor_struct(origin_struct, center_index, neighbor_dis)
    G = CrystalGraph()
@@ -576,16 +582,16 @@ def DECOMPOSE(pop, distance_dict, **kwargs):
       if len(unique_atoms) == len(atoms):
          continue
       for i in unique_atoms:
-         #try:
-         p = decompose(atoms,i, distance_dict, **kwargs)
-         for cg1 in p:
-            for cg2 in decomposed_pop:
-               if cg1 == cg2:
-                  break
-            else:
-               decomposed_pop.append(cg1)
-         #except Exception as e:
-         #   print("Exception {} happened. return null set frags".format(e))
+         try:
+            p = decompose(atoms,i, distance_dict, **kwargs)
+            for cg1 in p:
+               for cg2 in decomposed_pop:
+                  if cg1 == cg2:
+                     break
+               else:
+                  decomposed_pop.append(cg1)
+         except Exception as e:
+            print("Exception {} happened. return null set frags".format(e))
          #print(time.ctime(), ": decompose base on '{} (no. {})'".format(atoms[i].symbol, i))
          
    #print("decomposed", [(ind.ubc, ind.dof, len(ind)) for ind in decomposed_pop])

@@ -202,7 +202,7 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
                 for i,j in enumerate(rand_formula):
                     now_formula += FMLfilter(self.fragments[i].symbols.formula.count()) * j
                 
-                if now_formula <= self.target_formula: #and (self.frag_ratio[0] < now_formula/ self.target_formula <self.frag_ratio[1] or now_formula/ self.target_formula==0) :
+                if now_formula < self.target_formula: #and (self.frag_ratio[0] < now_formula/ self.target_formula <self.frag_ratio[1] or now_formula/ self.target_formula==0) :
                     fill = self.target_formula - now_formula
                     combine = list(rand_formula)
                     for i, f in enumerate(self.fragments):

@@ -56,6 +56,7 @@ class PaMagus(Magus):
         # find spg before delete duplicate
         log.debug("'{}'th process find spg...".format(thread_num))
         relax_pop.find_spg()
+        relax_pop.gen = self.curgen
         relax_pop.del_duplicate()
 
         # decompose if needed
@@ -236,7 +237,7 @@ class PaMagus(Magus):
     
     def set_current_pop(self, init_pop):
         raw, relax_pop, frags = self.relax(init_pop)
-        
+        relax_pop.gen = self.curgen 
         #save raw data
         raw.save('raw', self.curgen)
         

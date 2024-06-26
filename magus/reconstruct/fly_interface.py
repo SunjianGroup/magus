@@ -34,10 +34,11 @@ def interface_smfr(magus_inst, restart = False):
         magus_inst.frag_reorg = {}
     elif not atoms_generator == "don't change":
         setattr(magus_inst, "atoms_generator", atoms_generator)
-    
+     
 
     set_smfr_population(magus_inst.Population, magus_inst.parameters.get('Fitness', None))
-    
+    magus_inst.Population.atoms_generator = atoms_generator
+   
     setattr(magus_inst, "one_step", partial(Magus_one_step, magus_inst))
     if restart:
         smfr_patch_to_Magus.get_pop_for_heredity(magus_inst)
@@ -147,7 +148,7 @@ class smfr_patch_to_Magus:
         if inst.spg_miner:
             inst.miner_tracker.add_generation_to_analyzer(inst.curgen)
             inst.miner_tracker.write()
-            inst.miner_tracker.max_limit_per_spg = inst.curgen * inst.parameters['popSize']/15
+            inst.miner_tracker.max_limit_per_spg = inst.curgen * inst.parameters['popSize']
 
     @staticmethod
     def update_frag(inst, frags):

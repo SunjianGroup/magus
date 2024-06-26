@@ -118,9 +118,9 @@ class AgeFitness(FitnessCalculator):
  
     def calc(self, pop):
         for ind in pop:
-            cur_n_gen = int(ind.info['gen'])
+            cur_n_gen = pop.gen
             born_n_gen = int((ind.info['identity'].split('-')[0]) [4:] )
-            ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.age_fit(born_n_gen - cur_n_gen)
+            ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.age_fit(cur_n_gen - born_n_gen)
             
     def age_fit(self, age):
         favor_age, scale_parm = self.age_scale

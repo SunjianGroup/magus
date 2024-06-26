@@ -69,7 +69,7 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
                 dimension=3, max_attempts=50, GetConventional=True, method=1,
                 vacuum=None, choice=None, mol_mode=False, input_mols=None, symprec_in_generator=0.5,
                 threshold_mol=1., generator_max_length_ratio = 100.0, esangle_min = None, esangle_max = None,
-                wyckoff = None, forceMostGeneralWyckPos = True, thickness_tolerance = 0.0,
+                wyckoff = None, forceMostGeneralWyckPos = False, thickness_tolerance = 0.0,
                 *args, **kwargs):
     # set generator
     generator = gensym.Info()
@@ -83,6 +83,11 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
         generator.choice = choice
     generator.threshold = 100. # now use threshold_dict instead of threshold
     generator.method = method
+    if mol_mode and forceMostGeneralWyckPos:
+        for i, m in enumerate(input_mols):
+            if numlist[i] > 0 and len(m) > 1:
+                   forceMostGeneralWyckPos = False
+    print(input_mols, numlist, forceMostGeneralWyckPos)
     generator.forceMostGeneralWyckPos = forceMostGeneralWyckPos
     generator.UselocalCellTrans = 'y'
     generator.GetConventional = GetConventional
