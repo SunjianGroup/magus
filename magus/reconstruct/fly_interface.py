@@ -148,6 +148,7 @@ class smfr_patch_to_Magus:
         if inst.spg_miner:
             inst.miner_tracker.add_generation_to_analyzer(inst.curgen)
             inst.miner_tracker.write()
+            # TODO: max_limit_per_spg
             inst.miner_tracker.max_limit_per_spg = inst.curgen * inst.parameters['popSize']
 
     @staticmethod

@@ -83,11 +83,12 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
         generator.choice = choice
     generator.threshold = 100. # now use threshold_dict instead of threshold
     generator.method = method
+    
+    #TODO: forceMostGeneralWyckPos = Auto
     if mol_mode and forceMostGeneralWyckPos:
         for i, m in enumerate(input_mols):
             if numlist[i] > 0 and len(m) > 1:
                    forceMostGeneralWyckPos = False
-    print(input_mols, numlist, forceMostGeneralWyckPos)
     generator.forceMostGeneralWyckPos = forceMostGeneralWyckPos
     generator.UselocalCellTrans = 'y'
     generator.GetConventional = GetConventional
@@ -129,7 +130,7 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
                             "This feature is only supported by method 1 thus the generator method is set to 1.")
                 generator.method = 1        #only support method 1
 
-    label = generator.Generate(np.random.randint(1000))
+    label = generator.Generate(np.random.randint(2**30))
     if label:
         cell = generator.GetLattice(0)
         cell = np.reshape(cell, (3,3))

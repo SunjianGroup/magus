@@ -518,7 +518,6 @@ class Cluster(Individual):
 
     @staticmethod
     def reset_center(atoms, set_lattice = None):
-        ase.io.write('rc1.vasp', atoms)
         new_atoms = atoms.copy()
 
         pos = new_atoms.get_positions().copy()
@@ -534,7 +533,6 @@ class Cluster(Individual):
         trans = [np.mean(newlattice, axis = 0) - np.mean(pos, axis = 0)]*len(new_atoms)
         new_atoms.translate(trans)
         new_atoms.set_cell (newlattice)
-        ase.io.write('rc2.vasp', new_atoms)
         return new_atoms
     
     @property
@@ -701,7 +699,6 @@ class AdClus(Cluster):
 
     def check_connection(self, atoms=None):
         atoms = atoms or self
-        print('check_connection')
         atoms = atoms.copy()
         if len(atoms) > len(self._substratefile_):
             atoms = self.get_top_layer(atoms)
