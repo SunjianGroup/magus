@@ -34,7 +34,8 @@ class PyNEPCalculator(ASECalculator, ClusterCalculator):
             'version': 4,
             'generation': 1000,
             'neuron': 30,
-            'cutoff': [5, 5]
+            'cutoff': [5, 5],
+            'init_times': 2,
         }
         check_parameters(self, parameters, Requirement, Default)
 

@@ -10,11 +10,12 @@ log = logging.getLogger(__name__)
 class MLMagus(Magus):
     def __init__(self, parameters, restart=False):
         super().__init__(parameters, restart=restart)
-        self.get_initial_pot(epoch=self.init_times)
+        self.get_initial_pot(epoch=self.ml_calculator.init_times)
 
     def init_parms(self, parameters):
         super().init_parms(parameters)
-        check_parameters(self, self.parameters, [], {'init_times': 2})
+        # The value of 'init_times' should not be initilized here
+        # check_parameters(self, self.parameters, [], {'init_times': 2})
         self.ml_calculator = parameters.MLCalculator
         log.debug('ML Calculator information:\n{}'.format(self.ml_calculator))
 

@@ -103,6 +103,7 @@ class DPCalculator(ASECalculator):
             'model_dir': self.input_dir,
             'n_ensemble': 1,
             'keep_prob': 1.0,
+            'init_times': 2,
         }
         check_parameters(self, parameters, Requirement, Default)
         type_dict = {j: i for i, j in enumerate(self.symbols)}
@@ -123,6 +124,7 @@ class OTFDPCalculator(ClusterCalculator):
             'n_epoch': 200, 
             'n_ensemble': 5,
             'keep_prob': 0.9,
+            'init_times': 2,
             }
         check_parameters(self, parameters, Requirement, Default)
         self.ml_dir = "{}/mlFold/{}".format(self.work_dir, self.job_prefix)

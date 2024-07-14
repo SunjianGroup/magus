@@ -1,4 +1,4 @@
-import os, subprocess, shutil, time
+import os, subprocess, shutil, time, random
 import numpy as np
 from magus.calculators.base import Calculator, ClusterCalculator
 from magus.formatting.mtp import load_cfg, dump_cfg
@@ -97,6 +97,8 @@ class MTPNoSelectCalculator(ClusterCalculator):
         return scfpop
 
 
+
+
 @CALCULATOR_PLUGIN.register('mtp')
 class MTPSelectCalculator(ClusterCalculator):
     def __init__(self, **parameters):
@@ -115,6 +117,11 @@ class MTPSelectCalculator(ClusterCalculator):
             'n_fail': 0,
             'mtp_exe': 'mlp',
             'mtp_runner': 'mpirun',
+            'init_times': 2,
+            'max_relax_epoch': 1,
+            'success_frac': 0.5,
+            'mtp_relax_step': 10000,
+            'nsample_per_relax': parameters['popSize']
             }
         check_parameters(self, parameters, Requirement, Default)
         self.symbol_to_type = {j: i for i, j in enumerate(self.symbols)}
@@ -251,13 +258,17 @@ class MTPSelectCalculator(ClusterCalculator):
         # must have: mlip.ini, to_relax.cfg, pot.mtp, A-state.als
         log.info('\tstep 02: do relax with mtp')
         content = f"{self.mtp_runner} -n {self.num_core} {self.mtp_exe} relax mlip.ini "\
+                    f"--iteration-limit={self.mtp_relax_step}"\
                     f"--pressure={self.pressure} --cfg-filename=to_relax.cfg "\
                     f"--force-tolerance={self.force_tolerance} --stress-tolerance={self.stress_tolerance} "\
                     f"--min-dist={self.min_dist} --log=mtp_relax.log "\
+                    f"--save-unrelaxed=unrelaxed.cfg "\
                     f"--save-relaxed=relaxed.cfg\n"\
                     f"sleep 10\n"\
                     f"cat B-preselected.cfg?* > B-preselected.cfg\n"\
-                    f"cat relaxed.cfg?* > relaxed.cfg\n"
+                    f"cat unrelaxed.cfg?* > unrelaxed.cfg\n"\
+                    f"cat relaxed.cfg?* > relaxed.cfg\n"\
+                    f"cat relaxed.cfg unrelaxed.cfg > all_after_relax.cfg"
         if self.mode == 'parallel':
             self.J.sub(content, name='relax', file='relax.sh', out='relax-out', err='relax-err')
             self.J.wait_jobs_done(self.wait_time)
@@ -390,6 +401,92 @@ class MTPSelectCalculator(ClusterCalculator):
             atoms.info['enthalpy'] = round(enthalpy, 6)
         return scfpop
 
+@CALCULATOR_PLUGIN.register('mtp2')
+class MTPSelectCalculator2(MTPSelectCalculator):
+    def select_bad_frames(self, loadFile):
+        # Select frames from relaxed structures, not from preselected ones
+        log.info('\tstep 03: select bad frames')   
+        to_select = load_cfg(loadFile, self.type_to_symbol)
+        clean_select = []
+        for atoms in to_select:
+            clean_select.append(Atoms(numbers=atoms.numbers, cell=atoms.cell, positions=atoms.positions, pbc=atoms.pbc))
+        selected = self.select(clean_select)
+        if len(selected) > self.nsample_per_relax:
+            selected = random.sample(selected[:], self.nsample_per_relax)
+        dump_cfg(selected, "C-selected.cfg", self.symbol_to_type)
+        return selected
+    def relax_(self, calcPop):
+        self.scf_num = 0
+        # remain info
+        for i, atoms in enumerate(calcPop):
+            atoms.info['identification'] = i
+        nowpath = os.getcwd()
+        calc_dir = self.calc_dir
+        basedir = '{}/epoch{:02d}'.format(calc_dir, 0)
+        os.makedirs(basedir, exist_ok=True)
+        shutil.copy("{}/mlip.ini".format(self.input_dir), "{}/mlip.ini".format(basedir))
+        shutil.copy("{}/pot.mtp".format(self.ml_dir), "{}/pot.mtp".format(basedir))
+        shutil.copy("{}/train.cfg".format(self.ml_dir), "{}/train.cfg".format(basedir))
+        dump_cfg(calcPop, "{}/to_relax.cfg".format(basedir), self.symbol_to_type)
+        for epoch in range(1, self.max_relax_epoch+1):
+            log.info('{} active relax epoch {}'.format(self.job_prefix, epoch))
+            prevdir = '{}/epoch{:02d}'.format(calc_dir, epoch - 1)
+            currdir = '{}/epoch{:02d}'.format(calc_dir, epoch)
+            os.makedirs(currdir, exist_ok=True)
+            os.chdir(currdir)
+            shutil.copy("{}/mlip.ini".format(prevdir), "mlip.ini")
+            shutil.copy("{}/pot.mtp".format(self.ml_dir), "pot.mtp")
+            shutil.copy("{}/to_relax.cfg".format(prevdir), "to_relax.cfg")
+            shutil.copy("{}/train.cfg".format(self.ml_dir), "train.cfg")
+            # 01: calculate grade
+            self.calc_grade()
+            # 02: do relax with mtp
+            self.relax_with_mtp()
+            if os.path.getsize("B-preselected.cfg") == 0:
+                log.info('\tNo bad frames. Exit the loop.')
+                break
+            # else:
+            relaxPop = load_cfg("relaxed.cfg", self.type_to_symbol)
+            log.info(f"\t{len(relaxPop)}/{len(calcPop)} structures are relaxed successfully, but their grades might still be high")
+            # if len(relaxPop) > 0:
+            #     log.info("No successfull relaxation")
+            #     break
+            # if len(rlxPop)/len(calcPop) > self.success_frac:
+            #     break
+
+            # 03: select bad cfg
+            # selected = self.select_bad_frames('all_after_relax.cfg')
+            selected = self.select_bad_frames('relaxed.cfg')
+            
+            # if len(relaxPop) > 0:
+            #     selected = self.select_bad_frames('relaxed.cfg')
+            # else:
+            #     log.info("No successfull relaxation. Select from initial structures")
+            #     selected = self.select_bad_frames('to_relax.cfg')
+            
+            log.info(f"\t{len(selected)} structures are selected")
+            if len(selected) <= self.n_fail:
+                log.info(f'\tLess than threshold {self.n_fail}. Exit the loop.')
+                break
+            # 04: DFT
+            self.get_train_set()
+            # 05: train
+            self.retrain()
+        else:
+            log.info('\tbu hao ye, some relax failed')
+        log.info('{} DFT scf calculated'.format(self.scf_num))
+        shutil.copy("pot.mtp", "{}/pot.mtp".format(self.ml_dir))
+        shutil.copy("train.cfg", "{}/train.cfg".format(self.ml_dir))
+        relaxpop = load_cfg("relaxed.cfg", self.type_to_symbol)
+        for atoms in relaxpop:
+            enthalpy = (atoms.info['energy'] + self.pressure * atoms.get_volume() * GPa) / len(atoms)
+            atoms.info['enthalpy'] = round(enthalpy, 6)
+            origin_atoms = calcPop[atoms.info['identification']]
+            origin_atoms.info.update(atoms.info)
+            atoms.info = origin_atoms.info
+            atoms.info.pop('identification')
+        os.chdir(nowpath)
+        return relaxpop
 
 @CALCULATOR_CONNECT_PLUGIN.register('share-trainset')
 class TwoShareMTPCalculator(Calculator):
