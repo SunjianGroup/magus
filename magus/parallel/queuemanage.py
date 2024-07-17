@@ -7,14 +7,15 @@ log = logging.getLogger(__name__)
 
 
 class BaseJobManager:
-    control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time', 'mem_per_cpu']
+    control_keys = ['queue_name', 'num_core', 'pre_processing', 'verbose', 'kill_time', 'mem_per_cpu', 'wait_params']
     def __init__(self, **parameters):
         Requirement = ['queue_name', 'num_core']
         Default={
             'control_file': None,
-            'pre_processing': 200,
+            'pre_processing': '',
             'verbose': False,
             'kill_time': 7200,
+            'wait_params': '--mem=10M',
             'mem_per_cpu': '1G'
             }
         check_parameters(self, parameters, Requirement, Default)
@@ -253,8 +254,9 @@ class SLURMSystemManager(BaseJobManager):
 
     def wait_jobs_done(self, wait_time):
         wait_condition = "--dependency=afterany:"+':'.join([f"{job['id']}" for job in self.jobs])
-        log.debug(f"Command to wait: salloc {wait_condition} --mem=10M sleep 10; echo 'All jobs finished'")
-        os.system(f"salloc {wait_condition} --mem=10M sleep 10; echo 'All jobs finished'")
+        wait_command = f"salloc {wait_condition} {self.wait_params} -p {self.queue_name} sleep 10"
+        log.debug(f"Command to wait: {wait_command}")
+        os.system(wait_command)
 
     #def check_jobs(self):
     #    log.debug("Checking jobs...")
