@@ -253,7 +253,7 @@ class SLURMSystemManager(BaseJobManager):
 
     def wait_jobs_done(self, wait_time):
         wait_condition = "--dependency=afterany:"+':'.join([f"{job['id']}" for job in self.jobs])
-        # log.debug(f"Command to wait: salloc {wait_condition} --mem=10M sleep 10; echo 'All jobs finished'")
+        log.debug(f"Command to wait: salloc {wait_condition} -n 1 --mem=10M sleep 10; echo 'All jobs finished'")
         os.system(f"salloc {wait_condition} --mem=10M sleep 10; echo 'All jobs finished'")
 
     #def check_jobs(self):

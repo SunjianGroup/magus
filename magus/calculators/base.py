@@ -1,4 +1,4 @@
-import os, shutil, yaml, traceback
+import os, shutil, yaml, traceback, sys
 import numpy as np
 import abc
 import ase
@@ -278,6 +278,37 @@ class ASECalculator(Calculator):
             except:
                 log.debug('{} scf Error'.format(self.__class__.__name__))
         return calcPop
+
+# ASE calculator supporting parallel mode
+class ASEClusterCalculator(ClusterCalculator):
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        self.ASECalc = ASECalculator(**parameters)
+    
+    def scf_(self, calcPop):
+        if self.mode == 'parallel':
+            self.paralleljob(calcPop, self.scf_job)
+            scfPop = self.read_parallel_results()
+            self.J.clear()
+        else:
+            # serial model: use ASECalculator
+            os.chdir(self.calc_dir)
+            scfPop = self.ASECalc.scf_(calcPop)
+            os.chdir(self.work_dir)
+        return scfPop
+
+    def relax_(self, calcPop):
+        if self.mode == 'parallel':
+            self.paralleljob(calcPop, self.relax_job)
+            relaxPop = self.read_parallel_results()
+            self.J.clear()
+        else:
+            os.chdir(self.calc_dir)
+            relaxPop = self.ASECalc.relax_(calcPop)
+            os.chdir(self.work_dir)
+        return relaxPop
+    
+
 
 
 @CALCULATOR_CONNECT_PLUGIN.register('naive')

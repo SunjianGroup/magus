@@ -39,9 +39,11 @@ class MLMagus(Magus):
             scf_pop = self.main_calculator.scf(select_pop)
             scf_pop.check()
             self.ml_calculator.updatedataset(scf_pop)
-            log.info("\tDone! {} structures in the dataset\n\ttraining...".format(len(self.ml_calculator.trainset)))
+            log.info("\tDone! {} structures in the training set\n\ttraining...".format(len(self.ml_calculator.trainset)))
             self.ml_calculator.train()
         log.info('Done!')
+    
+       
 
     def select_to_relax(self, frames, init_num=3, min_num=20):
         try:
@@ -91,6 +93,7 @@ class MLMagus(Magus):
         relax_pop.calc_dominators()
         relax_pop.save("mlgen", self.curgen)
         if self.parameters['DFTScf']:
+            log.info("SCF calculations for low energy ML-relaxed structures")
             to_scf = self.select_to_relax(relax_pop, self.parameters['initNum'], self.parameters['minNum'])
             dft_scf_pop = self.main_calculator.scf(to_scf)
             log.info('{} structures need DFT scf'.format(len(dft_scf_pop)))
@@ -101,6 +104,7 @@ class MLMagus(Magus):
             self.ml_calculator.updatedataset(to_add)
             self.ml_calculator.train()
         elif self.parameters['DFTRelax']:
+            log.info("Relaxation for low energy ML-relaxed structures")
             #######  select cfgs to do dft relax  #######
             to_relax = self.select_to_relax(relax_pop)
             #######  compare target and predict energy  #######   
@@ -115,6 +119,16 @@ class MLMagus(Magus):
             self.cur_pop = dft_relaxed_pop
             to_add = self.select_to_add(dft_relaxed_pop)
             self.ml_calculator.updatedataset(to_add)
+            self.ml_calculator.train()
+        if self.parameters['SelectDFTScf']:
+            log.info("SCF calculations for selected ML-relaxed structures")
+            to_scf = self.ml_calculator.select(relax_pop)
+            log.info('{} structures need DFT scf'.format(len(to_scf)))
+            dft_scf_pop = self.main_calculator.scf(to_scf)
+            dft_scf_pop.find_spg()
+            dft_scf_pop.del_duplicate()
+            self.cur_pop = dft_scf_pop
+            self.ml_calculator.updatedataset(dft_scf_pop)
             self.ml_calculator.train()
         else:
             self.cur_pop = relax_pop

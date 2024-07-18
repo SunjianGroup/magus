@@ -34,6 +34,8 @@ class magusParameters:
             'structureType': 'bulk',
             'spacegroup': list(range(1, 231)),
             'DFTRelax': False,
+            'DFTScf': False,
+            'SelectDFTScf': False,
             'initSize': p_dict['popSize'],
             'goodSize': p_dict['popSize'],
             'molMode': False,
