@@ -16,6 +16,7 @@ class MLMagus(Magus):
         super().init_parms(parameters)
         # The value of 'init_times' should not be initilized here
         # check_parameters(self, self.parameters, [], {'init_times': 2})
+        # check_parameters(self, self.parameters, [], {'pertub': False, 'max_atom_move': 0.05, 'max_lat_move': 0.05})
         self.ml_calculator = parameters.MLCalculator
         log.debug('ML Calculator information:\n{}'.format(self.ml_calculator))
 
@@ -44,7 +45,6 @@ class MLMagus(Magus):
         log.info('Done!')
     
        
-
     def select_to_relax(self, frames, init_num=3, min_num=20):
         try:
             ground_enthalpy = self.good_pop.bestind()[0].atoms.info['enthalpy']
@@ -123,11 +123,12 @@ class MLMagus(Magus):
         if self.parameters['SelectDFTScf']:
             log.info("SCF calculations for selected ML-relaxed structures")
             to_scf = self.ml_calculator.select(relax_pop)
+            to_scf = self.ml_calculator.expand_perturb(to_scf)
             log.info('{} structures need DFT scf'.format(len(to_scf)))
             dft_scf_pop = self.main_calculator.scf(to_scf)
-            dft_scf_pop.find_spg()
-            dft_scf_pop.del_duplicate()
-            self.cur_pop = dft_scf_pop
+            # dft_scf_pop.find_spg()
+            # dft_scf_pop.del_duplicate()
+            self.cur_pop = relax_pop
             self.ml_calculator.updatedataset(dft_scf_pop)
             self.ml_calculator.train()
         else:

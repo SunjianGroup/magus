@@ -19,6 +19,30 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def apply_peturb(pop, numP, maxAtMove, maxLatMove, seed=None):
+    # apply perturbations on lattice and atomice position
+    perbPop = pop[:]
+    rng = np.random.RandomState(seed)
+    for ats in pop:
+        for _ in range(numP):
+            nAts = Atoms(numbers=ats.numbers, cell=ats.cell, positions=ats.positions, pbc=ats.pbc)
+            pos = nAts.get_positions()
+            nAts.set_positions(pos+rng.uniform(-1*maxAtMove, maxAtMove, size=pos.shape))
+            nAts.wrap()
+            rLat = rng.uniform(-1*maxLatMove, maxLatMove, size=6)
+            strain = np.array([
+                [1+rLat[0], 0.5*rLat[5], 0.5*rLat[4]],
+                [0.5*rLat[5], 1+rLat[1], 0.5*rLat[3]],
+                [0.5*rLat[4], 0.5*rLat[3], 1+rLat[2]],
+            ])
+            cell = nAts.get_cell()
+            newCell = np.dot(strain, cell)
+            nAts.set_cell(newCell, scale_atoms=True)
+            perbPop.append(nAts)
+
+    return perbPop
+
+
 class Singleton:
     def __init__(self, cls):
         self._cls = cls

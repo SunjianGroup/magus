@@ -7,7 +7,7 @@ from mace.calculators import MACECalculator as MACEAseCalculator
 import torch
 
 from magus.calculators.base import ASECalculator, ClusterCalculator, ASEClusterCalculator
-from magus.utils import CALCULATOR_PLUGIN, check_parameters
+from magus.utils import CALCULATOR_PLUGIN, check_parameters, apply_peturb
 from magus.populations.populations import Population
 
 from ase.constraints import ExpCellFilter
@@ -172,7 +172,9 @@ class MACECalculator(ASEClusterCalculator):
             'eps': 0.05,
             'split_ratios': [8, 1, 1],
             'n_fps_sample': None,
-            'n_perturb': 5,
+            'n_perturb': 0,
+            'max_atom_move': 0.05, 
+            'max_lat_move': 0.05,
         }
         check_parameters(self, parameters, Requirement, Default)
 
@@ -284,7 +286,7 @@ class MACECalculator(ASEClusterCalculator):
         job_name = self.job_prefix + '_d_' + str(index)
         mace_setup = self.mace_setup.copy()
         mace_setup['task'] = 'desc'
-        mace_setup['model_paths']: f'{self.ml_dir}/mace_desc.model'
+        mace_setup['model_paths'] = f'{self.ml_dir}/mace_desc.model'
         with open('maceSetup.yaml', 'w') as f:
             f.write(yaml.dump(mace_setup))
         content = "python -m magus.calculators.mace maceSetup.yaml initPop.traj optPop.traj"
@@ -318,14 +320,27 @@ class MACECalculator(ASEClusterCalculator):
         new_pop = self.desc_(pop)
         log.debug("Compute descriptor of training structures.")
         train_pop = self.desc_(self.trainset)
-        des_train = np.array([atoms.info['descriptor'] for atoms in train_pop])
         des_new = np.array([atoms.info['descriptor'] for atoms in new_pop])
+        des_train = np.array([atoms.info['descriptor'] for atoms in train_pop])
         sampler = FarthestPointSample(min_distance=0)
-        ret = [new_pop[i] for i in sampler.select(des_train, des_new, max_select=self.n_fps_sample)]
+        indices = sampler.select(des_new, des_train, max_select=self.n_fps_sample)
+        log.debug(f"FPS indices: {indices}")
+        ret = [new_pop[i] for i in indices]
         os.chdir(nowpath)
         if isinstance(pop, Population):
             return pop.__class__(ret)
         return ret
+
+    def expand_perturb(self, pop):
+        # expand dataset by perturbation
+        if self.n_perturb > 0:
+            log.debug("Expand dataset by perturbation")
+            ret = apply_peturb(pop, self.n_perturb,  self.max_atom_move, self.max_lat_move)
+            if isinstance(pop, Population):
+                return pop.__class__(ret)
+            return ret
+        else:
+            return pop
 
     def get_loss(self, frames):
         mace_result = self.calc_efs(frames)
