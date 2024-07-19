@@ -186,6 +186,7 @@ class MACECalculator(ASEClusterCalculator):
             'optimizer': self.optimizer,
             'max_move': self.max_move,
             'eps': self.eps,
+            'filter_force': True,
         }
         self.main_info.append('mace_setup')
 
@@ -324,7 +325,7 @@ class MACECalculator(ASEClusterCalculator):
         des_train = np.array([atoms.info['descriptor'] for atoms in train_pop])
         sampler = FarthestPointSample(min_distance=0)
         indices = sampler.select(des_new, des_train, max_select=self.n_fps_sample)
-        log.debug(f"FPS indices: {indices}")
+        # log.debug(f"FPS indices: {indices}")
         ret = [new_pop[i] for i in indices]
         os.chdir(nowpath)
         if isinstance(pop, Population):
@@ -397,18 +398,19 @@ def calc_mace(mace_setup, frames):
     max_move = mace_setup['max_move']
     max_step = mace_setup['max_step']
     eps = mace_setup['eps']
+    filter_force = mace_setup['filter_force']
     device='cuda' if torch.cuda.is_available() else 'cpu'
     logfile='aserelax.log'
     trajname='calc.traj'
     new_frames = []
 
-    # define optimizer which exits when forces are too large
+    # define optimizer which ends when forces are too large
     class optimizer(optimizer_dict[mace_setup['optimizer']]):
         def converged(self, forces=None):
             if forces is None:
                 forces = self.optimizable.get_forces()
             if np.abs(forces).max() > 10000:
-                return True
+                raise Exception('Too large forces during relaxation')
             return self.optimizable.converged(forces, self.fmax)
 
     calc = MACEAseCalculator(model_paths=model_paths, device=device)
@@ -425,8 +427,15 @@ def calc_mace(mace_setup, frames):
                     label = gopt.run(fmax=eps, steps=max_step)
                     traj = read(trajname, ':')
                     log.debug(f'relax steps: {len(traj)}')
-                except Converged:
-                    pass
+                # except Converged:
+                #     continue
+                except Exception:
+                    continue
+                if filter_force:
+                    finalF = atoms.get_forces()
+                    fmax = sqrt((finalF ** 2).sum(axis=1).max())
+                    if fmax > eps:
+                        continue
 
             atoms.info['energy'] = atoms.get_potential_energy()
             atoms.info['forces'] = atoms.get_forces()
@@ -434,6 +443,8 @@ def calc_mace(mace_setup, frames):
                 atoms.info['stress'] = atoms.get_stress()
             except:
                 pass
+            
+
             enthalpy = (atoms.info['energy'] + pressure * atoms.get_volume() * GPa)/ len(atoms)
             # atoms.info['enthalpy'] = round(enthalpy, 6)
             atoms.info['enthalpy'] = enthalpy

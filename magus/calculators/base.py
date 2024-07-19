@@ -108,7 +108,8 @@ class ClusterCalculator(Calculator, abc.ABC):
                 'verbose': False,
                 'kill_time': 100000,
                 'num_parallel': 1,
-                'memory': '1000M',
+                'memory': None,
+                'mem_per_cpu': '1G',
                 }
             check_parameters(self, parameters, Requirement, Default)
 
@@ -119,6 +120,7 @@ class ClusterCalculator(Calculator, abc.ABC):
                 verbose=self.verbose,
                 kill_time=self.kill_time,
                 memory=self.memory,
+                mem_per_cpu=self.mem_per_cpu,
                 control_file="{}/job_controller".format(self.calc_dir))
         elif self.mode == 'serial':
             check_parameters(self, parameters, Requirement=[], Default={'num_core': 1})

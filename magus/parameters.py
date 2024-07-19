@@ -3,6 +3,7 @@ from collections import defaultdict
 from .populations import get_population
 from .calculators import get_calculator
 from .generators import get_random_generator, get_ga_generator
+import logging
 try:
     from .reconstruct.rcs_interface import rcs_type_list, rcs_interface
 except:
@@ -10,6 +11,8 @@ except:
     warnings.warn("Failed to load module for systems <clusters, surfaces, interfaces>:\n {}".format(traceback.format_exc()) +
                   "\nThis warning above can be ignored if the mentioned systems are not targets, elsewise should be fixed.\n" )
     rcs_type_list = []
+
+log = logging.getLogger(__name__)
 
 #@Singleton
 class magusParameters:
@@ -106,6 +109,7 @@ class magusParameters:
                 p_dict = copy.deepcopy(self.p_dict)
                 p_dict.update(p_dict['MLCalculator'])
                 p_dict['query_calculator'] = self.MainCalculator
+                log.debug(f"Parameter for MLCalc: {p_dict}")
                 self.MLCalculator_ = get_calculator(p_dict)   
             else:
                 raise Exception('No ML Calculator!')
