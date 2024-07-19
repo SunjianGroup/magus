@@ -433,7 +433,7 @@ def calc_mace(mace_setup, frames):
                     continue
                 if filter_force:
                     finalF = atoms.get_forces()
-                    fmax = sqrt((finalF ** 2).sum(axis=1).max())
+                    fmax = np.sqrt((finalF ** 2).sum(axis=1).max())
                     if fmax > eps:
                         continue
 
