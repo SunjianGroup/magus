@@ -171,10 +171,11 @@ class MACECalculator(ASEClusterCalculator):
             'max_move': 0.1,
             'eps': 0.05,
             'split_ratios': [8, 1, 1],
-            'n_fps_sample': None,
+            'n_sample': None,
             'n_perturb': 0,
             'max_atom_move': 0.05, 
             'max_lat_move': 0.05,
+            'selection': 'fps',
         }
         check_parameters(self, parameters, Requirement, Default)
 
@@ -304,6 +305,8 @@ class MACECalculator(ASEClusterCalculator):
         return descPop
 
     def select(self, pop):
+        assert self.selection in ['fps', 'random'], "selectiom must be fps or random!"
+        log.debug(f"Sample number self.n_sample: {self.n_sample}")
         nowpath = os.getcwd()
         os.chdir(self.ml_dir)
         if not os.path.exists("mace_pot.model"):
@@ -317,16 +320,24 @@ class MACECalculator(ASEClusterCalculator):
         #     [np.mean(pot.get_descriptors(atoms), axis=0) for atoms in self.trainset])
         # des_new = np.array(
         #     [np.mean(pot.get_descriptors(atoms), axis=0) for atoms in pop])
-        log.debug("Compute descriptor of new structures.")
-        new_pop = self.desc_(pop)
-        log.debug("Compute descriptor of training structures.")
-        train_pop = self.desc_(self.trainset)
-        des_new = np.array([atoms.info['descriptor'] for atoms in new_pop])
-        des_train = np.array([atoms.info['descriptor'] for atoms in train_pop])
-        sampler = FarthestPointSample(min_distance=0)
-        indices = sampler.select(des_new, des_train, max_select=self.n_fps_sample)
-        # log.debug(f"FPS indices: {indices}")
-        ret = [new_pop[i] for i in indices]
+        if self.selection == 'fps':
+            log.debug("Compute descriptor of new structures.")
+            new_pop = self.desc_(pop)
+            log.debug("Compute descriptor of training structures.")
+            train_pop = self.desc_(self.trainset)
+            des_new = np.array([atoms.info['descriptor'] for atoms in new_pop])
+            des_train = np.array([atoms.info['descriptor'] for atoms in train_pop])
+            sampler = FarthestPointSample(min_distance=0)
+            indices = sampler.select(des_new, des_train, max_select=self.n_sample)
+            log.debug(f"FPS indices: {indices}")
+            ret = [new_pop[i] for i in indices]
+        elif self.selection == 'random':
+            if self.n_sample == None:
+                return pop
+            else:
+                ret = random.sample(new_pop, self.n_sample)
+
+
         os.chdir(nowpath)
         if isinstance(pop, Population):
             return pop.__class__(ret)
