@@ -60,7 +60,7 @@ class Magus:
             self.convergence_condition = self.parameters['convergence_condition']
             log.warning("WARNING: applied convergence_condition {}.".format(self.convergence_condition))
         else:
-            self.convergence_condition = [-1, -1e-5]
+            self.convergence_condition = [-1, -1e+5]
 
     def read_seeds(self):
         log.info("Reading Seeds ...")
