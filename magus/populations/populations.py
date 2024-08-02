@@ -9,7 +9,6 @@ from .individuals import Individual, get_Ind
 from ..fitness import get_fitness_calculator
 from ..generators import get_random_generator
 
-
 log = logging.getLogger(__name__)
 __all__ = ['FixPopulation', 'VarPopulation']
 
@@ -203,7 +202,7 @@ class Population:
             return np.arange(len(pop)), pop
 
         fp = np.array([ind.fingerprint for ind in pop])
-        labels = cluster.KMeans(n_clusters=n_clusters).fit_predict(fp)
+        labels = cluster.KMeans(n_clusters=n_clusters, n_init='auto').fit_predict(fp)
         # TODO fix bug: clustering may fail if there are dulplicate structures
         # goodpop = [None] * n_clusters
         goodpop = [None] * len(set(labels))
@@ -215,17 +214,14 @@ class Population:
                     goodpop[label] = ind
         return labels, goodpop
 
-    def select(self, n, delete_highE=False, high=0.6):
+    def select(self, n):
+        
         self.calc_dominators()
         self.pop = sorted(self.pop, key=lambda x: x.info['dominators'])
+    
         if len(self) > n:
             self.pop = self.pop[:n]
-        if delete_highE:
-            enthalpys = [ind.atoms.info['enthalpy'] for ind in self.pop]
-            high *= np.min(enthalpys)
-            logging.debug("select without enthalpy higher than {} eV/atom, pop length before selecting: {}".format(high, len(self.pop)))
-            self.pop = [ind for ind in self.pop if ind.atoms.info['enthalpy'] <= high]
-            logging.debug("select end with pop length: {}".format(len(self.pop)))
+
 
     def bestind(self):
         self.calc_dominators()
@@ -244,10 +240,12 @@ class FixPopulation(Population):
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
 
-    def fill_up_with_random(self):
-        n_random = self.pop_size - len(self)
+    def fill_up_with_random(self, targetLen = None):
+        n_random = (targetLen - len(self)) if not targetLen is None else (self.pop_size - len(self)) 
         add_frames = self.atoms_generator.generate_pop(n_random)
-        self.extend(add_frames)
+
+        for ind in add_frames:
+            self.append(self.Ind(ind))
 
 
 class VarPopulation(Population):

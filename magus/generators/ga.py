@@ -130,8 +130,10 @@ class GAGenerator:
         pop[i].info['used'] += 1
         return pop[i].copy()
 
-    def generate(self, pop, n):
-        log.debug(self)
+    def generate(self, pop, n, log_table = None, output_log = True):
+        if output_log == True:
+            log.debug(self)
+
         # Add symmetry before crossover and mutation
         if self.add_sym:
             pop.add_symmetry()
@@ -155,15 +157,24 @@ class GAGenerator:
             if newind is not None:
                 op_success_num[i] += 1
                 newpop.append(newind)
-        table = pt.PrettyTable()
-        table.field_names = ['Operator', 'Probability ', 'SelectedTimes', 'SuccessNum']
-        for i in range(len(self.op_list)):
-            table.add_row([self.op_list[i].descriptor,
-                           '{:.2%}'.format(self.op_prob[i]),
-                           op_choosed_num[i],
-                           op_success_num[i]])
-        log.info("OP infomation: \n" + table.__str__())
+
         newpop.check()
+
+        if output_log and log.level <=20 and log_table is None:
+            table = pt.PrettyTable()
+            table.field_names = ['Operator', 'Probability ', 'SelectedTimes', 'SuccessNum']
+            for i in range(len(self.op_list)):
+                table.add_row([self.op_list[i].descriptor,
+                            '{:.2%}'.format(self.op_prob[i]),
+                            op_choosed_num[i],
+                            op_success_num[i]])
+            log.info("OP infomation: \n" + table.__str__())
+        
+        if not log_table is None:
+            # return 'SelectedTimes', 'SuccessNum' with log_table 
+            for i in range(len(self.op_list)):
+                log_table.append([op_choosed_num[i],op_success_num[i]])
+
         return newpop
 
     def select(self, pop, num):
@@ -171,13 +182,26 @@ class GAGenerator:
             pop = pop[np.random.choice(len(pop), num, False)]
         return pop
 
-    def get_next_pop(self, pop, n_next=None):
+    def get_next_pop(self, pop, n_next=None, log_table = None, thread_num = 0, dominators_calced = False, **kwargs):
         # calculate dominators before choose structures
-        pop.del_duplicate()
-        pop.calc_dominators()
-        n_next = n_next or self.n_next
+        if not dominators_calced:
+            pop.del_duplicate()
+            pop.calc_dominators()
+        #if thread_num == 0 and log.level <=20:
+        #    table = pt.PrettyTable()
+        #    table.field_names = ['Identity', 'AgeFit', 'Enthalpy', 'Dominator']
+        #    for ind in pop:
+        #        table.add_row([ind.info['identity'],  
+        #                    ind.info['fitness']['age'],
+        #                    ind.info['fitness']['enthalpy'],
+        #                    ind.info['dominators']])
+        #    log.info("-------- Parents INFO --------\n" + table.__str__())
+
+        if n_next is None:
+            n_next = self.n_next
         self.gen += 1
-        newpop = self.generate(pop, n_next)
+
+        newpop = self.generate(pop, n_next, log_table=log_table, output_log=(thread_num == 0))
         return self.select(newpop, n_next)
     
     def save_all_parm_to_yaml(self):
@@ -206,7 +230,7 @@ class AutoOPRatio(GAGenerator):
         check_parameters(self, parameters, [], Default)
         super().__init__(op_list, op_prob, **parameters)
 
-    def change_op_ratio(self, pop):
+    def change_op_ratio(self, pop, output_log = True):
         total_nums = defaultdict(int)
         good_nums = defaultdict(int)
         for ind in pop:
@@ -230,12 +254,25 @@ class AutoOPRatio(GAGenerator):
         if self.auto_random_ratio and self.gen > 2:
             grade = op_grade['random'] if 'random' in op_grade else 0
             table.add_row(['random', total_nums['random'], good_nums['random'], np.round(grade, 3)])
-        log.debug("OP grade: \n" + table.__str__())
+        if output_log:
+            log.debug("OP grade: \n" + table.__str__())
+        
+        # Except case 
+        if sum(op_grade.values()) == 0:
+            log.warning("keep OP grade of previous generation")
+            return
+
         if self.auto_random_ratio and self.gen > 2:
             if 'random' not in op_grade:
                 op_grade['random'] = 0
             self.rand_ratio = 0.5 * (op_grade['random'] / sum(op_grade.values()) + self.rand_ratio)
             del op_grade['random']
+        
+        # Except case
+        if sum(op_grade.values()) == 0:
+            log.warning("keep OP grade of previous generation")
+            return
+        
         for i, op in enumerate(self.op_list):
             if op.descriptor in op_grade:
                 self.op_prob[i] = 0.5 * (op_grade[op.descriptor] / sum(op_grade.values()) + self.op_prob[i])
@@ -243,13 +280,15 @@ class AutoOPRatio(GAGenerator):
                 self.op_prob[i] = 0.5 * self.op_prob[i]
         self.op_prob /= np.sum(self.op_prob)
 
+    def get_next_pop(self, pop, n_next=None, log_table = None, thread_num = 0, dominators_calced = False, need_change_op_ratio = True):
+        if not dominators_calced :
+            pop.del_duplicate()
+            pop.calc_dominators()
+        if self.gen > 1 and need_change_op_ratio:
+            self.change_op_ratio(pop, output_log=(thread_num == 0))
+        if n_next is None:
+            n_next = self.n_next
 
-    def get_next_pop(self, pop, n_next=None):
-        pop.calc_dominators()
-        if self.gen > 1:
-            self.change_op_ratio(pop)
-            #self.save_all_parm_to_yaml()
-        n_next = n_next or self.n_next
-        newpop = self.generate(pop, n_next)
+        newpop = self.generate(pop, n_next, log_table = log_table, output_log=(thread_num == 0))
         self.gen += 1
         return self.select(newpop, n_next)

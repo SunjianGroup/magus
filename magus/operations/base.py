@@ -52,6 +52,8 @@ class Mutation(OffspringCreator):
             return self.mutate_bulk(ind)
         elif isinstance(ind, Layer):
             return self.mutate_layer(ind)
+        elif isinstance(ind, ConfinedBulk):
+            return self.mutate_bulk(ind)
         else:
             pass
 
@@ -91,6 +93,8 @@ class Crossover(OffspringCreator):
             return self.cross_bulk(ind1, ind2)
         elif isinstance(ind1, Layer):
             return self.cross_layer(ind1, ind2)
+        elif isinstance(ind1, ConfinedBulk):
+            return self.cross_bulk(ind1, ind2)
         else:
             pass
 

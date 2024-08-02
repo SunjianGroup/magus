@@ -71,7 +71,6 @@ class ErcsFitness(FitnessCalculator):
 
     def Eform(self, pop):
     #define E_form = E_total - E_ideal - sum_x (nxux)
-    #Lu et al, Carbon 159 (2020) 9-15, https://doi.org/10.1016/j.carbon.2019.12.003
         uxdict = pop.Ind.refE['adEs']
         E_substrate = pop.Ind.refE['substrateE']
         substrate = pop.Ind.refE['substrate']
@@ -108,3 +107,57 @@ class ErcsFitness(FitnessCalculator):
                 'adEs': {s: compoundE/len(bulk) for s in compound.keys() }
             }
         log.debug("default reference energy: {}".format(pop.Ind.refE))
+
+
+import math, os
+
+class AgeFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None: 
+        self.age_scale = parameters['age_scale'] 
+        #eg. [5,0.1], means fit = {enthalpy, age<5; enthalpy - 0.1*(age -5), age >=5}
+ 
+    def calc(self, pop):
+        for ind in pop:
+            cur_n_gen = pop.gen
+            born_n_gen = int((ind.info['identity'].split('-')[0]) [4:] )
+            ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.age_fit(cur_n_gen - born_n_gen)
+            
+    def age_fit(self, age):
+        favor_age, scale_parm = self.age_scale
+        if age < favor_age:
+            return 0.0
+        else:
+            return scale_parm* (age - favor_age)
+
+class AntiSeedFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None:
+        self.anti_seeds = parameters['ANTISEED']
+        self.anti_seeds['structs'] = []
+
+    def refresh(self):
+        try:
+            self.anti_seeds['structs'] = ase.io.read(self.anti_seeds['file'], format='traj', index = ':')
+        except:
+            self.anti_seeds['structs'] = []
+        
+    def calc(self, pop):
+        for ind in pop:
+            #print('calc antiseed of enthalpy ', ind.info['enthalpy'])
+            ind.info['fitness']['age'] = -ind.info['enthalpy'] - self.calc_anti_seed(ind)
+            ind.info['fitness']['enthalpy'] = -ind.info['enthalpy'] 
+    
+    def calc_anti_seed(self, ind):
+
+        summary = 0
+        Wa = self.anti_seeds['W']
+        SIGMAa2 = self.anti_seeds['SIGMA']**2
+        #print('Wa', Wa, 'SIGMA2', SIGMAa2)
+
+        for a in self.anti_seeds['structs']:
+            Dia2 = np.average([x**2 for x in a.fingerprint - ind.fingerprint])
+            summary += Wa * math.exp(- Dia2 /2 / SIGMAa2 )
+            #if (Wa * math.exp(- Dia2 /2 / SIGMAa2 ) > 1e-3):
+            print('dia2', Dia2, 'sum', Wa * math.exp(- Dia2 /2 / SIGMAa2 ), "\t", a.info['enthalpy'], ind.info["enthalpy"])
+        print('summary', summary)
+        return summary 
+    

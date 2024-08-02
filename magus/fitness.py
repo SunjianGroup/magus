@@ -8,9 +8,9 @@ class FitnessCalculator(abc.ABC):
     def __init__(self, parameters) -> None:    
         pass
 
-    @abc.abstractmethod
+    #@abc.abstractmethod
     def calc(self, Pop):
-        pass
+        raise NotImplementedError
 
 
 class EnthalpyFitness(FitnessCalculator):
@@ -69,7 +69,7 @@ def get_fitness_calculator(p_dict):
     fitness_calculator = []
     if 'Fitness' in p_dict:
         for fitness in p_dict['Fitness']:
-            fitness_calculator.append(fit_dict[fitness](p_dict))
+            fitness_calculator.append(fit_dict.get(fitness, FitnessCalculator)(p_dict))
     elif p_dict['formulaType'] == 'fix':
         fitness_calculator.append(fit_dict['Enthalpy'](p_dict))
     elif p_dict['formulaType'] == 'var':

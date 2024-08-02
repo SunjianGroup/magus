@@ -12,6 +12,7 @@ def calculate(*args, filename=None, input_file='input.yaml',
         calc = parameters.MLCalculator
     except:
         calc = parameters.MainCalculator
+        print('Main Calculator information:\n{}'.format(calc))
     if mode == 'relax':
         calced = calc.relax(to_calc)
     else:

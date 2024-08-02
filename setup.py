@@ -45,7 +45,7 @@ setup(
     packages=find_packages(),
     python_requires=">=3.6",
     install_requires=[
-        "numpy",
+        "numpy<2.0",        # numpy have to be < 2.0 for the latest pymatgen to work!
         "ase>=3.18",
         "pyyaml>=6.0",
         "networkx",

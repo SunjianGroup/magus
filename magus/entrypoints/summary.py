@@ -1,8 +1,8 @@
-import os, re
+import os             #,  re
 from pathlib import Path
-from ase.atoms import default
-from math import gcd
-from functools import reduce
+#from ase.atoms import default
+#from math import gcd
+#from functools import reduce
 from matplotlib import pyplot as plt
 import pandas as pd
 import spglib
@@ -10,11 +10,6 @@ from ase.io import iread, write, read
 from ase import Atoms
 import numpy as np
 from magus.phasediagram import PhaseDiagram, get_units
-try:
-    from pymatgen.core import Molecule
-    from pymatgen.symmetry.analyzer import PointGroupAnalyzer
-except:
-    pass
 from magus.utils import get_units_formula
 
 
@@ -74,7 +69,10 @@ class Summary:
         atoms.info['cellpar'] = np.round(atoms.cell.cellpar(), 2).tolist()
         atoms.info['lengths'] = atoms.info['cellpar'][:3]
         atoms.info['angles'] = atoms.info['cellpar'][3:]
-        atoms.info['volume'] = round(atoms.get_volume(), 3)
+        try:
+            atoms.info['volume'] = round(atoms.get_volume(), 3)
+        except:
+            atoms.info['volume'] = 0
         atoms.info['fullSym'] = atoms.get_chemical_formula(empirical=True)
         if self.formula_type == 'var':
             ehull = atoms.info['enthalpy'] - self.phase_diagram.decompose(atoms)
@@ -133,7 +131,11 @@ class Summary:
             os.makedirs(outdir, exist_ok=True)
         for i in range(show_number):
             posname = os.path.join(outdir, "POSCAR_{}.vasp".format(i + 1))
-            write(posname, self.all_frames[i], direct = True, vasp5 = True)
+            atoms = self.all_frames[i]
+            #Changelog Jan 2024, YU: My VESTA version does not work if too many species in POSCAR like H1S1H1S1H1S1...
+            #Sort by species first. 
+            atoms =  atoms[atoms.numbers.argsort()]
+            write(posname, atoms, direct = True, vasp5 = True)
 
     def get_phase_diagram(self):
         pd = PhaseDiagram(self.all_frames, boundary=self.units)
@@ -184,6 +186,8 @@ class BulkSummary(Summary):
 class ClusterSummary(Summary):
     show_features = ['symmetry', 'enthalpy', 'formula', 'Eo', 'energy']
     def set_features(self, atoms):
+        from pymatgen.core import Molecule
+        from pymatgen.symmetry.analyzer import PointGroupAnalyzer
         super().set_features(atoms)
         molecule = Molecule(atoms.symbols,atoms.get_positions())
         atoms.info['symmetry'] = PointGroupAnalyzer(molecule, self.prec).sch_symbol

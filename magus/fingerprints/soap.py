@@ -9,10 +9,10 @@ from .base import FingerprintCalculator
 class SoapFp(FingerprintCalculator):
     def __init__(self, **parameters):
         Requirement = ['symbols']
-        Default={'r_cut': 4., 'nmax': 6, 'lmax': 4, 'periodic': True}
+        Default={'r_cut': 5, 'nmax': 6, 'lmax': 4, 'periodic': False}
         check_parameters(self, parameters, Requirement, Default)
-        self.soap = SOAP(species=self.symbols, periodic=self.periodic, rcut=self.r_cut, 
-                         nmax=self.nmax, lmax=self.lmax)
+        self.soap = SOAP(species=self.symbols, periodic=self.periodic, r_cut=self.r_cut, 
+                         n_max=self.nmax, l_max=self.lmax)
 
     def get_all_fingerprints(self, atoms):
         eFps = np.mean(self.soap.create(atoms), axis=0)

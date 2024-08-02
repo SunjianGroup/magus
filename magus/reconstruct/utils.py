@@ -11,8 +11,8 @@ import traceback
 
 log = logging.getLogger(__name__)
 
-def check_distance(atoms, d_ratio):
-    i_indices = neighbor_list('i', atoms, d_ratio, max_nbins=100.0)
+def check_distance(atoms, distance_dict):
+    i_indices = neighbor_list('i', atoms, distance_dict, max_nbins=100.0)
     return len(i_indices) == 0
 
 class resetLattice:
@@ -62,7 +62,7 @@ from math import gcd
 class cutcell:
     def __init__(self,originstruct, layernums, totslices= None, vacuum = 1.0, addH = False, direction=[0,0,1], 
         xy = [1,1], rotate = 0, pcell = True, 
-        matrix = None, 
+        matrix = None, relative_start = 0,
         save_file = 'Ref/layerslices.traj', range_length_c = [0.,15.,]):
         """
         @parameters:
@@ -94,7 +94,7 @@ class cutcell:
         newcell = self.get_ccell(direction)
         
         #3. get primitive surface vector and startpos
-        surface_vector = self.get_pcell(self.atoms, newcell, self.totslices)
+        surface_vector = self.get_pcell(self.atoms, newcell, self.totslices, relative_start=relative_start)
 
         #4. get surface cell! if matrix notation/wood's notation exists, expand cell.
         ## matrix notation only or wood's notation only 
@@ -196,7 +196,7 @@ class cutcell:
                             'from {} to {} (totslices = {})'.format(_lm, self.layernums, self.totslices) )
         return
     
-    def get_pcell(self, atoms, newcell, totslices):
+    def get_pcell(self, atoms, newcell, totslices, relative_start=0):
         #TODO: if slab is not complete, expand expandsize. Time cost may increase.
         self.supercell = resetLattice(atoms, expandsize = (16,16,16))
         newlattice = self.supercell.get(newcell)
@@ -215,7 +215,7 @@ class cutcell:
             allayers = LayerIdentifier(newlattice, prec = 0.5/totslices, n_clusters = totslices +1, lprec = 0.4/totslices)
 
         onelayer = newlattice[allayers[0]]
-        startpos = np.max(newlattice.get_scaled_positions()[:,2]) + 0.01 
+        startpos = np.max(newlattice.get_scaled_positions()[:,2]) + 0.01 + relative_start
         startpos = startpos - int(startpos)
 
         if len(allayers) == totslices + 1:
@@ -228,9 +228,7 @@ class cutcell:
         #print(startpos)
         self.startpos = startpos
 
-        surface_vector = spglib.get_symmetry_dataset(
-            (onelayer.get_cell(), onelayer.get_scaled_positions(), onelayer.get_atomic_numbers()),
-            symprec = 1e-4)['primitive_lattice']
+        surface_vector = spglib.get_symmetry_dataset((onelayer.cell, onelayer.get_scaled_positions(), onelayer.numbers),symprec = 1e-4)['primitive_lattice']
         abcc, abcp = cell_to_cellpar(onelayer.get_cell()[:])[:3], cell_to_cellpar(surface_vector)[:3]
         axisc = np.where(np.abs(abcp-abcc[2]) < 1e-4)[0]
         assert len(axisc) ==1, "cannot match primitive lattice with origin cell, primitive abc = {} while origin abc = {}".format(abcp, abcc)
@@ -266,9 +264,10 @@ class cutcell:
     def cut(self, layernums, totslices, surface_vector, vacuum, addH):
         #5. expand unit surface cell on z direction
         bot, mid, top = layernums[0], layernums[1], layernums[2]
+        print(bot, mid, top)
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
         slicepos = slicepos + np.array([self.startpos]*4)
-        #log.info("cutslice = {}".format(slicepos)) 
+        log.info("cutslice = {}".format(slicepos)) 
 
         #6. build bulk, buffer, rcs layer slices 
         pop= []
@@ -281,7 +280,7 @@ class cutcell:
             cell = surface_vector.copy()
             cell[2] = surface_vector[2] * (slicepos[i]-slicepos[i-1])
             origin = (slicepos[i-1] if i==1 else slicepos[i-1]-slicepos[i-2]) * surface_vector[2]
-            
+
             layerslice = self.supercell.get(cell, neworigin = origin)
             if len(layerslice):
                 layerslice=layerslice[layerslice.numbers.argsort()]
@@ -502,7 +501,7 @@ class InterfaceMatcher:
     def __init__(self, bulk_a, bulk_b, range_hkl = [-5,6], range_matrix = [-4,5], 
                  range_a = [0., 15.], range_ang = [45., 135.], range_area = [0., 100.],
                  range_substrate_thickness = 15., 
-                 bulk_layernum = 3, buffer_layernum= 1, rcs_layernum =1, cutslices = None, addH =True,
+                 bulk_layernum = 3, buffer_layernum= 1, rcs_layernum =1, cutslices = None, addH =True, 
                  tol = 1000, traj_file = 'match_file.traj', matrix_file = 'match_file.npy', thread_para = 1, verbose = False):
         
         self.lattice_a, self.lattice_b = bulk_a, bulk_b
@@ -552,9 +551,7 @@ class InterfaceMatcher:
     def in_miller_list(self, cell_name, hkl_1, miller_list):
         if not hasattr(self, "sym_{}".format(cell_name)):
             lattice = getattr(self, "lattice_{}".format(cell_name))
-            sym = spglib.get_symmetry_dataset(
-                (lattice.cell, lattice.get_scaled_positions(), lattice.numbers),
-                1e-4)['rotations']
+            sym = spglib.get_symmetry_dataset((lattice.cell, lattice.get_scaled_positions(), lattice.numbers),1e-4)['rotations']
             setattr(self, "sym_{}".format(cell_name), sym)
         
         for ml in miller_list:
@@ -568,10 +565,13 @@ class InterfaceMatcher:
     
     @staticmethod
     def matrix_times_cell(atoms, matrix):
-        """matrix: (2x2)
+        """matrix: (2x2) or (3x3)
         """
-        m = np.eye(3)
-        m[0:2,0:2] = matrix
+        if len(matrix) == 2:
+            m = np.eye(3)
+            m[0:2,0:2] = matrix
+        elif len(matrix) == 3:
+            m = matrix
         new_lattice = np.dot(m, atoms.get_cell())
         new_atoms = resetLattice(atoms).get(new_lattice)
         return new_atoms
@@ -791,6 +791,14 @@ def modify_fixatoms():
         setattr(FixAtoms, "change_force", FixAtoms.adjust_forces)
         setattr(FixAtoms, "adjust_forces", adjust_forces)
 
+
+class FixAtomsZ(FixAtoms):
+    def adjust_positions(self, atoms, new):
+        new[self.index][:, 2] = atoms.positions[self.index][:, 2]
+
+    def adjust_forces(self, atoms, forces):
+        forces[self.index][:, 2] = 0.0
+
 def fa_init_(cls, indices=None, mask=None, adjust_force = True):
     cls.__setattr__("adj_f", adjust_force)
     """ to use later
@@ -875,10 +883,10 @@ class match_symmetry:
         sym1, sym2 = self.removetransym(sym1), self.removetransym(sym2)
         self.r1, self.t1 = sym1
         self.r2, self.t2 = sym2
-        #print("self.r1 = {}".format(self.r1))
-        #print("self.r2 = {}".format(self.r2))
-        #print("self.t1 = {}".format(self.t1))
-        #print("self.t2 = {}".format(self.t2))
+        #print("self.r1 = {}".format(np.round(self.r1, 3)))
+        #print("self.r2 = {}".format(np.round(self.r2, 3)))
+        #print("self.t1 = {}".format(np.round(self.t1, 3)))
+        #print("self.t2 = {}".format(np.round(self.t2, 3)))
                     
         for i, r1 in enumerate(self.r1):
             for j, r2 in enumerate(self.r2):
@@ -1284,8 +1292,13 @@ class OganovComparator(ClusComparator):
 
     def looks_like(self,aInd,bInd):
         return super().looks_like(aInd, bInd)
-
-#from ..generators.gensym import wyckoff_positions_3d
+try:
+    from magus.generators.gensym import wyckoff_positions_3d
+except:
+    import traceback, warnings
+    warnings.warn("Failed to load module for symmetric-rattle-mutation:\n {}".format(traceback.format_exc()) +
+                  "\nThis warning above can be ignored if the mentioned function is not employed, elsewise should be fixed.\n" )
+    rcs_type_list = []
 
 class sym_rattle:
 
@@ -1309,18 +1322,25 @@ class sym_rattle:
         return ds
         """
     @staticmethod
-    def _share_method_(atoms, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, d_ratio):
-        atoms = atoms.copy()
-        sym_ds = spglib.get_symmetry_dataset(
-            (atoms.get_cell(), atoms.get_scaled_positions(), atoms.get_atomic_numbers()), 
-            symprec)
+    def _share_method_(atoms0, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, distance_dict):
+        atoms = atoms0.copy()
+
+        shuffledindex = list(range(0,len(atoms)))
+        np.random.shuffle(shuffledindex)
+        atoms = atoms[shuffledindex]
+
+        sym_ds = spglib.get_symmetry_dataset((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec)
 
         equivalent_atoms = sym_ds['equivalent_atoms']
         rotations, translations = sym_ds['rotations'], sym_ds['translations']
+        transformation_matrix, origin_shift = sym_ds['transformation_matrix'], sym_ds['origin_shift']
+
         spg = sym_ds['number']
         wyckoff_labels = sym_ds['wyckoffs']
-
-        for key in list(Counter(equivalent_atoms).keys()):
+        
+        eq_set = Counter(equivalent_atoms)
+        most_to_least = sorted(eq_set.items(), key = lambda es:es[1], reverse=True)
+        for key in [ml[0] for ml in most_to_least]:
 
             eq = np.where(equivalent_atoms == key)[0]
 
@@ -1339,27 +1359,41 @@ class sym_rattle:
                     _sp_ = np.dot(_p_, np.linalg.inv(atoms.get_cell()))
 
                     new_cartpos = func_get_all_position( _sp_, (atoms.get_cell(), atoms.get_pbc()), \
-                                                                                        (rotations, translations, spg, label), \
-                                                                                        len(eq))
+                                                (rotations, translations, transformation_matrix, origin_shift, spg, label), \
+                                                    len(eq))
                     
                     if new_cartpos is None:
                         continue
 
+                    if np.allclose(sorted(new_cartpos, key=lambda x:(x[0],x[1],x[2])), 
+                                   sorted(newatoms.positions[eq],key=lambda x:(x[0],x[1],x[2])), 
+                                    rtol = 0, atol = 0.1):
+                        continue
+
+
                     newatoms.positions[eq] = new_cartpos
-                    
-                    if check_distance(newatoms, d_ratio) and \
-                                    (not spglib.get_spacegroup(
-                                        (newatoms.get_cell(), newatoms.get_scaled_positions(), newatoms.get_atomic_numbers()), 
-                                        symprec) == 'P1 (1)'):
-                        #print("new_spg", spglib.get_spacegroup(newatoms, symprec))
+
+
+                    #if check_distance(newatoms, distance_dict) and \
+                    #                (not spglib.get_spacegroup((newatoms.cell, newatoms.get_scaled_positions(), newatoms.numbers), symprec) == 'P1 (1)'):
+                    #    #print("new_spg", spglib.get_spacegroup((newatoms.cell, newatoms.get_scaled_positions(), newatoms.numbers), symprec))
+                    #    atoms = newatoms.copy()
+                    #    break
+                    if check_distance(newatoms, distance_dict):
                         atoms = newatoms.copy()
                         break
-        return atoms
+
+        if np.allclose(sorted(atoms0.get_scaled_positions(wrap = True), key=lambda x:(x[0],x[1],x[2])), 
+                       sorted(atoms.get_scaled_positions(wrap = True), key=lambda x:(x[0],x[1],x[2])), 
+                              rtol = 0, atol = 0.01):
+            return None        
+        else:
+            return atoms
 
     @staticmethod
     def merge_close(_sp_, cellinfo, symmetry, target_length, *args):
         cell, pbc = cellinfo
-        rotations, translations, spg, wyckoff_label = symmetry
+        rotations, translations, _, _, spg, wyckoff_label = symmetry
 
         new_sp = np.dot(rotations, _sp_) + translations
 
@@ -1370,13 +1404,13 @@ class sym_rattle:
         new_cartpos = np.dot(new_sp, cell)
 
         if not len(new_cartpos) == target_length:            
-            new_cartpos = symposmerge(new_cartpos, target_length).merge_pos()
+            new_cartpos = symposmerge(Atoms(positions = new_cartpos,cell = cell, numbers = [1]*len(new_cartpos)), target_length).merge_pos()
             
         return new_cartpos
 
 
     @staticmethod
-    def keep_spg(atoms, symprec = 0.1, trynum = 20, mutate_rate = 0.25, rattle_range = 4, d_ratio = 0.5):
+    def keep_spg(atoms, symprec = 0.1, trynum = 20, mutate_rate = 0.25, rattle_range = 4, distance_dict = {}):
         """
         (a). find equivalent atoms
         (b). mutate a unique(*non equivalent to any mutated atom) atom
@@ -1386,23 +1420,25 @@ class sym_rattle:
         """
         
         func_get_all_position = sym_rattle.merge_close
-        return sym_rattle._share_method_(atoms, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, d_ratio)
+        return sym_rattle._share_method_(atoms, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, distance_dict)
                     
     @staticmethod
     def use_wyck(_sp_, cellinfo, symmetry, target_length, *args):
         cell, pbc = cellinfo
-        rotations, translations, spg, wyckoff_label = symmetry
+        rotations, translations, transformation_matrix, origin_shift, spg, wyckoff_label = symmetry
         wyck_matrix = sym_rattle.read_ds(spg, wyckoff_label)
-        
-        _sp_ = np.dot(wyck_matrix[:, :3], _sp_) 
 
-        new_sp = np.dot(rotations, _sp_) + translations
-        new_sp = np.unique(new_sp, axis = 0)
+        _sp_ = np.mod(np.dot(transformation_matrix, _sp_) + origin_shift, 1)
+        _sp_ = np.dot(wyck_matrix[:, :3], _sp_) + wyck_matrix[:, 3]
+        _sp_ = np.dot(np.linalg.inv(transformation_matrix), _sp_ - origin_shift)
+
+        new_sp = np.mod(np.dot(rotations, _sp_) + translations, 1)
+        new_sp = np.unique(np.round(new_sp,4), axis = 0)
 
         return np.dot(new_sp, cell) if  len(new_sp) == target_length else None
 
     @staticmethod
-    def keep_comb(atoms, symprec = 0.1, trynum = 10, mutate_rate = 0.25, rattle_range = 4, d_ratio = 0.5):
+    def keep_comb(atoms, symprec = 0.1, trynum = 10, mutate_rate = 0.25, rattle_range = 4, distance_dict = {}):
         """
         (a). find wyckoff_labels
         (b). mutate but keep this wyckoff position
@@ -1410,23 +1446,20 @@ class sym_rattle:
         """
         func_get_all_position = sym_rattle.use_wyck
         
-        return sym_rattle._share_method_(atoms, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, d_ratio)
+        return sym_rattle._share_method_(atoms, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, distance_dict)
         
 
 class symposmerge:
-    def __init__(self, positions, length, dmprec = 4):
-        self.positions = positions
+    def __init__(self, atoms, length, dmprec = 4):
+        self.atoms = atoms.copy()
+        self.atoms.pbc = True
         self.length = length
         self.prec = dmprec
         self.dmupdate()
 
     #update distance matrix 
     def dmupdate(self):
-        l = len(self.positions)
-        self.distance_matrix = np.full((l, l), 0.)
-        for i in range(l):
-            for j in range(i+1, l):
-                self.distance_matrix[i][j] = np.round(math.sqrt(np.sum([x**2 for x in self.positions[i] - self.positions[j]])), self.prec)
+        self.distance_matrix = np.round(self.atoms.get_all_distances(mic=True), self.prec)
         self.sorted_dis = np.unique(np.sort(self.distance_matrix.flatten()))
         #print("updatedm = {}".format(self.distance_matrix))
     
@@ -1438,7 +1471,7 @@ class symposmerge:
     
     
     def merge_pos(self):
-        positions = self.positions
+        positions = self.atoms.positions.copy()
         #print("merge_pos, {} to {}".format(positions, self.length))
         while len(positions) > self.length:
             to_merge = []
@@ -1474,18 +1507,71 @@ class symposmerge:
 
                 to_merge = _m
 
-            merged_pos = np.array([np.mean(positions[m], axis=0) for m in to_merge])
+            merged_pos = []
+            for m in to_merge:
+                merged_pos.append (positions[m[0]] + \
+                np.sum([self.atoms.get_distance(m[0],m[x],mic=True, vector=True) for x in range(1,len(m))], axis = 0) / (len(m)) )
+
+            merged_pos = np.array(merged_pos)
 
             to_merge = [x for m in to_merge for x in m ]
             positions = np.delete(positions, to_merge, 0)
             positions = np.append(positions, merged_pos, axis=0)
 
 
-            self.positions = positions.copy()
+            self.atoms = Atoms(positions = positions.copy(), cell = self.atoms.get_cell(), numbers = self.atoms.numbers[:len(positions)])
+
             self.dmupdate()
         
-        return positions if len(positions) == self.length else None
-        
+        return self.atoms.positions if len(self.atoms) == self.length else None
+
+
+import spglib
+import numpy as np
+
+class find_eq_positions_on_surface:
+    def __init__(self, surface_slab, array_size = (6,6)):
+        '''
+        @surface_slab: surface slab to find eq positions.
+        @array_size:   the size of the eq -matrix. The larger the size, the higher the cost, 
+                        but the more precise the division. 
+                        Recommended values are integral multiples of 3 and 2. Default: 12
+        '''
+        self.surface_slab = surface_slab
+        self.array_size = array_size
+
+    def get_eqm(self):
+        ds = spglib.get_symmetry_dataset((self.surface_slab.cell, self.surface_slab.get_scaled_positions(), self.surface_slab.numbers),0.1)
+        r, t = ds['rotations'], ds['translations']
+
+        eqm = np.zeros(self.array_size)
+        for i in range(0,self.array_size[0]):
+            for j in range(0,self.array_size[1]):
+                if eqm[i][j] == 0:
+                    s = np.max(eqm) +1
+                    eqm[i][j] = s
+                    p_ij = [i/self.array_size[0],j/self.array_size[1],0]
+                    eqs =  np.mod(np.round(np.dot(r, p_ij) + t,6),1)
+                    for ep in eqs:
+                        # remove z symmetry
+                        if ep[2] != 0:
+                            continue
+                        eqm[int(np.round(ep[0] * self.array_size[0]))][int(np.round(ep[1] * self.array_size[1]))] = s
+        self.eqm = eqm   
+    
+    def get_position(self):
+        self.get_eqm()
+        x = Counter(self.eqm.flatten())
+        group_by = {key: [] for key in np.unique(list(x.values()))}
+
+        for item in x.items():
+            group_by[item[1]].append(item[0])
+        _L_ = np.array(sorted(list(group_by.keys())))[1:2]
+        rand_N_eq = np.random.choice(_L_, p=1/_L_/np.sum(1/_L_))
+        index = np.random.choice(group_by[rand_N_eq])
+
+        return np.array(np.where(self.eqm==index))[:,0] / self.array_size
+
 
 if __name__ == '__main__':
     

@@ -1,0 +1,10 @@
+1
+Properties=species:S:1:pos:R:3 ubc=-1 dof=-1 origin=-1 config_type=isolate_atom dimension=0 density=10000 pbc="F F F"
+Si       0.00000000       0.00000000       0.00000000
+5
+Lattice="0 0 0 0 0 0 0 0 0" Properties=species:S:1:pos:R:3  pbc="F F F"
+Si     5.000000000         8.66025404         8.8709938600
+Si       6.02085993          10.4284353         10.0947237 
+Si       2.95827984          8.66025404         10.0947237 
+Si       6.02086008          6.89207251         10.0947237 
+Si       5.00000000          8.66025404         11.31196618

@@ -2,7 +2,7 @@ import logging, os, shutil, subprocess
 from magus.utils import read_seeds
 from ase.io import read
 # from ase.db import connect
-
+import prettytable as pt
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class Magus:
             self.good_pop = self.Population(good_frames, 'good')
             self.keep_pop = self.Population(keep_frames, 'keep', self.curgen - 1)
             self.cur_pop = self.Population(cur_frames, 'cur', self.curgen - 1)
+            self.get_pop_for_heredity()
             log.warning("RESTART HERE!".center(40, "="))
         else:
             self.curgen = 1
@@ -41,6 +42,7 @@ class Magus:
             self.keep_pop = self.Population([], 'keep')
             # self.db = connect("results/all_structures.db")
 
+
     def init_parms(self, parameters):
         self.parameters = parameters.p_dict
         self.atoms_generator = parameters.RandomGenerator
@@ -51,13 +53,26 @@ class Magus:
         log.debug('Random Generator information:\n{}'.format(self.atoms_generator))
         log.debug('Offspring Creator information:\n{}'.format(self.pop_generator))
         log.debug('Population information:\n{}'.format(self.Population([])))
+        # For developers and testers only:
+        # if you have the Global Minima structure[spg, enthalpy], write it in 'convergence_condition'
+        # to stop the program and avoid useless further generations.
+        if 'convergence_condition' in self.parameters:
+            self.convergence_condition = self.parameters['convergence_condition']
+            log.warning("WARNING: applied convergence_condition {}.".format(self.convergence_condition))
+        else:
+            self.convergence_condition = [-1, -1e+5]
 
     def read_seeds(self):
         log.info("Reading Seeds ...")
         seed_frames = read_seeds('{}/POSCARS_{}'.format(self.seed_dir, self.curgen))
         seed_frames.extend(read_seeds('{}/seeds_{}.traj'.format(self.seed_dir, self.curgen)))
         seed_pop = self.Population(seed_frames, 'seed', self.curgen)
+        for i in range(len(seed_pop)):
+            seed_pop[i].info['gen'] = self.curgen
         return seed_pop
+
+    def get_pop_for_heredity(self):
+        self.parent_pop = self.cur_pop + self.keep_pop
 
     def get_init_pop(self):
         # mutate and crossover, empty for first generation
@@ -65,7 +80,7 @@ class Magus:
             random_frames = self.atoms_generator.generate_pop(self.parameters['initSize'])
             init_pop = self.Population(random_frames, 'init', self.curgen)
         else:
-            init_pop = self.pop_generator.get_next_pop(self.cur_pop + self.keep_pop)
+            init_pop = self.pop_generator.get_next_pop(self.parent_pop, n_next=None if len(self.parent_pop) else 0)
             init_pop.gen = self.curgen
             init_pop.fill_up_with_random()
         ## read seeds
@@ -81,49 +96,81 @@ class Magus:
             log.info("  {}: {}".format(origin, origins.count(origin)))
         # del dulplicate?
         return init_pop
+    
+    @staticmethod
+    def show_pop_info(population, log_level = logging.DEBUG, show_pop_name = ''):
+        if len(population) == 0:
+            log.debug("no ind in {} pop.".format(population.name))
+            return
+        
+        table = pt.PrettyTable()
+        table.field_names = ['Dominator', 'Formula', 'Identity', 'Enthalpy'] + ['Fit-' + key for key in population[0].info.get('fitness', {}).keys()] 
+        
+        for ind in population:
+            table.add_row([ind.info.get('dominators', None),
+                           ind.get_chemical_formula(),
+                           ind.info.get('identity', None), 
+                           '{:.6f}'.format(ind.info.get('enthalpy', None)),
+                           ] + ['{:.6f}'.format(ind.info.get('fitness', {})[key]) for key in ind.info.get('fitness', {})]    
+                         )
+        if hasattr(population, 'name'):
+            name = population.name + " pop"
+        else:
+            name = 'Pop'
+        
+        name = show_pop_name or name
+        log.log(log_level, name + " : \n" + table.__str__())
+
 
     def set_good_pop(self):
         log.info('construct goodPop')
-        #good_pop = self.cur_pop + self.good_pop + self.keep_pop
+        #target: good_pop = self.cur_pop + self.good_pop + self.keep_pop
+        #Sometimes the mutated 'child' is relaxed back to 'parent'. 
+        #The 'for...else' function purposely changes child.info['identity'] back to its parent.info['identity'] to get a correct history punish. 
         good_pop = self.good_pop + self.keep_pop
         for i, ind in enumerate(self.cur_pop):
             for ind1 in good_pop:
                 if ind == ind1:
                     self.cur_pop[i] = ind1
+                    break
             else:
                 good_pop.append(ind)
+        good_pop.gen = self.curgen
         good_pop.del_duplicate()
         good_pop.calc_dominators()
         good_pop.select(self.parameters['popSize'])
-        log.debug("good ind:")
-        for ind in good_pop:
-            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}, id: {identity}"\
-                .format(strFrml=ind.get_chemical_formula(), **ind.info))
         self.good_pop = good_pop
+        self.show_pop_info(good_pop)        
 
     def set_keep_pop(self):
         log.info('construct keepPop')
         _, keep_frames = self.good_pop.clustering(self.parameters['saveGood'])
         keep_pop = self.Population(keep_frames, 'keep', self.curgen)
-        log.debug("keep ind:")
-        for ind in keep_pop:
-            log.debug("{strFrml} enthalpy: {enthalpy}, fit: {fitness}, dominators: {dominators}, id: {identity}"\
-                .format(strFrml=ind.get_chemical_formula(), **ind.info))
         self.keep_pop = keep_pop
+        self.show_pop_info(keep_pop)
 
     def update_best_pop(self):
         log.info("best ind:")
         bestind = self.good_pop.bestind()
         self.best_pop.extend(bestind)
-        for ind in bestind:
-            log.info("{strFrml} enthalpy: {enthalpy}, fit: {fitness}"\
-                .format(strFrml=ind.get_chemical_formula(), **ind.info))
+        self.stop_signal = False
 
+        if bestind[0].info['enthalpy'] <= self.convergence_condition[1]:
+            if bestind[0].info['spg'] == self.convergence_condition[0] or self.convergence_condition[0] == -1:
+                self.stop_signal = True
+
+        self.show_pop_info(bestind, log_level=logging.INFO, show_pop_name = "BEST INDIVIDUALS")
+        
     def run(self):
         while self.curgen <= self.parameters['numGen']:
             log.info(" Generation {} ".format(self.curgen).center(40, "="))
             self.one_step()
             self.curgen += 1
+            if self.stop_signal:
+                log.warning("Structure with spacegroup '{}', enthalpy lower than '{}' had appeared, which met the convergence_condition. GA loop break".format(*self.convergence_condition))
+                break
+        else:
+            log.warning("Maximum number of generation reached")
 
     def update_volume_ratio(self):
         if self.curgen > 1:
@@ -131,18 +178,15 @@ class Magus:
             new_volume_ratio = 0.7 * self.cur_pop.volume_ratio + 0.3 * self.atoms_generator.volume_ratio
             self.atoms_generator.set_volume_ratio(new_volume_ratio)
 
-    def one_step(self):
-        self.update_volume_ratio()
-        init_pop = self.get_init_pop()
-        init_pop.save('init', self.curgen)
-        #######  relax  #######
+    def set_current_pop(self, init_pop):
         relax_pop = self.main_calculator.relax(init_pop)
+        relax_pop.gen = self.curgen
         try:
             relax_step = sum([sum(atoms.info['relax_step']) for atoms in relax_pop])
             log.info('DFT relax {} structures with {} scf'.format(len(relax_pop), relax_step))
         except:
             pass
-        # save raw date before checking
+        # save raw data before checking
         relax_pop.save('raw', self.curgen)
         relax_pop.check()
         # find spg before delete duplicate
@@ -150,8 +194,9 @@ class Magus:
         relax_pop.find_spg()
         log.debug("delete duplicate structures...")
         relax_pop.del_duplicate()
-        relax_pop.save('gen', self.curgen)
-        self.cur_pop = relax_pop
+        self.cur_pop = relax_pop 
+
+    def analysis(self):
         log.debug("set good population..")
         self.set_good_pop()
         self.good_pop.save('good', '')
@@ -161,3 +206,16 @@ class Magus:
         self.keep_pop.save('keep', self.curgen)
         self.update_best_pop()
         self.best_pop.save('best', '')
+
+
+    def one_step(self):
+        self.update_volume_ratio()
+        init_pop = self.get_init_pop()
+        init_pop.save('init', self.curgen)
+        #######  relax  #######
+        self.set_current_pop(init_pop)
+        self.cur_pop.save('gen', self.curgen)
+        #######  analyze #######
+        self.analysis()
+        # prepare parent pop BEFORE next generation starts
+        self.get_pop_for_heredity()

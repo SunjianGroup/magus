@@ -125,3 +125,4 @@ class MLMagus(Magus):
         self.keep_pop.save('keep', self.curgen)
         self.update_best_pop()
         self.best_pop.save('best', '')
+        self.get_pop_for_heredity()

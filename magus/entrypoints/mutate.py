@@ -11,7 +11,7 @@ _applied_operations_ = [ 'cutandsplice', 'replaceball',
 
 log = logging.getLogger(__name__)
 
-def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file='result.traj', **kwargs):
+def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file='result.traj', number = 10, **kwargs):
     from magus.parameters import magusParameters
     import ase.io
     from magus.operations import op_dict
@@ -39,12 +39,18 @@ def mutate(*args, input_file='input.yaml', seed_file = 'seed.traj', output_file=
     
     seed_pop = ase.io.read(seed_file, index = ':')
     for i, _ in enumerate(seed_pop):
-        seed_pop[i].info['energy'] = 0
-        seed_pop[i].info['enthalpy'] = 0
+        if not 'energy' in seed_pop[i].info:
+            seed_pop[i].info['energy'] = 0
+        if not 'enthalpy' in seed_pop[i].info:
+            seed_pop[i].info['enthalpy'] = 0
+        if not 'identity' in seed_pop[i].info:
+            seed_pop[i].info['identity'] = 'init1-1'
+            seed_pop[i].info['gen'] = 1
+
     
     seed_pop = pop(seed_pop, 'seedPop')
     seed_pop.gen = 0
-    next_pop =ga.get_next_pop(seed_pop, 10)
+    next_pop =ga.get_next_pop(seed_pop, int(number))
     log.info("generated {} individuals.".format(len(next_pop)))
     new_frames = []
     for atoms in next_pop:

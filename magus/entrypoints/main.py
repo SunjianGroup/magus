@@ -57,10 +57,22 @@ def parse_args():
         help="use ml to accelerate(?) the search",
     )
     parser_search.add_argument(
+        "-p",
+        "--use-parallel",
+        action="store_true",
+        help="use parallel mode",
+    )
+    parser_search.add_argument(
         "-r",
         "--restart",
         action="store_true",
         help="Restart the searching.",
+    )
+    parser_search.add_argument(
+        "-smfr",
+        "--use-smfr",
+        action="store_true",
+        help="with spg miner and frag reorganizer.",
     )
     # summary
     parser_sum = subparsers.add_parser(
@@ -313,11 +325,12 @@ def parse_args():
     #for developers: mutation test
     parser_mutate = subparsers.add_parser(
         "mutate",
+        parents=[parser_log],
         help="mutation test",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    arg_mus = ['input_file', 'seed_file', 'output_file']
-    arg_def = ['input.yaml', 'seed.traj', 'result']
+    arg_mus = ['input_file', 'seed_file', 'output_file', 'number']
+    arg_def = ['input.yaml', 'seed.traj', 'result', '10']
     for i,key in enumerate(arg_mus):
         parser_mutate.add_argument("-"+key[0], "--"+key, type=str, default=arg_def[i], help=key)
 
@@ -336,7 +349,8 @@ def main():
     args = parse_args()
     dict_args = vars(args)
     if args.command in ['search', 'calculate', 'generate']:
-        set_logger(level=dict_args['log_level'], log_path=dict_args['log_path'])
+        set_logger(level=dict_args['log_level'], log_path=dict_args['log_path'], 
+                   formatter_para = dict_args['use_parallel'] if 'use_parallel' in dict_args else False)
         log = logging.getLogger(__name__)
         log.info(__picture__)
     if args.command:

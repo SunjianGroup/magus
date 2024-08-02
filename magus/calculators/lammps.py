@@ -17,13 +17,13 @@ class LammpsCalculator(ClusterCalculator):
         Default={
             'exe_cmd': '', 
             'save_traj': False, 
-            'atomStyle': 'atomic',
+            'atom_style': 'atomic',
             'job_prefix': 'Lammps',
             }
         check_parameters(self, parameters, Requirement, Default)
         self.lammps_setup = {
             'pressure': self.pressure,
-            'symbols': self.symbols,
+            'symbols': list(set(self.symbols)),
             'atom_style': self.atom_style,
             'exe_cmd': self.exe_cmd,
             'save_traj': self.save_traj,
@@ -67,6 +67,16 @@ def calc_lammps_once(lammps_setup, atoms):
     exe_cmd = lammps_setup['exe_cmd']
     pressure = lammps_setup['pressure']
     save_traj = lammps_setup['save_traj']
+
+    #if atoms have constraints, delete them
+    atoms.constraints = []
+    
+    #sort atoms by scaled positions, for fixing bulk by index
+    s_positions = atoms.get_scaled_positions()
+    s_positions = sorted(s_positions, key = lambda p:p[2])
+    atoms.set_scaled_positions(s_positions)
+
+    
     write_lammps_data('data', atoms, specorder=specorder, atom_style=atom_style)
     exitcode = subprocess.call(exe_cmd, shell=True)
     if exitcode != 0 and exitcode != 8:
@@ -85,7 +95,7 @@ def calc_lammps_once(lammps_setup, atoms):
             line = f.readline()
             if 'Error' in line:
                 raise RuntimeError('Lammps failed, please check log.lammps!')
-            if 'Step Temp Press' in line:
+            if 'Step' in line and 'Temp' in line and 'Press' in line:
                 thermo_args = line.split()
                 line = f.readline()
                 while 'Loop time of' not in line:
@@ -99,8 +109,11 @@ def calc_lammps_once(lammps_setup, atoms):
     new_atoms.info['enthalpy'] = round(enthalpy, 6)
     new_atoms.info['energy'] = energy
     new_atoms.info['forces'] = new_atoms.get_forces()
-    new_atoms.info['stress'] = np.array(
-        [-thermo_content[-1][arg] for arg in ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")]) * 1e-4
+    try:
+        new_atoms.info['stress'] = np.array(
+            [-thermo_content[-1][arg] for arg in ("Pxx", "Pyy", "Pzz", "Pyz", "Pxz", "Pxy")]) * 1e-4
+    except:
+        new_atoms.info['stress'] = np.array([-1,-1,-1,-1,-1,-1])
     if save_traj:
         with open('out.dump') as f:
             traj = read_lammps_dump_text(f, index=slice(None, None, None), specorder=specorder)

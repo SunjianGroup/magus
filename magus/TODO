@@ -5,8 +5,15 @@
 3. GAP
 4. CI\CD
 5. DP select 
-6. Lattice match
+6. Lattice match    # Update 20230904:
+ A similar function in interface system is applied. 'reconstruct.utils.InterfaceMatcher'
 7. XRD
-8. topology ramdom
-9. HanYu de dai ma
+8. topology random
+9. HanYu de dai ma  # :?
 10. auto guess volume(calculate stress with harmonic potential?)
+11. How to merge atoms and repair for formula in molecule crystals?
+ I applied some functions just to delete the whole molecule if atoms are too close.
+ And add a whole molecule to meet the formula requirement.
+ 'populations.individuals.ConfinedBulk'
+ It's a temporary version and the codes need reorganization.
+ A new Individual base class for molecule crystals is needed.
