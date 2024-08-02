@@ -32,12 +32,13 @@ def interface_smfr(magus_inst, restart = False):
     if atoms_generator == 'ukn':
         magus_inst.spg_miner = {}
         magus_inst.frag_reorg = {}
-    elif not atoms_generator == "don't change":
+    elif atoms_generator == "don't change":
+        pass
+    else:
         setattr(magus_inst, "atoms_generator", atoms_generator)
+        magus_inst.Population.atoms_generator = atoms_generator
      
-
     set_smfr_population(magus_inst.Population, magus_inst.parameters.get('Fitness', None))
-    magus_inst.Population.atoms_generator = atoms_generator
    
     setattr(magus_inst, "one_step", partial(Magus_one_step, magus_inst))
     if restart:

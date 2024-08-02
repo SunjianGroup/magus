@@ -197,8 +197,11 @@ class ClusterCalculator(Calculator, abc.ABC):
 
     def prepare_for_calc(self):
         pass
+try:
+    from ase.spacegroup.symmetrize import FixSymmetry
+except:
+    from ase.constraints import FixSymmetry
 
-from ase.spacegroup.symmetrize import FixSymmetry
 class ASECalculator(Calculator):
     optimizer_dict = {
         'bfgs': BFGS,

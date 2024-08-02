@@ -7,7 +7,11 @@ from ase.data import covalent_radii,atomic_numbers
 
 from .utils import FixAtoms, modify_fixatoms, FixAtomsZ
 from ase import Atoms
-from ase.spacegroup.symmetrize import FixSymmetry
+try:
+    from ase.spacegroup.symmetrize import FixSymmetry
+except:
+    from ase.constraints import FixSymmetry
+
 import logging
 import ase.io
 #from .molecule import Molfilter

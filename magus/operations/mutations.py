@@ -6,7 +6,6 @@ from ase import Atom
 from magus.utils import *
 from magus.populations.individuals import to_target_formula
 from .base import Mutation
-from ase.ga.soft_mutation import BondElectroNegativityModel
 
 
 __all__ = [
@@ -59,6 +58,8 @@ class SoftMutation(Mutation):
         return mode
 
     def mutate_bulk(self, ind):
+        
+        from ase.ga.soft_mutation import BondElectroNegativityModel     
         atoms = ind.for_heredity()
         atoms.set_calculator(BondElectroNegativityModel(atoms))
         pos = atoms.get_positions()
