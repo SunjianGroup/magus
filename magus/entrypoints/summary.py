@@ -5,10 +5,10 @@ from pathlib import Path
 #from functools import reduce
 from matplotlib import pyplot as plt
 import pandas as pd
-from ase.io import write, read    #, iread
+import spglib
+from ase.io import iread, write, read
 from ase import Atoms
 import numpy as np
-import spglib 
 from magus.phasediagram import PhaseDiagram, get_units
 from magus.utils import get_units_formula
 
@@ -153,12 +153,20 @@ class Summary:
 class BulkSummary(Summary):
     def set_features(self, atoms):
         super().set_features(atoms)
-        atoms.info['symmetry'] = spglib.get_spacegroup((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), self.prec)
+        lattice = atoms.get_cell()
+        positions = atoms.get_scaled_positions()
+        numbers = atoms.get_atomic_numbers()
+        cell = (lattice, positions, numbers)
+        atoms.info['symmetry'] = spglib.get_spacegroup(cell, self.prec)
         # sometimes spglib cannot find primitive cell.
         try:
-            lattice, scaled_positions, numbers = spglib.find_primitive((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec=self.prec)
+            lattice, scaled_positions, numbers = spglib.find_primitive(
+                (atoms.get_cell(), atoms.get_scaled_positions(), atoms.get_atomic_numbers()), 
+                symprec=self.prec)
             pri_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
-            lattice, scaled_positions, numbers = spglib.standardize_cell((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec=self.prec)
+            lattice, scaled_positions, numbers = spglib.standardize_cell(
+                (atoms.get_cell(), atoms.get_scaled_positions(), atoms.get_atomic_numbers()), 
+                symprec=self.prec)
             std_atoms = Atoms(cell=lattice, scaled_positions=scaled_positions, numbers=numbers)
         except:
             # if fail to find prim, set prim to raw

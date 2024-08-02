@@ -7,7 +7,7 @@ from magus.utils import *
 from .molecule import Molfilter
 from ..fingerprints import get_fingerprint
 from ..comparators import get_comparator
-import ase.build
+from ase.build import niggli_reduce
 
 
 log = logging.getLogger(__name__)
@@ -151,7 +151,9 @@ class Individual(Atoms):
         return self.info['fingerprint']
 
     def find_spg(self):
-        spg = spglib.get_spacegroup((self.cell, self.get_scaled_positions(), self.numbers), self.symprec)
+        spg = spglib.get_spacegroup(
+            (self.get_cell(), self.get_scaled_positions(), self.get_atomic_numbers()),
+            self.symprec)
         pattern = re.compile(r'\(.*\)')
         try:
             spg = pattern.search(spg).group()
@@ -159,7 +161,9 @@ class Individual(Atoms):
         except:
             spg = 1
         self.info['spg'] = spg
-        pri_atoms = spglib.standardize_cell((self.cell, self.get_scaled_positions(), self.numbers), symprec=self.symprec, to_primitive=True)
+        pri_atoms = spglib.standardize_cell(
+            (self.get_cell(), self.get_scaled_positions(), self.get_atomic_numbers()),
+            symprec=self.symprec, to_primitive=True)
         if pri_atoms:
             cell, positions, numbers = pri_atoms
             self.info['priNum'] = numbers
@@ -169,7 +173,9 @@ class Individual(Atoms):
             self.info['priVol'] = self.get_volume()
 
     def add_symmetry(self, keep_n_atoms=True, to_primitive=False):
-        std_para = spglib.standardize_cell((self.cell, self.get_scaled_positions(), self.numbers), symprec=self.symprec, to_primitive=to_primitive)
+        std_para = spglib.standardize_cell(
+            (self.get_cell(), self.get_scaled_positions(), self.get_atomic_numbers()),
+            symprec=self.symprec, to_primitive=to_primitive)
         if std_para is None:
             return False
         std_atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2])
@@ -317,6 +323,10 @@ class Bulk(Individual):
                 args = list(args)
                 args[0] = args[0].to_atoms()
         super().__init__(*args, **kwargs)
+
+    def merge_atoms(self):
+        niggli_reduce(self)
+        return super().merge_atoms()
 
     def for_heredity(self):
         atoms = self.copy()

@@ -11,7 +11,7 @@ from ase.spacegroup.symmetrize import FixSymmetry
 import logging
 import ase.io
 #from .molecule import Molfilter
-from ase import neighborlist
+from ase import neighborlist, Atoms
 from scipy import sparse
 
 from .fitness import ErcsFitness
@@ -455,7 +455,7 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10):
             # select a center atoms
             mean_p = np.average(rep_atoms.positions, axis=0)
             d = np.sqrt([np.sum([x**2 for x in p-mean_p]) for p in rep_atoms.positions])
-            index = np.argsort(d)[math.ceil(len(d)/5):]
+            index = np.argsort(d)[math.floor(len(d)/5):]
             if len(index) < 1:
                 continue
             center_atom = rep_atoms[np.random.choice(index)]
@@ -554,8 +554,14 @@ class Cluster(Individual):
         atoms = atoms or self
         n_components, _ = self._connecty_(atoms)
         return False if n_components > 1 else True
-    
+
     def repair_atoms(self):
+        try:
+            return self._repair_atoms()
+        except:
+            return False
+    
+    def _repair_atoms(self):
         n_components, component_list = self._connecty_(self)
         if n_components ==1:
             self.merge_atoms()         # merge atoms too close before repair it
