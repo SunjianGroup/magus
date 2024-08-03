@@ -87,6 +87,65 @@ $ chmod +x magus-***-Linux-x86_64.sh
 $ ./magus-***-Linux-x86_64.sh
 ```
 and follow the guide.
+
+
+## Version Control
+
+Since August 2, 2024, the default version of the main branch is version 2.0. To check the version of your installation, use the following command:
+
+```shell
+$ magus -v
+```
+This command will display the installed version.
+
+
+If you want to install version 1.7 **before installation** (for example, if you have already installed version 2.0 and want to revert to 1.7, you should first uninstall version 2.0 or create a new, empty Conda environment), use one of the following methods:
+
+(a) Use pip and specify the commit number `080a619772a87ca3011e38b7aa8471a987f1818e`:
+
+use https:
+```shell
+$ pip install git+https://gitlab.com/bigd4/magus.git@080a619772a87ca3011e38b7aa8471a987f1818e
+```
+use ssh:
+```shell
+$ pip install git+ssh://git@gitlab.com/bigd4/magus.git@080a619772a87ca3011e38b7aa8471a987f1818e
+```
+
+(b) From source: To install version 1.7.0, checkout the 1.7.0 tag after cloning the source code:
+
+
+1. Clone the source code
+
+```shell
+$ git clone --recursive https://gitlab.com/bigd4/magus.git
+```
+
+2. Checkout the 1.7.0 tag:
+```shell
+$ git checkout tags/1.7.0 
+```
+If you see the following information:
+```shell
+M	gensym
+HEAD is now at 080a619... Merge branch 'v1.7.0' into 'master'
+```
+proceed with the next step:
+```shell
+$ git submodule update 
+```
+If you see the following information:
+```shell
+Submodule path 'gensym': checked out 'de913243511cb353e0fc67159860df885d25a0e9'
+```
+you have successfully checked out the desired version.
+
+
+3. Go into the directory and install with pip:
+```shell
+$ pip install -e .
+```
+
 ## Check
 You can use 
 ```shell
