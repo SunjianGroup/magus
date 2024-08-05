@@ -123,6 +123,7 @@ class MLMagus(Magus):
         if self.parameters['SelectDFTScf']:
             log.info("SCF calculations for selected ML-relaxed structures")
             to_scf = self.ml_calculator.select(relax_pop)
+            to_scf.save('mlselect', self.curgen)
             to_scf = self.ml_calculator.expand_perturb(to_scf)
             log.info('{} structures need DFT scf'.format(len(to_scf)))
             dft_scf_pop = self.main_calculator.scf(to_scf)
@@ -130,6 +131,7 @@ class MLMagus(Magus):
             # dft_scf_pop.del_duplicate()
             self.cur_pop = relax_pop
             self.ml_calculator.updatedataset(dft_scf_pop)
+            log.info("Training...")
             self.ml_calculator.train()
         else:
             self.cur_pop = relax_pop

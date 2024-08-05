@@ -173,9 +173,11 @@ class MACECalculator(ASEClusterCalculator):
             'split_ratios': [8, 1, 1],
             'n_sample': None,
             'n_perturb': 0,
-            'max_atom_move': 0.05, 
+            'max_atom_move': 0.05,
             'max_lat_move': 0.05,
             'selection': 'fps',
+            'train_mode': 'all', # all: use all the data; new: only new data; mix: mix previous and current data
+            'mix_ratio': 1, # No. previous data / No. current data
         }
         check_parameters(self, parameters, Requirement, Default)
 
@@ -194,7 +196,7 @@ class MACECalculator(ASEClusterCalculator):
         # copy files
         if not os.path.exists(self.ml_dir):
             os.makedirs(self.ml_dir)
-        # It is messy because *.model and *compiled.model in MACR are different. 
+        # It is messy because *.model and *compiled.model in MACR are different.
         # Original models can be trained files but not compatible to ASE calculator.
         # Compiled models are compatible to ASE calculator but can't be initial potential for training.
         # But mace_mp foundation models work for both cases.
@@ -223,19 +225,20 @@ class MACECalculator(ASEClusterCalculator):
                 shutil.copy(f'{self.input_dir}/mace_pot.model',
                             f'{self.ml_dir}/mace_desc.model')
             else:
-                log.warning("No initial mace potential for training.")
+                log.warning("No initial mace potential for descriptor.")
         if not os.path.exists(f'{self.ml_dir}/mace_train.yaml'):
             if os.path.exists(f'{self.input_dir}/mace_train.yaml'):
                 shutil.copy(f'{self.input_dir}/mace_train.yaml',
                             f'{self.ml_dir}/mace_train.yaml')
             else:
-                raise Exception("No mace_train.yaml.")
+                raise Exception("No mace training setting file.")
         fnames = ['train.xyz', 'valid.xyz', 'test.xyz']
         for fn in fnames:
             if not os.path.exists(f'{self.ml_dir}/{fn}'):
                 if os.path.exists(f'{self.input_dir}/{fn}'):
                      shutil.copy(f'{self.input_dir}/{fn}',f'{self.ml_dir}/{fn}')
                      shutil.copy(f'{self.input_dir}/{fn}',f'{self.ml_dir}/new_{fn}')
+                     shutil.copy(f'{self.input_dir}/{fn}',f'{self.ml_dir}/all_{fn}')
                 else:
                     log.info(f"No inital {fn}")
                     os.system(f"touch {self.ml_dir}/{fn}")
@@ -249,7 +252,7 @@ class MACECalculator(ASEClusterCalculator):
         #shutil.copy(f'{self.ml_dir}/mace_pot.model', f'{self.ml_dir}/init_mace_pot.model')
         train_command = f"{self.mace_runner} mace_run_train --config mace_train.yaml"
         self.J.sub(train_command, name='train', file='train.sh',
-                   out='train-out', err='train-err')
+                   out='train-out-%j', err='train-err-%j')
         self.J.wait_jobs_done(self.wait_time)
         self.J.clear()
         # read trained pot in
@@ -301,12 +304,12 @@ class MACECalculator(ASEClusterCalculator):
             self.paralleljob(calcPop, self.desc_job)
             descPop = self.read_parallel_results()
             self.J.clear()
-            
+
         return descPop
 
     def select(self, pop):
         assert self.selection in ['fps', 'random'], "selectiom must be fps or random!"
-        log.debug(f"Sample number self.n_sample: {self.n_sample}")
+        log.debug(f"Number of selection : {self.n_sample}")
         nowpath = os.getcwd()
         os.chdir(self.ml_dir)
         if not os.path.exists("mace_pot.model"):
@@ -329,13 +332,13 @@ class MACECalculator(ASEClusterCalculator):
             des_train = np.array([atoms.info['descriptor'] for atoms in train_pop])
             sampler = FarthestPointSample(min_distance=0)
             indices = sampler.select(des_new, des_train, max_select=self.n_sample)
-            log.debug(f"FPS indices: {indices}")
+            # log.debug(f"FPS indices: {indices}")
             ret = [new_pop[i] for i in indices]
         elif self.selection == 'random':
             if self.n_sample == None:
                 return pop
             else:
-                ret = random.sample(new_pop, self.n_sample)
+                ret = random.sample(pop, self.n_sample)
 
 
         os.chdir(nowpath)
@@ -372,7 +375,8 @@ class MACECalculator(ASEClusterCalculator):
     @property
     def trainset(self):
         try:
-            return read(f'{self.ml_dir}/train.xyz', ':')
+            # return read(f'{self.ml_dir}/train.xyz', ':')
+            return read(f'{self.ml_dir}/all_train.xyz', ':')
         except:
             log.warning("No training set now.")
             return []
@@ -388,12 +392,43 @@ class MACECalculator(ASEClusterCalculator):
             clAts.info['stress'] = atoms.info['stress']
             cleanArr.append(clAts)
         trainSet, validSet, testSet = split_dataset(cleanArr, self.split_ratios)
-        write('new_train.xyz', trainSet)
-        write('new_valid.xyz', validSet)
-        write('new_test.xyz', testSet)
-        os.system("cat new_train.xyz >> train.xyz")
-        os.system("cat new_valid.xyz >> valid.xyz")
-        os.system("cat new_test.xyz >> test.xyz")
+        setDic = {
+                'train': trainSet,
+                'valid': validSet,
+                'test': testSet,
+                }
+        for key, data in setDic.items():
+            write(f'new_{key}.xyz', data)
+            # read previous dataset before appending
+            preData = read(f"all_{key}.xyz", ':')
+            os.system(f"cat new_{key}.xyz >> all_{key}.xyz")
+            if self.train_mode == 'all':
+                os.system(f"cat all_{key}.xyz > {key}.xyz")
+            elif self.train_mode == 'new':
+                os.system(f"cat new_{key}.xyz > {key}.xyz")
+            elif self.train_mode == 'mix':
+                preLen = round(len(data)*self.mix_ratio)
+                # randomly sample previous dataset
+                if preLen >= len(preData):
+                    write(f'sample_prev_{key}.xyz', preData)
+                else:
+                    write(f'sample_prev_{key}.xyz', random.sample(preData, preLen))
+                # merge datasets
+                if key == 'test':
+                    os.system(f"cat all_{key}.xyz > {key}.xyz")
+                else:
+                    os.system(f"cat sample_prev_{key}.xyz new_{key}.xyz > {key}.xyz")
+            else:
+                raise Exception("train_mode must be all, new or mix")
+
+        #write('new_train.xyz', trainSet)
+        #write('new_valid.xyz', validSet)
+        #write('new_test.xyz', testSet)
+        #os.system("cat new_train.xyz >> all_train.xyz")
+        #os.system("cat new_valid.xyz >> all_valid.xyz")
+        #os.system("cat new_test.xyz >> all_test.xyz")
+
+
         os.chdir(nowpath)
 
 def calc_mace(mace_setup, frames):
@@ -454,7 +489,7 @@ def calc_mace(mace_setup, frames):
                 atoms.info['stress'] = atoms.get_stress()
             except:
                 pass
-            
+
 
             enthalpy = (atoms.info['energy'] + pressure * atoms.get_volume() * GPa)/ len(atoms)
             # atoms.info['enthalpy'] = round(enthalpy, 6)

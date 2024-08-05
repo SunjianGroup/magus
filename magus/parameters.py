@@ -109,7 +109,7 @@ class magusParameters:
                 p_dict = copy.deepcopy(self.p_dict)
                 p_dict.update(p_dict['MLCalculator'])
                 p_dict['query_calculator'] = self.MainCalculator
-                log.debug(f"Parameter for MLCalc: {p_dict}")
+                # log.debug(f"Parameter for MLCalc: {p_dict}")
                 self.MLCalculator_ = get_calculator(p_dict)   
             else:
                 raise Exception('No ML Calculator!')
