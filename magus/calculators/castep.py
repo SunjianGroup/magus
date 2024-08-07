@@ -34,6 +34,7 @@ class CastepCalculator(ClusterCalculator):
 
         self.castep_setup = {
             'pressure': self.pressure,
+            'cut_off_energy': self.cut_off_energy
         }
         self.castep_setup.update(parameters)
 
@@ -110,7 +111,13 @@ def calc_castep(castep_setup, frames):
         atoms.info['forces'] = forces
         atoms.info['stress'] = stress
         # save relax trajectory
-        traj = read(f'{calc._label}.geom', index=':', format='castep-geom')
+        # ase3.22.1 now create a dictionary, by default 'CASTEP' in calcFold. 
+        # can be changed in Castep.__init__. 'directory' - by Hanyu
+        try:
+            traj = read(f'{calc._label}.geom', index=':', format='castep-geom')
+        except:
+            traj = read(f'CASTEP/{calc._label}.geom', index=':', format='castep-geom')
+            
         # save relax steps
         log.debug('castep relax steps: {}'.format(len(traj)))
         if 'relax_step' not in atoms.info:

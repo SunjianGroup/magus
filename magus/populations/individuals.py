@@ -324,8 +324,15 @@ class Bulk(Individual):
                 args[0] = args[0].to_atoms()
         super().__init__(*args, **kwargs)
 
+    def check_cell(self, atoms = None):
+        nr_ = self.copy() if atoms is None else atoms.copy()
+        niggli_reduce(nr_)
+        return super().check_cell(atoms = nr_)
+
     def merge_atoms(self):
-        niggli_reduce(self)
+        # niggli_reduce(self)
+        # Note: move niggli_reduce to 'for_calculate' and 'check_cell'
+        # based on considerations of don't change cell when doing mutations -YU 24.08.07
         return super().merge_atoms()
 
     def for_heredity(self):
@@ -334,6 +341,7 @@ class Bulk(Individual):
             atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
         return atoms
     def for_calculate(self):
+        niggli_reduce(self)
         return self
 
 

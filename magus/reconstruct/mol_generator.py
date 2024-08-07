@@ -155,6 +155,7 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
         self.target_formula = FMLfilter(dict(zip(parameters['symbols'], parameters['formula'])))
         self.frag_ratio = parameters.get('frag_ratio', [0.3,0.8])
         self.mol_formula = parameters.get('mol_formula', None)
+        self.symprec_in_generator = parameters.get('symprec_in_generator', 0.5)
     
     def update(self, *args, **kwargs):
         super().update(*args, **kwargs)
@@ -202,7 +203,7 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
                 for i,j in enumerate(rand_formula):
                     now_formula += FMLfilter(self.fragments[i].symbols.formula.count()) * j
                 
-                if now_formula < self.target_formula: #and (self.frag_ratio[0] < now_formula/ self.target_formula <self.frag_ratio[1] or now_formula/ self.target_formula==0) :
+                if now_formula <= self.target_formula: #and (self.frag_ratio[0] < now_formula/ self.target_formula <self.frag_ratio[1] or now_formula/ self.target_formula==0) :
                     fill = self.target_formula - now_formula
                     combine = list(rand_formula)
                     for i, f in enumerate(self.fragments):
@@ -286,6 +287,7 @@ class OntheFlyFragSPGGenerator(SPGMinerGenerator):
             'mol_mode': True,
             'input_mols': self.input_mols,
             'threshold_mol': getattr(self, 'threshold_mol') if hasattr(self, 'threshold_mol') else 0.1,
+            'symprec_in_generator': self.symprec_in_generator,
             })
         return d
     
