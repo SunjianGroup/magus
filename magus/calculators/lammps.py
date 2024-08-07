@@ -6,6 +6,7 @@ from magus.calculators.base import ClusterCalculator
 from magus.utils import CALCULATOR_PLUGIN, check_parameters
 from ase.io.lammpsdata import read_lammps_data, write_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
+from ase import Atoms
 #TODO: return None
 
 # units must be metal!!
@@ -80,12 +81,14 @@ def calc_lammps_once(lammps_setup, atoms):
     write_lammps_data('data', atoms, specorder=specorder, atom_style=atom_style)
     exitcode = subprocess.call(exe_cmd, shell=True)
     if exitcode != 0 and exitcode != 8:
-        raise RuntimeError('Lammps exited with exit code: %d.  ' % exitcode)
+        logging.warn('Lammps exited with exit code: %d.  ' % exitcode)
+        return None
     # break because of MTP
     if exitcode == 8:
         return None
     with open('out.dump') as f:
         new_atoms = read_lammps_dump_text(f, specorder=specorder)
+        new_atoms.info.update(atoms.info)
     thermo_content = []
     if not os.path.exists('log.lammps'):
         raise RuntimeError('Lammps failed, no log.lammps!')

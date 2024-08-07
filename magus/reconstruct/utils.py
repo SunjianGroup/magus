@@ -1321,6 +1321,34 @@ class sym_rattle:
                     } for line in data]
         return ds
         """
+
+    @staticmethod
+    def _filter_translation_cell(atoms, symprec):
+        new_atoms = atoms.copy()
+        
+        sym_ds = spglib.get_symmetry_dataset((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec)
+        rot, trans = [], []
+        
+        for a, r in enumerate(sym_ds['rotations']):
+            if not np.all(r == np.eye(3)):
+                rot.append(r)
+                trans.append(sym_ds['translations'][a])
+        rot.append(np.eye(3))
+        trans.append([0,0,0])
+        a_new_atom = np.max(new_atoms.numbers) +1
+        a_new_atom_position = [0.12,0.16,0.18]
+        eq_ps = np.dot(rot, a_new_atom_position) + trans
+        print("rot", rot)
+        print("trans", trans)  
+        print(eq_ps)
+        new_atoms += Atoms(cell = new_atoms.cell, scaled_positions= eq_ps, numbers= [a_new_atom]*len(eq_ps))
+
+        sym_ds = spglib.get_symmetry_dataset((new_atoms.cell, new_atoms.get_scaled_positions(), new_atoms.numbers), symprec)
+        sym_ds['equivalent_atoms'] = sym_ds['equivalent_atoms'][:len(atoms)]
+
+        return sym_ds
+
+
     @staticmethod
     def _share_method_(atoms0, func_get_all_position, symprec, trynum, mutate_rate, rattle_range, distance_dict):
         atoms = atoms0.copy()
@@ -1329,6 +1357,8 @@ class sym_rattle:
         np.random.shuffle(shuffledindex)
         atoms = atoms[shuffledindex]
 
+        #sym_ds = sym_rattle._filter_translation_cell(atoms, symprec=symprec)
+        
         sym_ds = spglib.get_symmetry_dataset((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec)
 
         equivalent_atoms = sym_ds['equivalent_atoms']

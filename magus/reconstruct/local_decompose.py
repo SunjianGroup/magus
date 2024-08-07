@@ -17,6 +17,9 @@ from ase.data import covalent_radii
 import math
 from scipy.spatial import ConvexHull
 
+import logging
+log = logging.getLogger(__name__)
+
 def Molecule_to_Atoms(mol, info = {}):
    '''
    Molecule class by pymatgen to Atoms class by Ase
@@ -591,7 +594,7 @@ def DECOMPOSE(pop, distance_dict, **kwargs):
                else:
                   decomposed_pop.append(cg1)
          except Exception as e:
-            print("Exception {} happened. return null set frags".format(e))
+            log.warning("Exception {} happened. return null set frags".format(e))
          #print(time.ctime(), ": decompose base on '{} (no. {})'".format(atoms[i].symbol, i))
          
    #print("decomposed", [(ind.ubc, ind.dof, len(ind)) for ind in decomposed_pop])
