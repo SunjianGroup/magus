@@ -1,4 +1,4 @@
-from ..reconstruct.tools import getslab, analyze, mine_substrate
+from ..reconstruct.tools import getslab, analyze, mine_substrate, inputslab
 
 def tool(*args, **kwargs):
     if kwargs['getslab']: 
@@ -10,3 +10,7 @@ def tool(*args, **kwargs):
     elif kwargs['mine_substrate']:
         kwargs['filename'] = kwargs['filename'] or 'Ref/layerslices.traj'
         mine_substrate(*args, **kwargs)
+    elif kwargs['inputslab']:
+        kwargs['filename'] = kwargs['filename'] or 'inputslab.vasp'
+        kwargs['sliceslab'] = kwargs['sliceslab']
+        inputslab(*args, **kwargs)

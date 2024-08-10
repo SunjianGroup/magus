@@ -67,4 +67,18 @@ def rcs_interface(subparsers):
         help="get recommand layergroup according to substrate symmetry for surface reconstruction",
     )
 
+    parser_tool.add_argument(
+        "--inputslab",
+        action="store_true",
+        help="input the slab model used in surface reconstruction",
+    )
+    parser_tool.add_argument(
+        "--sliceslab",
+        type=float,
+        default= [],
+        nargs="+",
+        help="specify the slice position of inputslab.vasp",
+    )
+
+
     return 
