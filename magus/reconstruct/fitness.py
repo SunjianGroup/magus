@@ -8,14 +8,31 @@ log = logging.getLogger(__name__)
 
 
 def symbols_and_formula(atoms):
+    '''
     L = atoms.get_chemical_symbols()
     symbols = list(set(L))
     formula =  np.array([L.count(s) for s in symbols])
     return {s:i for s,i in zip(symbols, formula)}
+    '''
+    return atoms.symbols.formula.count()
+
+
+def _dict_direct_add_(dA, dB):
+    from .generator import formula_add
+    return formula_add(dA, dB)
+
 
 class ErcsFitness(FitnessCalculator):
+    def __init__(self, parameters) -> None: 
+        self.calc_func = parameters.get('calc_func', 'Auto') 
+
     def calc(self, pop):
         self.cal_refE(pop)
+
+        if self.calc_func == 'Ehull':
+            return self.Ehull(pop)
+        elif self.calc_func == 'Eform':
+            return self.Eform(pop)
 
         if len(pop.Ind.slices) == 3:
             for nl in pop.Ind.symbol_numlist_pool:
@@ -45,9 +62,9 @@ class ErcsFitness(FitnessCalculator):
         Eo = []
         for ind in pop:
             scale = 1.0 / ind.info['size'][0] / ind.info['size'][1]
-            from .generator import formula_add
+            
             frml = symbols_and_formula(ind)
-            frml = formula_add({s: [frml[s]*scale] for s in frml.keys()}, {s: [-substrate[s]] for s in substrate.keys()})
+            frml = _dict_direct_add_({s: [frml[s]*scale] for s in frml.keys()}, {s: [-substrate[s]] for s in substrate.keys()})
             frml = {s: frml[s][0] for s in frml}
             delta_n.append(frml [symbols[0]] - frml[symbols[1]]*ref_num0) 
 
@@ -78,8 +95,8 @@ class ErcsFitness(FitnessCalculator):
         for ind in pop:
             ind.info['enthalpy'] = ind.info['enthalpy']
             scale = ind.info['size'][0] * ind.info['size'][1]
-            from .generator import formula_minus
-            frml = formula_minus(symbols_and_formula(ind), {s: [substrate[s]*scale] for s in substrate})
+
+            frml = _dict_direct_add_(symbols_and_formula(ind), {s: [-substrate[s]*scale] for s in substrate})
             Eform = ind.info['energy'] - np.sum([frml[s]*uxdict[s] for s in frml.keys()]) - E_substrate*scale
             ind.info['Eo'] = Eform
             ind.info['Eo'] = Eform
@@ -100,15 +117,15 @@ class ErcsFitness(FitnessCalculator):
             substrateE, compoundE = slab.info['energy'], bulk.info['energy']
             substrate, compound = symbols_and_formula(slab), symbols_and_formula(bulk)
             pop.Ind.refE = {
-                'substrateE': substrateE,
+                'compound': compound,
                 'compoundE': compoundE,
                 'substrate': substrate,
-                'compound': compound,
+                'substrateE': substrateE,
                 'adEs': {s: compoundE/len(bulk) for s in compound.keys() }
             }
-        log.debug("default reference energy: {}".format(pop.Ind.refE))
+            pop.Ind.show_refE()
 
-
+    
 import math, os
 
 class AgeFitness(FitnessCalculator):
@@ -157,7 +174,7 @@ class AntiSeedFitness(FitnessCalculator):
             Dia2 = np.average([x**2 for x in a.fingerprint - ind.fingerprint])
             summary += Wa * math.exp(- Dia2 /2 / SIGMAa2 )
             #if (Wa * math.exp(- Dia2 /2 / SIGMAa2 ) > 1e-3):
-            print('dia2', Dia2, 'sum', Wa * math.exp(- Dia2 /2 / SIGMAa2 ), "\t", a.info['enthalpy'], ind.info["enthalpy"])
-        print('summary', summary)
+            #print('dia2', Dia2, 'sum', Wa * math.exp(- Dia2 /2 / SIGMAa2 ), "\t", a.info['enthalpy'], ind.info["enthalpy"])
+        #print('summary', summary)
         return summary 
     

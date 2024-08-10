@@ -83,6 +83,8 @@ class Summary:
             atoms.info['formula'] = get_units_formula(atoms, self.units)
         else:
             atoms.info['formula'] = get_units_formula(atoms, atoms.info['units'])
+        if atoms.info['formula'] is None:
+            atoms.info['formula'] = ''.join([f'{s}{n} ' for s, n in sorted(atoms.symbols.formula.count().items())])
         
     def summary(self, filenames, show_number=20, need_sorted=True, sorted_by='Default', reverse=True, save=False, outdir=None):
         filenames = convert_glob(filenames)

@@ -264,7 +264,7 @@ class cutcell:
     def cut(self, layernums, totslices, surface_vector, vacuum, addH):
         #5. expand unit surface cell on z direction
         bot, mid, top = layernums[0], layernums[1], layernums[2]
-        print(bot, mid, top)
+        #print(bot, mid, top)
         slicepos = np.array([0, bot, bot + mid,  bot + mid + top])/totslices
         slicepos = slicepos + np.array([self.startpos]*4)
         log.info("cutslice = {}".format(slicepos)) 
@@ -324,8 +324,9 @@ class cutcell:
                     continue
                 to_del.append(i)
                 for j, ost in zip(indexs, offsets):
-                    bond_scale =  (covalent_radii[pop[0][j].number] + covalent_radii[1]) \
-                                        / (covalent_radii[pop[0][i].number] + covalent_radii[pop[0][j].number])
+                    #bond_scale =  (covalent_radii[pop[0][j].number] + covalent_radii[1]) \
+                    #                    / (covalent_radii[pop[0][i].number] + covalent_radii[pop[0][j].number])
+                    bond_scale = 1.0
                     sp_h.append( sp[j] - bond_scale * (sp[j] + ost - sp[i] ))
 
             sp_h = np.unique(sp_h, axis = 0)
@@ -485,8 +486,15 @@ class matrix_match:
                 try:
                     a = np.load(f)[0]
                     match_list.append([int(a[0]), int(a[1]), a[2:5], a[5:8], np.array(a[8:12]).reshape(2,2), np.array(a[12:16]).reshape(2,2), a[16]])
-                except ValueError:         #npyio.py"Cannot load file containing pickled data when allow_pickle=False"
+                
+                # The following exceptions stand for one case that the file is at EOF. 
+                # Exception raised by numpy.io is different in different version. 
+
+                except ValueError:   #npyio.py"Cannot load file containing pickled data when allow_pickle=False" 
                     break
+                except EOFError:     #npyio.py"No data left in file"
+                    break
+
         return match_list
     
     @staticmethod
@@ -500,7 +508,7 @@ class matrix_match:
 class InterfaceMatcher:
     def __init__(self, bulk_a, bulk_b, range_hkl = [-5,6], range_matrix = [-4,5], 
                  range_a = [0., 15.], range_ang = [45., 135.], range_area = [0., 100.],
-                 range_substrate_thickness = 15., 
+                 range_substrate_thickness = [0, 15.], 
                  bulk_layernum = 3, buffer_layernum= 1, rcs_layernum =1, cutslices = None, addH =True, 
                  tol = 1000, traj_file = 'match_file.traj', matrix_file = 'match_file.npy', thread_para = 1, verbose = False):
         
@@ -1607,15 +1615,15 @@ if __name__ == '__main__':
     
     import ase.io
 
-    Si = ase.io.read('Si.cif')
-    Quartz = ase.io.read('Quartz.cif')
-    Cristobalite = ase.io.read("Cristobalite.cif")
-    Tridymite = ase.io.read("Tridymite.cif")
+    Si = ase.io.read('/fs08/home/js_hanyu/interface/CIFS/Si.cif')
+    Quartz = ase.io.read('/fs08/home/js_hanyu/interface/CIFS/Quartz.cif')
+    Cristobalite = ase.io.read("/fs08/home/js_hanyu/interface/CIFS/Cristobalite92.cif")
+    Tridymite = ase.io.read("/fs08/home/js_hanyu/interface/CIFS/Tridymite.cif")
 
 
     im = InterfaceMatcher(Si, Tridymite, range_hkl = [-5,6], range_matrix = [-3,4], 
                           range_area=[0., 100.], range_a=[0,13.],range_ang=[45.,135.],
-                          thread_para = 50)
+                          cutslices = 4, thread_para = 50)
     matchmodes  = im.match_result(verbose=True, save_intermediate='inter_ml.npy')
 
 

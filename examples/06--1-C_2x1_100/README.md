@@ -58,8 +58,54 @@ $ magus rcstool --getslab
 ```
 'slab.vasp' is generated and you can adjust some parameters when build the slab.  
 (!) Please REMEMBER TO DELETE 'Ref/' if slab parms are changed.  
-  
-Submit search job:  
+
+Alternatively, if you prefer to build a slab yourself (using Material Studio or other softwares) and input it into MAGUS, follow these instructions:
+
+Assume your well-built slab is saved as "inputslab.vasp" and looks like this:
+
+```shell
+$ cat inputslab.vasp
+ C  H  Si
+ 1.0
+        2.5269944668         0.0000000000         0.0000000000
+        0.0000000000         2.5269944668         0.0000000000
+        0.0000000000         0.0000000000        28.6474208832
+    C    H   Si
+    6    2    1
+ Direct
+    -0.000000000         0.500000000         0.597320199
+     0.500000000         0.500000000         0.566133201
+     0.500000000        -0.000000000         0.534946203
+    -0.000000000        -0.000000000         0.503759146
+     0.500000000        -0.000000000         0.410198122
+    -0.000000000         0.500000000         0.472572148
+     0.148026317        -0.000000000         0.388244092
+     0.851973712        -0.000000000         0.388244092
+     0.500000000         0.500000000         0.441385150
+```
+
+which contains one Si atom near the bottom surface, as defined by the user. Suppose the preferred cleavage modes (in fractional coordinates) are:
+
+- Substrate region:      0.35 - 0.45
+- Buffer region:         0.45 - 0.55
+- Reconstruction region: 0.55 - 0.65
+
+Verify the cleave parameters to ensure that no atom is precisely on the cleavage plane.
+
+Then, input the slab into MAGUS using the following command:
+
+```
+magus tool --inputslab --sliceslab 0.35 0.45 0.55 0.65
+ Reading input slab file: inputslab.vasp
+ Slice positions at [0.35, 0.45, 0.55, 0.65]
+ Input bulk with 4 atoms
+ Input buffer with 3 atoms
+ Input top with 2 atoms
+ Done!
+```
+
+After constructing your preferred slab model, submit the search job using the following command:
+
 ```shell
 $ magus search -i input.yaml -ll DEBUG  
 ```  

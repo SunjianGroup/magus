@@ -139,6 +139,22 @@ class Surface(Individual):
         cls.slices = read(cls.slices_file, index = ':')
         
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+        
+        if cls.refE is not None:
+            cls.show_refE()
+
+    @classmethod
+    def show_refE(cls):
+        
+        log.info("---- Default reference energy: ------")
+        log.info(f"compound   : {''.join([f'{s}{n} ' for s, n in sorted(cls.refE['compound'].items())])}")
+        log.info(f"compoundE  : {cls.refE['compoundE']}")
+        log.info(f"substrate  : {''.join([f'{s}{n} ' for s, n in sorted(cls.refE['substrate'].items())])}")
+        log.info(f"substrateE : {cls.refE['substrateE']}")
+        log.info(f"adEs       :")
+        for vkey, vvalue in cls.refE['adEs'].items():
+            log.info(f"             {vkey.ljust(2)}: {vvalue}")
+        log.info("-------------------------------------")
 
     def __init__(self, *args, **kwargs):
         """???
@@ -403,7 +419,8 @@ class Surface(Individual):
             #    target_formula[s] = self.symbols.formula.count()[s]
             #else:
                 #seek for a most close number
-                abdifference = np.abs(np.array(standard[i]) - self.symbols.formula.count()[s])
+                _nows = self.symbols.formula.count()[s] if s in self.symbols.formula.count() else 0
+                abdifference = np.abs(np.array(standard[i]) - _nows)
                 target_formula[s] = standard[i][np.argmin(abdifference)]
 
         return [target_formula]

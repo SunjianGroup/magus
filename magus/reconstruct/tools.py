@@ -172,3 +172,29 @@ def mine_substrate(filename = 'Ref/layerslices.traj', *args, **kwargs):
     logging.basicConfig(level=logging.DEBUG, format="%(asctime)s   %(message)s",datefmt='%H:%M:%S')
     substrate = ase.io.read(filename, index = -1, format = 'traj')
     SurfaceGenerator.mine_substrate_spg(substrate)
+
+from magus.reconstruct.utils import cutcell
+def inputslab(filename = 'inputslab.vasp', sliceslab = [], **kwargs):
+    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s   %(message)s",datefmt='%H:%M:%S')
+    logging.info(f"Reading input slab file: {filename}")
+    logging.info(f"Slice positions at {sliceslab}")
+    slab = ase.io.read(filename)
+    slab.wrap()
+    assert len(sliceslab) ==4, "len(sliceslab) must be 4"
+    
+    sp = slab.get_scaled_positions()[:,2]
+
+    Ref = []
+
+    struct = ['bulk', 'buffer', 'top']
+    for i in range(3): 
+        _s = slab[[a for a, p in enumerate(sp) if sliceslab [i]< p <= sliceslab[i+1]]].copy()
+        _s.positions -= sliceslab [i] * _s.cell[2]
+        _s.cell[2] *= sliceslab [i+1] - sliceslab[i]
+        #_s.wrap()
+        Ref.append(_s)
+        logging.info(f"Input {struct[i]} with {len(_s)} atoms")
+
+    ase.io.write('Ref/layerslices.traj', Ref)
+    logging.info("Done!")
+    
