@@ -165,7 +165,8 @@ $ magus update
 If you installed from source, use:
 ```shell
 $ cd <path-to-magus-package>
-$ git pull origin master
+$ git pull --recurse-submodules origin
+$ pip install -e .
 ```
 
 # Environment variables

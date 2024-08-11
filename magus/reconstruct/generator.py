@@ -20,6 +20,9 @@ class ClusterSPGGenerator(OntheFlyFragSPGGenerator):
         check_parameters(self, parameters, [], Default)
         self.dimension = 0
         self.spacegroup = [spg for spg in self.spacegroup if spg <= 56]
+        self.spg_probabilities = np.ones(len(self.spacegroup)) / len(self.spacegroup)
+        self.adjust_spg_selection({})
+
 
     #For cluster genertor, generates atom positions lies in distance (from origin) range of (minLattice[0], maxLattice[0])
     def get_min_lattice(self, numlist):
