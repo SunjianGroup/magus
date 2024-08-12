@@ -8,6 +8,8 @@ import math
 import spglib
 from ase.neighborlist import neighbor_list
 import traceback
+from ase.geometry import cellpar_to_cell, cell_to_cellpar
+
 
 log = logging.getLogger(__name__)
 
@@ -296,13 +298,10 @@ class cutcell:
             cell[2]*= ( 1.0 + vacuum/pop[2].cell.cellpar()[2])
             pop[2].set_cell(cell)
         
-        #vasp does not work if the triple product of the basis vectors is negative. Make a check.
-        cell = pop[0].get_cell()
-        if np.dot(np.cross(*cell[:2]), cell[2]) < 0:
-            for i, ind in enumerate(pop):
-                cell = ind.get_cell()
-                cell[[0,1]] = cell[[1,0]]
-                pop[i].set_cell(cell, scale_atoms = True)
+        # Make the cell standard.
+        for i, ind in enumerate(pop):
+            newcell = cellpar_to_cell(cell_to_cellpar(ind.cell))
+            pop[i].set_cell(newcell, scale_atoms=True)
 
         #7. add hydrogen
         if addH:
@@ -509,7 +508,8 @@ class InterfaceMatcher:
     def __init__(self, bulk_a, bulk_b, range_hkl = [-5,6], range_matrix = [-4,5], 
                  range_a = [0., 15.], range_ang = [45., 135.], range_area = [0., 100.],
                  range_substrate_thickness = [0, 15.], 
-                 bulk_layernum = 3, buffer_layernum= 1, rcs_layernum =1, cutslices = None, addH =True, 
+                 bulk_layernum = 3, buffer_layernum= 1, rcs_layernum =1, cutslices = None, addH =True, pcell = True,
+                 hkl_list = None, 
                  tol = 1000, traj_file = 'match_file.traj', matrix_file = 'match_file.npy', thread_para = 1, verbose = False):
         
         self.lattice_a, self.lattice_b = bulk_a, bulk_b
@@ -518,6 +518,8 @@ class InterfaceMatcher:
         self.range_substrate_thickness =  range_substrate_thickness 
         self.layer_nums, self.cutslices = [bulk_layernum , buffer_layernum, rcs_layernum], cutslices
         self.tol, self.addH = tol, addH
+        self.pcell = pcell
+        self.hkl_list = hkl_list
         self.traj_file, self.matrix_file = traj_file, matrix_file
         self.thread_para = thread_para
         self.verbose = verbose
@@ -632,21 +634,28 @@ class InterfaceMatcher:
         else:
             self.traj_pop, miller_list = [], []
             cut_cell_kwargs =  {"totslices": self.cutslices, "vacuum":10., "save_file":None, 
-                                "range_length_c":self.range_substrate_thickness, "verbose": verbose, "addH": self.addH}
-            '''
-            for hkl in itertools.product(*[range(*self.range_hkl)]*3):
-                h, k, l = hkl
-                #remove unreasonable miller indexes
-                if not self.is_miller_index(h,k,l):
-                    continue
-                else:
-                    if not self.in_miller_list('a', [h,k,l], miller_list):
-                        miller_list.append([("a",h,k,l), cut_cell_kwargs])
-                    if not self.in_miller_list('b', [h,k,l], miller_list):
-                        miller_list.append([("b",h,k,l), cut_cell_kwargs])
-            '''
-            miller_list.append([("a",1,0,0), cut_cell_kwargs])
-            miller_list.append([("b",1,1,1), cut_cell_kwargs])
+                                "range_length_c":self.range_substrate_thickness, "verbose": verbose, "addH": self.addH,
+                                "pcell": self.pcell}
+            
+
+            if self.hkl_list is None:
+                for hkl in itertools.product(*[range(*self.range_hkl)]*3):
+                    h, k, l = hkl
+                    #remove unreasonable miller indexes
+                    if not self.is_miller_index(h,k,l):
+                        continue
+                    else:
+                        if not self.in_miller_list('a', [h,k,l], miller_list):
+                            miller_list.append([("a",h,k,l), cut_cell_kwargs])
+                        if not self.in_miller_list('b', [h,k,l], miller_list):
+                            miller_list.append([("b",h,k,l), cut_cell_kwargs])
+            else:
+                log.warning("Used preset hkl list. ")
+                for _hkl in self.hkl_list:
+                    # _hkl be like tuple ("a", 1, 1, 0)
+                    assert type(_hkl) is list and len(_hkl) ==4, "hkl must be list list which likes [['a', 1, 1, 0]]"
+                    miller_list.append([tuple(_hkl), cut_cell_kwargs])
+                
 
             if len(miller_list):
                 for p in matrix_match.parallelize(self.generate_cutcell, miller_list, min(self.thread_para, len(miller_list))):

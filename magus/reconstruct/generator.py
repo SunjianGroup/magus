@@ -780,12 +780,16 @@ class InterfaceGenerator(SPGGenerator):
             'cutslices': 3,
             'thread_para': 50,
             'addH': True,
+            'pcell': True,
             'range_substrate_thickness': [12, 10.], 
             'traj_file': refDir + '/match_file.traj',
             'matrix_file': refDir + '/match_file.npy',
+            'hkl_list': None,
             }
         
         self.slabinfo.update(parameters['slabinfo'])
+        log.info(f"Name A: {self.slabinfo['bulk_a']}")
+        log.info(f"Name B: {self.slabinfo['bulk_b']}")
         self.slabinfo.update({
             'bulk_a': ase.io.read(self.slabinfo['bulk_a']),
             'bulk_b': ase.io.read(self.slabinfo['bulk_b']),
