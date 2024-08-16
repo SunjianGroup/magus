@@ -43,8 +43,8 @@ class MLMagus(Magus):
             log.info("\tDone! {} structures in the training set\n\ttraining...".format(len(self.ml_calculator.trainset)))
             self.ml_calculator.train()
         log.info('Done!')
-    
-       
+
+
     def select_to_relax(self, frames, init_num=3, min_num=20):
         try:
             ground_enthalpy = self.good_pop.bestind()[0].atoms.info['enthalpy']
@@ -53,7 +53,7 @@ class MLMagus(Magus):
         min_num = min(len(frames), min_num)
         trainset = self.ml_calculator.trainset
         energy_mse = self.ml_calculator.get_loss(trainset)[0]
-        select_enthalpy = max(ground_enthalpy + init_num * energy_mse, 
+        select_enthalpy = max(ground_enthalpy + init_num * energy_mse,
                               sorted([atoms.info['enthalpy'] for atoms in frames])[min_num - 1])
         log.info('select good structures to relax\n'
                  '\tground enthalpy: {}\tenergy mse: {}\tselect enthaly: {}'
@@ -61,7 +61,7 @@ class MLMagus(Magus):
         to_relax = [atoms for atoms in frames if atoms.info['enthalpy'] <= select_enthalpy]
         if isinstance(frames, Population):
             to_relax = frames.__class__(frames)
-        return to_relax            
+        return to_relax
 
     def select_to_add(self, frames):
         trainset = self.ml_calculator.trainset
@@ -87,6 +87,8 @@ class MLMagus(Magus):
         relax_pop = self.Population(relax_frames, 'relax', self.curgen)
         relax_pop.save("mlraw", self.curgen)
         relax_pop.check()
+        # keep raw pop for selection
+        raw_relax_pop = relax_pop.copy()
         # find spg before delete duplicate
         relax_pop.find_spg()
         relax_pop.del_duplicate()
@@ -107,7 +109,7 @@ class MLMagus(Magus):
             log.info("Relaxation for low energy ML-relaxed structures")
             #######  select cfgs to do dft relax  #######
             to_relax = self.select_to_relax(relax_pop)
-            #######  compare target and predict energy  #######   
+            #######  compare target and predict energy  #######
             dft_relaxed_pop = self.main_calculator.relax(to_relax)
             try:
                 relax_step = sum([atoms.info['relax_step'][-1] for atoms in dft_relaxed_pop])
@@ -122,15 +124,18 @@ class MLMagus(Magus):
             self.ml_calculator.train()
         if self.parameters['SelectDFTScf']:
             log.info("SCF calculations for selected ML-relaxed structures")
-            to_scf = self.ml_calculator.select(relax_pop)
+            # to_scf = self.ml_calculator.select(relax_pop)
+            # select cfgs from raw data, improve the probility to sample low-energy cfgs
+            to_scf = self.ml_calculator.select(raw_relax_pop)
             to_scf.save('mlselect', self.curgen)
             to_scf = self.ml_calculator.expand_perturb(to_scf)
             log.info('{} structures need DFT scf'.format(len(to_scf)))
             dft_scf_pop = self.main_calculator.scf(to_scf)
-            # dft_scf_pop.find_spg()
-            # dft_scf_pop.del_duplicate()
             self.cur_pop = relax_pop
             self.ml_calculator.updatedataset(dft_scf_pop)
+            # dft_scf_pop.find_spg()
+            # dft_scf_pop.del_duplicate()
+            dft_scf_pop.save('scf', self.curgen)
             log.info("Training...")
             self.ml_calculator.train()
         else:

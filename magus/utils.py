@@ -19,17 +19,22 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def apply_peturb(pop, numP, maxAtMove, maxLatMove, seed=None):
+def apply_peturb(pop, numP, stdAtMove, stdLatMove, saveInit=True, seed=None):
     # apply perturbations on lattice and atomice position
-    perbPop = pop[:]
+    if saveInit:
+        perbPop = pop[:]
+    else:
+        perbPop = []
     rng = np.random.RandomState(seed)
     for ats in pop:
         for _ in range(numP):
             nAts = Atoms(numbers=ats.numbers, cell=ats.cell, positions=ats.positions, pbc=ats.pbc)
             pos = nAts.get_positions()
-            nAts.set_positions(pos+rng.uniform(-1*maxAtMove, maxAtMove, size=pos.shape))
+            nAts.set_positions(pos+rng.normal(scale=stdAtMove, size=pos.shape))
+            # nAts.set_positions(pos+rng.uniform(-1*stdAtMove, stdAtMove, size=pos.shape))
             nAts.wrap()
-            rLat = rng.uniform(-1*maxLatMove, maxLatMove, size=6)
+            rLat = rng.normal(scale=stdLatMove, size=6)
+            # rLat = rng.uniform(-1*stdLatMove, stdLatMove, size=6)
             strain = np.array([
                 [1+rLat[0], 0.5*rLat[5], 0.5*rLat[4]],
                 [0.5*rLat[5], 1+rLat[1], 0.5*rLat[3]],

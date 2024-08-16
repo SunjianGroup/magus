@@ -173,8 +173,9 @@ class MACECalculator(ASEClusterCalculator):
             'split_ratios': [8, 1, 1],
             'n_sample': None,
             'n_perturb': 0,
-            'max_atom_move': 0.05,
-            'max_lat_move': 0.05,
+            'perturb_keep_init': True,
+            'std_atom_move': 0.05,
+            'std_lat_move': 0.05,
             'selection': 'fps',
             'train_mode': 'all', # all: use all the data; new: only new data; mix: mix previous and current data
             'mix_ratio': 1, # No. previous data / No. current data
@@ -324,6 +325,7 @@ class MACECalculator(ASEClusterCalculator):
         # des_new = np.array(
         #     [np.mean(pot.get_descriptors(atoms), axis=0) for atoms in pop])
         if self.selection == 'fps':
+            log.debug("Select structures by FPS.")
             log.debug("Compute descriptor of new structures.")
             new_pop = self.desc_(pop)
             log.debug("Compute descriptor of training structures.")
@@ -335,10 +337,13 @@ class MACECalculator(ASEClusterCalculator):
             # log.debug(f"FPS indices: {indices}")
             ret = [new_pop[i] for i in indices]
         elif self.selection == 'random':
+            log.debug("Select structures randomly.")
             if self.n_sample == None:
+                log.debug("No n_sample. Sample all the structures")
                 return pop
             else:
-                ret = random.sample(pop, self.n_sample)
+                indices = random.sample(range(len(pop)), self.n_sample)
+                ret = [pop[i] for i in indices]
 
 
         os.chdir(nowpath)
@@ -350,7 +355,7 @@ class MACECalculator(ASEClusterCalculator):
         # expand dataset by perturbation
         if self.n_perturb > 0:
             log.debug("Expand dataset by perturbation")
-            ret = apply_peturb(pop, self.n_perturb,  self.max_atom_move, self.max_lat_move)
+            ret = apply_peturb(pop, self.n_perturb,  self.std_atom_move, self.std_lat_move, self.perturb_keep_init)
             if isinstance(pop, Population):
                 return pop.__class__(ret)
             return ret
@@ -399,8 +404,6 @@ class MACECalculator(ASEClusterCalculator):
                 }
         for key, data in setDic.items():
             write(f'new_{key}.xyz', data)
-            # read previous dataset before appending
-            preData = read(f"all_{key}.xyz", ':')
             os.system(f"cat new_{key}.xyz >> all_{key}.xyz")
             if self.train_mode == 'all':
                 os.system(f"cat all_{key}.xyz > {key}.xyz")
@@ -408,7 +411,13 @@ class MACECalculator(ASEClusterCalculator):
                 os.system(f"cat new_{key}.xyz > {key}.xyz")
             elif self.train_mode == 'mix':
                 preLen = round(len(data)*self.mix_ratio)
+                # read previous dataset before appending
                 # randomly sample previous dataset
+                if os.path.exists(f"all_{key}.xyz"):
+                    preData = read(f"all_{key}.xyz", ':')
+                else:
+                    # No initial dataset in this case
+                    preData = []
                 if preLen >= len(preData):
                     write(f'sample_prev_{key}.xyz', preData)
                 else:
