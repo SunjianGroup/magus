@@ -108,9 +108,9 @@ class ClusterCalculator(Calculator, abc.ABC):
                 'verbose': False,
                 'kill_time': 100000,
                 'num_parallel': 1,
-                # 'memory': None,
+                'memory': None,
                 'mem_per_cpu': '1G',
-                'memory': '1000M',
+                # 'memory': '1000M',
                 'wait_params': '--mem=10M',
                 }
             check_parameters(self, parameters, Requirement, Default)
