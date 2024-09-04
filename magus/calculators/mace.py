@@ -355,7 +355,7 @@ class MACECalculator(ASEClusterCalculator):
         # expand dataset by perturbation
         if self.n_perturb > 0:
             log.debug("Expand dataset by perturbation")
-            ret = apply_peturb(pop, self.n_perturb,  self.std_atom_move, self.std_lat_move, self.perturb_keep_init)
+            ret = apply_peturb(pop, self.n_perturb,  self.std_atom_move, self.std_lat_move, self.perturb_keep_init, rndType='normal')
             if isinstance(pop, Population):
                 return pop.__class__(ret)
             return ret
