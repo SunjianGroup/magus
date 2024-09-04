@@ -20,6 +20,7 @@ class GulpCalculator(ClusterCalculator):
             'exe_cmd': 'gulp < input > output',
             'job_prefix': 'Gulp',
             'shell': None,
+            'use_spg_init': False,          # use 'space' in input to keep symmetry of structure 
             }
         check_parameters(self, parameters, Requirement, Default)
 
@@ -27,6 +28,7 @@ class GulpCalculator(ClusterCalculator):
             'pressure': self.pressure,
             'exe_cmd': self.exe_cmd,
             'shell': self.shell,
+            'use_spg_init': self.use_spg_init,
         }
         self.main_info.append('gulp_setup')
         if not os.path.exists("{}/goption.scf".format(self.input_dir)):
@@ -63,6 +65,13 @@ class GulpCalculator(ClusterCalculator):
     def relax_serial(self, calcPop):
         self.cp_input_to('.')
         shutil.copy('goption.relax', 'goption')
+        #with open('goption.relax') as f:
+        #    line = f.readlines()[0]
+        #    options = line.split()
+        #    options = list(map(lambda x : ('nosymmetry' if not self.use_spg_init else '') if 'sym' in x else x, options))
+        #with open('goption', 'w') as f:
+        #    s = ' '.join(options) + '\n'
+        #    f.write(s)
         opt_pop = calc_gulp(self.gulp_setup, calcPop)
         return opt_pop
 
@@ -71,12 +80,23 @@ def calc_gulp(gulp_setup, frames):
     exe_cmd = gulp_setup['exe_cmd']
     pressure = gulp_setup['pressure']
     shell = gulp_setup['shell']
+    use_spg_init = gulp_setup['use_spg_init']
+
     new_frames = []
     for i, atoms in enumerate(frames):
         if os.path.exists('output'):
             os.remove('output')
         try:
-            dump_gulp(atoms, 'structure', shell=shell)
+            dump_gulp(atoms, 'structure', shell=shell, use_spg_init = use_spg_init)
+
+            with open('goption.relax') as f:
+                line = f.readlines()[0]
+                options = line.split()
+                options = list(map(lambda x : ('nosymmetry' if not use_spg_init else '') if 'sym' in x else x, options))
+            with open('goption', 'w') as f:
+                s = ' '.join(options) + '\n'
+                f.write(s)
+
             subprocess.call('cat goption structure gpot > input', shell=True)
             with open('input', 'a') as f:
                 f.write('\npressure\n{}\n'.format(pressure))
@@ -90,8 +110,40 @@ def calc_gulp(gulp_setup, frames):
             new_atoms.info['enthalpy'] = round(enthalpy, 6)
             new_frames.append(new_atoms)
         except:
-            log.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
-            log.warning("GULP fail")
+            if use_spg_init == True:
+                log.warning("use_spg_init GULP fail, trying nosymm")
+                try:
+                    dump_gulp(atoms, 'structure', shell=shell, use_spg_init = False)
+
+                    with open('goption.relax') as f:
+                        line = f.readlines()[0]
+                        options = line.split()
+                        if not 'nosymm' in options:
+                            options.append('nosymm')
+                        
+                    with open('goption', 'w') as f:
+                        s = ' '.join(options) + '\n'
+                        f.write(s)
+
+
+                    subprocess.call('cat goption structure gpot > input', shell=True)
+                    with open('input', 'a') as f:
+                        f.write('\npressure\n{}\n'.format(pressure))
+                    exitcode = subprocess.call(exe_cmd, shell=True)
+                    if exitcode != 0:
+                        raise RuntimeError('Gulp exited with exit code: %d.  ' % exitcode)
+                    new_atoms = load_gulp('output')
+                    atoms.info.update(new_atoms.info)
+                    new_atoms.info = atoms.info
+                    enthalpy = (new_atoms.info['energy'] + pressure * GPa * new_atoms.get_volume()) / len(new_atoms)
+                    new_atoms.info['enthalpy'] = round(enthalpy, 6)
+                    new_frames.append(new_atoms)
+                except:
+                    log.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                    log.warning("GULP fail")
+            else:
+                log.warning("traceback.format_exc():\n{}".format(traceback.format_exc()))
+                log.warning("GULP fail")
     return new_frames
 
 

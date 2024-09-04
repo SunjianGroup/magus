@@ -5,19 +5,24 @@ from ..utils import check_parameters
 from ..populations.populations import Population
 from ase.data import covalent_radii,atomic_numbers
 
-from .utils import FixAtoms, modify_fixatoms
-import logging
+from .utils import FixAtoms, modify_fixatoms, FixAtomsZ
+from ase import Atoms
+try:
+    from ase.spacegroup.symmetrize import FixSymmetry
+except:
+    from ase.constraints import FixSymmetry
 
+import logging
+import ase.io
 #from .molecule import Molfilter
-from ase import neighborlist
+from ase import neighborlist, Atoms
 from scipy import sparse
 
 from .fitness import ErcsFitness
 from ..fitness import fit_dict
 import math
 import spglib
-from pymatgen.core import Molecule
-from pymatgen.symmetry.analyzer import PointGroupAnalyzer
+
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +32,7 @@ class RcsPopulation(Population):
     def set_parameters(cls, **parameters):
         cls.all_parameters = parameters
         Requirement = ['results_dir', 'pop_size', 'symbols', 'formula', 'units']
-        Default = {'check_seed': False}
+        Default = {'check_seed': False, 'spg_miner':{}}
         check_parameters(cls, parameters, Requirement, Default)
         
         cls.atoms_generator = parameters['atoms_generator']
@@ -59,8 +64,8 @@ class RcsPopulation(Population):
         cls.fit_calcs = fitness_calculator
         return 
 
-    def fill_up_with_random(self):
-        n_random = self.pop_size - len(self)
+    def fill_up_with_random(self, targetLen = None):
+        n_random = (targetLen - len(self)) if not targetLen is None else (self.pop_size - len(self)) 
         add_frames = self.atoms_generator.generate_pop(n_random)
 
         for ind in add_frames:
@@ -121,6 +126,7 @@ class Surface(Individual):
     @classmethod
     def set_parameters(cls, **parameters):
         super().set_parameters(**parameters)
+        cls.symbol_list = list(set(cls.symbol_list))
         Default = {
             'refE': None, 
             'vacuum_thickness': 10,
@@ -133,6 +139,22 @@ class Surface(Individual):
         cls.slices = read(cls.slices_file, index = ':')
         
         cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+        
+        if cls.refE is not None:
+            cls.show_refE()
+
+    @classmethod
+    def show_refE(cls):
+        
+        log.info("---- Default reference energy: ------")
+        log.info(f"compound   : {''.join([f'{s}{n} ' for s, n in sorted(cls.refE['compound'].items())])}")
+        log.info(f"compoundE  : {cls.refE['compoundE']}")
+        log.info(f"substrate  : {''.join([f'{s}{n} ' for s, n in sorted(cls.refE['substrate'].items())])}")
+        log.info(f"substrateE : {cls.refE['substrateE']}")
+        log.info(f"adEs       :")
+        for vkey, vvalue in cls.refE['adEs'].items():
+            log.info(f"             {vkey.ljust(2)}: {vvalue}")
+        log.info("-------------------------------------")
 
     def __init__(self, *args, **kwargs):
         """???
@@ -148,6 +170,8 @@ class Surface(Individual):
         super().__init__(*args, **kwargs)
         if 'check_cell' in self.check_list:
             self.check_list.remove('check_cell')
+        #if 'check_spg' not in self.check_list:
+        #    self.check_list.append('check_spg')
         
         if 'size' not in self.info:
             self.info['size'] = [1,1]
@@ -157,6 +181,37 @@ class Surface(Individual):
         self.set_pbc([True, True, False])
 
         modify_fixatoms()
+
+    
+    def __eq__(self, obj):
+        atom1 = self.for_heredity()
+        obj_is_list = isinstance(obj, list)
+        if obj_is_list:
+            atoms2 = [_obj.for_heredity() for _obj in obj]
+        else:
+            atoms2 = obj.for_heredity()
+        comparator_returned_value = self.comparator.looks_like(atom1, atoms2)
+
+        # copy 'compare_info' into self
+
+        def update_compare_info(at0, atc):
+            if 'compare_info' in atc.info:
+                at0.info['compare_info'] = {}
+                at0.info['compare_info'].update(atc.info['compare_info'])
+
+        update_compare_info(self, atom1)
+        
+        if obj_is_list:
+            for i, _ in enumerate(obj):
+                update_compare_info(obj[i], atoms2[i])
+        else:
+            if isinstance(atoms2, list):
+                atoms2 = atoms2[0]
+            update_compare_info(obj, atoms2)
+        
+        return comparator_returned_value
+    
+
 
     def for_heredity(self):
         atoms = self.copy()
@@ -173,9 +228,7 @@ class Surface(Individual):
             else:
                 substrate = self.bulk_layer
             
-            symdataset = spglib.get_symmetry_dataset(
-                (substrate.get_cell(), substrate.get_scaled_positions(), substrate.get_atomic_numbers()),
-                symprec= symprec)
+            symdataset = spglib.get_symmetry_dataset((substrate.cell, substrate.get_scaled_positions(), substrate.numbers), symprec= symprec)
             self.substrate_symmetry = list(zip(symdataset['rotations'], symdataset['translations']))
             self.substrate_symmetry = [s for s in self.substrate_symmetry if ( (s[0]==s[0]*np.reshape([1,1,0]*2+[0]*3, (3,3))+ np.reshape([0]*8+[1], (3,3))).all()  and not (s[0]==np.eye(3)).all())]
             cell = substrate.get_cell()[:]
@@ -207,10 +260,28 @@ class Surface(Individual):
         return ats
 
     def for_calculate(self):
+        """
+        std_para = spglib.standardize_cell((self.cell, self.get_scaled_positions(), self.numbers), symprec=0.1, to_primitive=False)
+        std_cell = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2], pbc = True)
+        std_cell.info['size'] = self.info['size']
+        std_cell = self.__class__(std_cell)
+        std_cell.set_cell(self.get_cell(),scale_atoms = True)
+        self = std_cell
+        """
         atoms = self.copy()
         if 'n_top' not in atoms.info:
             atoms = self.add_substrate()
+            #atoms.set_constraint(FixAtomsZ(indices=range(0, len(atoms))))
             atoms.info['n_top'] = len(self)   # record the n_top so extra layers can easily removed by atoms[-n_top:]
+        """
+        else:
+            #This is purposely for reseting substrate
+            self = self.for_heredity()
+            self = self.add_substrate()
+            atoms = self
+
+            atoms.info['n_top'] = len(self)
+        """
         return atoms
 
     def get_top_layer(self, atoms):
@@ -218,6 +289,8 @@ class Surface(Individual):
         ats = self.set_substrate(ats, self.bulk_layer, add=-1) 
         if self.buffer:
             ats = self.set_substrate(ats, self.buffer_layer, add=-1) 
+        ats.constraints = [c for c in ats.constraints if not isinstance(c, FixSymmetry)]
+
         ats = self.set_vacuum(ats, -1 *self.vacuum_thickness)
         return ats
 
@@ -243,10 +316,11 @@ class Surface(Individual):
             constraints = atoms_bottom.constraints
             for c in constraints:
                 c.index += atn
-                if c in atoms_top.constraints:
-                    c.index = np.append(c.index, atoms_top.constraints.index)
+            atoms_top.constraints += constraints
+            #    if c in atoms_top.constraints:
+            #        c.index = np.append(c.index, atoms_top.constraints.index)
 
-            atoms_top.set_constraint(constraints)
+            #atoms_top.set_constraint(constraints)
 
         else :
             # rmextralayer
@@ -257,6 +331,8 @@ class Surface(Individual):
             vertical_dis = atoms_top.get_scaled_positions(wrap=False)[ : , 2 ].copy()
             indices = sorted(range(len(atoms_top)), key=lambda x:vertical_dis[x])
             indices = indices[ len(atoms_bottom) :  ]
+            if atoms_top.constraints:
+                del atoms_top.constraints
             atoms_top = atoms_top[indices]
         
         return atoms_top
@@ -271,6 +347,12 @@ class Surface(Individual):
                 return atoms_top
             else:
                 extratoms = self.buffer_layer
+                sp = extratoms.get_scaled_positions()[:,2]
+                index = [i for i in range( 0, len(extratoms) )if sp[i] <0.5]
+                c = FixAtoms(indices=index, adjust_force = self.fixbulk)
+                #c = FixAtoms(indices=range( 0, len(extratoms) ), adjust_force = self.fixbulk)
+                extratoms.set_constraint(c)
+
         elif type=='bulk':
             extratoms = self.bulk_layer
             
@@ -310,7 +392,7 @@ class Surface(Individual):
     def check_sym(self, atoms =None, p = 0.7):
         """
         a = atoms or self
-        if spglib.get_spacegroup(a, self.symprec) == 'P1 (1)':
+        if spglib.get_spacegroup((a.cell, a.get_scaled_positions(), a.numbers), self.symprec) == 'P1 (1)':
             if np.random.rand() < p:
                 return False
         """
@@ -320,7 +402,7 @@ class Surface(Individual):
         atoms = atoms or self
         if 'n_top' in atoms.info:
             return True
-        
+
         symbols_numlist = np.array(self.numlist)
         for possible_symbols_numlist in self.symbol_numlist_pool["{},{}".format(*self.info['size'])]:
             if np.all(symbols_numlist == possible_symbols_numlist):
@@ -329,12 +411,19 @@ class Surface(Individual):
             return False
 
     def get_target_formula(self, n=1):
-        standard = self.symbol_numlist_pool["{},{}".format(*self.info['size'])]
+        standard = self.symbol_numlist_pool["{},{}".format(*self.info['size'])].T
         
-        rand_formula = standard[np.random.randint(len(standard))]
+        target_formula = {}
+        for i, s in enumerate(self.symbol_list):
+            #if self.symbols.formula.count(s) in standard[i]:
+            #    target_formula[s] = self.symbols.formula.count()[s]
+            #else:
+                #seek for a most close number
+                _nows = self.symbols.formula.count()[s] if s in self.symbols.formula.count() else 0
+                abdifference = np.abs(np.array(standard[i]) - _nows)
+                target_formula[s] = standard[i][np.argmin(abdifference)]
 
-        target_formula = [dict(zip(self.symbol_list, rand_formula))]
-        return target_formula
+        return [target_formula]
 
     @property
     def fingerprint(self):
@@ -347,6 +436,7 @@ class Surface(Individual):
 from ..generators.gensym import symbols_0d
 from ..populations.individuals import check_new_atom
 from ase import Atom
+
 # TODO weighten
 def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10): 
     symbols = atoms.get_chemical_symbols()
@@ -386,7 +476,9 @@ def to_target_formula(atoms, target_formula, distance_dict, max_n_try=10):
             # select a center atoms
             mean_p = np.average(rep_atoms.positions, axis=0)
             d = np.sqrt([np.sum([x**2 for x in p-mean_p]) for p in rep_atoms.positions])
-            index = np.argsort(d)[math.ceil(len(d)/5):]
+            index = np.argsort(d)[math.floor(len(d)/5):]
+            if len(index) < 1:
+                continue
             center_atom = rep_atoms[np.random.choice(index)]
             basic_r = distance_dict[(center_atom.symbol, add_symbol)]
             radius = basic_r * (1 + np.random.uniform(0, 0.3))
@@ -462,7 +554,6 @@ class Cluster(Individual):
         trans = [np.mean(newlattice, axis = 0) - np.mean(pos, axis = 0)]*len(new_atoms)
         new_atoms.translate(trans)
         new_atoms.set_cell (newlattice)
-
         return new_atoms
     
     @property
@@ -484,8 +575,14 @@ class Cluster(Individual):
         atoms = atoms or self
         n_components, _ = self._connecty_(atoms)
         return False if n_components > 1 else True
-    
+
     def repair_atoms(self):
+        try:
+            return self._repair_atoms()
+        except:
+            return False
+    
+    def _repair_atoms(self):
         n_components, component_list = self._connecty_(self)
         if n_components ==1:
             self.merge_atoms()         # merge atoms too close before repair it
@@ -536,6 +633,8 @@ class Cluster(Individual):
             return False
     
     def find_spg(self):
+        from pymatgen.core import Molecule
+        from pymatgen.symmetry.analyzer import PointGroupAnalyzer
         symprec = self.symprec
         molecule = Molecule(self.symbols,self.get_positions())
         
@@ -627,7 +726,6 @@ class AdClus(Cluster):
 
     def check_connection(self, atoms=None):
         atoms = atoms or self
-
         atoms = atoms.copy()
         if len(atoms) > len(self._substratefile_):
             atoms = self.get_top_layer(atoms)
@@ -720,7 +818,9 @@ class Interface(Surface):
                 self.buffer_layer = self.buffer_layers[i]
             self.bulk_layer = self.bulk_layers[i]
             ats = self.add_extra_layer('buffer',add=1, atoms=ats)
+
             ats = self.add_extra_layer('bulk',add=1, atoms=ats)
+
             sp = ats.get_scaled_positions()
             sp[:,2] = 1.0-sp[:,2]
             ats.set_scaled_positions(sp)

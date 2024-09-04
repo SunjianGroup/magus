@@ -1,24 +1,28 @@
 from ..generators.random import SPGGenerator
+from .mol_generator import OntheFlyFragSPGGenerator, FMLfilter, spg_to_layer, supergroup
 import numpy as np
 import math, os, ase.io
-from .utils import check_distance, cutcell, match_symmetry, resetLattice
+from .utils import check_distance, cutcell, match_symmetry, resetLattice, find_eq_positions_on_surface
 from ..utils import check_parameters
 import logging
 from .individuals import Surface
 from ase.geometry import cell_to_cellpar,cellpar_to_cell
 import spglib
 import itertools
-
+from ase.neighborlist import neighbor_list
 
 log = logging.getLogger(__name__)
 
-class ClusterSPGGenerator(SPGGenerator):
+class ClusterSPGGenerator(OntheFlyFragSPGGenerator):
     def __init__(self, **parameters):
         super().__init__(**parameters)
         Default = {'vacuum_thickness':10}
         check_parameters(self, parameters, [], Default)
         self.dimension = 0
         self.spacegroup = [spg for spg in self.spacegroup if spg <= 56]
+        self.spg_probabilities = np.ones(len(self.spacegroup)) / len(self.spacegroup)
+        self.adjust_spg_selection({})
+
 
     #For cluster genertor, generates atom positions lies in distance (from origin) range of (minLattice[0], maxLattice[0])
     def get_min_lattice(self, numlist):
@@ -84,18 +88,21 @@ def split_formula(modifier):
     expand = []
 
     for item in modifier:
-        if isinstance(item, int):
+        try:
+            item = int(item)
             expand.append(item)
-        elif isinstance(item, str):
-            if '~' not in item:
-                raise Exception ("wrong format of formula")
+        except ValueError:
+            assert isinstance(item, str) and '~' in item, "wrong format of formula {}".format(item)
             s1, s2 = item.split('~')
             s1, s2 = int(s1), int(s2)
             expand.extend(list(range(s1, s2+1)))
 
     return expand
 
-def formula_add(fA, fB):
+def formula_add(fA0, fB):
+    fA = {}
+    fA.update(fA0)
+    
     for _s_ in fB.keys():
         if _s_ in fA.keys():
             fA[_s_] = np.array(fA[_s_]) + np.array(fB[_s_])
@@ -103,7 +110,10 @@ def formula_add(fA, fB):
             fA[_s_] = np.array(fB[_s_])
     return fA
 
-def formula_minus(fA, fB):
+def formula_minus(fA0, fB):
+    fA = {}
+    fA.update(fA0)
+
     for _s_ in fB.keys():
         assert _s_ in fA.keys(), "error in formula_minus, symbol {} not in formula {}".format(_s_, fA)
         fA[_s_] = np.array(fA[_s_]) - np.array(fB[_s_])
@@ -114,8 +124,8 @@ def formula_minus(fA, fB):
             del fA[_s_]
 
     return fA
-
-class SurfaceGenerator(SPGGenerator):
+from ase.spacegroup import Spacegroup
+class SurfaceGenerator(OntheFlyFragSPGGenerator):
     """
     Main features of a reconstruct generator:
         #1. random walk of the surface atoms
@@ -150,8 +160,8 @@ class SurfaceGenerator(SPGGenerator):
                 xy = xy, rotate = rotate, pcell = pcell ,matrix = matrix)
         
         #2. get refslab to calculate refE
-        ase.io.write(refSlab, ase.io.read(bulk_file), format = 'traj')
-        
+        ase.io.write(refSlab, [ase.io.read(bulk_file)], format = 'traj')
+
         return
 
     def _init_lattice_(self):
@@ -196,7 +206,9 @@ class SurfaceGenerator(SPGGenerator):
             'buffer': True,
             'rcs_formula': None,
             'spg_type': 'plane',
-            'molMode':False,            #???
+            'symprec_in_generator': 0.1,
+            'thickness_tolerance': 2.5,
+            'presetLattice': None,
             }
 
         self.slabinfo = {
@@ -240,7 +252,7 @@ class SurfaceGenerator(SPGGenerator):
 
         self._init_lattice_()
 
-        self.symbol_list = [s for s in self.symbols]
+        self.symbol_list = list(set([s for s in self.symbols]))
         self.get_default_formula_pool()
 
 
@@ -250,7 +262,10 @@ class SurfaceGenerator(SPGGenerator):
         elif self.spg_type == 'layer':
             self.choice = 1
             self.spacegroup = [spg for spg in self.spacegroup if spg <= 80]
+        elif self.spg_type == 'molecule':
+            self.choice = 2
         self._choice_ = self.choice
+
     
     def afterprocessing(self, atoms, *args, size = [1,1], origin = 'random', **kwargs):
         atoms.info['symbols'] = list(set(atoms.get_chemical_symbols()))
@@ -264,20 +279,36 @@ class SurfaceGenerator(SPGGenerator):
         label, atoms = randwalk(r = self.randwalk_range, dratio = self.d_ratio, attempts = self.max_attempts).generate(ind)
 
         return label, atoms
-        
+    
+    @staticmethod
+    def get_adsorb_site(bottomind):
+        fs = find_eq_positions_on_surface(bottomind, array_size = (6,6))
+        return fs.get_position()
+    
+    @staticmethod
+    def mine_substrate_spg(bottomind):
+        #Projection spacegroup of substrate and mine into it.
+        spg = spglib.get_symmetry_dataset((bottomind.cell, bottomind.get_scaled_positions(), bottomind.numbers), 0.1)['number']
+        s = spg_to_layer()
+        spg_prime = s.project_onto_z(spg)
+        supergroups = supergroup[spg_prime]['supergroups'].keys()
+        supergroups_layerid = [s.spg_to_layer(spg) for spg in supergroups]
+        supergroups_layerid = sorted([l for l in supergroups_layerid if not l==1])
+        log.debug("\n===================================\n" +
+                  "Spacegroup of substrate   : {} ({})\n".format(str(spg).rjust(3), Spacegroup(spg).symbol.replace(' ', '')) +
+                  "Projection along [001]    : {} ({})\n".format(str(spg_prime).rjust(3), Spacegroup(spg_prime).symbol.replace(' ', '')) +
+                  "Supergroup (space group)  : " + ', '.join(['{} ({})'.format(s, Spacegroup(s).symbol.replace(' ', '')) for s in supergroups]) + '\n' +
+                  "Corresponding layer group : " + str(supergroups_layerid)[1:-1]  + '\n'+
+                  "===================================")
 
     @staticmethod
     def match_symmetry_plane(extraind, bottomind): 
         rots = []
         trs = []
         for ind in list([bottomind, extraind]):
-            sym = spglib.get_symmetry_dataset(
-                (ind.get_cell(), ind.get_scaled_positions(), ind.get_atomic_numbers()),
-                symprec=1.0)
+            sym = spglib.get_symmetry_dataset((ind.cell, ind.get_scaled_positions(), ind.numbers),symprec=0.1)
             if not sym:
-                sym = spglib.get_symmetry_dataset(
-                    (ind.get_cell(), ind.get_scaled_positions(), ind.get_atomic_numbers())
-                    )
+                sym = spglib.get_symmetry_dataset((ind.cell, ind.get_scaled_positions(), ind.numbers))
             if not sym:
                 return False, extraind
             rots.append(sym['rotations'])
@@ -314,6 +345,13 @@ class SurfaceGenerator(SPGGenerator):
                 return list(range(1, 13))
 
     def reset_rind_lattice(self, atoms, _x, _y, layersub = None):
+        sp = atoms.get_scaled_positions(wrap = False)[:,2]
+
+        _min_, _mean_, _max_ = np.min(sp), np.mean(sp), np.max(sp)
+        if _mean_ - _min_ > _max_ - _mean_:
+            sp = atoms.get_scaled_positions(wrap = False)
+            sp[:, 2] = -sp[:, 2] + _max_ + _min_
+            atoms.set_scaled_positions(sp)
 
         refcell = (self.ref_layer * (_x, _y, 1)).get_cell_lengths_and_angles()
         cell = atoms.get_cell_lengths_and_angles()
@@ -333,11 +371,12 @@ class SurfaceGenerator(SPGGenerator):
         atoms.set_cell(refcell_, scale_atoms = True)
 
         #axis z:
-        """
+        
         if layersub is None:
             layersub = self.input_layers[1] *(_x, _y, 1)  
         else:
             layersub.set_cell(np.dot(np.diag([1,1,np.max(layersub.get_scaled_positions()[:, 2])]), layersub.get_cell()))
+        """
         spa = atoms.get_scaled_positions(wrap = False)
         sps = layersub.get_scaled_positions(wrap = False)
         latticesub = layersub.get_cell_lengths_and_angles()
@@ -358,8 +397,50 @@ class SurfaceGenerator(SPGGenerator):
         #dz = np.min(scaledp_matrix)
         #dz = max(np.min(scaledp_matrix), -np.min(spa[:, 2]))
         """
-        dz = -1.5         #dz = 1.5 Ang from bottom to substrate top, more flexible later 
-        atoms.translate([ -dz/refcell[2]* atoms.get_cell()[2]]* len(atoms))
+
+        def get_dz(at_top, at_bom):
+            at_top = at_top.copy()
+            at_bom = at_bom.copy()
+            tot = at_bom.copy()
+            tot.pbc = [True, True, False]
+            tot.cell[2] = tot.cell[2] * (1 + at_top.cell.cellpar()[2] / at_bom.cell.cellpar()[2]) 
+            f = {}
+            distance_dict = Surface.distance_dict
+            for dz in range(-20,0):
+                trans = dz / 10
+                at_top.translate([dz/refcell[2]* atoms.get_cell()[2]]*len(at_top))
+                tot += at_top
+                i_indices = neighbor_list('i', tot, {('Si','Si'):1.5}, max_nbins=100.0)
+                coord = np.bincount(i_indices)
+                f[trans] = np.sum(coord>0)
+            print(f)
+            best = np.sort(np.unique(np.array([f[t] for t in f])))
+            print(best)
+            if len(best) >1:
+                if best[1] <5:
+                    best = best[1]
+                    index = 1
+                else:
+                    best = best[0]
+                    index = -1
+            else:
+                best = best[0]
+                index = -1
+            print(best,index)
+            _a = np.where(np.array([f[t] for t in f.keys()])==best)[0]
+            print(_a)
+            t = list(f.items())[_a[index]][0]
+            print(list(f.items())[_a[index]])
+            print(t)
+            
+            return t
+                
+
+        #dz = get_dz(atoms, layersub)         #dz = 1.5 Ang from bottom to substrate top, more flexible later 
+        dz = np.random.choice([1.3,1.4,1.5,1.6,1.7,1.8,1.9])
+        atoms.info['dz'] = dz
+        atoms.translate([ dz/refcell[2]* atoms.get_cell()[2]]* len(atoms))
+        #atoms.translate([-0.09524*atoms.cell[0] - 0.95238*atoms.cell[1]]*len(atoms))
         
         return True, atoms
 
@@ -385,16 +466,14 @@ class SurfaceGenerator(SPGGenerator):
         return symtype
     
     def get_min_lattice(self, numlist):
-        return self.min_lattice
+        return self.min_lattice if self.presetLattice is None else self.presetLattice
     def get_max_lattice(self, numlist):
-        return self.max_lattice
+        return self.max_lattice if self.presetLattice is None else self.presetLattice
     def get_volume(self, numlist):
+        if self.presetLattice:
+            return [np.linalg.det(cellpar_to_cell(self.presetLattice))]*2
         return self.min_volume, self.min_volume
     
-    def generate_ind(self, spg, formula):
-        self.symbols = np.array([s for s in formula.keys() if formula[s] > 0])
-        numlist = np.array([formula[s] for s in self.symbols])
-        return super().generate_ind(spg, numlist, np.random.choice(self.n_split))
 
     def generate_random_walk_ind(self, _x, _y):
         ind = self.ref_layer * (_x , _y, 1)
@@ -404,9 +483,7 @@ class SurfaceGenerator(SPGGenerator):
         if rm:
             for symbol in rm:
                 while rm[symbol] > 0:
-                    eq_at = dict(zip(range(len(ind)), spglib.get_symmetry_dataset(
-                        (ind.get_cell(), ind.get_scaled_positions(), ind.get_atomic_numbers()),
-                        1e-2)['equivalent_atoms']))
+                    eq_at = dict(zip(range(len(ind)), spglib.get_symmetry_dataset((ind.cell, ind.get_scaled_positions(), ind.numbers),1e-2)['equivalent_atoms']))
                     indices = [atom.index for atom in ind if atom.symbol == symbol]
                     lucky_atom_to_rm = eq_at[np.random.choice(indices)]
                     eq_ats_with_him = np.array([i for i in eq_at if eq_at[i] == lucky_atom_to_rm])
@@ -461,7 +538,7 @@ class SurfaceGenerator(SPGGenerator):
         while n_pop > len(build_pop):
             for _ in range(self.max_n_try):
             
-                spg = np.random.choice(self.spacegroup)
+                spg = np.random.choice(self.spacegroup, p=self.spg_probabilities)
                 _x = np.random.choice(self.rcs_x)
                 _y = np.random.choice(self.rcs_y)
 
@@ -472,14 +549,16 @@ class SurfaceGenerator(SPGGenerator):
                 self.reset_generator_lattice(_x,_y, spg)
 
                 #log.debug("random layer of formula {} with chosen spg = {}".format(rand_formula,spg))
+                self.target_formula = FMLfilter(dict(zip(self.symbol_list, rand_formula)))
                 label,ind = self.generate_ind(spg, dict(zip(self.symbol_list, rand_formula)))
                 #print(ind.get_all_distances(mic=True))
                 if label:
                     label, ind = self.reset_rind_lattice(ind, _x, _y)
-
                 if label:
-                    label, ind = self.match_symmetry_plane(ind, Surface.set_vacuum(Surface.set_substrate(ind, self.input_layers[0]* (_x, _y, 1)), 10))
-
+                    #label, ind = self.match_symmetry_plane(ind, Surface.set_vacuum(Surface.set_substrate(self.input_layers[1]* (_x, _y, 1), self.input_layers[0]* (_x, _y, 1)), 10))
+                    p = self.get_adsorb_site(self.input_layers[0]) 
+                    log.debug("translation match {}".format(np.round(p, 3)))
+                    ind.set_scaled_positions(ind.get_scaled_positions() +[p[0]/_x, p[1] / _y,0])
                 if label:
                     self.afterprocessing(ind, origin='rand.symmgen', size=[_x, _y])
                     build_pop.append(ind)
@@ -500,6 +579,7 @@ class SurfaceGenerator(SPGGenerator):
             rm[s].extend([-1* n for n in n_list if n < 0])
 
         for s in self.modification['clean']:
+            n_list = split_formula(self.modification['clean'][s])
             keep[s].extend([n for n in n_list if n == 0])
 
         for s in self.modification['defect']:
@@ -539,6 +619,8 @@ class SurfaceGenerator(SPGGenerator):
             self.cal_formula_typeIII()
 
         return self.formula_pool_
+    
+    
 
     @property
     def ref_formula(self):
@@ -569,7 +651,7 @@ class SurfaceGenerator(SPGGenerator):
             for y in self.rcs_y:
                 self.formula_pool_["{},{}".format(x,y)] = formula_pool
                 differ = formula_add({s:-1*np.array(f) for s,f in zip(self.symbol_list, self.rcs_formula)}, {s: self.ref_formula[s]*x*y for s in self.ref_formula.keys()})
-                self.update(self.modification['adsorb'], differ)
+                self.update_formula_dict(self.modification['adsorb'], differ)
                 
         self.refine_modification_list() 
         return self.formula_pool_
@@ -581,9 +663,14 @@ class SurfaceGenerator(SPGGenerator):
         for x in self.rcs_x:
             for y in self.rcs_y:
                 fxy = {s: self.ref_formula[s]*x*y for s in self.ref_formula.keys()}
-                f = formula_add(fxy, keep)
-                self.update(f, formula_add(fxy, add))
-                self.update(f, formula_minus(fxy, rm))
+
+                f = {}
+                if keep:
+                    self.update_formula_dict(f, formula_add(fxy, keep))
+                if add:
+                    self.update_formula_dict(f, formula_add(fxy, add))
+                if rm:
+                    self.update_formula_dict(f, formula_minus(fxy, rm))
                 
                 self.rcs_formula = []
                 for s in self.symbol_list:
@@ -593,10 +680,17 @@ class SurfaceGenerator(SPGGenerator):
                 self.formula_pool_["{},{}".format(x,y)] = self.combination_in_rcs_formula(self.rcs_formula)
 
     @staticmethod
-    def update(dictA, dictB):
+    def update_formula_dict(dictA, dictB):
         for key in dictB:
             dictA[key] = dictB[key] if not key in dictA else list(set(list(dictA[key]) + list(dictB[key])))
 
+
+    def get_generate_parm(self, spg, numlist):
+        d = super().get_generate_parm(spg, numlist)
+        d.update({
+            'thickness_tolerance': self.thickness_tolerance,
+            })
+        return d
 
 from .utils import InterfaceMatcher, matrix_match
 from ase import Atoms
@@ -686,12 +780,16 @@ class InterfaceGenerator(SPGGenerator):
             'cutslices': 3,
             'thread_para': 50,
             'addH': True,
+            'pcell': True,
             'range_substrate_thickness': [12, 10.], 
             'traj_file': refDir + '/match_file.traj',
             'matrix_file': refDir + '/match_file.npy',
+            'hkl_list': None,
             }
         
         self.slabinfo.update(parameters['slabinfo'])
+        log.info(f"Name A: {self.slabinfo['bulk_a']}")
+        log.info(f"Name B: {self.slabinfo['bulk_b']}")
         self.slabinfo.update({
             'bulk_a': ase.io.read(self.slabinfo['bulk_a']),
             'bulk_b': ase.io.read(self.slabinfo['bulk_b']),

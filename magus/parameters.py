@@ -12,6 +12,9 @@ except:
                   "\nThis warning above can be ignored if the mentioned systems are not targets, elsewise should be fixed.\n" )
     rcs_type_list = []
 
+# This causes conflicts during merging. It needs to be further tested.
+# from magus.reconstruct import rcs_type_list
+
 log = logging.getLogger(__name__)
 
 #@Singleton
@@ -88,6 +91,7 @@ class magusParameters:
         
         #This is interface to surface reconstruction, feel free to delete if not needed ;P
         if p_dict['structureType'] in rcs_type_list:
+            from magus.reconstruct.rcs_interface import rcs_interface
             rcs_interface(self)
 
     @property

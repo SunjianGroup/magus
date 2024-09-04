@@ -63,6 +63,7 @@ class Molfilter:
         self.pbc = atoms.pbc
         self.cell = atoms.cell
         self.mols = []
+        self.mols_id = []
         if detector == 1:
             tags, offsets = atoms_to_mol_1(atoms, coef)
         elif detector == 2:
@@ -78,6 +79,7 @@ class Molfilter:
             pos = [positions[i] for i in indices]
             sym = [symbols[i] for i in indices]
             self.mols.append(Atomset(pos, sym))
+            self.mols_id.append(indices)
 
     def __len__(self):
         return len(self.mols)

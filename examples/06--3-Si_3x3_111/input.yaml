@@ -1,0 +1,93 @@
+calcType: rcs
+structureType: surface
+pressure: 0
+initSize: 60
+popSize: 60
+numGen: 40
+saveGood: 4
+#structure parameters
+rand_ratio: 0.6
+randwalk_ratio: 0      # don't use rand walk for struct generation
+remove_p1: 0.99        # keep top 1% P1 structures
+formula: [1]
+min_n_atoms: 16
+max_n_atoms: 16
+symbols: ['Si']
+
+symprec: 0.3
+thickness_tolerance: 1.0
+generator_max_length_ratio: 100000000
+spacegroup: [2-80]
+
+random_swap_axis: False
+spg_type: 'layer'
+vacuum_thickness: 10
+symprec_in_generator: 0.05
+
+diffE: 0.001
+modification:
+ adsorb: {'Si': [-2]}
+dRatio: 1.0
+threshold_mol: 0.05
+volRatio: 6
+addSym: False
+slabinfo:
+ bulk_file: 'Si_5.420.vasp'
+ direction: [1,1,1]
+ cutslices: 3
+ bulk_layernum: 2 
+ buffer_layernum: 1
+ rcs_layernum: 1
+ range: 0.3
+ extra_c: 4.0
+ addH: False
+
+rcs_x: [3]
+rcs_y: [3]
+presetLattice: [11.499, 11.499, 2.8, 90.0, 90.0, 120.0]
+vacuum: 10
+#parallel settings
+kill_time: 108000
+num_para_calc: 24
+num_para_generator: 24
+spg_miner:
+ mine_ratio: 0.1            # mine in spg of top 10% population
+ mine_probabilities: 0.3    # change prob of 100% of next generation 
+
+preset_spg_prob:           # preset probability of layergroup selection: 
+ 77: 0.2                   # 20% for 77(p6mm)
+ 80: 0.2                   # 20% for 80(p6/mmm)
+
+#parameter example for fragment reorganizer. 
+frag_gen: {}               # empty dict for not on-the-fly.
+# distance_dict:
+#  !!python/tuple ['Si','Si']: 2.7
+# neighbor_dis: 5
+# path_length_cut: 4
+# n_community: [5,5]          #number range of atoms per frag
+
+
+OffspringCreator:
+ rattle:
+  keep_sym: ['keep_comb', 'keep_spg']
+  p: 0.125
+  rattle_range: 0.8
+  prob: 0.50
+ sym:
+  prob: 0.50
+  
+refE:  {'compound': {'Si':2}, 'compoundE':0, 'adEs': {'Si':0}, 'substrateE': 0, 'substrate': {'Si':0}}
+
+#main calculator settings
+MainCalculator:
+ calculator: ['nep-noselect']
+ jobPrefix: ['nep']
+ pot_file: 'Si_2023_Wang_Si_GAP2018_better_force.txt'  #Yanzhou Wang et al., Phys. Rev. B. 107, 054303 (2023).
+ mode: serial
+ eps: 0.01
+ maxStep: 500
+ maxMove: 0.1
+ relaxLattice: False
+ mainoptimizer: bfgs
+ fix_symmetry: True
+

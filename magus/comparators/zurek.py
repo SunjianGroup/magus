@@ -55,6 +55,7 @@ class ZurekComparator:
             return atoms
         atoms.info['compare_info'] = {}
         atoms_ = atoms.copy()
+        atoms_.pbc = True
         if self.to_primitive:
             atoms_ = self._reduce_to_primitive(atoms_)
         self._least_frequent_element_to_origin(atoms_)
@@ -109,6 +110,7 @@ class ZurekComparator:
         if 'standardize_form' not in atoms.info['compare_info']:
             atoms_ = atoms.copy()
             atoms_.info = {}
+            atoms_.pbc = True
             niggli_reduce(atoms_)
             cell, rot_mat = atoms_.cell.standard_form()
             atoms_.set_cell(cell)

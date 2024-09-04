@@ -28,11 +28,13 @@ class CastepCalculator(ClusterCalculator):
             'kpts': "{'density': 10, 'gamma': True, 'even': False}",
             'castep_command': 'castep',
             'castep_pp_path': None,
+            'cut_off_energy': 250,
         }
         check_parameters(self, parameters, Requirement, Default)
 
         self.castep_setup = {
             'pressure': self.pressure,
+            'cut_off_energy': self.cut_off_energy
         }
         self.castep_setup.update(parameters)
 
@@ -76,6 +78,7 @@ def calc_castep(castep_setup, frames):
             pspot=castep_setup['pspot'], suffix=castep_setup['suffix'])
         calc.set_kpts(castep_setup['kpts'])
         calc.param.xc_functional = castep_setup['xc_functional']
+        calc.param.cut_off_energy = castep_setup['cut_off_energy']
         calc.merge_param(param_file)
         # write pressure (hydrostatic pressure, pxx = pyy = pzz)
         p = str(castep_setup['pressure'])
@@ -108,7 +111,13 @@ def calc_castep(castep_setup, frames):
         atoms.info['forces'] = forces
         atoms.info['stress'] = stress
         # save relax trajectory
-        traj = read(f'{calc._label}.geom', index=':', format='castep-geom')
+        # ase3.22.1 now create a dictionary, by default 'CASTEP' in calcFold. 
+        # can be changed in Castep.__init__. 'directory' - by Hanyu
+        try:
+            traj = read(f'{calc._label}.geom', index=':', format='castep-geom')
+        except:
+            traj = read(f'CASTEP/{calc._label}.geom', index=':', format='castep-geom')
+            
         # save relax steps
         log.debug('castep relax steps: {}'.format(len(traj)))
         if 'relax_step' not in atoms.info:

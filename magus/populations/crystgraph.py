@@ -116,7 +116,7 @@ def atoms_to_quotient_graph(atoms, coef=1.1):
     initialize crystal quotient graph of the atoms.
     atoms: (ASE.Atoms) the input crystal structure 
     coef: (float) the criterion for connecting two atoms. 
-          If d_{AB} < coef*（r_A + r_B), atoms A and B are regarded as connected. 
+          If d_{AB} < coef*(r_A + r_B), atoms A and B are regarded as connected. 
           r_A and r_B are covalent radius of A,B.
     """
     cutoffs = [covalent_radii[number] * coef for number in atoms.get_atomic_numbers()]

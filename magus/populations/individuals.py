@@ -204,9 +204,10 @@ class Individual(Atoms):
     def check(self, atoms=None):
         atoms = atoms or self
         origin = atoms.info['origin'] if 'origin' in atoms.info else 'Unknown'
+        id = atoms.info['identity'] if 'identity' in atoms.info else 'Unknown'
         for f in self.check_list:
             if not getattr(self, f)(atoms):
-                log.debug("Fail in {}, origin = {}".format(f, origin))
+                log.debug("Fail in {}, origin '{}', id '{}'".format(f, origin, id))
                 return False
         return True
 
@@ -251,6 +252,15 @@ class Individual(Atoms):
                 return True
         else:
             return False
+        
+    def check_spg(self, atoms = None):
+        atoms = atoms or self
+        
+        self.find_spg()
+        if self.info['spg'] == 1:
+            return False
+        
+        return True
 
     def check_full(self, atoms=None):
         atoms = atoms or self
@@ -314,8 +324,15 @@ class Bulk(Individual):
                 args[0] = args[0].to_atoms()
         super().__init__(*args, **kwargs)
 
+    def check_cell(self, atoms = None):
+        nr_ = self.copy() if atoms is None else atoms.copy()
+        niggli_reduce(nr_)
+        return super().check_cell(atoms = nr_)
+
     def merge_atoms(self):
-        niggli_reduce(self)
+        # niggli_reduce(self)
+        # Note: move niggli_reduce to 'for_calculate' and 'check_cell'
+        # based on considerations of don't change cell when doing mutations -YU 24.08.07
         return super().merge_atoms()
 
     def for_heredity(self):
@@ -323,19 +340,32 @@ class Bulk(Individual):
         if self.mol_detector > 0:
             atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
         return atoms
+    def for_calculate(self):
+        niggli_reduce(self)
+        return self
 
 
 
 class Layer(Individual):
     @staticmethod
-    def translate_to_bottom(atoms):
+    def translate_to_bottom(atoms, mol_info = None):
         new_atoms = atoms.copy()
-        p = atoms.get_scaled_positions()
+        if mol_info is None:
+            p = atoms.get_scaled_positions()
+        else:
+            detector, coef = mol_info
+            mf = Molfilter(atoms, detector=detector, coef=coef)
+            p = np.array([mf.cell.scaled_positions(mol.position) for mol in mf])
+
         z = sorted(p[:, 2])
         z.append(z[0] + 1)
         p[:, 2] -= z[np.argmax(np.diff(z))] + np.max(np.diff(z)) - 1
         p[:, 2] -= np.min(p[:, 2]) - 1e-8   # Prevent numerical error
-        new_atoms.set_scaled_positions(p)
+        if mol_info is None:
+            new_atoms.set_scaled_positions(p)
+        else:
+            mf.set_positions(np.dot(p, mf.cell))
+            new_atoms = mf.to_atoms()
         return new_atoms
 
     @staticmethod
@@ -348,14 +378,15 @@ class Layer(Individual):
         return new_atoms
 
     @staticmethod
-    def add_vacuum(atoms, thickness=10):
-        new_atoms = Layer.translate_to_bottom(atoms.copy())
+    def add_vacuum(atoms, thickness=10, mol_info = None):
+        new_atoms = Layer.translate_to_bottom(atoms.copy(), mol_info)
+
         new_cell = new_atoms.get_cell()
         # some old ase version doesn't have cell.area()
         h = new_atoms.get_volume() / np.linalg.norm(np.cross(new_cell[0], new_cell[1]))
         new_cell[2] *= thickness / h
         new_atoms.set_cell(new_cell)
-        p = new_atoms.get_scaled_positions()
+        p = new_atoms.get_scaled_positions(wrap = False)
         p[:, 2] += 0.5 - (max(p[:, 2]) - min(p[:, 2])) / 2
         new_atoms.set_scaled_positions(p)
         return new_atoms
@@ -382,6 +413,13 @@ class Layer(Individual):
     @property
     def volume_ratio(self):
         return self.remove_vacuum(self).get_volume() / self.ball_volume
+    
+def Mol_contains_s(s, inputMols, max_len = 10000):
+    id = np.where([s in mol.symbols and len(mol) < max_len for mol in inputMols])[0]
+    if len(id) == 0:
+        return None
+    target_mole =  inputMols[np.random.choice(id)]
+    return Atomset(target_mole.positions, target_mole.symbols)
 
 class Chain(Individual):
     @staticmethod
@@ -472,23 +510,163 @@ class Confined2D(Individual):
         super().set_parameters(**parameters)
         Default = {
             'vacuum_thickness': 10, 
-            'bond_ratio': 1.1,
-            'radius': [covalent_radii[atomic_numbers[atom]] for atom in cls.symbol_list]}
-        check_parameters(cls, parameters, [], Default)
-        cls.volume = np.array([4 * np.pi * r ** 3 / 3 for r in cls.radius])
+            'inputMols': [],
+        }
+        check_parameters(cls, parameters, [], Default)    
+        cls.inputMols = [ase.io.read(mol) for mol in cls.inputMols]
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        #self.pbc = [True, True, False]
+
+    #Molecule Xtals: Skip atom pairs within molecule. from YU
+    #TODO: How to determine the molecule? Method below absolutely cannot work.
+
+    def check_distance(self, atoms=None):
+        atoms = atoms or self
+        i_indices = neighbor_list('i', atoms, self.bond_ratio * 0.98 /2, max_nbins=100.0)
+        return len(i_indices) == 0
+        
+        i_indices = neighbor_list('i', atoms, self.distance_dict, max_nbins=100.0)
+        len_mol_indices = 0
+         
+        if self.mol_detector > 0:
+            mf = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
+            for mol in mf.mols:
+                m = Atoms(symbols = mol.symbols, positions=mol.positions, pbc=False)
+                len_mol_indices += len(neighbor_list('i', m, self.distance_dict, max_nbins=100.0))
+             
+        return (len(i_indices) - len_mol_indices) == 0
+    
+    
+    #TODO: How to merge molecules?
+    #Delete one molecule for now. from YU
+    
+    def merge_atoms(self):
+        # exclude atoms in the order of their number of neighbours 
+        i = neighbor_list('i', self, self.distance_dict, max_nbins=100.0)
+        while len(i) > 0:
+            i_ = np.argmax(np.bincount(i))   # remove the atom with the most neighbours 
+            if self.mol_detector > 0 :    
+                mf = Molfilter(self, detector=self.mol_detector, coef=self.bond_ratio)
+
+                m_ = np.where([i_ in molid for molid in mf.mols_id])[0][0]
+                symbol = self[i_]
+
+                merged_mol = Mol_contains_s(symbol.symbol, self.inputMols, max_len = len(mf.mols[m_]))
+                if merged_mol is None:
+                    del self[i_]
+                else:
+                    merged_mol.position = mf.mols[m_].position
+                    mf.mols[m_] = merged_mol
+                    newat = mf.to_atoms()
+                    self = ConfinedBulk(newat)
+                    i = neighbor_list('i', self, self.distance_dict, max_nbins=100.0)
+            else:
+                del self[i_]
+
+            i = neighbor_list('i', self, self.distance_dict, max_nbins=100.0)
+
+        return self
+
+
+    def __repair_once(self, toadd, toremove):
+        rep_atoms = self.copy()
+        mf = Molfilter(rep_atoms, detector=self.mol_detector, coef=self.bond_ratio)
+        #remove before add
+        while toremove: 
+            del_symbol = np.random.choice(list(toremove.keys()))
+            del_index = np.random.choice([atom.index for atom in rep_atoms if atom.symbol == del_symbol])
+            m_ = np.where([del_index in molid for molid in mf.mols_id])[0][0]
+            mol_symbols = mf[m_].symbols
+            del mf.mols[m_]
+            rep_atoms = mf.to_atoms()
+            mf = Molfilter(rep_atoms, detector=self.mol_detector, coef=self.bond_ratio)
+            try:
+                for _s in mol_symbols:
+                    toremove[_s] -=1
+                    if toremove[_s] == 0:
+                        toremove.pop(_s)
+            except KeyError as _:
+                return False, None
+        if len(rep_atoms) == 0 :
+            return False, None            
+        while toadd:
+            add_symbol = list(toadd.keys())[np.argmin([toadd[s] for s in toadd.keys()])]
+            for _ in range(10):
+                # select a center atoms
+                center_atom = rep_atoms[np.random.randint(0, len(rep_atoms))]
+                basic_r = self.distance_dict[(center_atom.symbol, add_symbol)]
+                radius = basic_r * (1 + np.random.uniform(0, 0.3))
+                theta = np.random.uniform(0, np.pi)
+                phi = np.random.uniform(0, 2*np.pi)
+                new_pos = center_atom.position + radius * np.array([np.sin(theta) * np.cos(phi), 
+                                                                    np.sin(theta) * np.sin(phi),
+                                                                    np.cos(theta)])
+                
+                target_mole = Mol_contains_s(add_symbol, self.inputMols)
+                mol_symbols = target_mole.symbols
+                target_mole.rotate(*np.random.uniform(-1, 1, 3) * np.pi * 2)
+                target_mole.position += new_pos - target_mole.relative_positions[target_mole.symbols.index(add_symbol)]
+                new_ind = rep_atoms + target_mole.to_atoms()
+                if new_ind.check_distance():
+                    rep_atoms = new_ind
+                    try:
+                        for _s in mol_symbols:
+                            toadd[_s] -= 1
+                            if toadd[_s] == 0:
+                                toadd.pop(_s)
+                    except KeyError as _:
+                        return False, None
+                    break
+            else:
+                return False, None
+        return True, ConfinedBulk(rep_atoms)
+
+    def repair_atoms(self, n=3):
+        self.set_pbc(True)
+        self = self.merge_atoms()
+        if not self.mol_detector > 0 :
+            return super().repair_atoms()
+
+        if len(self) == 0:
+            log.debug("Empty crystal after merging!")
+            return False
+        if self.check_formula():
+            return True
+        else:
+            target_formula = np.random.choice(self.get_target_formula())
+            symbols = self.get_chemical_symbols()
+            toadd, toremove = {}, {}
+            for s in target_formula:
+                if symbols.count(s) < target_formula[s]:
+                    toadd[s] = target_formula[s] - symbols.count(s)
+                elif symbols.count(s) > target_formula[s]:
+                    toremove[s] = symbols.count(s) - target_formula[s]
+
+            for _ in range(n):
+                l, atoms = self.__repair_once(toadd, toremove)
+                if l:
+                    self = atoms
+                    return True
+        return False        
+                
 
     def for_heredity(self):
-        atoms = Layer.remove_vacuum(self)
+        atoms = Layer.remove_vacuum(self, mol_info=[self.mol_detector, self.bond_ratio])
         if self.mol_detector > 0:
             atoms = Molfilter(atoms, detector=self.mol_detector, coef=self.bond_ratio)
+        #atoms.pbc = [True, True, False]
         return atoms
 
     def for_calculate(self):
-        atoms = Layer.add_vacuum(self, self.vacuum_thickness)
+        self.wrap()
+        atoms = Layer.add_vacuum(self, self.vacuum_thickness, mol_info=[self.mol_detector, self.bond_ratio])
         return atoms
 
     @property
     def volume_ratio(self):
+        #return Layer.remove_vacuum(self, mol_info=[self.mol_detector, self.bond_ratio]).get_volume() / self.ball_volume
         return Layer.remove_vacuum(self).get_volume() / self.ball_volume
 
 class Confined1D(Individual):
