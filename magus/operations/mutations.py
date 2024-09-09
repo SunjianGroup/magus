@@ -115,7 +115,7 @@ class LatticeMutation(Mutation):
     cell_cut: coefficient of gauss distribution in cell mutation
     keep_volume: whether to keep the volume unchange
     """
-    Default = {'tryNum': 50, 'sigma': 0.1, 'cell_cut': 1, 'keep_volume': True}
+    Default = {'tryNum': 50, 'sigma': 0.1, 'cell_cut': 1, 'keep_volume': True, 'keep_sym': False, 'symmprec': 0.1}
 
     def mutate_bulk(self, ind):
         atoms = ind.for_heredity()
@@ -127,6 +127,13 @@ class LatticeMutation(Mutation):
             ])
         if self.keep_volume:
             strain /= np.linalg.det(strain)
+        if self.keep_sym:
+            from ase.spacegroup.symmetrize import symmetrize_rank2, prep_symmetry
+            rot, _, _ = prep_symmetry(atoms, self.symmprec, False)
+            strain = symmetrize_rank2(atoms.get_cell(),
+                                              atoms.cell.reciprocal().T,
+                                              strain, rot)
+
         new_cell = atoms.get_cell() @ strain
         atoms.set_cell(new_cell, scale_atoms=True)
         # positions = atoms.get_positions() + np.random.normal(0, 1, [len(atoms), 3])
