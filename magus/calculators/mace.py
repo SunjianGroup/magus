@@ -179,6 +179,7 @@ class MACECalculator(ASEClusterCalculator):
             'selection': 'fps',
             'train_mode': 'all', # all: use all the data; new: only new data; mix: mix previous and current data
             'mix_ratio': 1, # No. previous data / No. current data
+            'max_mace_force': 1000, # Max force for MACE. If forces are larger than this value, the relaxation will be stopped
         }
         check_parameters(self, parameters, Requirement, Default)
 
@@ -191,6 +192,7 @@ class MACECalculator(ASEClusterCalculator):
             'max_move': self.max_move,
             'eps': self.eps,
             'filter_force': True,
+            'max_mace_force': self.max_mace_force,
         }
         self.main_info.append('mace_setup')
 
@@ -452,6 +454,7 @@ def calc_mace(mace_setup, frames):
     pressure = mace_setup['pressure']
     max_move = mace_setup['max_move']
     max_step = mace_setup['max_step']
+    max_mace_force = mace_setup['max_mace_force']
     eps = mace_setup['eps']
     filter_force = mace_setup['filter_force']
     device='cuda' if torch.cuda.is_available() else 'cpu'
@@ -464,7 +467,7 @@ def calc_mace(mace_setup, frames):
         def converged(self, forces=None):
             if forces is None:
                 forces = self.optimizable.get_forces()
-            if np.abs(forces).max() > 10000:
+            if np.abs(forces).max() > max_mace_force:
                 raise Exception('Too large forces during relaxation')
             return self.optimizable.converged(forces, self.fmax)
 
