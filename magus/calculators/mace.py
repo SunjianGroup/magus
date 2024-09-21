@@ -10,13 +10,13 @@ from magus.calculators.base import ASECalculator, ClusterCalculator, ASEClusterC
 from magus.utils import CALCULATOR_PLUGIN, check_parameters, apply_peturb
 from magus.populations.populations import Population
 
-from ase.constraints import ExpCellFilter
+from ase.filters import ExpCellFilter
 from ase.units import GPa, eV, Ang
 from ase.optimize import BFGS, LBFGS, FIRE
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase import Atoms
 from ase.utils.abc import Optimizable
-
+from ase.neighborlist import neighbor_list, natural_cutoffs
 log = logging.getLogger(__name__)
 
 from scipy.spatial.distance import cdist
@@ -180,6 +180,7 @@ class MACECalculator(ASEClusterCalculator):
             'train_mode': 'all', # all: use all the data; new: only new data; mix: mix previous and current data
             'mix_ratio': 1, # No. previous data / No. current data
             'max_mace_force': 1000, # Max force for MACE. If forces are larger than this value, the relaxation will be stopped
+            'min_mace_dratio': 0.5, # Min distance ratio for MACE. If distance ratio is less than this value, the relaxation will stop
         }
         check_parameters(self, parameters, Requirement, Default)
 
@@ -193,6 +194,7 @@ class MACECalculator(ASEClusterCalculator):
             'eps': self.eps,
             'filter_force': True,
             'max_mace_force': self.max_mace_force,
+            'min_mace_dratio': self.min_mace_dratio,
         }
         self.main_info.append('mace_setup')
 
@@ -455,6 +457,7 @@ def calc_mace(mace_setup, frames):
     max_move = mace_setup['max_move']
     max_step = mace_setup['max_step']
     max_mace_force = mace_setup['max_mace_force']
+    min_mace_dratio = mace_setup['min_mace_dratio']
     eps = mace_setup['eps']
     filter_force = mace_setup['filter_force']
     device='cuda' if torch.cuda.is_available() else 'cpu'
@@ -465,6 +468,12 @@ def calc_mace(mace_setup, frames):
     # define optimizer which ends when forces are too large
     class optimizer(optimizer_dict[mace_setup['optimizer']]):
         def converged(self, forces=None):
+            # Note: here self.atoms is a Filter not Atoms, so self.atoms.atoms is used.
+            cutoffs = natural_cutoffs(self.atoms.atoms, mult=min_mace_dratio)
+            nlInds = neighbor_list('i', self.atoms.atoms, cutoffs)
+            if len(nlInds) > 0:
+                #write('dist.vasp', self.optimizable.atom)
+                raise Exception('Too small distance during relaxation')
             if forces is None:
                 forces = self.optimizable.get_forces()
             if np.abs(forces).max() > max_mace_force:
