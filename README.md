@@ -175,7 +175,7 @@ Add
 ```shell
 $ export JOB_SYSTEM=LSF/SLURM/PBS
 ```
-in your `~/.bashrc` according to your job management system (choose one of them).  
+in your `~/.bashrc` according to your job management system (choose one of them). Refer to [manual](https://gitlab.com/bigd4/magus/-/blob/master/doc/MAGUS_manual.pdf) for more details.
 
 ## Auto completion
 Put [`auto_complete.sh`](https://gitlab.com/bigd4/magus/-/blob/master/magus/auto_complete.sh) in your `PATH` like:
