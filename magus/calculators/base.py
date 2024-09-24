@@ -225,9 +225,27 @@ class ASECalculator(Calculator):
             'max_move': 0.1,
             'relax_lattice': True,
             'fix_symmetry': False,
+            'max_force': None,
             }
         check_parameters(self, parameters, Requirement, Default)
-        self.optimizer = self.optimizer_dict[self.optimizer]
+
+        class MagusOptimizer(self.optimizer_dict[self.optimizer]):
+            def converged(self, forces=None):
+                # # Note: here self.atoms is a Filter not Atoms, so self.atoms.atoms is used.
+                # cutoffs = natural_cutoffs(self.atoms.atoms, mult=min_mace_dratio)
+                # nlInds = neighbor_list('i', self.atoms.atoms, cutoffs)
+                # if len(nlInds) > 0:
+                #     #write('dist.vasp', self.optimizable.atom)
+                #     raise Exception('Too small distance during relaxation')
+                if forces is None:
+                    forces = self.optimizable.get_forces()
+                if self.max_force != None:
+                    if np.abs(forces).max() > self.max_force:
+                        raise Exception('Too large forces during relaxation')
+                return self.optimizable.converged(forces, self.fmax)
+        self.optimizer = MagusOptimizer
+
+        # self.optimizer = self.optimizer_dict[self.optimizer]
         self.main_info.extend(list(Default.keys()))
 
     def relax_(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
@@ -256,6 +274,10 @@ class ASECalculator(Calculator):
 
             gopt = self.optimizer(ucf, **kwargs)
             # SciPyFminCG raises error if maxstep parameter is used
+
+            # set max force for optimizer
+            # Naive implmentation. It should be imporved later.
+            setattr(gopt, 'max_force', self.max_force)
 
             try:
                 label = gopt.run(fmax=self.eps, steps=self.max_step)
