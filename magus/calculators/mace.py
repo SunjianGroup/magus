@@ -177,6 +177,7 @@ class MACECalculator(ASEClusterCalculator):
             'std_atom_move': 0.05,
             'std_lat_move': 0.05,
             'selection': 'fps',
+            'filter_force': True,
             'train_mode': 'all', # all: use all the data; new: only new data; mix: mix previous and current data
             'mix_ratio': 1, # No. previous data / No. current data
             'max_mace_force': 1000, # Max force for MACE. If forces are larger than this value, the relaxation will be stopped
@@ -192,7 +193,7 @@ class MACECalculator(ASEClusterCalculator):
             'optimizer': self.optimizer,
             'max_move': self.max_move,
             'eps': self.eps,
-            'filter_force': True,
+            'filter_force': self.filter_force,
             'max_mace_force': self.max_mace_force,
             'min_mace_dratio': self.min_mace_dratio,
         }
