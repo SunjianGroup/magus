@@ -19,7 +19,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def apply_peturb(pop, numP, stdAtMove, stdLatMove, saveInit=True, seed=None, rndType='uniform'):
+def apply_perturb(pop, numP, stdAtMove, stdLatMove, saveInit=True, seed=None, rndType='uniform'):
 
     assert rndType in ['uniform', 'normal'], "rndType must be uniform or normal"
     # apply perturbations on lattice and atomice position

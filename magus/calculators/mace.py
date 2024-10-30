@@ -7,7 +7,7 @@ from mace.calculators import MACECalculator as MACEAseCalculator
 import torch
 
 from magus.calculators.base import ASECalculator, ClusterCalculator, ASEClusterCalculator
-from magus.utils import CALCULATOR_PLUGIN, check_parameters, apply_peturb
+from magus.utils import CALCULATOR_PLUGIN, check_parameters, apply_perturb
 from magus.populations.populations import Population
 
 from ase.filters import ExpCellFilter
@@ -363,7 +363,7 @@ class MACECalculator(ASEClusterCalculator):
         # expand dataset by perturbation
         if self.n_perturb > 0:
             log.debug("Expand dataset by perturbation")
-            ret = apply_peturb(pop, self.n_perturb,  self.std_atom_move, self.std_lat_move, self.perturb_keep_init, rndType='normal')
+            ret = apply_perturb(pop, self.n_perturb,  self.std_atom_move, self.std_lat_move, self.perturb_keep_init, rndType='normal')
             if isinstance(pop, Population):
                 return pop.__class__(ret)
             return ret
