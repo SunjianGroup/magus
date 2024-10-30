@@ -5,7 +5,7 @@ import magus.xrdutils as xrdutils
 
 
 class FitnessCalculator(abc.ABC):
-    def __init__(self, parameters) -> None:    
+    def __init__(self, parameters) -> None:
         pass
 
     #@abc.abstractmethod
@@ -26,7 +26,7 @@ class GapFitness(FitnessCalculator):
     def calc(self, pop):
         for ind in pop:
             ind.info['fitness']['gap'] = -abs(ind.info['direct_gap'] - self.target_gap) \
-                                         -abs(ind.info['indirect_gap'] - ind.info['direct_gap']) 
+                                         -abs(ind.info['indirect_gap'] - ind.info['direct_gap'])
 
 
 class EhullFitness(FitnessCalculator):
@@ -38,8 +38,10 @@ class EhullFitness(FitnessCalculator):
         pd = PhaseDiagram(pop, self.boundary)
         for ind in pop:
             ehull = ind.info['enthalpy'] - pd.decompose(ind)
-            if ehull < 1e-4:
-                ehull = 0
+            # For machine learning potential, it leads to too many structure on convex hull.
+            # So I comment the following two lines. --Hao Gao
+            #if ehull < 1e-4:
+            #    ehull = 0
             ind.info['ehull'] = ehull
             ind.info['fitness']['ehull'] = -ehull
 
@@ -52,7 +54,7 @@ class XrdFitness(FitnessCalculator):
         self.target_peaks = np.array(parameters['targetXrd'],dtype='float')
         self.two_theta_range = [ max(min(self.target_peaks[0])-2,0),
                                  min(max(self.target_peaks[0])+2,180)]
-        
+
     def calc(self,pop):
         for ind in pop:
             xrd = xrdutils.XrdStructure(ind,self.wave_length,self.two_theta_range)

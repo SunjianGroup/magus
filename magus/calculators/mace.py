@@ -150,6 +150,9 @@ class MACENoSelectCalculator(ASECalculator):
         else:
             self.relax_calc = MACEAseCalculator(**params)
             self.scf_calc = MACEAseCalculator(**params)
+        
+        # Update parameters like 'eps', 'max_step' etc.
+        self.update_parameters(params)
 
 
 @CALCULATOR_PLUGIN.register('mace')

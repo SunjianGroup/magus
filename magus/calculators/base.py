@@ -7,11 +7,14 @@ from magus.populations.populations import Population
 from magus.formatting.traj import write_traj
 from magus.parallel.queuemanage import JobManager
 from magus.utils import CALCULATOR_CONNECT_PLUGIN, check_parameters
-from ase.constraints import ExpCellFilter
 from ase.units import GPa, eV, Ang
 from ase.optimize import BFGS, LBFGS, FIRE, GPMin, BFGSLineSearch 
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.io import read, write
+try:
+    from ase.filters import ExpCellFilter
+except:
+    from ase.constraints import ExpCellFilter
 
 
 log = logging.getLogger(__name__)
@@ -226,6 +229,7 @@ class ASECalculator(Calculator):
             'relax_lattice': True,
             'fix_symmetry': False,
             'max_force': None,
+            'fix_volume': False
             }
         check_parameters(self, parameters, Requirement, Default)
 
@@ -247,6 +251,13 @@ class ASECalculator(Calculator):
 
         # self.optimizer = self.optimizer_dict[self.optimizer]
         self.main_info.extend(list(Default.keys()))
+    
+    # set parameters like 'eps', 'max_step' etc. for specific calclators
+    def update_parameters(parameters):
+        for key, val in parameters.items():
+            if hasattr(self, key):
+                setattr(self, key, val)
+        
 
     def relax_(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
         #Main calculator information is avail in Magus.init_parms(), no need to print again
@@ -264,7 +275,7 @@ class ASECalculator(Calculator):
             if self.fix_symmetry:
                 atoms.constraints += [FixSymmetry(atoms,symprec=0.1)]
             if self.relax_lattice:
-                ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa)
+                ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa, constant_volume=self.fix_volume)
             else:
                 ucf = atoms
             
