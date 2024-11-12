@@ -1323,7 +1323,8 @@ class sym_rattle:
     def read_ds(spacegroup, wyckoff_label):
         #static const vector< vector<double> > wyck [spg-1] = [num_of_wyckpos, label, matrix, mul, uni]
         data = wyckoff_positions_3d[spacegroup-1]
-
+        if spacegroup == 47 and wyckoff_label == 'A':
+            wyckoff_label = chr(ord('z')+1)
         index = (ord(wyckoff_label) -97 ) *15 +2
         wyck_matrix = np.array(data[index:index+12])
         return wyck_matrix.reshape(3,4)

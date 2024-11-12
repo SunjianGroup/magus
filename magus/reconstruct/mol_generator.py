@@ -1,3 +1,4 @@
+from magus.parameters import magusParameters
 from magus.generators.random import SPGGenerator
 import numpy as np
 import  os, ase.io
@@ -61,7 +62,7 @@ class FMLfilter:
         return True
     
 
-from .supergroupdb import spg_to_layer
+from magus.reconstruct.supergroupdb import spg_to_layer
 from ase.spacegroup import Spacegroup
 def recommand_multiplicity(spacegroup, dimention):
     if dimention == 2:
@@ -297,7 +298,7 @@ import numpy as np
 # For example, spacegroup no.2, P-1 could mine into its supergroup no.10, P2/m.
 from collections import Counter
 import logging
-from .supergroupdb import supergroup, _super_group_relation
+from magus.reconstruct.supergroupdb import supergroup, _super_group_relation
 
 def super_group_relation(spacegroup = -1, pointgroup = ""):
     if spacegroup > 0:
@@ -317,6 +318,28 @@ def super_group_relation(spacegroup = -1, pointgroup = ""):
 class Miner:
     def __init__(self):
         pass
+
+    @property
+    def subgroup(self):
+        if hasattr(self, '__subgroup__'):
+            pass
+        else:
+            try:
+                from subgroupdb import subgroup
+                # for developers: print the following subgroup database into subgroupdb and save a little(?) calculation time
+            except:
+                subgroup = {sg: {'subgroups': {}} for sg in range(2, 231)}
+                for key in supergroup:
+                    if key == 1:
+                        pass
+                    else:
+                        for sg in supergroup[key]['supergroups']:
+                            subgroup[sg]['subgroups'][key] = supergroup[key]['supergroups'][sg]
+            
+            self.__subgroup__ = subgroup
+        
+        return self.__subgroup__
+    
     
     @staticmethod
     def get_supergroup(supergroup_list, spacegroup = -1, pointgroup = ""):
@@ -325,31 +348,42 @@ class Miner:
         for name in x['super']:
             Miner.get_supergroup(supergroup_list, spacegroup=-1, pointgroup=name)
     
-    def mine_spg(self, spg):
+    def mine_spg(self, spg, weightparm = [[]]):
         x = super_group_relation(spacegroup = spg)
         log.debug("Mine into '{}' (pointgroup: {}; order: {})".format(spg, x['name'], x['order']))
-
         miner = {}
-        isHighOrder = (x['order'] >7)
-        isVeryHighOrder = (x['order'] >40)
 
-        for s in supergroup[spg]['supergroups'].keys():
-            if supergroup[spg]['supergroups'][s][0] <=(4 if isHighOrder else 8):
-                miner[s] = 2
-            else:
-                miner[s] = 1
 
-        if isHighOrder:
-            miner[spg] = 50
-
+        '''
+        weightparm:
+        rank (r1<=r<r2)  f1(same)  a  f2(super-index <= a)  f2(super-index > a)   f3    
+         7,100            50        4           2                 1                 0
+         0,7              0         8           2                 1                 0
+        
+        Adding interface for f4 changes other codes. 
+        I'm not planing for publishing the code; use 'mine_probabilities' is fine with most cases.
+        Any further questions with f4 pls contact me. - YU
+        '''  
+        for item in weightparm:
+             
+            assert len(item) == 7, 'wrong format of weightparm'
+            if item[0]<= x['order'] < item[1]:
+                for s in supergroup[spg]['supergroups'].keys():
+                    miner[s] = item[4] if supergroup[spg]['supergroups'][s][0] <=item[3] else item[5]
+                if item[2] > miner.get(spg, 0):
+                    miner[spg] = item[2]
+                if item[6] > 0:
+                    for s in self.subgroup[spg]['subgroups'].keys():
+                        miner[s] = item[6] 
+    
+        #isVeryHighOrder = (x['order'] >40)
         have_very_high_order = max([miner.get(s, 0) for s in range(221,231)])
         for s in range(221,231):
             # add all m-3m, things is weird when dealing with very high order
             miner[s] = have_very_high_order
 
-        
         return miner
-
+ 
 from collections import Counter
 import yaml
 import ase.io
@@ -423,7 +457,7 @@ class MinerTracker:
 
 
 
-def pop_mine_good_spg(inst, good_ratio = 0.1, miner_tracker = Counter({})):
+def pop_mine_good_spg(inst, good_ratio = 0.1, miner_tracker = Counter({}), weightparm = [[]]):
     inst.calc_dominators()
     spgs = [ind.info['spg'] for ind in sorted(inst.pop, key=lambda x: x.info['dominators']) if not ind.info['spg'] == 1]
     _miner_L = math.ceil(len(spgs) * good_ratio)
@@ -434,7 +468,7 @@ def pop_mine_good_spg(inst, good_ratio = 0.1, miner_tracker = Counter({})):
     for i,spg in enumerate(spgs):
         if i > _miner_L:
             break
-        miner += Miner().mine_spg(spg)
+        miner += Miner().mine_spg(spg, weightparm = weightparm)
     
     miner = miner_tracker.filter(miner)
     miner_tracker.add_miner_log_to_miner(miner)
@@ -465,3 +499,6 @@ def pop_select(inst, n, remove_highE = 0., remove_p1 = 0.5):
 
     if len(inst) > n:
         inst.pop = inst.pop[:n]
+
+if __name__ == '__main__':
+    print(Miner().mine_spg(9, weightparm = [[7, 100, 50, 4, 2, 1, 0], [0,7, 0, 8, 2, 1, 0]]))
