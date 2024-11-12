@@ -12,7 +12,7 @@ from ase.optimize import BFGS, LBFGS, FIRE, GPMin, BFGSLineSearch
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.io import read, write
 try:
-    from ase.filters import ExpCellFilter
+    from ase.filters import ExpCellFilter, FrechetCellFilter
 except:
     from ase.constraints import ExpCellFilter
 
@@ -253,7 +253,7 @@ class ASECalculator(Calculator):
         self.main_info.extend(list(Default.keys()))
     
     # set parameters like 'eps', 'max_step' etc. for specific calclators
-    def update_parameters(parameters):
+    def update_parameters(self, parameters):
         for key, val in parameters.items():
             if hasattr(self, key):
                 setattr(self, key, val)
@@ -275,7 +275,11 @@ class ASECalculator(Calculator):
             if self.fix_symmetry:
                 atoms.constraints += [FixSymmetry(atoms,symprec=0.1)]
             if self.relax_lattice:
-                ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa, constant_volume=self.fix_volume)
+                try:
+                    # Try to use newest FrechetCellFilter
+                    ucf = FrechetCellFilter(atoms, scalar_pressure=self.pressure * GPa, constant_volume=self.fix_volume)
+                except:
+                    ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa, constant_volume=self.fix_volume)
             else:
                 ucf = atoms
             
