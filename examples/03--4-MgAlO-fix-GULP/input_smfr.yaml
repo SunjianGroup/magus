@@ -24,7 +24,12 @@ spacegroup: [2-230]
 #on the fly spacegroup miner and fragment reorganizer
 spg_miner:
  mine_ratio: 0.1            # mine in spg of top 10% population
- mine_probabilities: 1.0    # change prob of 100% of next generation 
+ mine_probabilities: 1.0    # change prob of 100% of next generation
+ weightparm:                # f(g') = f1(same) + f2(super) + f3(sub)
+  #rank (r1<=r<r2)  f1(same)  a  f2(super-index <= a)  f2(super-index > a)   f3
+  - [     7,   100,   50,     4,         2,                 1,                0] 
+  - [     0,     7,   0 ,     8,         2,                 1,                0]
+ 
 frag_gen:
  distance_dict: 
   !!python/tuple ['O','Mg']: 2.277

@@ -8784,6 +8784,21 @@ layer_group_symbols = {
 
       sg = Spacegroup(spg)
       symbol = ''.join(sg.symbol.split()).lower()
+
+
+    plane_group_symbols = {
+      1: 'p 1',  2: 'p 2',  3: 'p 1 m 1',  4: 'p 1 g 1',  
+      5: 'c 1 m 1',  6: 'p 2 m m',  7: 'p 2 m g',  8: 'p 2 g g',  
+      9: 'c 2 m m',  10: 'p 4',  11: 'p 4 m m',  12: 'p 4 g m',  
+      13: 'p 3',  14: 'p 3 m 1',  15: 'p 3 1 m',  16: 'p 6',  
+      17: 'p 6 m m' }
+
+      1: 1, 2: P2/m(10) , 3: Pmm2(25) , 4: Pmc21(26) ,
+      5: Amm2(38) , 6: Pmmm(47) , 7: Pmma(51) , 8: Pbam(55) , 
+      9: Cmmm(65) , 10: P4/m(83) , 11: P4/mmm(123) , 12: P4/mbm(127) , 
+      13: P-6(174) , 14: 	P-6m2(187) , 15: P-62m(189) , 16: P6/m(175) , 
+      17: P6/mmm(191) 
+
 '''
 
 from ase.spacegroup import Spacegroup
@@ -8792,6 +8807,13 @@ import numpy as np
 
 class spg_to_layer:
   def __init__(self):
+    
+    self.__spg_to_plane__ = { 
+      10 : 2, 25 : 3, 26 : 4, 38 : 5, 47 : 6, 
+      51 : 7, 55 : 8, 65 : 9, 83 : 10, 123 : 11, 
+      127 : 12, 174 : 13, 187 : 14, 189 : 15, 175 : 16, 
+      191 : 17, }
+    
     self.__spg_to_layer__ = { 
       2 : 2, 3 : 8, 4 : 9, 5 : 10, 6 : 11, 
       7 : 12, 8 : 13, 10 : 14, 11 : 15, 12 : 18, 
@@ -8807,17 +8829,18 @@ class spg_to_layer:
       149 : 67, 150 : 68, 156 : 69, 157 : 70, 162 : 71, 
       164 : 72, 168 : 73, 174 : 74, 175 : 75, 177 : 76, 
       183 : 77, 187 : 78, 189 : 79, 191 : 80}
+    self.__plane_to_spg__ = {value: key for key, value in self.__spg_to_plane__.items()} 
     self.__layer_to_spg__ = {value: key for key, value in self.__spg_to_layer__.items()}
 
-  def spg_to_layer(self, spg):
+  def spg_to_layer(self, spg, group_type = 'layer'):
     '''
     This function serves for spgMiner in surface system
     to get the mined layer group number (for later random structure generation)
     Currently the structure symmetry analyzed by spglib is Space group thus this func work
     '''
-    return self.__spg_to_layer__.get(spg, 1)
-  def layer_to_spg(self, lyr):
-    return self.__layer_to_spg__.get(lyr, 1)
+    return getattr(self, f'__spg_to_{group_type}__').get(spg, 1)
+  def layer_to_spg(self, lyr, group_type = 'layer'):
+    return getattr(self, f'__{group_type}_to_spg__').get(lyr, 1)
 
   def __share_method__(self, number, direction, func_on_rt_matrix, number_type = 'ITA'):
     if number_type =='ITA':
@@ -8887,5 +8910,7 @@ if __name__ == '__main__':
     #print("space group", spg, " projected onto z", spg_without_z)
     #spg_without_z = s.reduce_z_compoent(spg)
     #print("space group", spg, " remove z", spg_without_z)
-    lyr = s.spg_to_layer(spg)
-    print("space group", spg, "to layer group index", lyr)
+    group_type = 'layer'   #'plane'
+    lyr = s.spg_to_layer(spg, group_type = group_type)
+    print("space group", spg, f"to {group_type} group index", lyr)
+
