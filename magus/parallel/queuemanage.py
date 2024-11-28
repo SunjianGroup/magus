@@ -15,10 +15,14 @@ class BaseJobManager:
             'pre_processing': '',
             'verbose': False,
             'kill_time': 7200,
+            'mem_per_cpu': '1G',
+            'memory': None,
             'wait_params': '--mem=10M',
             'mem_per_cpu': '1G'
             }
         check_parameters(self, parameters, Requirement, Default)
+        # log.debug(f"Job memory: {self.memory}")
+        # log.debug(f"Job mem_per_cpu: {self.mem_per_cpu}")
         self.jobs = []
         self.history = []
         if self.control_file:
@@ -209,9 +213,14 @@ class SLURMSystemManager(BaseJobManager):
             hours = self.kill_time // 3600
             minites = (self.kill_time % 3600) // 60
             seconds = int(self.kill_time % 60)
-            # In some slurm system, --mem-per-cpu option does not exist, so we manually multiply mem_by_cpu by num_core.
-            memory = str(int(re.findall("^\d+", self.mem_per_cpu)[0]) * self.num_core) \
-                     + (re.findall("[K|M|G|T]$", self.mem_per_cpu) + [''])[0]
+            if hasattr(self, 'memory') and self.memory != None:
+            # firstly try to use self.memory
+                memory = self.memory
+            else:
+            # Otherwise use self.mem_per_cpu
+            # In some slurm system, --mem-per-cpu option does not exist, so we manually multiply mem_per_cpu by num_core.
+                memory = str(int(re.findall("^\d+", self.mem_per_cpu)[0]) * self.num_core) \
+                        + (re.findall("[K|M|G|T]$", self.mem_per_cpu) + [''])[0]
             f.write(
                 f"#!/bin/bash\n"
                 f"#SBATCH --partition={self.queue_name}\n"

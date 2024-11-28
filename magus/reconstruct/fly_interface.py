@@ -141,7 +141,7 @@ class smfr_patch_to_Magus:
     def update_spg(inst):
         if inst.spg_miner:
             if inst.curgen > 1:
-                spgs = inst.parent_pop.pop_mine_good_spg(inst.spg_miner.get('mine_ratio', 0.5), miner_tracker = inst.miner_tracker)
+                spgs = inst.parent_pop.pop_mine_good_spg(inst.spg_miner.get('mine_ratio', 0.5), miner_tracker = inst.miner_tracker, weightparm = inst.spg_miner.get("weightparm",[[7,100, 50, 4, 2, 1, 0], [0,7, 0, 8, 2, 1, 0]]))
                 inst.atoms_generator.update(miner_spgs = spgs)
 
     @staticmethod

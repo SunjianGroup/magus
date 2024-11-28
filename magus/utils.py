@@ -19,6 +19,42 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def apply_perturb(pop, numP, stdAtMove, stdLatMove, saveInit=True, seed=None, rndType='uniform'):
+
+    assert rndType in ['uniform', 'normal'], "rndType must be uniform or normal"
+    # apply perturbations on lattice and atomice position
+    if saveInit:
+        perbPop = pop[:]
+    else:
+        perbPop = []
+    rng = np.random.RandomState(seed)
+
+    for ats in pop:
+        for _ in range(numP):
+            nAts = Atoms(numbers=ats.numbers, cell=ats.cell, positions=ats.positions, pbc=ats.pbc)
+            pos = nAts.get_positions()
+            if rndType == 'uniform':
+                nAts.set_positions(pos+rng.uniform(-1*stdAtMove, stdAtMove, size=pos.shape))
+            elif rndType == 'normal':
+                nAts.set_positions(pos+rng.normal(scale=stdAtMove, size=pos.shape))
+            nAts.wrap()
+            if rndType == 'uniform':
+                rLat = rng.uniform(-1*stdLatMove, stdLatMove, size=6)
+            elif rndType == 'normal':            
+                rLat = rng.normal(scale=stdLatMove, size=6)
+            strain = np.array([
+                [1+rLat[0], 0.5*rLat[5], 0.5*rLat[4]],
+                [0.5*rLat[5], 1+rLat[1], 0.5*rLat[3]],
+                [0.5*rLat[4], 0.5*rLat[3], 1+rLat[2]],
+            ])
+            cell = nAts.get_cell()
+            newCell = np.dot(strain, cell)
+            nAts.set_cell(newCell, scale_atoms=True)
+            perbPop.append(nAts)
+
+    return perbPop
+
+
 class Singleton:
     def __init__(self, cls):
         self._cls = cls
@@ -67,18 +103,18 @@ def check_parameters(instance, parameters, Requirement=[], Default={}):
         if key in parameters:
             setattr(instance, key, parameters[key])
         elif snake2camel(key) in parameters:
-            setattr(instance, key, parameters[snake2camel(key)])  
+            setattr(instance, key, parameters[snake2camel(key)])
         else:
             setattr(instance, key, Default[key])
 
 
 # def match_lattice(atoms1,atoms2):
 #     """lattice matching , 10.1016/j.scib.2019.02.009
-    
+
 #     Arguments:
 #         atoms1 {atoms} -- atoms1
 #         atoms2 {atoms} -- atoms2
-    
+
 #     Returns:
 #         atoms,atoms,float,float -- two best matched atoms in z direction
 #     """
@@ -117,10 +153,10 @@ def check_parameters(instance, parameters, Requirement=[], Default={}):
 #     #    atoms.positions = atoms.positions@T
 #     #    atoms.cell = newcell
 #     #    return atoms
-#     #    
+#     #
 #     #cell1,cell2 = atoms1.cell[:],atoms2.cell[:]
 #     #hklrange = [(1,0,0),(0,1,0),(0,0,1),(1,-1,0),(1,1,0),(1,0,-1),(1,0,1),(0,1,-1),(0,1,1),(2,0,0),(0,2,0),(0,0,2)]
-#     ##TODO ba cut cell jian qie ti ji bu fen gei gai le 
+#     ##TODO ba cut cell jian qie ti ji bu fen gei gai le
 #     #hklrange = [(1,0,0),(0,1,0),(0,0,1)]
 #     #hklrange = [np.array(_) for _ in hklrange]
 #     #minfitness = 1000
@@ -195,7 +231,7 @@ def get_units_formula(atoms, units):
 
 def get_threshold_dict(symbols, radius=None, d_ratio=None, distance_matrix=None):
     """
-    get threshold dictionary such as 
+    get threshold dictionary such as
     {('Al', 'Al'): 1., ('Al', 'O'): 0.8, ('O', 'Al'): 0.8, ('O', 'O'): 0.6}
     distance is calculate by threshold_dict[(sj, si)] * (ri + rj)
     """
@@ -214,7 +250,7 @@ def get_threshold_dict(symbols, radius=None, d_ratio=None, distance_matrix=None)
 
 def get_distance_dict(symbols, radius=None, d_ratio=None, distance_matrix=None):
     """
-    get distance dictionary such as 
+    get distance dictionary such as
     {('Al', 'Al'): 2.42, ('Al', 'O'): 1.5, ('O', 'Al'): 1.5, ('O', 'O'): 0.79}
     """
     distance_dict = {}
@@ -242,7 +278,7 @@ def get_unique_symbols(frames):
 
 def get_symbol_dict(atoms, unique_symbols=None):
     """
-    return a dict of number of each symbols of an atom, such as 
+    return a dict of number of each symbols of an atom, such as
     {'H': 2, 'O': 1, 'Zn': 0} for atoms=Atoms('H2O'), unique_symbols=['H', 'O', 'Zn']
     """
     symbols = atoms.get_chemical_symbols()

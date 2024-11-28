@@ -4,7 +4,7 @@ from copy import deepcopy
 from magus.utils import load_plugins, CALCULATOR_PLUGIN, CALCULATOR_CONNECT_PLUGIN
 
 
-need_convert = ['jobPrefix', 'eps', 'maxStep', 'optimizer', 'maxMove', 
+need_convert = ['jobPrefix', 'eps', 'maxStep', 'optimizer', 'maxMove',
                 'relaxLattice', 'exeCmd', 'calculator',
                 'queueName', 'numCore', 'Preprocessing', 'waitTime',
                 'scaled_by_force', 'force_tolerance', 'stress_tolerance',

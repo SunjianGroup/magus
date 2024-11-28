@@ -1,4 +1,4 @@
-import os, shutil, yaml, traceback
+import os, shutil, yaml, traceback, sys
 import numpy as np
 import abc
 import ase
@@ -7,11 +7,14 @@ from magus.populations.populations import Population
 from magus.formatting.traj import write_traj
 from magus.parallel.queuemanage import JobManager
 from magus.utils import CALCULATOR_CONNECT_PLUGIN, check_parameters
-from ase.constraints import ExpCellFilter
 from ase.units import GPa, eV, Ang
 from ase.optimize import BFGS, LBFGS, FIRE, GPMin, BFGSLineSearch 
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG, Converged
 from ase.io import read, write
+try:
+    from ase.filters import ExpCellFilter, FrechetCellFilter
+except:
+    from ase.constraints import ExpCellFilter
 
 
 log = logging.getLogger(__name__)
@@ -108,7 +111,9 @@ class ClusterCalculator(Calculator, abc.ABC):
                 'verbose': False,
                 'kill_time': 100000,
                 'num_parallel': 1,
-                'memory': '1000M',
+                'memory': None,
+                'mem_per_cpu': '1G',
+                # 'memory': '1000M',
                 'wait_params': '--mem=10M',
                 }
             check_parameters(self, parameters, Requirement, Default)
@@ -120,6 +125,7 @@ class ClusterCalculator(Calculator, abc.ABC):
                 verbose=self.verbose,
                 kill_time=self.kill_time,
                 memory=self.memory,
+                mem_per_cpu=self.mem_per_cpu,
                 wait_params=self.wait_params,
                 control_file="{}/job_controller".format(self.calc_dir))
         elif self.mode == 'serial':
@@ -222,10 +228,36 @@ class ASECalculator(Calculator):
             'max_move': 0.1,
             'relax_lattice': True,
             'fix_symmetry': False,
+            'max_force': None,
+            'fix_volume': False
             }
         check_parameters(self, parameters, Requirement, Default)
-        self.optimizer = self.optimizer_dict[self.optimizer]
+
+        class MagusOptimizer(self.optimizer_dict[self.optimizer]):
+            def converged(self, forces=None):
+                # # Note: here self.atoms is a Filter not Atoms, so self.atoms.atoms is used.
+                # cutoffs = natural_cutoffs(self.atoms.atoms, mult=min_mace_dratio)
+                # nlInds = neighbor_list('i', self.atoms.atoms, cutoffs)
+                # if len(nlInds) > 0:
+                #     #write('dist.vasp', self.optimizable.atom)
+                #     raise Exception('Too small distance during relaxation')
+                if forces is None:
+                    forces = self.optimizable.get_forces()
+                if self.max_force != None:
+                    if np.abs(forces).max() > self.max_force:
+                        raise Exception('Too large forces during relaxation')
+                return self.optimizable.converged(forces, self.fmax)
+        self.optimizer = MagusOptimizer
+
+        # self.optimizer = self.optimizer_dict[self.optimizer]
         self.main_info.extend(list(Default.keys()))
+    
+    # set parameters like 'eps', 'max_step' etc. for specific calclators
+    def update_parameters(self, parameters):
+        for key, val in parameters.items():
+            if hasattr(self, key):
+                setattr(self, key, val)
+        
 
     def relax_(self, calcPop, logfile='aserelax.log', trajname='calc.traj'):
         #Main calculator information is avail in Magus.init_parms(), no need to print again
@@ -243,7 +275,11 @@ class ASECalculator(Calculator):
             if self.fix_symmetry:
                 atoms.constraints += [FixSymmetry(atoms,symprec=0.1)]
             if self.relax_lattice:
-                ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa)
+                try:
+                    # Try to use newest FrechetCellFilter
+                    ucf = FrechetCellFilter(atoms, scalar_pressure=self.pressure * GPa, constant_volume=self.fix_volume)
+                except:
+                    ucf = ExpCellFilter(atoms, scalar_pressure=self.pressure * GPa, constant_volume=self.fix_volume)
             else:
                 ucf = atoms
             
@@ -253,6 +289,10 @@ class ASECalculator(Calculator):
 
             gopt = self.optimizer(ucf, **kwargs)
             # SciPyFminCG raises error if maxstep parameter is used
+
+            # set max force for optimizer
+            # Naive implmentation. It should be imporved later.
+            setattr(gopt, 'max_force', self.max_force)
 
             try:
                 label = gopt.run(fmax=self.eps, steps=self.max_step)
@@ -311,6 +351,37 @@ class ASECalculator(Calculator):
             except:
                 log.debug('{} scf Error'.format(self.__class__.__name__))
         return calcPop
+
+# ASE calculator supporting parallel mode
+class ASEClusterCalculator(ClusterCalculator):
+    def __init__(self, **parameters):
+        super().__init__(**parameters)
+        self.ASECalc = ASECalculator(**parameters)
+    
+    def scf_(self, calcPop):
+        if self.mode == 'parallel':
+            self.paralleljob(calcPop, self.scf_job)
+            scfPop = self.read_parallel_results()
+            self.J.clear()
+        else:
+            # serial model: use ASECalculator
+            os.chdir(self.calc_dir)
+            scfPop = self.ASECalc.scf_(calcPop)
+            os.chdir(self.work_dir)
+        return scfPop
+
+    def relax_(self, calcPop):
+        if self.mode == 'parallel':
+            self.paralleljob(calcPop, self.relax_job)
+            relaxPop = self.read_parallel_results()
+            self.J.clear()
+        else:
+            os.chdir(self.calc_dir)
+            relaxPop = self.ASECalc.relax_(calcPop)
+            os.chdir(self.work_dir)
+        return relaxPop
+    
+
 
 
 @CALCULATOR_CONNECT_PLUGIN.register('naive')

@@ -3,7 +3,12 @@ from collections import defaultdict
 from .populations import get_population
 from .calculators import get_calculator
 from .generators import get_random_generator, get_ga_generator
+import logging
+
+# This causes conflicts during merging. It needs to be further tested.  # Fixed -YU
 from magus.reconstruct import rcs_type_list
+
+log = logging.getLogger(__name__)
 
 #@Singleton
 class magusParameters:
@@ -28,6 +33,8 @@ class magusParameters:
             'structureType': 'bulk',
             'spacegroup': list(range(1, 231)),
             'DFTRelax': False,
+            'DFTScf': False,
+            'SelectDFTScf': False,
             'initSize': p_dict['popSize'],
             'goodSize': p_dict['popSize'],
             'molMode': False,
@@ -99,6 +106,7 @@ class magusParameters:
                 p_dict = copy.deepcopy(self.p_dict)
                 p_dict.update(p_dict['MLCalculator'])
                 p_dict['query_calculator'] = self.MainCalculator
+                # log.debug(f"Parameter for MLCalc: {p_dict}")
                 self.MLCalculator_ = get_calculator(p_dict)   
             else:
                 raise Exception('No ML Calculator!')

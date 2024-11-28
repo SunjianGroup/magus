@@ -527,9 +527,10 @@ def decompose(origin_struct, center_index, distance_dict, neighbor_dis=5, path_l
    
    # translate center index into cell center
    origin_struct = origin_struct.copy()
-   sp = origin_struct.get_scaled_positions()
-   origin_struct.set_scaled_positions(sp - sp[center_index] + np.array([0.5]*3))
-   origin_struct.wrap()
+   if len(list(set(origin_struct.get_atomic_numbers()))) == 1:
+     sp = origin_struct.get_scaled_positions()
+     origin_struct.set_scaled_positions(sp - sp[center_index] + np.array([0.5]*3))
+     origin_struct.wrap()
 
    atoms, central = build_neighbor_struct(origin_struct, center_index, neighbor_dis)
    G = CrystalGraph()
@@ -573,7 +574,10 @@ def DECOMPOSE(pop, distance_dict, **kwargs):
    for atoms in pop:
       identity = atoms.info.get("identity", 'unknown')
       std_para = spglib.standardize_cell((atoms.cell, atoms.get_scaled_positions(), atoms.numbers), symprec=0.1, to_primitive=False)
-      atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2], pbc = True)
+      if not std_para is None:
+          atoms = Atoms(cell=std_para[0], scaled_positions=std_para[1], numbers=std_para[2], pbc = True)
+      else:
+          continue
       atoms.info['identity'] =  identity
       #ase.io.write('std.vasp', atoms, vasp5=1)
       
@@ -622,8 +626,8 @@ def is_same_frag(a,b):
 
 if __name__ == '__main__':
    distance_dict = {('B', 'B'): 1.848,}
-
-   atoms = [ase.io.read('B_Pnnm_58_88.321077.vasp')] 
+   import sys
+   atoms = [ase.io.read(sys.argv[-1])] 
    decomposed_pop = DECOMPOSE(atoms, distance_dict, neighbor_dis=5, path_length_cut = 4, minimal_n_community=3)
    decomposed_pop = list(map(lambda x: x.output_atoms(), decomposed_pop))
    for i,mol in enumerate(decomposed_pop):
