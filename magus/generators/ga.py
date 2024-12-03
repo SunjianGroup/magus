@@ -6,6 +6,7 @@ from magus.utils import *
 import prettytable as pt
 from collections import defaultdict
 import yaml
+import traceback
 # from .reconstruct import reconstruct, cutcell, match_symmetry, resetLattice
 
 
@@ -47,7 +48,7 @@ def f_prob(func_name = 'exp', k = 0.3):
 class GAGenerator:
     def __init__(self, op_list, op_prob, **parameters):
         Requirement = ['pop_size', 'n_cluster']
-        Default={'rand_ratio': 0.3, 'add_sym': True, 'history_punish':1.0, 'k': 0.3, 'choice_func': 'exp'}
+        Default={'rand_ratio': 0.3, 'add_sym': True, 'history_punish':1.0, 'k': 0.3, 'choice_func': 'exp', 'allow_self_cross': True}
         check_parameters(self, parameters, Requirement, Default)
 
         assert len(op_list) == len(op_prob), "number of operations and probabilities not match"
@@ -104,7 +105,7 @@ class GAGenerator:
                 continue
             prob = edom[indices] * history_punish ** used[indices]
             prob = prob / sum(prob)
-            i, j = np.random.choice(indices, 2 , p=prob)
+            i, j = np.random.choice(indices, 2, replace = self.allow_self_cross, p=prob)
             pop[i].info['used'] += 1
             pop[j].info['used'] += 1
             return pop[i].copy(), pop[j].copy()
@@ -112,7 +113,7 @@ class GAGenerator:
         indices = np.arange(len(pop))
         prob = edom[indices] * history_punish ** used[indices]
         prob = prob / sum(prob)
-        i, j = np.random.choice(indices, 2 , p=prob)
+        i, j = np.random.choice(indices, 2, replace = self.allow_self_cross, p=prob)
         pop[i].info['used'] += 1
         pop[j].info['used'] += 1
         return pop[i].copy(), pop[j].copy()
@@ -152,8 +153,13 @@ class GAGenerator:
             i = np.random.choice(len(self.op_list), p=self.op_prob)
             op_choosed_num[i] += 1
             op = self.op_list[i]
-            cand = self.get_parents(pop, op.n_input)
-            newind = op.get_new_individual(cand)
+            try:
+                cand = self.get_parents(pop, op.n_input)
+                newind = op.get_new_individual(cand)
+            except:
+                log.warning(f"Exception is raised during {op.__class__.__name__}, {traceback.format_exc()}")
+                newind = None
+            
             if newind is not None:
                 op_success_num[i] += 1
                 newpop.append(newind)
