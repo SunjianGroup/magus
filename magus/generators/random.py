@@ -81,6 +81,10 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
         generator.vacuum = vacuum
     if choice is not None:
         generator.choice = choice
+        if choice == 0:
+            generator.thickness_tolerance = 1000
+        else:
+            generator.thickness_tolerance = thickness_tolerance
     generator.threshold = 100. # now use threshold_dict instead of threshold
     generator.method = method
     
@@ -102,8 +106,7 @@ def spg_generate(spg, threshold_dict, numlist, radius, symbols,
 
     generator.SetLatticeMins(min_lattice[0], min_lattice[1], min_lattice[2], min_lattice[3], min_lattice[4], min_lattice[5])
     generator.SetLatticeMaxes(max_lattice[0], max_lattice[1], max_lattice[2], max_lattice[3], max_lattice[4], max_lattice[5])
-    generator.thickness_tolerance = thickness_tolerance
-    
+    #print(f"{min_lattice=}, {max_lattice=}, {spg=}, {numlist=}, {dimension=}, {min_volume=}, {max_volume=}, {generator_max_length_ratio=}") 
     generator.max_length_ratio = generator_max_length_ratio
     if esangle_min is None:
         esangle_min = [30 *math.pi/180] * 3

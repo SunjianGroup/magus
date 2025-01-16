@@ -1604,7 +1604,9 @@ class find_eq_positions_on_surface:
                         # remove z symmetry
                         if ep[2] != 0:
                             continue
-                        eqm[int(np.round(ep[0] * self.array_size[0]))][int(np.round(ep[1] * self.array_size[1]))] = s
+                        _a, _b = int(np.round(ep[0] * self.array_size[0])), int(np.round(ep[1] * self.array_size[1]))
+                        _a, _b = np.mod(_a, self.array_size[0]), np.mod(_a, self.array_size[1])
+                        eqm[_a][_b] = s
         self.eqm = eqm   
     
     def get_position(self):
