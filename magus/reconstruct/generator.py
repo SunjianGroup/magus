@@ -472,7 +472,7 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
     def get_volume(self, numlist):
         if self.presetLattice:
             return [np.linalg.det(cellpar_to_cell(self.presetLattice))]*2
-        return self.min_volume, self.min_volume
+        return 0.01, 10000 #self.min_volume, self.min_volume
     
 
     def generate_random_walk_ind(self, _x, _y):
@@ -493,21 +493,20 @@ class SurfaceGenerator(OntheFlyFragSPGGenerator):
                     del ind[_to_del]
         
         if add:
-            spg = np.random.choice(self.spacegroup) if self.choice == 0 else np.random.choice(self.get_spg(self.symtype, 'planegroup'))                
+            spg = np.random.choice(self.spacegroup) if self._choice_ == 0 else np.random.choice(self.get_spg(self.symtype, 'planegroup')) 
             self.choice = 0
             self.reset_generator_lattice(_x, _y, spg)
-
+            self.target_formula = FMLfilter(add)
             label,extraind = self.generate_ind(spg, add)
             if label:
                 botp = np.max(ind.get_scaled_positions()[:,2]) + np.random.choice(range(5,20))/100
                 label, extraind = self.reset_rind_lattice(extraind, _x, _y, layersub = ind.copy())
             if label:              
-                label, extraind = self.match_symmetry_plane(extraind, Surface.set_substrate(ind, self.input_layers[0]*(_x, _y, 1))) 
-                hight = np.random.uniform(np.mean(ind.get_scaled_positions()[:, 2]), np.max(ind.get_scaled_positions()[:, 2]) + 1/(extraind.get_cell()[2]))
+                label, extraind = self.match_symmetry_plane(extraind, Surface.set_substrate(ind, self.input_layers[0]*(_x, _y, 1)))
+                hight = np.random.uniform(np.mean(ind.get_scaled_positions()[:, 2]), np.max(ind.get_scaled_positions()[:, 2]) + 1/(extraind.get_cell_lengths_and_angles()[2]))
                 extraind.translate([hight * extraind.get_cell()[2]]*len(extraind))
                 #extraind.translate([np.mean(ind.get_scaled_positions()[:, 2]) + np.max(ind.get_scaled_positions()[:, 2])/2 * extraind.get_cell()[2]]*len(extraind))
                 ind += extraind
-                
             if not label:
                 return label, None
         
