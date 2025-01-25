@@ -20,6 +20,8 @@ class LammpsCalculator(ClusterCalculator):
             'save_traj': False, 
             'atom_style': 'atomic',
             'job_prefix': 'Lammps',
+            'write_mass': False,
+            'units': 'real',
             }
         check_parameters(self, parameters, Requirement, Default)
         self.lammps_setup = {
@@ -28,6 +30,8 @@ class LammpsCalculator(ClusterCalculator):
             'atom_style': self.atom_style,
             'exe_cmd': self.exe_cmd,
             'save_traj': self.save_traj,
+            'write_mass': self.write_mass,
+            'units': self.units,
         }
         self.main_info.append('lammps_setup')
 
@@ -65,20 +69,25 @@ class LammpsCalculator(ClusterCalculator):
 def calc_lammps_once(lammps_setup, atoms):
     specorder = lammps_setup['symbols']
     atom_style = lammps_setup['atom_style']
+    units = lammps_setup['units']
     exe_cmd = lammps_setup['exe_cmd']
     pressure = lammps_setup['pressure']
     save_traj = lammps_setup['save_traj']
+    write_mass = lammps_setup['write_mass']
 
     #if atoms have constraints, delete them
-    atoms.constraints = []
+    if len(atoms.constraints):
+        log.warning("ASE constraints are not supported by lammps calculator!")
+        atoms.constraints = []
     
     #sort atoms by scaled positions, for fixing bulk by index
     s_positions = atoms.get_scaled_positions()
-    s_positions = sorted(s_positions, key = lambda p:p[2])
-    atoms.set_scaled_positions(s_positions)
+    #s_positions = sorted(s_positions, key = lambda p:p[2])
+    #atoms.set_scaled_positions(s_positions)
+    atoms = atoms[np.argsort(s_positions[:, 2])]
 
     
-    write_lammps_data('data', atoms, specorder=specorder, atom_style=atom_style)
+    write_lammps_data('data', atoms, specorder=specorder, atom_style=atom_style, masses=write_mass, units = units)
     exitcode = subprocess.call(exe_cmd, shell=True)
     if exitcode != 0 and exitcode != 8:
         logging.warn('Lammps exited with exit code: %d.  ' % exitcode)
@@ -107,7 +116,7 @@ def calc_lammps_once(lammps_setup, atoms):
                     )
                     line = f.readline()
                 break
-    energy = thermo_content[-1]['PotEng']
+    energy = thermo_content[-1].get('PotEng', None) or thermo_content[-1].get('TotEng', None)  
     enthalpy = (energy + pressure * GPa * new_atoms.get_volume()) / len(new_atoms)
     new_atoms.info['enthalpy'] = round(enthalpy, 6)
     new_atoms.info['energy'] = energy
